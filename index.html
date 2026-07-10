@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Divanna Eventos &amp; El Vaso Maíz — Más de 3,000 eventos respaldan nuestra experiencia</title>
+<meta name="description" content="Divanna Eventos renta mobiliario y artículos para eventos. El Vaso Maíz ofrece snacks irresistibles. Más de 3,000 eventos atendidos en Culiacán y alrededores.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0b10;
+    --ink-2:#151319;
+    --paper:#f6f1ea;
+    --divanna:#b98bff;
+    --divanna-dim:#8a63c9;
+    --maiz:#f0b93a;
+    --maiz-deep:#7a4a1e;
+    --maiz-husk:#7fae5a;
+    --line: rgba(246,241,234,0.14);
+    --muted: rgba(246,241,234,0.62);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    letter-spacing:-0.01em;
+    margin:0;
+  }
+  .script{
+    font-family:'Caveat',cursive;
+    font-weight:600;
+  }
+  a{color:inherit;text-decoration:none;}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px;}
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:rgba(12,11,16,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav.wrap{
+    display:flex;align-items:center;justify-content:space-between;
+    height:72px;
+  }
+  .brandmark{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:1.05rem;}
+  .brandmark .divider{color:var(--muted);font-weight:300;}
+  .brandmark .dv{color:var(--divanna);}
+  .brandmark .vm{color:var(--maiz);}
+  .nav-links{display:flex;gap:28px;align-items:center;}
+  .nav-links a{font-size:0.92rem;color:var(--muted);transition:color .2s;}
+  .nav-links a:hover{color:var(--paper);}
+  .nav-cta{
+    background:var(--maiz);color:var(--ink);
+    padding:10px 20px;border-radius:100px;font-weight:700;font-size:0.88rem;
+  }
+  .nav-toggle{display:none;background:none;border:none;color:var(--paper);font-size:1.6rem;cursor:pointer;}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;
+    padding:96px 0 88px;
+    overflow:hidden;
+    background:
+      radial-gradient(ellipse 900px 500px at 18% -10%, rgba(185,139,255,0.20), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 10%, rgba(240,185,58,0.14), transparent 55%);
+  }
+  .hero-eyebrow{
+    display:inline-flex;align-items:center;gap:10px;
+    border:1px solid var(--line);border-radius:100px;
+    padding:7px 16px;font-size:0.82rem;color:var(--muted);
+    margin-bottom:28px;
+  }
+  .hero-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--maiz);}
+  .hero h1{
+    font-size:clamp(2.4rem, 5.6vw, 4.4rem);
+    line-height:1.04;
+    max-width:15ch;
+  }
+  .hero h1 em{
+    font-style:normal;
+    background:linear-gradient(90deg,var(--divanna),var(--maiz));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero-sub{
+    margin-top:26px;max-width:640px;
+    font-size:1.14rem;line-height:1.6;color:var(--muted);
+  }
+  .hero-sub b{color:var(--paper);font-weight:700;}
+  .hero-ctas{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px;}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:15px 26px;border-radius:100px;
+    font-weight:700;font-size:0.95rem;
+    transition:transform .18s ease, box-shadow .18s ease;
+    border:1px solid transparent;
+  }
+  .btn:hover{transform:translateY(-2px);}
+  .btn-primary{background:var(--maiz);color:var(--ink);box-shadow:0 8px 30px -8px rgba(240,185,58,0.55);}
+  .btn-ghost{border-color:var(--line);color:var(--paper);}
+  .btn-ghost:hover{border-color:var(--divanna);}
+
+  /* seal / signature element */
+  .seal-row{
+    margin-top:64px;display:flex;align-items:center;gap:26px;flex-wrap:wrap;
+  }
+  .seal{
+    position:relative;width:118px;height:118px;flex:none;
+    border-radius:50%;
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ink-2);
+  }
+  .seal svg{position:absolute;inset:0;width:100%;height:100%;animation:spin 26s linear infinite;}
+  .seal .num{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:700;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion:reduce){.seal svg{animation:none;}}
+  .seal-copy{max-width:380px;color:var(--muted);font-size:0.95rem;line-height:1.55;}
+  .seal-copy b{color:var(--paper);}
+
+  /* ---------- SECTION SHELL ---------- */
+  section{padding:96px 0;}
+  .section-head{max-width:640px;margin-bottom:56px;}
+  .eyebrow{
+    font-size:0.82rem;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:14px;display:block;
+  }
+  .section-head h2{font-size:clamp(1.8rem,3.4vw,2.6rem);line-height:1.15;}
+  .section-head p{margin-top:16px;color:var(--muted);font-size:1.05rem;line-height:1.6;}
+
+  /* ---------- BRAND CARDS ---------- */
+  .brands{padding-top:40px;}
+  .brand-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  @media (max-width:860px){.brand-grid{grid-template-columns:1fr;}}
+  .brand-card{
+    border-radius:22px;padding:44px 38px;position:relative;overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .brand-card.dv{background:linear-gradient(160deg, rgba(185,139,255,0.10), rgba(12,11,16,0.4));}
+  .brand-card.vm{background:linear-gradient(160deg, rgba(240,185,58,0.10), rgba(12,11,16,0.4));}
+  .brand-logo-wrap{
+    height:64px;display:flex;align-items:center;margin-bottom:30px;
+  }
+  .brand-logo-wrap img{height:100%;width:auto;object-fit:contain;}
+  .brand-card h3{font-size:1.5rem;margin-bottom:6px;}
+  .brand-tag{font-size:0.9rem;color:var(--muted);margin-bottom:22px;display:block;}
+  .brand-card ul{list-style:none;margin:0 0 26px;padding:0;display:grid;gap:12px;}
+  .brand-card li{
+    display:flex;gap:12px;align-items:flex-start;
+    font-size:0.98rem;color:var(--muted);line-height:1.5;
+  }
+  .brand-card li::before{
+    content:"";width:6px;height:6px;border-radius:50%;margin-top:8px;flex:none;
+  }
+  .brand-card.dv li::before{background:var(--divanna);}
+  .brand-card.vm li::before{background:var(--maiz);}
+  .brand-note{
+    font-size:0.85rem;color:var(--muted);opacity:0.8;
+    border-top:1px solid var(--line);padding-top:16px;margin-top:4px;
+  }
+  .brand-links{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;}
+  .pill-link{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1px solid var(--line);border-radius:100px;padding:9px 16px;
+    font-size:0.85rem;font-weight:600;transition:border-color .2s;
+  }
+  .brand-card.dv .pill-link:hover{border-color:var(--divanna);}
+  .brand-card.vm .pill-link:hover{border-color:var(--maiz);}
+
+  /* ---------- COMBINED VALUE ---------- */
+  .combo{
+    background:var(--ink-2);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  }
+  .combo-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:56px;align-items:center;}
+  @media (max-width:860px){.combo-grid{grid-template-columns:1fr;}}
+  .combo-list{display:grid;gap:18px;margin-top:8px;}
+  .combo-item{
+    display:flex;gap:16px;align-items:flex-start;
+    padding:18px 0;border-bottom:1px solid var(--line);
+  }
+  .combo-item:last-child{border-bottom:none;}
+  .combo-mark{
+    font-family:'Fraunces',serif;font-size:0.95rem;color:var(--ink);
+    background:linear-gradient(120deg,var(--divanna),var(--maiz));
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex:none;font-weight:700;
+  }
+  .combo-item h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:1.02rem;margin:0 0 4px;}
+  .combo-item p{margin:0;color:var(--muted);font-size:0.95rem;line-height:1.5;}
+  .combo-card{
+    border-radius:22px;border:1px solid var(--line);
+    background:var(--ink);padding:38px;
+  }
+  .combo-card .quote{
+    font-family:'Fraunces',serif;font-size:1.3rem;line-height:1.45;font-style:italic;
+  }
+  .combo-card .quote b{
+    font-style:normal;
+    background:linear-gradient(90deg,var(--divanna),var(--maiz));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .combo-stats{display:flex;gap:0;margin-top:30px;border-top:1px solid var(--line);padding-top:26px;}
+  .combo-stat{flex:1;}
+  .combo-stat .n{font-family:'Fraunces',serif;font-size:1.9rem;font-weight:700;}
+  .combo-stat .l{font-size:0.82rem;color:var(--muted);margin-top:4px;}
+
+  /* ---------- BENEFITS ---------- */
+  .benefits-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;}
+  @media (max-width:760px){.benefits-grid{grid-template-columns:1fr 1fr;}}
+  @media (max-width:520px){.benefits-grid{grid-template-columns:1fr;}}
+  .benefit{background:var(--ink);padding:32px 28px;}
+  .benefit .k{font-family:'Fraunces',serif;font-size:1.5rem;color:var(--maiz);margin-bottom:14px;display:block;}
+  .benefit h4{font-size:1.02rem;font-weight:700;margin-bottom:8px;}
+  .benefit p{margin:0;font-size:0.92rem;color:var(--muted);line-height:1.5;}
+
+  /* ---------- COVERAGE ---------- */
+  .coverage{
+    display:flex;align-items:center;gap:40px;
+    border:1px solid var(--line);border-radius:22px;
+    padding:44px;background:radial-gradient(ellipse at top left, rgba(185,139,255,0.08), transparent 60%);
+  }
+  @media (max-width:700px){.coverage{flex-direction:column;text-align:center;gap:24px;}}
+  .coverage-radius{
+    flex:none;width:132px;height:132px;border-radius:50%;
+    border:1.5px dashed var(--divanna-dim);
+    display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .coverage-radius::before{
+    content:"";position:absolute;inset:18px;border-radius:50%;border:1px solid var(--line);
+  }
+  .coverage-radius .center{
+    width:10px;height:10px;border-radius:50%;background:var(--maiz);
+  }
+  .coverage h3{font-size:1.3rem;margin-bottom:10px;}
+  .coverage p{margin:0;color:var(--muted);line-height:1.6;max-width:520px;}
+
+  /* ---------- GALLERY ---------- */
+  .gallery-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  }
+  @media (max-width:820px){.gallery-grid{grid-template-columns:repeat(2,1fr);}}
+  .gallery-item{
+    aspect-ratio:3/4;border-radius:16px;
+    background:var(--ink-2);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;overflow:hidden;
+  }
+  .gallery-item span{
+    font-size:0.78rem;color:var(--muted);text-align:center;padding:0 16px;
+  }
+  .gallery-item.tall{grid-row:span 2;aspect-ratio:auto;}
+
+  /* ---------- CLOSING ---------- */
+  .closing{
+    text-align:center;padding:120px 0;position:relative;overflow:hidden;
+    background:radial-gradient(ellipse 800px 500px at 50% 0%, rgba(240,185,58,0.12), transparent 60%);
+  }
+  .closing h2{font-size:clamp(2rem,4.4vw,3.2rem);max-width:16ch;margin:0 auto 22px;line-height:1.12;}
+  .closing p{color:var(--muted);font-size:1.08rem;max-width:520px;margin:0 auto 40px;}
+  .closing .btn-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+
+  footer{
+    border-top:1px solid var(--line);padding:44px 0;
+  }
+  .footer-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;}
+  .footer-brands{display:flex;gap:24px;align-items:center;}
+  .footer-brands img{height:28px;width:auto;filter:grayscale(1);opacity:0.7;}
+  .footer-meta{font-size:0.82rem;color:var(--muted);}
+
+  @media (max-width:760px){
+    .nav-links{position:fixed;top:72px;left:0;right:0;background:var(--ink);flex-direction:column;padding:20px 28px;border-bottom:1px solid var(--line);display:none;}
+    .nav-links.open{display:flex;}
+    .nav-toggle{display:block;}
+    section{padding:64px 0;}
+  }
+
+  /* ---------- MUSIC TOGGLE ---------- */
+  .music-toggle{
+    position:fixed;bottom:24px;right:24px;z-index:60;
+    width:52px;height:52px;border-radius:50%;
+    background:var(--ink-2);border:1px solid var(--line);
+    color:var(--paper);
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    cursor:pointer;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,0.6);
+    transition:border-color .2s, transform .2s;
+  }
+  .music-toggle:hover{transform:translateY(-2px);border-color:var(--maiz);}
+  .music-toggle[aria-pressed="true"]{border-color:var(--maiz);}
+  .music-bars{display:none;gap:2px;align-items:flex-end;height:12px;}
+  .music-toggle[aria-pressed="true"] .music-bars{display:flex;position:absolute;bottom:7px;right:7px;}
+  .music-bars i{
+    width:2px;background:var(--maiz);border-radius:1px;
+    animation:bar 1s ease-in-out infinite;
+  }
+  .music-bars i:nth-child(1){height:5px;animation-delay:0s;}
+  .music-bars i:nth-child(2){height:9px;animation-delay:.2s;}
+  .music-bars i:nth-child(3){height:6px;animation-delay:.4s;}
+  @keyframes bar{0%,100%{transform:scaleY(0.5);}50%{transform:scaleY(1.3);}}
+  @media (prefers-reduced-motion:reduce){.music-bars i{animation:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="wrap">
+    <div class="brandmark">
+      <span class="dv">divanna</span><span class="divider">×</span><span class="vm">vaso maíz</span>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="#divanna">Mobiliario</a>
+      <a href="#vasomaiz">Snacks</a>
+      <a href="#experiencia">Experiencia</a>
+      <a href="#cobertura">Cobertura</a>
+      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="nav-cta">Cotizar</a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">☰</button>
+  </nav>
+</header>
+
+<audio id="bgMusic" loop preload="auto">
+  <source src="brilla-la-fiesta.mp3" type="audio/mpeg">
+</audio>
+<button id="musicToggle" class="music-toggle" aria-label="Activar música" aria-pressed="false">
+  <svg id="musicIconOff" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="1.6"/></svg>
+  <svg id="musicIconOn" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+  <span class="music-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+</button>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="hero-eyebrow"><span class="dot"></span> Culiacán, Sinaloa &amp; alrededores</span>
+    <h1>Más de <em>3,000 eventos</em> respaldan nuestra experiencia</h1>
+    <p class="hero-sub">
+      <b>Divanna Eventos</b> renta mobiliario y artículos para eventos, mientras que
+      <b>El Vaso Maíz</b> ofrece snacks irresistibles para complementar tu celebración.
+      Dos marcas hermanas, un mismo estándar de confianza.
+    </p>
+    <div class="hero-ctas">
+      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="btn btn-primary">Cotizar por WhatsApp</a>
+      <a href="#divanna" class="btn btn-ghost">Ver mobiliario</a>
+      <a href="#vasomaiz" class="btn btn-ghost">Ver snacks</a>
+    </div>
+
+    <div class="seal-row">
+      <div class="seal">
+        <svg viewBox="0 0 120 120"><path id="ring" fill="none" d="M60,10 a50,50 0 1,1 -0.1,0" /><text font-size="8" fill="#f6f1ea" opacity="0.55"><textPath href="#ring">EXPERIENCIA COMPROBABLE • TRAYECTORIA REAL • </textPath></text></svg>
+        <span class="num">3K+</span>
+      </div>
+      <p class="seal-copy"><b>Trayectoria respaldada por resultados:</b> cada evento atendido queda registrado — no improvisamos montajes ni recetas, seguimos un estándar que ya probamos miles de veces.</p>
+    </div>
+  </div>
+</section>
+
+<section class="brands" id="brands">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Dos marcas, un mismo grupo</span>
+      <h2>Cada una hace una cosa, y la hace bien</h2>
+      <p>Divanna Eventos y El Vaso Maíz son empresas hermanas, no una agencia de coordinación. Cada marca tiene un enfoque claro para que sepas exactamente qué estás contratando.</p>
+    </div>
+
+    <div class="brand-grid">
+      <article class="brand-card dv" id="divanna">
+        <div class="brand-logo-wrap"><img src="divanna-logo.png" alt="Divanna Eventos"></div>
+        <h3>Divanna Eventos</h3>
+        <span class="brand-tag">Renta de mobiliario y artículos para eventos</span>
+        <ul>
+          <li>Mesas y sillas para cualquier tamaño de evento</li>
+          <li>Mobiliario y artículos de decoración para renta</li>
+          <li>Montaje y apoyo logístico del equipo rentado</li>
+          <li>Soluciones para que tu evento luzca impecable</li>
+        </ul>
+        <div class="brand-note">Divanna Eventos renta mobiliario y equipo — no coordina ni organiza eventos.</div>
+        <div class="brand-links">
+          <a class="pill-link" href="https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0" target="_blank" rel="noopener">Ver Instagram →</a>
+        </div>
+      </article>
+
+      <article class="brand-card vm" id="vasomaiz">
+        <div class="brand-logo-wrap"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:14px;"></div>
+        <h3>El Vaso Maíz</h3>
+        <span class="brand-tag">Snacks para eventos</span>
+        <ul>
+          <li>Barras de snacks montadas en tu evento</li>
+          <li>Elotes en vaso preparados al momento</li>
+          <li>Papas preparadas y antojitos mexicanos</li>
+          <li>Paquetes para complementar tu celebración</li>
+        </ul>
+        <div class="brand-note">El Vaso Maíz se dedica a snacks para eventos — no ofrece renta de mobiliario.</div>
+        <div class="brand-links">
+          <a class="pill-link" href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Ver Instagram →</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="combo" id="experiencia">
+  <div class="wrap combo-grid">
+    <div>
+      <span class="eyebrow">Por qué juntas rinden más</span>
+      <h2>Una solución más completa para tu evento</h2>
+      <div class="combo-list">
+        <div class="combo-item">
+          <span class="combo-mark">1</span>
+          <div><h4>Mobiliario para el evento</h4><p>Todo lo necesario para el montaje, de la mano de Divanna Eventos.</p></div>
+        </div>
+        <div class="combo-item">
+          <span class="combo-mark">2</span>
+          <div><h4>Snacks para los invitados</h4><p>El Vaso Maíz complementa la experiencia con antojitos servidos en el momento.</p></div>
+        </div>
+        <div class="combo-item">
+          <span class="combo-mark">3</span>
+          <div><h4>Atención personalizada</h4><p>Un solo canal de WhatsApp para cotizar ambos servicios sin vueltas.</p></div>
+        </div>
+        <div class="combo-item">
+          <span class="combo-mark">4</span>
+          <div><h4>Mayor comodidad</h4><p>Coordina mobiliario y snacks con dos marcas que ya se conocen entre sí.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="combo-card">
+      <p class="quote">"Cada evento que atendemos <b>suma a una trayectoria</b> que ya lleva más de tres mil celebraciones — eso no se improvisa."</p>
+      <div class="combo-stats">
+        <div class="combo-stat"><div class="n">3,000+</div><div class="l">Eventos atendidos</div></div>
+        <div class="combo-stat"><div class="n">2</div><div class="l">Marcas especializadas</div></div>
+        <div class="combo-stat"><div class="n">35km</div><div class="l">Radio de cobertura</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="benefits">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Lo que puedes esperar</span>
+      <h2>Servicio claro, sin confusión</h2>
+    </div>
+    <div class="benefits-grid">
+      <div class="benefit"><span class="k">✓</span><h4>Experiencia comprobada</h4><p>Más de 3,000 eventos ya atendidos entre ambas marcas.</p></div>
+      <div class="benefit"><span class="k">⚡</span><h4>Atención rápida por WhatsApp</h4><p>Cotiza en minutos, sin llamadas ni formularios largos.</p></div>
+      <div class="benefit"><span class="k">🪑</span><h4>Renta confiable de mobiliario</h4><p>Equipo en buen estado, montado a tiempo.</p></div>
+      <div class="benefit"><span class="k">🌽</span><h4>Snacks ideales para eventos</h4><p>Preparados el mismo día de tu celebración.</p></div>
+      <div class="benefit"><span class="k">◎</span><h4>Servicio sin confusión</h4><p>Cada marca hace una cosa concreta — sabes qué esperar de cada una.</p></div>
+      <div class="benefit"><span class="k">📍</span><h4>Cobertura definida</h4><p>Zona autorizada dentro de un radio claro desde Culiacán.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="cobertura">
+  <div class="wrap">
+    <div class="coverage">
+      <div class="coverage-radius"><div class="center"></div></div>
+      <div>
+        <h3>Zona de cobertura</h3>
+        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde Culiacán</b>. Escríbenos por WhatsApp para confirmar disponibilidad en tu ubicación.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="gallery">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Galería</span>
+      <h2>Eventos reales, resultados reales</h2>
+      <p>Estamos preparando la galería fotográfica con montajes y snacks de eventos recientes.</p>
+    </div>
+    <div class="gallery-grid">
+      <div class="gallery-item tall"><span>Montaje de mobiliario<br>— próximamente</span></div>
+      <div class="gallery-item"><span>Decoración de evento<br>— próximamente</span></div>
+      <div class="gallery-item"><span>Barra de snacks<br>— próximamente</span></div>
+      <div class="gallery-item"><span>Elotes en vaso<br>— próximamente</span></div>
+      <div class="gallery-item"><span>Evento atendido<br>— próximamente</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <h2>Tu evento merece experiencia, estilo y sabor</h2>
+    <p>Cotiza hoy con Divanna Eventos y El Vaso Maíz.</p>
+    <div class="btn-row">
+      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="btn btn-primary">Cotizar por WhatsApp</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-row">
+    <div class="footer-brands">
+      <img src="divanna-logo.png" alt="Divanna Eventos">
+      <img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:6px;">
+    </div>
+    <div class="footer-meta">© 2026 Divanna Eventos &amp; El Vaso Maíz · Culiacán, Sinaloa</div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('navToggle').addEventListener('click', function(){
+    document.getElementById('navLinks').classList.toggle('open');
+  });
+
+  // Música de fondo: el navegador bloquea autoplay con sonido,
+  // así que activamos en la primera interacción del usuario.
+  const bgMusic = document.getElementById('bgMusic');
+  const musicToggle = document.getElementById('musicToggle');
+  const iconOff = document.getElementById('musicIconOff');
+  const iconOn = document.getElementById('musicIconOn');
+  bgMusic.volume = 0.35;
+  let musicOn = false;
+
+  function setMusicState(on){
+    musicOn = on;
+    musicToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+    musicToggle.setAttribute('aria-label', on ? 'Silenciar música' : 'Activar música');
+    iconOff.style.display = on ? 'none' : 'block';
+    iconOn.style.display = on ? 'block' : 'none';
+    if(on){ bgMusic.play().catch(()=>{}); } else { bgMusic.pause(); }
+  }
+
+  musicToggle.addEventListener('click', () => setMusicState(!musicOn));
+
+  // Primer toque en cualquier parte de la página: intenta iniciar la música automáticamente.
+  function firstInteractionPlay(){
+    if(!musicOn){ bgMusic.play().then(()=>setMusicState(true)).catch(()=>{}); }
+    document.removeEventListener('click', firstInteractionPlay);
+    document.removeEventListener('touchstart', firstInteractionPlay);
+  }
+  document.addEventListener('click', firstInteractionPlay, { once:true });
+  document.addEventListener('touchstart', firstInteractionPlay, { once:true });
+</script>
+</body>
+</html>
