@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0c0b10">
+<title>DiMa Brigadas</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
+    --paper:#f6f1ea;
+    --divanna:#b98bff; --maiz:#f0b93a;
+    --line: rgba(246,241,234,0.14);
+    --muted: rgba(246,241,234,0.6);
+    --good:#7fd88f; --warn:#f0b93a;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--ink); color:var(--paper);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-top:var(--safe-top);
+    padding-bottom:var(--safe-bottom);
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',serif;font-weight:700;margin:0;}
+  button{font-family:inherit;}
+  input{font-family:inherit;}
+
+  /* ---------- LOGIN ---------- */
+  #loginScreen{
+    min-height:100vh; display:flex; flex-direction:column; justify-content:center;
+    padding:32px 24px; gap:28px;
+    background:
+      radial-gradient(ellipse 700px 500px at 20% 0%, rgba(185,139,255,0.16), transparent 60%),
+      radial-gradient(ellipse 600px 400px at 100% 100%, rgba(240,185,58,0.12), transparent 55%);
+  }
+  .login-brand{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:1.3rem;justify-content:center;}
+  .login-brand .dv{color:var(--divanna);} .login-brand .vm{color:var(--maiz);}
+  .login-card{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:22px;
+    padding:32px 26px;
+  }
+  .login-card h1{font-size:1.6rem;margin-bottom:8px;}
+  .login-card p{color:var(--muted);font-size:0.95rem;margin:0 0 26px;line-height:1.5;}
+  .code-input{
+    width:100%; padding:18px 20px; border-radius:14px;
+    border:1.5px solid var(--line); background:var(--ink);
+    color:var(--paper); font-size:1.15rem; font-weight:700;
+    letter-spacing:0.06em; text-align:center; text-transform:uppercase;
+    outline:none;
+  }
+  .code-input:focus{border-color:var(--divanna);}
+  .login-btn{
+    width:100%; margin-top:16px; padding:17px; border:none; border-radius:14px;
+    background:var(--maiz); color:var(--ink); font-weight:800; font-size:1.02rem;
+    cursor:pointer; transition:transform .15s;
+  }
+  .login-btn:active{transform:scale(0.98);}
+  .login-btn:disabled{opacity:0.55;}
+  .login-error{
+    color:#ff8a8a; font-size:0.88rem; margin-top:14px; text-align:center; min-height:18px;
+  }
+  .login-hint{text-align:center; color:var(--muted); font-size:0.8rem; margin-top:18px;}
+
+  /* ---------- APP SHELL ---------- */
+  #appScreen{display:none; min-height:100vh; flex-direction:column;}
+  header.appbar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(12,11,16,0.92); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:18px 20px calc(18px + var(--safe-top)) 20px;
+    padding-top:calc(18px + var(--safe-top));
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .appbar-info h2{font-size:1.15rem;}
+  .appbar-info span{color:var(--muted); font-size:0.82rem;}
+  .icon-btn{
+    background:var(--ink-2); border:1px solid var(--line); color:var(--paper);
+    width:40px; height:40px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem;
+  }
+
+  main{flex:1; padding:20px 18px 100px; max-width:640px; margin:0 auto; width:100%;}
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--muted);
+  }
+  .empty-state .big{font-size:2.6rem; margin-bottom:14px;}
+
+  .day-label{
+    font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--muted); margin:22px 0 10px; padding-left:4px;
+  }
+  .day-label:first-child{margin-top:4px;}
+
+  .event-card{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:18px;
+    padding:20px; margin-bottom:14px;
+  }
+  .event-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;}
+  .event-badge{
+    display:inline-block; font-size:0.72rem; font-weight:800; letter-spacing:0.03em;
+    padding:5px 11px; border-radius:100px; text-transform:uppercase;
+  }
+  .badge-divanna{background:rgba(185,139,255,0.16); color:var(--divanna);}
+  .badge-vasomaiz{background:rgba(240,185,58,0.16); color:var(--maiz);}
+  .event-folio{font-size:0.78rem; color:var(--muted); font-family:monospace;}
+  .event-card h3{font-size:1.2rem; margin:10px 0 2px;}
+  .event-meta{display:flex; flex-wrap:wrap; gap:14px; margin:12px 0 16px; font-size:0.88rem; color:var(--muted);}
+  .event-meta span{display:flex; align-items:center; gap:6px;}
+  .event-services{
+    font-size:0.9rem; color:var(--paper); background:var(--ink);
+    border-radius:10px; padding:10px 12px; margin-bottom:16px; line-height:1.4;
+  }
+
+  .checklist{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .check-item{
+    display:flex; align-items:center; gap:9px;
+    background:var(--ink); border:1.5px solid var(--line); border-radius:12px;
+    padding:12px 10px; cursor:pointer; transition:border-color .15s, background .15s;
+    font-size:0.85rem; font-weight:600; user-select:none;
+  }
+  .check-item .box{
+    width:20px; height:20px; border-radius:6px; border:1.5px solid var(--line);
+    flex:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem;
+    transition:background .15s, border-color .15s;
+  }
+  .check-item.done{border-color:var(--good); background:rgba(127,216,143,0.08);}
+  .check-item.done .box{background:var(--good); border-color:var(--good); color:var(--ink);}
+
+  .progress-bar{
+    height:5px; border-radius:100px; background:var(--ink); overflow:hidden; margin-top:14px;
+  }
+  .progress-fill{height:100%; background:linear-gradient(90deg,var(--divanna),var(--maiz)); border-radius:100px; transition:width .3s;}
+
+  .refresh-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
+    width:54px; height:54px; border-radius:50%; border:none;
+    background:var(--maiz); color:var(--ink); font-size:1.3rem;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+  }
+  .refresh-fab.spinning svg{animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .toast{
+    position:fixed; bottom:calc(90px + var(--safe-bottom)); left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink-3); border:1px solid var(--line); color:var(--paper);
+    padding:12px 20px; border-radius:100px; font-size:0.85rem; font-weight:600;
+    opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; z-index:50;
+    white-space:nowrap;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .loader{
+    display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;
+  }
+  .spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--maiz); animation:spin 0.7s linear infinite;}
+
+  @media (prefers-reduced-motion:reduce){
+    .spinner, .refresh-fab.spinning svg{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ---------- LOGIN ---------- -->
+<div id="loginScreen">
+  <div class="login-brand"><span class="dv">divanna</span>&nbsp;×&nbsp;<span class="vm">vaso maíz</span></div>
+  <div class="login-card">
+    <h1>DiMa Brigadas</h1>
+    <p>Ingresa el código de tu brigada para ver tus eventos asignados y marcar tu checklist del día.</p>
+    <input type="text" id="codeInput" class="code-input" placeholder="EDEN2026" autocomplete="off" autocapitalize="characters" maxlength="20">
+    <button id="loginBtn" class="login-btn">Entrar</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+  <div class="login-hint">¿No tienes tu código? Pídeselo a Diana o a Víctor.</div>
+</div>
+
+<!-- ---------- APP ---------- -->
+<div id="appScreen">
+  <header class="appbar">
+    <div class="appbar-info">
+      <h2 id="brigadaNombre">Brigada</h2>
+      <span id="brigadaDetalle">—</span>
+    </div>
+    <button class="icon-btn" id="logoutBtn" aria-label="Cerrar sesión">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </header>
+  <main id="mainContent">
+    <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+  </main>
+  <button class="refresh-fab" id="refreshBtn" aria-label="Actualizar">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+  </button>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'dima_brigada_codigo';
+
+  const loginScreen = $('loginScreen');
+  const appScreen = $('appScreen');
+  const codeInput = $('codeInput');
+  const loginBtn = $('loginBtn');
+  const loginError = $('loginError');
+  const mainContent = $('mainContent');
+  const refreshBtn = $('refreshBtn');
+  const toast = $('toast');
+
+  let currentBrigadaId = null;
+  let currentCodigo = null;
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  function formatFecha(iso){
+    if(!iso) return 'Sin fecha aún';
+    const [y,m,d] = iso.split('-');
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    return `${parseInt(d)} ${meses[parseInt(m)-1]} ${y}`;
+  }
+
+  function badgeClass(negocio){
+    return negocio === 'El Vaso Maiz' ? 'badge-vasomaiz' : 'badge-divanna';
+  }
+
+  function renderEventos(eventos){
+    if(!eventos.length){
+      mainContent.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
+      return;
+    }
+
+    let html = '';
+    let lastFecha = null;
+    eventos.forEach(ev => {
+      const fechaLabel = formatFecha(ev.fecha);
+      if(fechaLabel !== lastFecha){
+        html += `<div class="day-label">${fechaLabel}</div>`;
+        lastFecha = fechaLabel;
+      }
+      const stages = [
+        {key:'salida', label:'Salida'},
+        {key:'llegada', label:'Llegada'},
+        {key:'montaje', label:'Montaje'},
+        {key:'recoleccion', label:'Recolección'},
+      ];
+      const doneCount = stages.filter(s => ev.checklist[s.key]).length;
+      const pct = Math.round((doneCount / stages.length) * 100);
+
+      html += `
+        <div class="event-card" data-id="${ev.id}">
+          <div class="event-top">
+            <div>
+              <span class="event-badge ${badgeClass(ev.negocio)}">${ev.negocio || 'Sin clasificar'}</span>
+              <h3>${ev.ubicacion || 'Ubicación por confirmar'}</h3>
+              <div class="event-folio">${ev.folio}</div>
+            </div>
+          </div>
+          <div class="event-meta">
+            <span>👥 ${ev.invitados ? ev.invitados + ' invitados' : 'Invitados por confirmar'}</span>
+            <span>📍 ${ev.estado}</span>
+          </div>
+          ${ev.servicios ? `<div class="event-services">${ev.servicios}</div>` : ''}
+          <div class="checklist">
+            ${stages.map(s => `
+              <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
+                <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
+              </div>
+            `).join('')}
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        </div>
+      `;
+    });
+    mainContent.innerHTML = html;
+
+    document.querySelectorAll('.check-item').forEach(item => {
+      item.addEventListener('click', () => toggleChecklist(item));
+    });
+  }
+
+  async function toggleChecklist(item){
+    const eventoId = item.dataset.evento;
+    const etapa = item.dataset.etapa;
+    const nuevoValor = !item.classList.contains('done');
+
+    item.classList.toggle('done');
+    item.querySelector('.box').textContent = nuevoValor ? '✓' : '';
+
+    try {
+      const res = await fetch('/api/brigada-checklist', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ eventoId, etapa, valor: nuevoValor }),
+      });
+      if(!res.ok) throw new Error('fail');
+      showToast(nuevoValor ? `${etapa} marcado ✓` : `${etapa} desmarcado`);
+      recalcProgress(item.closest('.event-card'));
+    } catch(e){
+      // revertir si falla
+      item.classList.toggle('done');
+      item.querySelector('.box').textContent = item.classList.contains('done') ? '✓' : '';
+      showToast('No se pudo guardar, intenta de nuevo');
+    }
+  }
+
+  function recalcProgress(card){
+    const items = card.querySelectorAll('.check-item');
+    const done = card.querySelectorAll('.check-item.done').length;
+    const pct = Math.round((done / items.length) * 100);
+    card.querySelector('.progress-fill').style.width = pct + '%';
+  }
+
+  async function loadEventos(codigo){
+    mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
+    try {
+      const res = await fetch(`/api/brigada-eventos?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Error');
+
+      currentBrigadaId = data.brigada.id;
+      $('brigadaNombre').textContent = data.brigada.nombre;
+      $('brigadaDetalle').textContent = `${data.brigada.lider} · ${data.brigada.vehiculo}`;
+
+      renderEventos(data.eventos);
+      loginScreen.style.display = 'none';
+      appScreen.style.display = 'flex';
+    } catch(e){
+      loginError.textContent = 'Código no válido. Verifica con Diana o Víctor.';
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
+  loginBtn.addEventListener('click', () => {
+    const codigo = codeInput.value.trim().toUpperCase();
+    if(!codigo){ loginError.textContent = 'Escribe tu código de brigada.'; return; }
+    loginError.textContent = '';
+    loginBtn.disabled = true;
+    localStorage.setItem(STORAGE_KEY, codigo);
+    currentCodigo = codigo;
+    loadEventos(codigo).finally(() => loginBtn.disabled = false);
+  });
+
+  codeInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+
+  refreshBtn.addEventListener('click', () => {
+    if(!currentCodigo) return;
+    refreshBtn.classList.add('spinning');
+    loadEventos(currentCodigo).finally(() => refreshBtn.classList.remove('spinning'));
+  });
+
+  $('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem(STORAGE_KEY);
+    currentCodigo = null;
+    appScreen.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    codeInput.value = '';
+  });
+
+  // Auto-login si ya hay código guardado
+  const savedCodigo = localStorage.getItem(STORAGE_KEY);
+  if(savedCodigo){
+    currentCodigo = savedCodigo;
+    codeInput.value = savedCodigo;
+    loadEventos(savedCodigo);
+  }
+
+  // Registrar service worker para que la app sea instalable
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/brigadas/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
