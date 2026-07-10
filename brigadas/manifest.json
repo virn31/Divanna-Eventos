@@ -1,0 +1,15 @@
+{
+  "name": "DiMa Brigadas — Divanna Eventos & El Vaso Maíz",
+  "short_name": "DiMa Brigadas",
+  "description": "App de brigadas para consultar eventos asignados y marcar checklist de montaje.",
+  "start_url": "/brigadas/",
+  "scope": "/brigadas/",
+  "display": "standalone",
+  "background_color": "#0c0b10",
+  "theme_color": "#0c0b10",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
