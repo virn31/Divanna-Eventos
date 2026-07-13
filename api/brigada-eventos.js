@@ -76,6 +76,15 @@ module.exports = async (req, res) => {
         montaje: !!r.fields.Checklist_Montaje,
         recoleccion: !!r.fields.Checklist_Recoleccion,
       },
+      estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',
+      retraso: !!r.fields.Retraso,
+      motivoRetraso: r.fields.Motivo_Retraso || '',
+      emergencia: !!r.fields.Emergencia,
+      motivoEmergencia: r.fields.Motivo_Emergencia || '',
+      zonaAlertaSeguridad: r.fields.Zona_Alerta_Seguridad || '',
+      etaConfirmado: r.fields.ETA_Confirmado_Brigada || '',
+      estatusPago: r.fields.Estatus_Pago || '',
+      montoAdeudado: r.fields.Monto_Adeudado || null,
     }));
 
     res.status(200).json({

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0c0b10">
+<title>DiMa Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
+    --paper:#f6f1ea;
+    --divanna:#b98bff; --maiz:#f0b93a;
+    --line: rgba(246,241,234,0.14);
+    --muted: rgba(246,241,234,0.6);
+    --good:#7fd88f; --warn:#f0b93a; --bad:#ff6b6b; --sec:#ff9f4a;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--ink); color:var(--paper);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',serif;font-weight:700;margin:0;}
+  button{font-family:inherit;} input{font-family:inherit;}
+
+  #loginScreen{
+    min-height:100vh; display:flex; flex-direction:column; justify-content:center;
+    padding:32px 24px; gap:28px;
+    background:radial-gradient(ellipse 700px 500px at 20% 0%, rgba(185,139,255,0.16), transparent 60%),
+               radial-gradient(ellipse 600px 400px at 100% 100%, rgba(240,185,58,0.12), transparent 55%);
+  }
+  .login-card{background:var(--ink-2); border:1px solid var(--line); border-radius:22px; padding:32px 26px; max-width:420px; margin:0 auto; width:100%;}
+  .login-card h1{font-size:1.6rem;margin-bottom:8px;}
+  .login-card p{color:var(--muted);font-size:0.95rem;margin:0 0 26px;line-height:1.5;}
+  .code-input{
+    width:100%; padding:18px 20px; border-radius:14px; border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font-size:1.15rem; font-weight:700;
+    letter-spacing:0.06em; text-align:center; text-transform:uppercase; outline:none;
+  }
+  .code-input:focus{border-color:var(--divanna);}
+  .login-btn{
+    width:100%; margin-top:16px; padding:17px; border:none; border-radius:14px;
+    background:var(--maiz); color:var(--ink); font-weight:800; font-size:1.02rem; cursor:pointer;
+  }
+  .login-error{color:#ff8a8a; font-size:0.88rem; margin-top:14px; text-align:center; min-height:18px;}
+
+  #appScreen{display:none; min-height:100vh; flex-direction:column;}
+  header.appbar{
+    position:sticky; top:0; z-index:20; background:rgba(12,11,16,0.92); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line); padding:calc(18px + var(--safe-top)) 20px 18px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .icon-btn{
+    background:var(--ink-2); border:1px solid var(--line); color:var(--paper);
+    width:40px; height:40px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; cursor:pointer; font-size:1.1rem;
+  }
+  main{flex:1; padding:20px 18px 60px; max-width:900px; margin:0 auto; width:100%;}
+
+  .summary-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  .summary-card{background:var(--ink-2); border:1px solid var(--line); border-radius:16px; padding:16px 12px; text-align:center;}
+  .summary-card .num{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:700;}
+  .summary-card .label{font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
+  .summary-card.alerta .num{color:var(--bad);}
+
+  .evento-row{
+    background:var(--ink-2); border:1px solid var(--line); border-radius:16px;
+    padding:16px 18px; margin-bottom:10px;
+  }
+  .evento-row.emergencia{border-color:var(--bad); background:rgba(255,107,107,0.06);}
+  .evento-row.seguridad{border-color:var(--sec); background:rgba(255,159,74,0.06);}
+  .evento-top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;}
+  .evento-top h3{font-size:1.05rem;}
+  .evento-sub{font-size:0.82rem; color:var(--muted); margin-top:2px;}
+  .badge{display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; font-weight:800; padding:5px 10px; border-radius:100px; white-space:nowrap;}
+  .badge-estatus{background:rgba(185,139,255,0.16); color:var(--divanna);}
+  .badge-pago-pendiente{background:rgba(240,185,58,0.16); color:var(--warn);}
+  .badge-pago-pagado{background:rgba(127,216,143,0.16); color:var(--good);}
+  .badge-emergencia{background:rgba(255,107,107,0.2); color:var(--bad);}
+  .badge-seguridad{background:rgba(255,159,74,0.2); color:var(--sec);}
+  .meta-line{display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:0.85rem; color:var(--muted);}
+  .motivo{font-size:0.82rem; margin-top:8px; padding:8px 10px; background:var(--ink); border-radius:10px;}
+
+  .empty-state{text-align:center; padding:60px 20px; color:var(--muted);}
+  .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
+  .spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--maiz); animation:spin 0.7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>DiMa Dashboard</h1>
+    <p>Vista general de todas las brigadas y eventos activos en tiempo real. Acceso exclusivo para Diana y Víctor.</p>
+    <input type="text" id="codeInput" class="code-input" placeholder="Tu código" autocomplete="off" autocapitalize="characters" maxlength="20">
+    <button id="loginBtn" class="login-btn">Entrar</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<div id="appScreen">
+  <header class="appbar">
+    <h2>Dashboard general</h2>
+    <button class="icon-btn" id="refreshBtn" aria-label="Actualizar">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+  </header>
+  <main id="mainContent">
+    <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+  </main>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'dima_dashboard_codigo';
+  const loginScreen = $('loginScreen');
+  const appScreen = $('appScreen');
+  const codeInput = $('codeInput');
+  const loginBtn = $('loginBtn');
+  const loginError = $('loginError');
+  const mainContent = $('mainContent');
+  const refreshBtn = $('refreshBtn');
+
+  let currentCodigo = null;
+  let pollTimer = null;
+
+  function formatFecha(iso){
+    if(!iso) return 'Sin fecha';
+    const [y,m,d] = iso.split('-');
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    return `${parseInt(d)} ${meses[parseInt(m)-1]}`;
+  }
+
+  function renderResumen(eventos){
+    const emergencias = eventos.filter(e => e.emergencia).length;
+    const enCurso = eventos.filter(e => ['En camino','Montando','Evento en curso'].includes(e.estatusLogistico)).length;
+    const pendientesPago = eventos.filter(e => e.estatusPago && e.estatusPago.startsWith('Pendiente')).length;
+    return `
+      <div class="summary-row">
+        <div class="summary-card ${emergencias ? 'alerta' : ''}"><div class="num">${emergencias}</div><div class="label">Emergencias</div></div>
+        <div class="summary-card"><div class="num">${enCurso}</div><div class="label">En curso hoy</div></div>
+        <div class="summary-card"><div class="num">${pendientesPago}</div><div class="label">Pagos pendientes</div></div>
+      </div>
+    `;
+  }
+
+  function renderEventos(eventos){
+    if(!eventos.length){
+      mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
+      return;
+    }
+
+    // Emergencias y alertas de seguridad primero
+    const ordenados = [...eventos].sort((a,b) => {
+      const prioridad = ev => ev.emergencia ? 0 : (ev.zonaAlertaSeguridad ? 1 : 2);
+      return prioridad(a) - prioridad(b);
+    });
+
+    let html = renderResumen(eventos);
+
+    ordenados.forEach(ev => {
+      const claseFila = ev.emergencia ? 'emergencia' : (ev.zonaAlertaSeguridad ? 'seguridad' : '');
+      const pagoClase = ev.estatusPago && ev.estatusPago.startsWith('Pendiente') ? 'badge-pago-pendiente' : 'badge-pago-pagado';
+
+      html += `
+        <div class="evento-row ${claseFila}">
+          <div class="evento-top">
+            <div>
+              <h3>${ev.ubicacion || 'Ubicación por confirmar'} · ${ev.folio}</h3>
+              <div class="evento-sub">${formatFecha(ev.fecha)} · ${ev.negocio || ''} · Brigada: ${ev.brigadaNombre}${ev.brigadaLider ? ' (' + ev.brigadaLider + ')' : ''}</div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;">
+              <span class="badge badge-estatus">${ev.estatusLogistico}</span>
+              ${ev.estatusPago ? `<span class="badge ${pagoClase}">${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+              ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
+              ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
+            </div>
+          </div>
+          <div class="meta-line">
+            ${ev.invitados ? `<span>👥 ${ev.invitados} invitados</span>` : ''}
+            ${ev.etaConfirmado ? `<span>⏱️ ETA confirmado: ${ev.etaConfirmado}</span>` : ''}
+            ${ev.autorizacionDiana ? `<span>✅ Autorización: ${ev.autorizacionDiana}</span>` : ''}
+          </div>
+          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo">🚦 Retraso: ${ev.motivoRetraso}</div>` : ''}
+          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo">🆘 ${ev.motivoEmergencia}</div>` : ''}
+          ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${ev.zonaAlertaSeguridad}</div>` : ''}
+        </div>
+      `;
+    });
+
+    mainContent.innerHTML = html;
+  }
+
+  async function loadDashboard(codigo){
+    try {
+      const res = await fetch(`/api/dashboard-eventos?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Error');
+      renderEventos(data.eventos);
+      loginScreen.style.display = 'none';
+      appScreen.style.display = 'flex';
+    } catch(e){
+      loginError.textContent = 'Código no válido.';
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
+  loginBtn.addEventListener('click', () => {
+    const codigo = codeInput.value.trim().toUpperCase();
+    if(!codigo){ loginError.textContent = 'Escribe tu código.'; return; }
+    loginError.textContent = '';
+    localStorage.setItem(STORAGE_KEY, codigo);
+    currentCodigo = codigo;
+    loadDashboard(codigo);
+    iniciarPolling();
+  });
+
+  codeInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+  refreshBtn.addEventListener('click', () => loadDashboard(currentCodigo));
+
+  function iniciarPolling(){
+    if(pollTimer) clearInterval(pollTimer);
+    // Actualiza solo cada que la persona tenga la pantalla abierta, cada 30s.
+    pollTimer = setInterval(() => { if(currentCodigo) loadDashboard(currentCodigo); }, 30000);
+  }
+
+  const savedCodigo = localStorage.getItem(STORAGE_KEY);
+  if(savedCodigo){
+    currentCodigo = savedCodigo;
+    codeInput.value = savedCodigo;
+    loadDashboard(savedCodigo);
+    iniciarPolling();
+  }
+</script>
+</body>
+</html>

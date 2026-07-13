@@ -142,6 +142,38 @@
   }
   .progress-fill{height:100%; background:linear-gradient(90deg,var(--divanna),var(--maiz)); border-radius:100px; transition:width .3s;}
 
+  /* ---------- ESTATUS LOGÍSTICO + PAGO ---------- */
+  .estatus-row{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0;}
+  .estatus-select{
+    flex:1; min-width:180px; padding:12px 14px; border-radius:12px;
+    border:1.5px solid var(--line); background:var(--ink); color:var(--paper);
+    font-size:0.88rem; font-weight:700; outline:none;
+  }
+  .estatus-select:focus{border-color:var(--divanna);}
+  .pago-badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; font-weight:700;
+    padding:8px 12px; border-radius:100px; background:var(--ink); border:1.5px solid var(--line);
+  }
+  .pago-badge.pendiente{color:var(--warn); border-color:var(--warn);}
+  .pago-badge.pagado{color:var(--good); border-color:var(--good);}
+  .alert-actions{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px;}
+  .alert-btn{
+    border:1.5px solid var(--line); background:var(--ink); color:var(--paper);
+    border-radius:12px; padding:11px 6px; font-size:0.76rem; font-weight:700;
+    cursor:pointer; text-align:center; line-height:1.3;
+  }
+  .alert-btn.retraso{border-color:var(--warn); color:var(--warn);}
+  .alert-btn.emergencia{border-color:#ff6b6b; color:#ff6b6b;}
+  .alert-btn.seguridad{border-color:#ff9f4a; color:#ff9f4a;}
+  .alert-btn.active{background:currentColor;}
+  .alert-btn.active.retraso{color:var(--ink); background:var(--warn);}
+  .alert-btn.active.emergencia{color:var(--ink); background:#ff6b6b;}
+  .alert-btn.active.seguridad{color:var(--ink); background:#ff9f4a;}
+  .motivo-tag{
+    font-size:0.8rem; color:var(--muted); margin-top:8px; padding:8px 10px;
+    background:var(--ink); border-radius:10px; border:1px solid var(--line);
+  }
+
   .refresh-fab{
     position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
     width:54px; height:54px; border-radius:50%; border:none;
@@ -221,6 +253,12 @@
 
   let currentBrigadaId = null;
   let currentCodigo = null;
+  let currentBrigadaNombre = '';
+
+  const ESTATUS_LOGISTICO_OPCIONES = [
+    'Preparando', 'Salió del almacén', 'En camino', 'Llegó al lugar',
+    'Montando', 'Evento en curso', 'Recolectando', 'Cerrado',
+  ];
 
   function showToast(msg){
     toast.textContent = msg;
@@ -276,7 +314,24 @@
             <span>📍 ${ev.estado}</span>
           </div>
           ${ev.servicios ? `<div class="event-services">${ev.servicios}</div>` : ''}
-          <div class="checklist">
+
+          <div class="estatus-row">
+            <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
+              ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
+            </select>
+            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+          </div>
+
+          <div class="alert-actions">
+            <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">🚦 Retraso</div>
+            <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
+            <div class="alert-btn seguridad" data-evento="${ev.id}" data-accion="alerta_seguridad">⚠️ Seguridad</div>
+          </div>
+          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">🚦 Retraso: ${ev.motivoRetraso}</div>` : ''}
+          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${ev.motivoEmergencia}</div>` : ''}
+          ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${ev.zonaAlertaSeguridad}</div>` : ''}
+
+          <div class="checklist" style="margin-top:14px;">
             ${stages.map(s => `
               <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
                 <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
@@ -292,6 +347,72 @@
     document.querySelectorAll('.check-item').forEach(item => {
       item.addEventListener('click', () => toggleChecklist(item));
     });
+
+    document.querySelectorAll('.estatus-select').forEach(sel => {
+      sel.addEventListener('change', () => actualizarEstatusLogistico(sel));
+    });
+
+    document.querySelectorAll('.alert-btn').forEach(btn => {
+      btn.addEventListener('click', () => manejarAlerta(btn));
+    });
+  }
+
+  async function enviarEstatus(payload){
+    const res = await fetch('/api/brigada-estatus', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'fail');
+    return data;
+  }
+
+  async function actualizarEstatusLogistico(sel){
+    const eventoId = sel.dataset.evento;
+    const valorAnterior = sel.dataset.valorAnterior || sel.value;
+    try {
+      await enviarEstatus({ eventoId, tipo: 'estatus_logistico', valor: sel.value, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+      sel.dataset.valorAnterior = sel.value;
+      showToast(`Estatus actualizado: ${sel.value}`);
+    } catch(e){
+      sel.value = valorAnterior;
+      showToast('No se pudo actualizar el estatus, intenta de nuevo');
+    }
+  }
+
+  async function manejarAlerta(btn){
+    const eventoId = btn.dataset.evento;
+    const accion = btn.dataset.accion;
+
+    if(accion === 'retraso' || accion === 'emergencia'){
+      const activando = !btn.classList.contains('active');
+      let motivo = '';
+      if(activando){
+        motivo = prompt(accion === 'retraso' ? '¿Cuál es el motivo del retraso?' : '¿Qué pasó? (ej. choqué, se descompuso la unidad)') || '';
+        if(!motivo){ return; }
+      }
+      try {
+        await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        btn.classList.toggle('active', activando);
+        showToast(accion === 'emergencia' && activando ? '🆘 Alerta enviada a Diana, Víctor y brigadas activas' : 'Actualizado');
+        loadEventos(currentCodigo);
+      } catch(e){
+        showToast('No se pudo enviar, intenta de nuevo');
+      }
+    }
+
+    if(accion === 'alerta_seguridad'){
+      const zona = prompt('¿En qué zona o calle? (se notificará a todo el equipo y al cliente)') || '';
+      if(!zona) return;
+      try {
+        await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: true, motivo: zona, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        showToast('⚠️ Alerta de seguridad enviada a todo el equipo');
+        loadEventos(currentCodigo);
+      } catch(e){
+        showToast('No se pudo enviar, intenta de nuevo');
+      }
+    }
   }
 
   async function toggleChecklist(item){
@@ -334,6 +455,7 @@
       if(!res.ok) throw new Error(data.error || 'Error');
 
       currentBrigadaId = data.brigada.id;
+      currentBrigadaNombre = data.brigada.nombre;
       $('brigadaNombre').textContent = data.brigada.nombre;
       $('brigadaDetalle').textContent = `${data.brigada.lider} · ${data.brigada.vehiculo}`;
 
