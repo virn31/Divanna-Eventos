@@ -106,12 +106,38 @@ module.exports = async (req, res) => {
     let alertaMensaje = null;
 
     switch (tipo) {
-      case 'estatus_logistico':
+      case 'checklist_item': {
+        // valor = índice del item, motivo (reusado) = 'marcar' o 'desmarcar'
+        let marcados = [];
+        try { marcados = JSON.parse(eventoData.fields.Checklist_Items_Marcados || '[]'); } catch (e) { marcados = []; }
+        const idx = parseInt(valor, 10);
+        if (motivo === 'desmarcar') {
+          marcados = marcados.filter(i => i !== idx);
+        } else if (!marcados.includes(idx)) {
+          marcados.push(idx);
+        }
+        fieldsToUpdate.Checklist_Items_Marcados = JSON.stringify(marcados);
+        break;
+      }
+
+      case 'estatus_logistico': {
+        // Bloqueo: no se puede avanzar de "Preparando" a "Salió del almacén" (o después)
+        // si quedan items del checklist de carga sin marcar.
+        const itemsRaw = (eventoData.fields.Checklist_Items || '').split('\n').map(s => s.trim()).filter(Boolean);
+        if (itemsRaw.length > 0 && valor !== 'Preparando') {
+          let marcados = [];
+          try { marcados = JSON.parse(eventoData.fields.Checklist_Items_Marcados || '[]'); } catch (e) { marcados = []; }
+          if (marcados.length < itemsRaw.length) {
+            res.status(409).json({ error: 'Faltan artículos por marcar como cargados antes de salir del almacén' });
+            return;
+          }
+        }
         fieldsToUpdate.Estatus_Logistico = valor;
         if (valor === 'Salió del almacén') {
           fieldsToUpdate.Timestamp_Salida = new Date().toISOString();
         }
         break;
+      }
 
       case 'retraso':
         fieldsToUpdate.Retraso = !!valor;

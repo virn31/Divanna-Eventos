@@ -174,6 +174,22 @@
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
   }
 
+  /* ---------- CHECKLIST DE CARGA (por items de la cotización) ---------- */
+  .carga-box{margin:14px 0; padding:14px 16px; background:var(--ink); border-radius:14px; border:1px solid var(--line);}
+  .carga-title{font-size:0.82rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
+  .carga-item{
+    display:flex; align-items:center; gap:10px; padding:9px 4px; font-size:0.9rem; cursor:pointer;
+    border-bottom:1px solid var(--line);
+  }
+  .carga-item:last-child{border-bottom:none;}
+  .carga-item .box{
+    width:22px; height:22px; border-radius:7px; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.85rem;
+  }
+  .carga-item.marcado .box{background:var(--e-cerrado, #39e991); border-color:var(--e-cerrado, #39e991); color:var(--ink);}
+  .carga-item.marcado span.texto{color:var(--muted); text-decoration:line-through;}
+  .carga-warning{font-size:0.78rem; color:var(--warn); margin-top:6px;}
+
   .refresh-fab{
     position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
     width:54px; height:54px; border-radius:50%; border:none;
@@ -315,6 +331,19 @@
           </div>
           ${ev.servicios ? `<div class="event-services">${ev.servicios}</div>` : ''}
 
+          ${ev.checklistItems && ev.checklistItems.length ? `
+            <div class="carga-box">
+              <div class="carga-title">📋 Checklist de carga</div>
+              ${ev.checklistItems.map((item, i) => `
+                <div class="carga-item ${item.marcado ? 'marcado' : ''}" data-evento="${ev.id}" data-idx="${i}">
+                  <span class="box">${item.marcado ? '✓' : ''}</span>
+                  <span class="texto">${item.texto}</span>
+                </div>
+              `).join('')}
+              ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">⚠️ Falta marcar todo para poder salir del almacén</div>` : ''}
+            </div>
+          ` : ''}
+
           <div class="estatus-row">
             <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
               ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
@@ -350,6 +379,11 @@
 
     document.querySelectorAll('.estatus-select').forEach(sel => {
       sel.addEventListener('change', () => actualizarEstatusLogistico(sel));
+      sel.dataset.valorAnterior = sel.value;
+    });
+
+    document.querySelectorAll('.carga-item').forEach(item => {
+      item.addEventListener('click', () => toggleCargaItem(item));
     });
 
     document.querySelectorAll('.alert-btn').forEach(btn => {
@@ -368,6 +402,18 @@
     return data;
   }
 
+  async function toggleCargaItem(item){
+    const eventoId = item.dataset.evento;
+    const idx = item.dataset.idx;
+    const yaMarcado = item.classList.contains('marcado');
+    try {
+      await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar', brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+      loadEventos(currentCodigo);
+    } catch(e){
+      showToast('No se pudo actualizar, intenta de nuevo');
+    }
+  }
+
   async function actualizarEstatusLogistico(sel){
     const eventoId = sel.dataset.evento;
     const valorAnterior = sel.dataset.valorAnterior || sel.value;
@@ -377,7 +423,7 @@
       showToast(`Estatus actualizado: ${sel.value}`);
     } catch(e){
       sel.value = valorAnterior;
-      showToast('No se pudo actualizar el estatus, intenta de nuevo');
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo actualizar el estatus, intenta de nuevo');
     }
   }
 

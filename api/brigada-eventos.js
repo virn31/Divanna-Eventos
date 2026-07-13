@@ -61,31 +61,38 @@ module.exports = async (req, res) => {
       `${TABLES.EVENTOS}?filterByFormula=${eventFormula}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc`
     );
 
-    const eventos = eventosData.records.map(r => ({
-      id: r.id,
-      folio: r.fields.Folio_Evento || '',
-      negocio: r.fields.Negocio || '',
-      fecha: r.fields.Fecha_Evento || '',
-      estado: r.fields.Estado || '',
-      servicios: r.fields.Servicios_Solicitados || '',
-      invitados: r.fields.Invitados || null,
-      ubicacion: r.fields.Ubicacion || '',
-      checklist: {
-        salida: !!r.fields.Checklist_Salida,
-        llegada: !!r.fields.Checklist_Llegada,
-        montaje: !!r.fields.Checklist_Montaje,
-        recoleccion: !!r.fields.Checklist_Recoleccion,
-      },
-      estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',
-      retraso: !!r.fields.Retraso,
-      motivoRetraso: r.fields.Motivo_Retraso || '',
-      emergencia: !!r.fields.Emergencia,
-      motivoEmergencia: r.fields.Motivo_Emergencia || '',
-      zonaAlertaSeguridad: r.fields.Zona_Alerta_Seguridad || '',
-      etaConfirmado: r.fields.ETA_Confirmado_Brigada || '',
-      estatusPago: r.fields.Estatus_Pago || '',
-      montoAdeudado: r.fields.Monto_Adeudado || null,
-    }));
+    const eventos = eventosData.records.map(r => {
+      const itemsRaw = (r.fields.Checklist_Items || '').split('\n').map(s => s.trim()).filter(Boolean);
+      let marcados = [];
+      try { marcados = JSON.parse(r.fields.Checklist_Items_Marcados || '[]'); } catch (e) { marcados = []; }
+
+      return {
+        id: r.id,
+        folio: r.fields.Folio_Evento || '',
+        negocio: r.fields.Negocio || '',
+        fecha: r.fields.Fecha_Evento || '',
+        estado: r.fields.Estado || '',
+        servicios: r.fields.Servicios_Solicitados || '',
+        invitados: r.fields.Invitados || null,
+        ubicacion: r.fields.Ubicacion || '',
+        checklist: {
+          salida: !!r.fields.Checklist_Salida,
+          llegada: !!r.fields.Checklist_Llegada,
+          montaje: !!r.fields.Checklist_Montaje,
+          recoleccion: !!r.fields.Checklist_Recoleccion,
+        },
+        checklistItems: itemsRaw.map((texto, i) => ({ texto, marcado: marcados.includes(i) })),
+        estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',
+        retraso: !!r.fields.Retraso,
+        motivoRetraso: r.fields.Motivo_Retraso || '',
+        emergencia: !!r.fields.Emergencia,
+        motivoEmergencia: r.fields.Motivo_Emergencia || '',
+        zonaAlertaSeguridad: r.fields.Zona_Alerta_Seguridad || '',
+        etaConfirmado: r.fields.ETA_Confirmado_Brigada || '',
+        estatusPago: r.fields.Estatus_Pago || '',
+        montoAdeudado: r.fields.Monto_Adeudado || null,
+      };
+    });
 
     res.status(200).json({
       brigada: {
