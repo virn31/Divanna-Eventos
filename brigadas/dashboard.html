@@ -17,6 +17,16 @@
     --line: rgba(246,241,234,0.14);
     --muted: rgba(246,241,234,0.6);
     --good:#7fd88f; --warn:#f0b93a; --bad:#ff6b6b; --sec:#ff9f4a;
+    /* Paleta cálida y distinguible por etapa (color + ícono, nunca solo color) */
+    --e-preparando:#9aa0ae;
+    --e-salio:#5aa9e6;
+    --e-camino:#f0b93a;
+    --e-llego:#4fd8c4;
+    --e-montando:#b98bff;
+    --e-curso:#ff8bc6;
+    --e-recolectando:#8b93ff;
+    --e-cerrado:#39e991;
+    --e-seguridad:#ff5252;
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -67,28 +77,38 @@
   main{flex:1; padding:20px 18px 60px; max-width:900px; margin:0 auto; width:100%;}
 
   .summary-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
-  .summary-card{background:var(--ink-2); border:1px solid var(--line); border-radius:16px; padding:16px 12px; text-align:center;}
-  .summary-card .num{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:700;}
+  .summary-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:18px 12px; text-align:center;}
+  .summary-card .num{font-family:'Fraunces',serif; font-size:1.9rem; font-weight:700;}
   .summary-card .label{font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
+  .summary-card.alerta{border-color:var(--bad); background:rgba(255,107,107,0.08);}
   .summary-card.alerta .num{color:var(--bad);}
 
   .evento-row{
-    background:var(--ink-2); border:1px solid var(--line); border-radius:16px;
-    padding:16px 18px; margin-bottom:10px;
+    background:var(--ink-2); border:1px solid var(--line); border-left:5px solid var(--e-preparando);
+    border-radius:18px; padding:18px 20px; margin-bottom:14px; transition:transform .15s;
   }
-  .evento-row.emergencia{border-color:var(--bad); background:rgba(255,107,107,0.06);}
-  .evento-row.seguridad{border-color:var(--sec); background:rgba(255,159,74,0.06);}
+  .evento-row.emergencia{border-color:var(--bad); border-left-color:var(--bad); background:rgba(255,107,107,0.08);}
+  .evento-row.seguridad{border-color:var(--e-seguridad); border-left-color:var(--e-seguridad); background:rgba(255,82,82,0.07);}
   .evento-top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;}
-  .evento-top h3{font-size:1.05rem;}
-  .evento-sub{font-size:0.82rem; color:var(--muted); margin-top:2px;}
-  .badge{display:inline-flex; align-items:center; gap:4px; font-size:0.72rem; font-weight:800; padding:5px 10px; border-radius:100px; white-space:nowrap;}
-  .badge-estatus{background:rgba(185,139,255,0.16); color:var(--divanna);}
-  .badge-pago-pendiente{background:rgba(240,185,58,0.16); color:var(--warn);}
-  .badge-pago-pagado{background:rgba(127,216,143,0.16); color:var(--good);}
-  .badge-emergencia{background:rgba(255,107,107,0.2); color:var(--bad);}
-  .badge-seguridad{background:rgba(255,159,74,0.2); color:var(--sec);}
-  .meta-line{display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:0.85rem; color:var(--muted);}
-  .motivo{font-size:0.82rem; margin-top:8px; padding:8px 10px; background:var(--ink); border-radius:10px;}
+  .evento-top h3{font-size:1.08rem;}
+  .evento-sub{font-size:0.83rem; color:var(--muted); margin-top:3px;}
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:0.75rem; font-weight:800; padding:7px 12px; border-radius:100px; white-space:nowrap;}
+  .badge-pago-pendiente{background:rgba(240,185,58,0.18); color:var(--warn);}
+  .badge-pago-pagado{background:rgba(57,233,145,0.18); color:var(--e-cerrado);}
+  .badge-emergencia{background:rgba(255,107,107,0.22); color:var(--bad);}
+  .badge-seguridad{background:rgba(255,82,82,0.2); color:var(--e-seguridad);}
+  .meta-line{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-size:0.86rem; color:var(--muted);}
+  .motivo{font-size:0.83rem; margin-top:10px; padding:10px 12px; background:var(--ink); border-radius:12px; border:1px solid var(--line);}
+
+  /* Botón flotante: acceso directo a DiMa por WhatsApp */
+  .dima-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
+    display:flex; align-items:center; gap:10px; padding:14px 20px 14px 16px; border-radius:100px;
+    background:linear-gradient(120deg, var(--maiz), var(--divanna)); color:var(--ink);
+    text-decoration:none; font-weight:800; font-size:0.92rem;
+    box-shadow:0 12px 32px -10px rgba(0,0,0,0.7); z-index:30;
+  }
+  .dima-fab .dot{width:9px; height:9px; border-radius:50%; background:var(--e-cerrado); box-shadow:0 0 0 4px rgba(57,233,145,0.25);}
 
   .empty-state{text-align:center; padding:60px 20px; color:var(--muted);}
   .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
@@ -118,6 +138,9 @@
   <main id="mainContent">
     <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
   </main>
+  <a class="dima-fab" href="https://wa.me/526674027074" target="_blank" rel="noopener">
+    <span class="dot"></span> Escribir a DiMa
+  </a>
 </div>
 
 <script>
@@ -133,6 +156,22 @@
 
   let currentCodigo = null;
   let pollTimer = null;
+
+  // Cada etapa tiene su propio color E icono -- nunca solo color, para accesibilidad.
+  const ESTATUS_VISUAL = {
+    'Preparando':            { color: '--e-preparando', icon: '📦' },
+    'Salió del almacén':     { color: '--e-salio',      icon: '🚛' },
+    'En camino':             { color: '--e-camino',     icon: '🚗' },
+    'Llegó al lugar':        { color: '--e-llego',      icon: '📍' },
+    'Montando':              { color: '--e-montando',   icon: '🔧' },
+    'Evento en curso':       { color: '--e-curso',       icon: '🎉' },
+    'Recolectando':          { color: '--e-recolectando',icon: '📥' },
+    'Cerrado':               { color: '--e-cerrado',     icon: '✅' },
+    'Retraso - situación de seguridad en la ciudad': { color: '--e-seguridad', icon: '⚠️' },
+  };
+  function estatusVisual(estatus){
+    return ESTATUS_VISUAL[estatus] || { color: '--e-preparando', icon: '📦' };
+  }
 
   function formatFecha(iso){
     if(!iso) return 'Sin fecha';
@@ -171,17 +210,19 @@
     ordenados.forEach(ev => {
       const claseFila = ev.emergencia ? 'emergencia' : (ev.zonaAlertaSeguridad ? 'seguridad' : '');
       const pagoClase = ev.estatusPago && ev.estatusPago.startsWith('Pendiente') ? 'badge-pago-pendiente' : 'badge-pago-pagado';
+      const visual = estatusVisual(ev.estatusLogistico);
+      const colorCss = `var(${visual.color})`;
 
       html += `
-        <div class="evento-row ${claseFila}">
+        <div class="evento-row ${claseFila}" style="border-left-color:${colorCss};">
           <div class="evento-top">
             <div>
               <h3>${ev.ubicacion || 'Ubicación por confirmar'} · ${ev.folio}</h3>
               <div class="evento-sub">${formatFecha(ev.fecha)} · ${ev.negocio || ''} · Brigada: ${ev.brigadaNombre}${ev.brigadaLider ? ' (' + ev.brigadaLider + ')' : ''}</div>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;">
-              <span class="badge badge-estatus">${ev.estatusLogistico}</span>
-              ${ev.estatusPago ? `<span class="badge ${pagoClase}">${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+              <span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${ev.estatusLogistico}</span>
+              ${ev.estatusPago ? `<span class="badge ${pagoClase}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
               ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
               ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
             </div>
