@@ -102,6 +102,71 @@ async function updateEvent(recordId, fields) {
   });
 }
 
+async function findEventByFolio(folio) {
+  const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
+  const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
+  return data.records[0] || null;
+}
+
+async function enviarWhatsApp(numeroDestino, mensaje) {
+  if (!numeroDestino) return;
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!sid || !token || !from) {
+    console.error('Faltan variables de entorno de Twilio para enviar WhatsApp saliente');
+    return;
+  }
+  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
+  const body = new URLSearchParams({ From: from, To: to, Body: mensaje });
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  if (!res.ok) console.error('Error enviando WhatsApp:', await res.text());
+}
+
+// Convierte el texto libre de "Servicios_Solicitados" en una lista de artículos,
+// uno por línea, para el checklist de carga de la brigada. Parseo simple por ahora
+// (comas / " y " / saltos de línea) mientras el catálogo estructurado no esté cargado.
+function parsearItemsDeServicios(textoServicios) {
+  if (!textoServicios) return [];
+  return textoServicios
+    .split(/,|\by\b|\n/i)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+// Manda a Diana la cotización con las 3 opciones fijas SI/NO/MODIFICAR.
+// NOTA: el monto todavía no se calcula solo (no hay motor de precios conectado
+// aún) — Diana debe confirmar/ajustar el monto como parte de su respuesta si
+// hace falta, hasta que el catálogo de precios esté cargado en el sistema.
+async function enviarCotizacionADiana(event) {
+  const f = event.fields;
+  const items = parsearItemsDeServicios(f.Servicios_Solicitados);
+
+  await updateEvent(event.id, {
+    Items_Detallados_Cotizacion: items.join('\n'),
+    Autorizacion_Diana: 'Pendiente',
+    Cotizacion_Enviada_Diana: true,
+  });
+
+  const mensaje =
+    `Diana, realicé cotización para evento ${f.Folio_Evento}.\n` +
+    `Fecha: ${f.Fecha_Evento || 'por confirmar'}\n` +
+    `Ubicación: ${f.Ubicacion || 'por confirmar'}\n` +
+    `Invitados: ${f.Invitados || 'por confirmar'}\n` +
+    `Servicios: ${f.Servicios_Solicitados || 'por confirmar'}\n` +
+    `Monto: pendiente de confirmar por ti (aún no hay catálogo de precios cargado)\n\n` +
+    `Responde:\nSI ${f.Folio_Evento}\nNO ${f.Folio_Evento}\nMODIFICAR ${f.Folio_Evento} [tu cambio]`;
+
+  await enviarWhatsApp(process.env.DIANA_WHATSAPP_NUMBER, mensaje);
+}
+
 async function logConversation(clientRecordId, eventRecordId, mensaje, rol) {
   const fields = {
     Mensaje_ID: `${Date.now()}-${rol}`,
@@ -253,6 +318,50 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ---------- RESPUESTA DE DIANA (SI / NO / MODIFICAR) ----------
+    // Si el mensaje viene del número de Diana, no pasa por el flujo de cliente:
+    // se procesa como autorización de una cotización pendiente.
+    const numeroDiana = (process.env.DIANA_WHATSAPP_NUMBER || '').replace('whatsapp:', '');
+    if (numeroDiana && from.replace(/\D/g, '').endsWith(numeroDiana.replace(/\D/g, ''))) {
+      const match = body.trim().match(/^(SI|NO|MODIFICAR)\s+(EVT-\S+)\s*(.*)$/i);
+      if (match) {
+        const [, comando, folio, resto] = match;
+        const eventoFolio = await findEventByFolio(folio.toUpperCase());
+        if (!eventoFolio) {
+          res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>No encontré el evento ${folio}, revisa el folio.</Message></Response>`);
+          return;
+        }
+
+        const comandoUpper = comando.toUpperCase();
+        if (comandoUpper === 'SI') {
+          const items = parsearItemsDeServicios(eventoFolio.fields.Items_Detallados_Cotizacion || eventoFolio.fields.Servicios_Solicitados);
+          await updateEvent(eventoFolio.id, {
+            Autorizacion_Diana: 'SI',
+            Checklist_Items: items.join('\n'),
+            Checklist_Items_Marcados: '[]',
+          });
+        } else if (comandoUpper === 'NO') {
+          await updateEvent(eventoFolio.id, { Autorizacion_Diana: 'NO' });
+        } else if (comandoUpper === 'MODIFICAR') {
+          await updateEvent(eventoFolio.id, {
+            Autorizacion_Diana: 'MODIFICAR',
+            Modificacion_Solicitada_Diana: resto || '',
+          });
+        }
+
+        const confirmacion = comandoUpper === 'SI'
+          ? `Listo, cotización ${folio} autorizada. Checklist de carga generado para la brigada.`
+          : comandoUpper === 'NO'
+          ? `Entendido, cotización ${folio} cancelada. Ajusto con el cliente.`
+          : `Recibido, voy a regenerar la cotización ${folio} con tu cambio: "${resto}".`;
+
+        res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(confirmacion)}</Message></Response>`);
+        return;
+      }
+      // Si el mensaje de Diana no matchea el formato esperado, seguimos el flujo normal
+      // (podría ser una pregunta suya, no necesariamente una autorización).
+    }
+
     // 1. Buscar o crear cliente
     let client = await findClientByPhone(from);
     if (!client) {
@@ -289,6 +398,14 @@ module.exports = async (req, res) => {
       if (aiResult.updates.Ubicacion) fieldsToUpdate.Ubicacion = aiResult.updates.Ubicacion;
       if (Object.keys(fieldsToUpdate).length > 0) {
         await updateEvent(event.id, fieldsToUpdate);
+        event.fields = { ...event.fields, ...fieldsToUpdate };
+      }
+
+      // Cuando ya hay lo mínimo para cotizar y todavía no se le ha mandado
+      // a Diana, DiMa arma y envía la cotización sola (nunca cotiza el cliente).
+      const yaTieneLoMinimo = event.fields.Fecha_Evento && event.fields.Servicios_Solicitados && event.fields.Ubicacion;
+      if (yaTieneLoMinimo && !event.fields.Cotizacion_Enviada_Diana) {
+        await enviarCotizacionADiana(event);
       }
     }
 
