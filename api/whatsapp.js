@@ -4,6 +4,7 @@
 // guarda todo en Airtable, y responde al cliente por WhatsApp.
 
 const crypto = require('crypto');
+const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
 
 // ---------- CONFIGURACIÓN ----------
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H'; // Base "DiMa OS"
@@ -340,6 +341,38 @@ module.exports = async (req, res) => {
             Checklist_Items: items.join('\n'),
             Checklist_Items_Marcados: '[]',
           });
+
+          // Integraciones de Google: agendar en Calendar, registrar en Sheets,
+          // y mandar correo al cliente si dio su email. Ninguna de estas debe
+          // tronar el flujo principal si falla -- son "nice to have", no crítico.
+          try {
+            const f = eventoFolio.fields;
+            let clienteNombre = '', clienteTelefono = '', clienteEmail = '';
+            if (f.Cliente && f.Cliente[0]) {
+              const clienteData = await airtableRequest(`${TABLES.CLIENTES}/${f.Cliente[0]}`);
+              clienteNombre = clienteData.fields.Nombre || '';
+              clienteTelefono = clienteData.fields.Telefono_WhatsApp || '';
+              clienteEmail = clienteData.fields.Email || '';
+            }
+
+            const datosEvento = {
+              folio: f.Folio_Evento,
+              negocio: f.Negocio,
+              fechaEvento: f.Fecha_Evento,
+              ubicacion: f.Ubicacion,
+              invitados: f.Invitados,
+              servicios: f.Servicios_Solicitados,
+              monto: f.Monto_Cotizacion || '',
+            };
+
+            await crearEventoCalendar(datosEvento);
+            await agregarFilaCotizacion({ ...datosEvento, clienteNombre, clienteTelefono });
+            if (clienteEmail) {
+              await enviarCotizacionPorCorreo({ ...datosEvento, emailCliente: clienteEmail });
+            }
+          } catch (googleErr) {
+            console.error('Error en integraciones de Google (no crítico):', googleErr.message);
+          }
         } else if (comandoUpper === 'NO') {
           await updateEvent(eventoFolio.id, { Autorizacion_Diana: 'NO' });
         } else if (comandoUpper === 'MODIFICAR') {
