@@ -484,6 +484,121 @@ function validateTwilioSignature(req, url) {
 }
 
 // ---------- HANDLER PRINCIPAL ----------
+// Descarga una imagen de Twilio (requiere autenticación básica con las
+// credenciales de la cuenta) y la devuelve en base64 lista para mandar a Claude.
+async function descargarMediaComoBase64(mediaUrl) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const res = await fetch(mediaUrl, {
+    headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64') },
+  });
+  if (!res.ok) throw new Error(`No se pudo descargar la imagen: ${res.status}`);
+  const contentType = res.headers.get('content-type') || 'image/jpeg';
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  return { base64, mediaType: contentType.split(';')[0] };
+}
+
+// Analiza una imagen con Claude (visión) para saber si es un comprobante de
+// pago/depósito, y si sí, extraer monto y método. Caso real que resuelve:
+// las 3 llamadas el mismo día preguntando "¿ya llegó mi depósito?" -- ahora
+// DiMa lo confirma sola, sin que Diana/Víctor tengan que contestar llamadas.
+async function procesarPosibleComprobante({ mediaUrl, from, profileName, hayTextoJunto }) {
+  try {
+    const { base64, mediaType } = await descargarMediaComoBase64(mediaUrl);
+
+    const tools = [{
+      name: 'analizar_comprobante',
+      description: 'Analiza si la imagen es un comprobante de pago/transferencia/depósito.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          es_comprobante_de_pago: { type: 'boolean' },
+          monto: { type: ['number', 'null'], description: 'Monto detectado en el comprobante, o null si no se distingue.' },
+          metodo: { type: ['string', 'null'], enum: ['Transferencia', 'Depósito', 'Efectivo', null] },
+        },
+        required: ['es_comprobante_de_pago', 'monto', 'metodo'],
+      },
+    }];
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'Analiza esta imagen: ¿es un comprobante de pago, transferencia o depósito bancario? Si sí, extrae el monto y el método.' },
+          ],
+        }],
+        tools,
+        tool_choice: { type: 'tool', name: 'analizar_comprobante' },
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Claude vision error ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    const toolUse = data.content.find(b => b.type === 'tool_use');
+    const analisis = toolUse ? toolUse.input : { es_comprobante_de_pago: false };
+
+    if (!analisis.es_comprobante_de_pago) {
+      // No es un comprobante -- si no hay texto en el mismo mensaje, respondemos
+      // algo breve para no dejar al cliente sin respuesta; si sí hay texto,
+      // dejamos que el flujo normal de conversación lo atienda.
+      return hayTextoJunto ? null : 'Recibí tu imagen 📷 ¿me cuentas en qué te ayudo con ella?';
+    }
+
+    // Sí es comprobante: buscamos al cliente y su evento activo para actualizar.
+    const client = await findClientByPhone(from);
+    if (!client) {
+      return '¡Gracias por tu comprobante! Para confirmarlo contra tu pedido, ¿me recuerdas tu nombre y para qué evento es? 😊';
+    }
+    const event = await findActiveEvent(client.id);
+    if (!event) {
+      return '¡Gracias por tu comprobante! No encuentro un evento activo a tu nombre todavía -- ¿me confirmas los datos de tu pedido para poder ligarlo?';
+    }
+
+    const metodoTexto = analisis.metodo || 'Transferencia';
+    const montoDetectado = analisis.monto || null;
+    const montoAdeudadoActual = event.fields.Monto_Adeudado || 0;
+    const yaQuedaLiquidado = montoDetectado && montoAdeudadoActual && montoDetectado >= montoAdeudadoActual;
+
+    await updateEvent(event.id, {
+      Estatus_Pago: yaQuedaLiquidado ? 'Liquidado 100%' : `Pagado - ${metodoTexto}`,
+      Monto_Adeudado: yaQuedaLiquidado ? 0 : Math.max((montoAdeudadoActual || 0) - (montoDetectado || 0), 0),
+    });
+
+    // Avisamos a Diana y Víctor -- sin que tengan que revisar ni contestar llamadas.
+    const avisoEquipo =
+      `💰 Pago confirmado automáticamente\n` +
+      `Cliente: ${profileName || from}\n` +
+      `Evento: ${event.fields.Folio_Evento}\n` +
+      `Monto detectado: ${montoDetectado ? '$' + montoDetectado : 'no se pudo leer con certeza'}\n` +
+      `Método: ${metodoTexto}\n` +
+      (yaQuedaLiquidado ? 'Estatus: LIQUIDADO 100%' : `Restante: $${Math.max((montoAdeudadoActual || 0) - (montoDetectado || 0), 0)}`);
+    await Promise.all([
+      enviarWhatsApp(process.env.DIANA_WHATSAPP_NUMBER, avisoEquipo),
+      enviarWhatsApp(process.env.VICTOR_WHATSAPP_NUMBER, avisoEquipo),
+    ]);
+
+    return montoDetectado
+      ? `¡Recibido! Confirmamos tu pago de $${montoDetectado} 💜 ${yaQuedaLiquidado ? 'Tu evento queda liquidado al 100%, ¡todo listo!' : 'Gracias por tu abono.'}`
+      : '¡Recibido tu comprobante! Lo estamos verificando y en un momento te confirmamos. 💜';
+  } catch (err) {
+    console.error('Error procesando posible comprobante:', err.message);
+    // Ante un error, si no hay texto en el mismo mensaje evitamos dejar al
+    // cliente sin respuesta; si sí hay texto, dejamos que el flujo normal continúe.
+    return hayTextoJunto ? null : 'Recibí tu imagen 📷 En un momento la reviso, gracias por tu paciencia.';
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method Not Allowed');
@@ -529,6 +644,28 @@ module.exports = async (req, res) => {
       res.setHeader('Content-Type', 'text/xml');
       res.status(200).send(twimlAudio);
       return;
+    }
+
+    // ---------- CONFIRMACIÓN AUTOMÁTICA DE PAGOS (foto de comprobante) ----------
+    // Caso real que motivó esto: 3 llamadas el mismo día preguntando si ya se
+    // había recibido un depósito. En vez de que Diana/Víctor tengan que revisar
+    // manualmente, DiMa lee la imagen con visión, confirma el pago, actualiza
+    // Airtable, y le avisa al cliente Y al equipo -- sin que nadie conteste llamadas.
+    if (numMedia > 0 && mediaContentType.startsWith('image/')) {
+      const respuestaPago = await procesarPosibleComprobante({
+        mediaUrl: req.body.MediaUrl0,
+        from,
+        profileName,
+        hayTextoJunto: !!body,
+      });
+      if (respuestaPago) {
+        const twimlPago = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(respuestaPago)}</Message></Response>`;
+        res.setHeader('Content-Type', 'text/xml');
+        res.status(200).send(twimlPago);
+        return;
+      }
+      // Si no se detectó como comprobante de pago, seguimos el flujo normal
+      // de texto (si el cliente además escribió algo en el mismo mensaje).
     }
 
     if (!body) {
