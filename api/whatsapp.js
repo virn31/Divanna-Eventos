@@ -21,6 +21,20 @@ const TABLES = {
 
 const CLAUDE_MODEL = 'claude-sonnet-5';
 
+// Catálogo de fotos de referencia de decoración (portafolio real de eventos entregados).
+// El cliente elige el estilo/tema que más le gusta y a partir de ahí DiMa lo va
+// configurando con el catálogo de precios (Aro/Mampara/Shimmer/extras).
+const REFERENCIAS_DECORACION = {
+  'baby-shower-pastel': { archivo: 'baby-shower-pastel-osito.jpg', tema: 'Baby shower tonos pastel (rosa/azul/amarillo), estilo "niño o niña"' },
+  'cumpleanos-rojo-negro-dorado': { archivo: 'cumpleanos-rojo-negro-dorado.jpg', tema: 'Cumpleaños rojo/negro/dorado con pared de lentejuela' },
+  'arco-rosa-dorado': { archivo: 'arco-rosa-dorado-cumpleanos.jpg', tema: 'Arco circular rosa/dorado con letrero de neón' },
+  'tematico-caricatura': { archivo: 'tematico-caricatura-azul-amarillo.jpg', tema: 'Temático de caricatura infantil, azul/amarillo/rosa, con nombre personalizado' },
+  'xv-anos-lentejuela': { archivo: 'xv-anos-rojo-lentejuela.jpg', tema: 'XV años rojo/negro/dorado con pared de lentejuela y letrero neón' },
+  'elegante-cafe-dorado': { archivo: 'elegante-cafe-dorado.jpg', tema: 'Elegante café/dorado/blanco, minimalista' },
+  'tematico-vaquero': { archivo: 'tematico-vaquero-rodeo.jpg', tema: 'Temático vaquero/rodeo, con paca de alfalfa y props' },
+  'mesa-honor-veleros': { archivo: 'mesa-honor-veleros.jpg', tema: 'Mesa de honor con veleros, velitas y flor artificial (boda/evento formal)' },
+};
+
 // ---------- UTILIDADES DE AIRTABLE ----------
 async function airtableRequest(path, options = {}) {
   const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${path}`, {
@@ -242,6 +256,10 @@ DECORACIÓN DE DIVANNA:
 - Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
 - Paquetes temáticos completos con props especiales (ej. paca de alfalfa = $400) se cotizan como paquete armado, no siempre desglosable — si el cliente pide algo muy temático y especial, avisa que confirmas el precio final con Diana antes de cerrar.
 
+FOTOS DE REFERENCIA DE DECORACIÓN (portafolio real, el cliente elige un estilo y lo va configurando desde ahí):
+${Object.entries(REFERENCIAS_DECORACION).map(([id, r]) => `- "${id}": ${r.tema}`).join('\n')}
+Cuando el cliente pida ejemplos/fotos de decoración, o mencione un estilo/tema (ej. "algo elegante", "tengo una fiesta vaquera", "quiero algo como para XV años"), identifica cuáles de las referencias de arriba se parecen más a lo que busca (1 a 3 máximo, las más relevantes) y ponlas en "imagenes_referencia_a_enviar" usando su id exacto. Si el cliente no menciona ningún tema y solo pide "ver ejemplos" en general, manda 2-3 variadas. Después de que el cliente vea las fotos y diga cuál le gustó, sigue armando su cotización normal con el catálogo de precios de Divanna (Aro/Mampara/Shimmer + extras), nunca inventes un precio nuevo por "parecerse" a una foto -- las fotos son solo inspiración visual, el precio siempre sale del catálogo real.
+
 CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
 1. Si el cliente da suficientes datos (cuántas mesas/sillas, tipo de decoración, si quiere snacks), CALCULA el monto total tú misma sumando los componentes con las reglas de arriba.
 2. SIEMPRE cierra cualquier estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
@@ -285,6 +303,11 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
           type: 'boolean',
           description: 'TRUE si el cliente pidió explícitamente ver fotos/imágenes de los paquetes de El Vaso Maíz (ej. "mándame las imágenes", "quiero ver fotos"). Si es TRUE, el reply debe decir algo breve tipo "¡Claro! Aquí tienes" sin prometer que se las mandarás después -- se adjuntan automáticamente en el mismo mensaje.',
         },
+        imagenes_referencia_a_enviar: {
+          type: 'array',
+          items: { type: 'string', enum: Object.keys(REFERENCIAS_DECORACION) },
+          description: 'IDs (máximo 3) del catálogo de FOTOS DE REFERENCIA DE DECORACIÓN que mejor se ajustan a lo que el cliente pidió ver o al tema que mencionó. Vacío [] si no aplica en este mensaje. Si se llena, el reply debe decir algo breve tipo "¡Claro! Mira estos ejemplos" sin prometer que se las mandarás después -- se adjuntan automáticamente en el mismo mensaje.',
+        },
         updates: {
           type: 'object',
           properties: {
@@ -297,7 +320,7 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
           required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion', 'Monto_Estimado'],
         },
       },
-      required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'updates'],
+      required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'imagenes_referencia_a_enviar', 'updates'],
     },
   }];
 
@@ -522,13 +545,19 @@ module.exports = async (req, res) => {
 
     // 9. Responder a Twilio en formato TwiML (con imágenes si el cliente las pidió)
     const baseUrl = 'https://divanna-eventos.vercel.app';
-    const medias = aiResult.enviar_imagenes_paquetes
+    const mediasPaquetes = aiResult.enviar_imagenes_paquetes
       ? [
           `<Media>${baseUrl}/paquetes/paquetes-1-a-4.jpg</Media>`,
           `<Media>${baseUrl}/paquetes/paquete-5-raspados-maruchan.jpg</Media>`,
           `<Media>${baseUrl}/paquetes/sabritas-preparadas.jpg</Media>`,
         ].join('')
       : '';
+    const mediasReferencia = (aiResult.imagenes_referencia_a_enviar || [])
+      .slice(0, 3)
+      .filter(id => REFERENCIAS_DECORACION[id])
+      .map(id => `<Media>${baseUrl}/referencias/${REFERENCIAS_DECORACION[id].archivo}</Media>`)
+      .join('');
+    const medias = mediasPaquetes + mediasReferencia;
     const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(aiResult.reply)}${medias}</Message></Response>`;
     res.setHeader('Content-Type', 'text/xml');
     res.status(200).send(twiml);
