@@ -244,6 +244,11 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
       content: h.mensaje,
     }));
   messages.push({ role: 'user', content: mensajeCliente });
+  // Técnica de "prefill": forzamos a Claude a continuar desde "{" para
+  // garantizar que la salida sea JSON válido, sin importar qué tan
+  // conversacional se ponga el prompt (con el catálogo, tiende a "olvidar"
+  // la instrucción de responder solo JSON si no se refuerza así).
+  messages.push({ role: 'assistant', content: '{' });
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -267,7 +272,8 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
 
   const data = await res.json();
   const rawText = data.content.find(b => b.type === 'text')?.text || '{}';
-  const cleaned = rawText.replace(/```json|```/g, '').trim();
+  // El prefill "{" no viene incluido en la respuesta -- lo re-agregamos.
+  const cleaned = ('{' + rawText).replace(/```json|```/g, '').trim();
   try {
     return JSON.parse(cleaned);
   } catch (e) {
