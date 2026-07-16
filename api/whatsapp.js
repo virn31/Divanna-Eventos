@@ -143,9 +143,9 @@ function parsearItemsDeServicios(textoServicios) {
 }
 
 // Manda a Diana la cotización con las 3 opciones fijas SI/NO/MODIFICAR.
-// NOTA: el monto todavía no se calcula solo (no hay motor de precios conectado
-// aún) — Diana debe confirmar/ajustar el monto como parte de su respuesta si
-// hace falta, hasta que el catálogo de precios esté cargado en el sistema.
+// El monto viene del cálculo que DiMa ya hizo con el catálogo (Monto_Estimado_IA),
+// pero SIEMPRE se le presenta a Diana como estimado a confirmar/ajustar --
+// ella tiene la última palabra sobre el monto final, nunca es automático.
 async function enviarCotizacionADiana(event) {
   const f = event.fields;
   const items = parsearItemsDeServicios(f.Servicios_Solicitados);
@@ -156,13 +156,17 @@ async function enviarCotizacionADiana(event) {
     Cotizacion_Enviada_Diana: true,
   });
 
+  const montoTexto = f.Monto_Estimado_IA
+    ? `$${f.Monto_Estimado_IA} (estimado por DiMa con el catálogo, ajusta si hace falta)`
+    : 'pendiente de confirmar por ti (no se pudo calcular con los datos actuales)';
+
   const mensaje =
     `Diana, realicé cotización para evento ${f.Folio_Evento}.\n` +
     `Fecha: ${f.Fecha_Evento || 'por confirmar'}\n` +
     `Ubicación: ${f.Ubicacion || 'por confirmar'}\n` +
     `Invitados: ${f.Invitados || 'por confirmar'}\n` +
     `Servicios: ${f.Servicios_Solicitados || 'por confirmar'}\n` +
-    `Monto: pendiente de confirmar por ti (aún no hay catálogo de precios cargado)\n\n` +
+    `Monto: ${montoTexto}\n\n` +
     `Responde:\nSI ${f.Folio_Evento}\nNO ${f.Folio_Evento}\nMODIFICAR ${f.Folio_Evento} [tu cambio]`;
 
   await enviarWhatsApp(process.env.DIANA_WHATSAPP_NUMBER, mensaje);
@@ -220,6 +224,30 @@ OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar apa
 - Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con Diana)
 - Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
 
+CATÁLOGO REAL DE DIVANNA EVENTOS (mobiliario, vajilla y decoración):
+MOBILIARIO: Mesa cuadrada o redonda con 10 sillas Jardinera = $220 (incluye mantel en variedad de colores). Silla Jardinera = $15/pieza, Silla Tiffany = $18/pieza, Silla Antonella = $50/pieza.
+REGLA DE UPGRADE DE SILLA (MUY IMPORTANTE, evita duplicar piezas): si el cliente pide cambiar la Jardinera por Tiffany o Antonella, el cálculo es: (mesa sola) = $220 − (10 × $15) = $70, más el número de sillas nuevas al precio pleno. Ejemplo: mesa + 10 sillas Antonella = $70 + (10 × $50) = $570 total (NUNCA $220 + $500 = $720, eso duplicaría las sillas).
+MANTEL suelto/extra (solo para mesas fuera del paquete de $220) = $50. Mantel Corrugado = $120.
+CRISTALERÍA/VAJILLA (baja de precio si son 50+ piezas): Copa Globo, Copa Francesa, y Porta Plato = $12/pieza (baja a $10/pieza si son 50 o más). Vaso = $4 (sin descuento). Plato Trinche = $5 (sin descuento). Servilleta = $5/pieza.
+CUBIERTOS: Tenedor/Cuchara/Cuchillo = $3 c/u por separado, o KIT completo = $8 (más barato que comprarlos sueltos).
+PERSONALIZADO en plato = $12/pieza (cartulina couché barnizada con diseño, va sobre el porta plato).
+
+DECORACIÓN DE DIVANNA:
+- Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
+- Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero, 2 mesitas, tapete).
+- Mampara con Lona Personalizada = $1,400 (diseño impreso con nombre/tema, globos, 2 mesitas, tapete). El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con Diana si lo piden).
+- Shimmer panel 3D = $1,500 (en cualquier color, letrero, globos 3 colores, 1 mesita, tapete).
+- Número LED gigante (ej. un "15" o "50" iluminado) = $250 por dígito, se agrega a cualquier paquete.
+- Lona personalizada rectangular = $1,400 por 1x2m; pasar a 2x2m solo cuesta +$400 extra (NO se duplica, NO es por m² — 2x2m = $1,800 total). Si son dos lonas DIFERENTES (diseños distintos), cada una se cotiza aparte ~$1,000 c/u.
+- Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
+- Paquetes temáticos completos con props especiales (ej. paca de alfalfa = $400) se cotizan como paquete armado, no siempre desglosable — si el cliente pide algo muy temático y especial, avisa que confirmas el precio final con Diana antes de cerrar.
+
+CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
+1. Si el cliente da suficientes datos (cuántas mesas/sillas, tipo de decoración, si quiere snacks), CALCULA el monto total tú misma sumando los componentes con las reglas de arriba.
+2. SIEMPRE cierra cualquier estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
+3. VENTA CRUZADA: si el cliente solo pregunta por un negocio, ofrécele el otro al final (si pregunta por snacks, menciona que también hay mobiliario/decoración de Divanna, y viceversa) — siempre el que el cliente aún no ha mencionado.
+4. Nunca inventes precios de productos que no estén en este catálogo — si no lo sabes, dilo y ofrece confirmarlo con Diana.
+
 Tu trabajo en cada mensaje:
 1. Identificar a cuál negocio se refiere el cliente (o si aplica a ambos).
 2. Nunca preguntar información que ya se conoce (revisa el historial y el expediente del evento activo).
@@ -264,8 +292,9 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
             Servicios_Solicitados: { type: ['string', 'null'] },
             Invitados: { type: ['number', 'null'] },
             Ubicacion: { type: ['string', 'null'] },
+            Monto_Estimado: { type: ['number', 'null'], description: 'Monto total aproximado en pesos MXN, calculado con las reglas del catálogo (solo si ya hay suficientes datos para calcularlo; null si aún falta información).' },
           },
-          required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion'],
+          required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion', 'Monto_Estimado'],
         },
       },
       required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'updates'],
@@ -467,6 +496,7 @@ module.exports = async (req, res) => {
       if (aiResult.updates.Servicios_Solicitados) fieldsToUpdate.Servicios_Solicitados = aiResult.updates.Servicios_Solicitados;
       if (aiResult.updates.Invitados) fieldsToUpdate.Invitados = aiResult.updates.Invitados;
       if (aiResult.updates.Ubicacion) fieldsToUpdate.Ubicacion = aiResult.updates.Ubicacion;
+      if (aiResult.updates.Monto_Estimado) fieldsToUpdate.Monto_Estimado_IA = aiResult.updates.Monto_Estimado;
       if (Object.keys(fieldsToUpdate).length > 0) {
         await updateEvent(event.id, fieldsToUpdate);
         event.fields = { ...event.fields, ...fieldsToUpdate };
