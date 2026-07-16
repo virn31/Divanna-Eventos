@@ -214,6 +214,12 @@ CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas — todos inc
 - Paquete 5 (120pz) = $3,400: 20 Fresas, 20 Esquites, 20 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
 Anticipo fijo de $500 (sin importar el paquete) vía Mercado Pago a Angel Guadalupe Samano Lopez.
 
+OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
+- Sabritas Preparadas: 50 piezas = $1,850 (3 bases a elegir: Tostitos/Ruffles/Doritos/Chips verdes + 10 toppings)
+- Raspados: 50 = $1,250, 75 = $1,800, 100 = $2,300 (5 sabores a elegir)
+- Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con Diana)
+- Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
+
 Tu trabajo en cada mensaje:
 1. Identificar a cuál negocio se refiere el cliente (o si aplica a ambos).
 2. Nunca preguntar información que ya se conoce (revisa el historial y el expediente del evento activo).
