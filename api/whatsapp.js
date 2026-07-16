@@ -501,6 +501,13 @@ module.exports = async (req, res) => {
     const numMedia = parseInt(req.body.NumMedia || '0', 10);
     const mediaContentType = req.body.MediaContentType0 || '';
 
+    console.log('DiMa webhook recibido:', JSON.stringify({
+      from,
+      bodyLength: body.length,
+      numMedia,
+      mediaContentType,
+    }));
+
     if (!from) {
       res.status(400).send('Missing From');
       return;
