@@ -254,7 +254,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 600,
+      max_tokens: 1024,
       system: systemPrompt,
       messages,
     }),
@@ -271,7 +271,10 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    // Si Claude no devolvió JSON válido, degradamos con una respuesta segura.
+    // Si Claude no devolvió JSON válido, degradamos con una respuesta segura,
+    // pero dejamos el error y el texto crudo en los logs para poder diagnosticar.
+    console.error('Error parseando respuesta de Claude:', e.message);
+    console.error('Texto crudo recibido (primeros 500 caracteres):', rawText.slice(0, 500));
     return {
       negocio: null,
       reply: 'Gracias por tu mensaje, en un momento te atiendo con todos los detalles.',
