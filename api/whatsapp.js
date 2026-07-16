@@ -342,9 +342,11 @@ NUNCA reenvíes la misma foto de referencia dos veces en la misma conversación 
 UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico; es el MISMO edificio compartido por El Vaso Maíz Y Divanna Eventos, ahí se arman los paquetes de boda/XV):
 Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
-Cuando el cliente pregunte cómo/dónde pagar el anticipo, o pregunte por el local: puede ir en persona a pagar, probar productos y disfrutar un rato de la alberca -- agenda con él día/hora dentro del horario (confirmando que ese día esté disponible, no está garantizado por los eventos privados), y sigue ofreciendo también la opción de transferencia/Mercado Pago para quien prefiera no ir físicamente.
-VENTA CRUZADA DE SALONES: cuando mencionas el local o la visita, aprovecha para recomendar también los salones de Divanna Eventos (ej. Casa Isabella) de forma sutil y cordial -- nunca forzado ni como venta dura, solo como una sugerencia amable en el mismo mensaje.
-Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servicial, ventas sutiles, no agresivas.
+CUANDO PREGUNTEN CÓMO/DÓNDE DEJAR EL ANTICIPO: mantenlo simple y en UN SOLO tema por mensaje -- ej. "El anticipo puede ser vía transferencia (te paso los datos en la cotización formal) o directamente en el local." Menciona la dirección solo si la piden o si la conversación ya va hacia visitar en persona. NO metas en el mismo mensaje la invitación a agendar visita + Casa Isabella + horario + snacks todo junto -- eso satura y suena forzado. Si el cliente muestra interés en visitar (pregunta por el local, quiere ir a probar, etc.), AHÍ SÍ das el horario/cita previa. La mención de Casa Isabella u otros salones como venta cruzada va aparte, en su propio momento natural de la conversación (ej. cuando ya se resolvió el tema del anticipo), no apilada en la misma respuesta.
+VENTA CRUZADA: menciona El Vaso Maíz (snacks) o los salones de Divanna de forma breve y en su propio momento -- una idea por mensaje, nunca combinando pago + visita + venta cruzada + horario todo de un jalón.
+Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servicial, ventas sutiles, no agresivas, UN tema a la vez.
+
+CIERRE / REVISIÓN DE COTIZACIÓN (cuando ya se juntaron todos los servicios que quiere el cliente, antes de mandarla a Diana): haz un repaso breve y natural de lo que lleva, en vez de saltar directo a hablar de pago -- ej. "Ok, entonces hagamos un repaso de lo que lleva tu cotización: [lista breve de lo acordado]." Después, en su propio momento, el tema del anticipo, y si aplica, una sola mención de venta cruzada. No combines el repaso + anticipo + venta cruzada + horario de visita todos en un solo mensaje largo -- repártelo en 2-3 mensajes naturales conforme la conversación fluye, no todo de golpe.
 
 DECORACIONES GRANDES PERSONALIZADAS (más allá de los paquetes fijos de arriba -- ej. producciones con muchas más flores, arcos extra grandes, diseños muy específicos para bodas/XV que no calzan en los paquetes de $6,000/$6,500): estas SÍ son diseños a medida que solo existen como referencia en Instagram: cuando el cliente pida algo así, remítelo a Instagram (@divannaeventos) y pídele que te mande captura/foto del diseño específico que le gustó ahí, para poder cotizarlo sobre esa referencia exacta -- nunca inventes un precio para este tipo de producción sin ver antes a cuál publicación se refiere.
 
@@ -666,9 +668,23 @@ module.exports = async (req, res) => {
     const mediasReferencia = (aiResult.imagenes_referencia_a_enviar || [])
       .slice(0, 3)
       .filter(id => REFERENCIAS_DECORACION[id])
+      .filter(id => {
+        // Nunca reenviar una foto que ya se mandó en este evento -- control
+        // determinístico en Airtable, no depende de que Claude "recuerde"
+        // el historial (los adjuntos no viven en el texto del historial).
+        const yaEnviadas = (event && event.fields.Imagenes_Referencia_Enviadas || '').split(',').map(s => s.trim()).filter(Boolean);
+        return !yaEnviadas.includes(id);
+      });
+    if (event && mediasReferencia.length > 0) {
+      const yaEnviadas = (event.fields.Imagenes_Referencia_Enviadas || '').split(',').map(s => s.trim()).filter(Boolean);
+      const actualizadas = [...yaEnviadas, ...mediasReferencia].join(',');
+      await updateEvent(event.id, { Imagenes_Referencia_Enviadas: actualizadas });
+      event.fields.Imagenes_Referencia_Enviadas = actualizadas;
+    }
+    const mediasReferenciaTwiml = mediasReferencia
       .map(id => `<Media>${baseUrl}/referencias/${REFERENCIAS_DECORACION[id].archivo}</Media>`)
       .join('');
-    const medias = mediasPaquetes + mediasReferencia;
+    const medias = mediasPaquetes + mediasReferenciaTwiml;
     const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(aiResult.reply)}${medias}</Message></Response>`;
     res.setHeader('Content-Type', 'text/xml');
     res.status(200).send(twiml);
