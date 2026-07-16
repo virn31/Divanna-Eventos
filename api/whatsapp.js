@@ -247,6 +247,10 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
       properties: {
         negocio: { type: ['string', 'null'], enum: ['Divanna Eventos', 'El Vaso Maiz', 'Ambos', null] },
         reply: { type: 'string', description: 'Texto de respuesta para el cliente, en español de México, cálido y breve.' },
+        enviar_imagenes_paquetes: {
+          type: 'boolean',
+          description: 'TRUE si el cliente pidió explícitamente ver fotos/imágenes de los paquetes de El Vaso Maíz (ej. "mándame las imágenes", "quiero ver fotos"). Si es TRUE, el reply debe decir algo breve tipo "¡Claro! Aquí tienes" sin prometer que se las mandarás después -- se adjuntan automáticamente en el mismo mensaje.',
+        },
         updates: {
           type: 'object',
           properties: {
@@ -258,7 +262,7 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
           required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion'],
         },
       },
-      required: ['negocio', 'reply', 'updates'],
+      required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'updates'],
     },
   }];
 
@@ -480,8 +484,16 @@ module.exports = async (req, res) => {
     // 8. Guardar respuesta de la IA en el log
     await logConversation(client.id, event ? event.id : null, aiResult.reply, 'IA');
 
-    // 9. Responder a Twilio en formato TwiML
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(aiResult.reply)}</Message></Response>`;
+    // 9. Responder a Twilio en formato TwiML (con imágenes si el cliente las pidió)
+    const baseUrl = 'https://divanna-eventos.vercel.app';
+    const medias = aiResult.enviar_imagenes_paquetes
+      ? [
+          `<Media>${baseUrl}/paquetes/paquetes-1-a-4.jpg</Media>`,
+          `<Media>${baseUrl}/paquetes/paquete-5-raspados-maruchan.jpg</Media>`,
+          `<Media>${baseUrl}/paquetes/sabritas-preparadas.jpg</Media>`,
+        ].join('')
+      : '';
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(aiResult.reply)}${medias}</Message></Response>`;
     res.setHeader('Content-Type', 'text/xml');
     res.status(200).send(twiml);
 
