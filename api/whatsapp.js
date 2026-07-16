@@ -496,9 +496,27 @@ module.exports = async (req, res) => {
     const from = (req.body.From || '').replace('whatsapp:', '');
     const profileName = req.body.ProfileName || '';
     const body = req.body.Body || '';
+    const numMedia = parseInt(req.body.NumMedia || '0', 10);
+    const mediaContentType = req.body.MediaContentType0 || '';
 
-    if (!from || !body) {
-      res.status(400).send('Missing From or Body');
+    if (!from) {
+      res.status(400).send('Missing From');
+      return;
+    }
+
+    // Por ahora DiMa no puede transcribir notas de voz. En vez de dejar al
+    // cliente sin respuesta (que es lo que pasaba antes), le pedimos con
+    // calidez que lo escriba, siguiendo la personalidad de DiMa.
+    if (!body && numMedia > 0 && mediaContentType.startsWith('audio/')) {
+      const mensajeAudio = 'Por el momento no puedo escuchar audios, ¿me lo escribes porfa? Así te atiendo más rápido.';
+      const twimlAudio = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(mensajeAudio)}</Message></Response>`;
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(200).send(twimlAudio);
+      return;
+    }
+
+    if (!body) {
+      res.status(400).send('Missing Body');
       return;
     }
 
