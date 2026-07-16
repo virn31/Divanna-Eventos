@@ -276,7 +276,7 @@ CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas — todos inc
 - Paquete 3 (90pz) = $2,700: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
 - Paquete 4 (100pz) = $2,950: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
 - Paquete 5 (120pz) = $3,400: 20 Fresas, 20 Esquites, 20 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
-Anticipo fijo de $500 (sin importar el paquete) vía Mercado Pago a Angel Guadalupe Samano Lopez.
+Anticipo fijo de $500 (sin importar el paquete). MÉTODO DE PAGO OFICIAL (aplica a AMBOS negocios, Divanna Eventos y El Vaso Maíz): depósitos y transferencias van a la cuenta de Diana Samano Tavizón, HSBC, tarjeta 4830 3045 0407 1329. Pago con tarjeta física se hace en la terminal de Ángel Samano.
 
 OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
 - Sabritas Preparadas: 50 piezas = $1,850 (3 bases a elegir: Tostitos/Ruffles/Doritos/Chips verdes + 10 toppings)
