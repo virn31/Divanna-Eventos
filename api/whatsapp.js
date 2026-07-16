@@ -355,6 +355,7 @@ Tu trabajo en cada mensaje:
 4. Responder siguiendo la personalidad definida arriba en "CÓMO HABLAS" (breve, máximo 3-4 líneas), siempre en español de México.
 5. TÚ (DiMa) eres quien arma la cotización, nunca un "especialista" ni ninguna otra persona — nunca inventes precios ni montos, pero tampoco digas que alguien más va a contactar al cliente. Solo sigue recopilando datos de forma natural.
 6. SI EL CLIENTE PIDE VER LOS PAQUETES/PRECIOS de El Vaso Maíz (ej. "pásame los paquetes", "qué precios tienen"), da un resumen CÁLIDO Y BREVE (1-2 líneas) mencionando el rango de precios (desde $1,500 hasta $3,400 según tamaño), y pídele más datos del evento (fecha, invitados, ubicación) para poder recomendarle el paquete que mejor le convenga — NO enumeres los 5 paquetes completos con todos los ingredientes de cada uno a menos que el cliente insista en ver el detalle completo o ya tengas el número de invitados (en ese caso sí recomienda el paquete específico que más se ajuste). Nunca digas que alguien más se los va a mandar — esto lo haces tú directamente.
+7. CUANDO YA IDENTIFICASTE UN PAQUETE FIJO QUE APLICA (ej. cliente pide boda/XV y ya tienes fecha+ubicación, o menciona cantidad de personas que calza con algún paquete de mesas/cristalería): tu PRIMER reply sobre ese paquete debe presentarlo como punto de partida y preguntar si tiene algo específico en mente -- ej. "¡Qué tal! Tenemos un paquete para bodas que te puede servir de base: [detalle breve], ¿tienes algo en mente para tu evento?" -- en ese mensaje pon listo_para_cotizar en FALSE aunque ya tengas fecha+servicio+ubicación. Solo pasa listo_para_cotizar a TRUE cuando el cliente ya vio las opciones y confirmó o dio suficiente detalle de lo que quiere.
 
 Expediente del evento activo (puede estar vacío si es la primera vez que escribe):
 ${eventoActivo ? JSON.stringify(eventoActivo.fields, null, 2) : 'Ninguno — este es un cliente nuevo o inicia un evento nuevo.'}
@@ -390,6 +391,10 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
           items: { type: 'string', enum: Object.keys(REFERENCIAS_DECORACION) },
           description: 'IDs (máximo 3) del catálogo de FOTOS DE REFERENCIA DE DECORACIÓN que mejor se ajustan a lo que el cliente pidió ver o al tema que mencionó. Vacío [] si no aplica en este mensaje. Si se llena, el reply debe decir algo breve tipo "¡Claro! Mira estos ejemplos" sin prometer que se las mandarás después -- se adjuntan automáticamente en el mismo mensaje.',
         },
+        listo_para_cotizar: {
+          type: 'boolean',
+          description: 'TRUE únicamente cuando la conversación ya llegó al punto de pasar a cotización formal con Diana -- es decir, ya se le mostró al cliente el paquete/opciones aplicables (si existía uno fijo) Y el cliente ya confirmó o dio suficiente detalle de lo que quiere. FALSE en el primer mensaje donde apenas se junta fecha+servicio+ubicación: en ESE mensaje, si hay un paquete fijo que aplica (ej. boda $6,500, XV $6,000, algún paquete de mesas/cristalería), tu reply debe presentarlo brevemente como punto de partida y preguntar si tiene algo específico en mente -- NUNCA saltar directo al mensaje de "ya tengo todos sus datos, inicio cotización" sin antes haber mostrado el paquete y dejar que el cliente reaccione. Cuando listo_para_cotizar sea TRUE, el sistema reemplaza tu reply automáticamente por el mensaje fijo de inicio de cotización, así que no hace falta que tú lo redactes.',
+        },
         updates: {
           type: 'object',
           properties: {
@@ -402,7 +407,7 @@ Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
           required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion', 'Monto_Estimado'],
         },
       },
-      required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'imagenes_referencia_a_enviar', 'updates'],
+      required: ['negocio', 'reply', 'enviar_imagenes_paquetes', 'imagenes_referencia_a_enviar', 'listo_para_cotizar', 'updates'],
     },
   }];
 
@@ -612,7 +617,7 @@ module.exports = async (req, res) => {
       // El mensaje al cliente en este caso es SIEMPRE el mismo texto fijo
       // acordado (no se deja a criterio de Claude, para evitar variaciones
       // como mencionar "un especialista" u otras frases incorrectas).
-      const yaTieneLoMinimo = event.fields.Fecha_Evento && event.fields.Servicios_Solicitados && event.fields.Ubicacion;
+      const yaTieneLoMinimo = event.fields.Fecha_Evento && event.fields.Servicios_Solicitados && event.fields.Ubicacion && aiResult.listo_para_cotizar;
       if (yaTieneLoMinimo && !event.fields.Cotizacion_Enviada_Diana) {
         await enviarCotizacionADiana(event);
         aiResult.reply =
