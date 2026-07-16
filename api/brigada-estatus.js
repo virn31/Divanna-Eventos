@@ -121,7 +121,7 @@ module.exports = async (req, res) => {
       }
 
       case 'estatus_logistico': {
-        // Bloqueo: no se puede avanzar de "Preparando" a "Salió del almacén" (o después)
+        // Bloqueo 1: no se puede avanzar de "Preparando" a "Salió del almacén" (o después)
         // si quedan items del checklist de carga sin marcar.
         const itemsRaw = (eventoData.fields.Checklist_Items || '').split('\n').map(s => s.trim()).filter(Boolean);
         if (itemsRaw.length > 0 && valor !== 'Preparando') {
@@ -132,6 +132,23 @@ module.exports = async (req, res) => {
             return;
           }
         }
+
+        // Bloqueo 2: clientes semáforo Amarillo/Rojo deben estar LIQUIDADOS al 100%
+        // antes de "Montando" (momento real de entrega/montaje) -- salvo que Diana
+        // haya autorizado la excepción de crédito para ese evento específico.
+        if (valor === 'Montando') {
+          const requiereLiquidacion = !!eventoData.fields.Requiere_Liquidacion_Anticipada;
+          const estatusPago = eventoData.fields.Estatus_Pago || '';
+          const yaLiquidado = estatusPago === 'Liquidado 100%';
+          const creditoAutorizado = estatusPago === 'Decorador con crédito abierto - autorizado por Diana';
+          if (requiereLiquidacion && !yaLiquidado && !creditoAutorizado) {
+            res.status(409).json({
+              error: 'Este cliente debe estar LIQUIDADO al 100% antes de montar. Verifica con Diana antes de continuar (o pídele que autorice crédito abierto si aplica).',
+            });
+            return;
+          }
+        }
+
         fieldsToUpdate.Estatus_Logistico = valor;
         if (valor === 'Salió del almacén') {
           fieldsToUpdate.Timestamp_Salida = new Date().toISOString();
