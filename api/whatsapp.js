@@ -113,17 +113,27 @@ async function findActiveEvent(clientRecordId) {
 
 async function createEvent(clientRecordId, negocio) {
   const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  // El campo Negocio en Airtable es singleSelect y solo tiene precargadas
+  // "Divanna Eventos" y "El Vaso Maiz" -- si Claude clasifica "Ambos" (u otro
+  // valor que aún no exista como opción), Airtable rechaza el request entero
+  // por falta de permiso para crear opciones nuevas sobre la marcha. Para
+  // nunca tronar el webhook por esto, solo mandamos el campo si es un valor
+  // ya conocido; si no, lo dejamos anotado en Notas para no perder el dato.
+  const NEGOCIOS_VALIDOS = ['Divanna Eventos', 'El Vaso Maiz'];
+  const fields = {
+    Folio_Evento: folio,
+    Estado: 'Identificando intencion',
+    Cliente: [clientRecordId],
+  };
+  if (NEGOCIOS_VALIDOS.includes(negocio)) {
+    fields.Negocio = negocio;
+  } else if (negocio) {
+    fields.Notas = `Negocio detectado por DiMa: "${negocio}" (agregar esta opción en Airtable si se repite seguido).`;
+  }
   const data = await airtableRequest(TABLES.EVENTOS, {
     method: 'POST',
     body: JSON.stringify({
-      records: [{
-        fields: {
-          Folio_Evento: folio,
-          Negocio: negocio,
-          Estado: 'Identificando intencion',
-          Cliente: [clientRecordId],
-        },
-      }],
+      records: [{ fields }],
     }),
   });
   return data.records[0];
