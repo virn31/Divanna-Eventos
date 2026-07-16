@@ -247,7 +247,32 @@ async function getRecentHistory(clientRecordId, limit = 10) {
 }
 
 // ---------- CLAUDE: CLASIFICACIÓN Y EXTRACCIÓN ----------
+// Trae el inventario real de Divanna (Airtable INVENTARIO) en formato compacto
+// "Item: cantidad disponible" para que DiMa nunca cotice algo sin stock real.
+// Se pagina porque Airtable devuelve máximo 100 registros por llamada.
+async function obtenerInventarioResumen() {
+  try {
+    let registros = [];
+    let offset = null;
+    do {
+      const query = offset ? `?pageSize=100&offset=${offset}` : '?pageSize=100';
+      const data = await airtableRequest(`${TABLES.INVENTARIO}${query}`);
+      registros = registros.concat(data.records);
+      offset = data.offset || null;
+    } while (offset);
+
+    return registros
+      .map(r => `${r.fields.Item || '?'}: ${r.fields.Cantidad_Disponible ?? r.fields.Cantidad_Total ?? '?'} disponibles`)
+      .join('\n');
+  } catch (err) {
+    console.error('Error obteniendo inventario:', err.message);
+    return null; // si falla, DiMa sigue sin ese dato en vez de tronar el flujo.
+  }
+}
+
 async function askClaude({ mensajeCliente, historial, eventoActivo }) {
+  const inventarioResumen = await obtenerInventarioResumen();
+
   const systemPrompt = `Eres DiMa, la asistente de WhatsApp de dos negocios hermanos en Culiacán, Sinaloa:
 
 1. DIVANNA EVENTOS: renta de mobiliario y artículos para eventos (mesas, sillas, decoración, montaje). NO coordina eventos.
@@ -371,9 +396,13 @@ Tu trabajo en cada mensaje:
 5. TÚ (DiMa) eres quien arma la cotización, nunca un "especialista" ni ninguna otra persona — nunca inventes precios ni montos, pero tampoco digas que alguien más va a contactar al cliente. Solo sigue recopilando datos de forma natural.
 6. SI EL CLIENTE PIDE VER LOS PAQUETES/PRECIOS de El Vaso Maíz (ej. "pásame los paquetes", "qué precios tienen"), da un resumen CÁLIDO Y BREVE (1-2 líneas) mencionando el rango de precios (desde $1,500 hasta $3,400 según tamaño), y pídele más datos del evento (fecha, invitados, ubicación) para poder recomendarle el paquete que mejor le convenga — NO enumeres los 5 paquetes completos con todos los ingredientes de cada uno a menos que el cliente insista en ver el detalle completo o ya tengas el número de invitados (en ese caso sí recomienda el paquete específico que más se ajuste). Nunca digas que alguien más se los va a mandar — esto lo haces tú directamente.
 7. CUANDO YA IDENTIFICASTE UN PAQUETE FIJO QUE APLICA (ej. cliente pide boda/XV y ya tienes fecha+ubicación, o menciona cantidad de personas que calza con algún paquete de mesas/cristalería): tu PRIMER reply sobre ese paquete debe presentarlo como punto de partida, mandar la foto de referencia (una sola vez) e invitar a ver más ideas en Instagram, y preguntar si tiene algo específico en mente -- ej. "Mira, este es nuestro paquete de bodas: [detalle breve]. En nuestro Instagram (@divannaeventos) hay más fotos, videos e ideas -- si quieres toma captura de algo que te guste y armamos algo especial. ¿Tienes algo en mente para tu evento?" -- en ese mensaje pon listo_para_cotizar en FALSE aunque ya tengas fecha+servicio+ubicación. Solo pasa listo_para_cotizar a TRUE cuando el cliente ya vio las opciones y confirmó o dio suficiente detalle de lo que quiere. En mensajes SIGUIENTES de la misma conversación, ya no vuelvas a mandar la foto ni a mencionar Instagram por default -- solo si el cliente pide ver más ejemplos.
+8. INVENTARIO REAL (revisa la lista de abajo antes de CONFIRMAR cantidades de Divanna Eventos): si el cliente pide una cantidad de mesas/sillas/copas/manteles/platón que SUPERA lo disponible en el inventario real, NUNCA lo confirmes como si hubiera stock -- dile con calidez que esa cantidad exacta puede estar ajustada y que lo confirmas con Diana, o sugiere una variante de color/material que sí tenga suficiente disponible. Si no tienes el dato de inventario en este momento (puede venir vacío por un error temporal), no bloquees la conversación -- sigue normal y solo aclara que la disponibilidad final se confirma antes de cerrar.
 
 Expediente del evento activo (puede estar vacío si es la primera vez que escribe):
 ${eventoActivo ? JSON.stringify(eventoActivo.fields, null, 2) : 'Ninguno — este es un cliente nuevo o inicia un evento nuevo.'}
+
+INVENTARIO REAL DE DIVANNA EVENTOS (cantidad disponible ahora mismo, actualizado en cada mensaje):
+${inventarioResumen || 'No disponible en este momento (error temporal) — no bloquees la conversación por esto, solo aclara que confirmas disponibilidad final antes de cerrar.'}
 
 Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
 
