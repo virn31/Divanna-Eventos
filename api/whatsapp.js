@@ -211,7 +211,7 @@ Tu trabajo en cada mensaje:
 2. Nunca preguntar información que ya se conoce (revisa el historial y el expediente del evento activo).
 3. Ir armando el expediente del evento: fecha, servicios solicitados, número de invitados, ubicación.
 4. Responder de forma cálida, profesional y breve (máximo 3-4 líneas), siempre en español de México.
-5. Cuando tengas datos suficientes para cotizar, avisa que un especialista de la Red generará la cotización — nunca inventes precios ni cotices tú misma.
+5. TÚ (DiMa) eres quien arma la cotización, nunca un "especialista" ni ninguna otra persona — nunca inventes precios ni montos, pero tampoco digas que alguien más va a contactar al cliente. Solo sigue recopilando datos de forma natural.
 
 Expediente del evento activo (puede estar vacío si es la primera vez que escribe):
 ${eventoActivo ? JSON.stringify(eventoActivo.fields, null, 2) : 'Ninguno — este es un cliente nuevo o inicia un evento nuevo.'}
@@ -265,7 +265,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
     // Si Claude no devolvió JSON válido, degradamos con una respuesta segura.
     return {
       negocio: null,
-      reply: 'Gracias por tu mensaje. En un momento un especialista de la Red te atiende para darte todos los detalles.',
+      reply: 'Gracias por tu mensaje, en un momento te atiendo con todos los detalles.',
       updates: {},
     };
   }
@@ -436,9 +436,16 @@ module.exports = async (req, res) => {
 
       // Cuando ya hay lo mínimo para cotizar y todavía no se le ha mandado
       // a Diana, DiMa arma y envía la cotización sola (nunca cotiza el cliente).
+      // El mensaje al cliente en este caso es SIEMPRE el mismo texto fijo
+      // acordado (no se deja a criterio de Claude, para evitar variaciones
+      // como mencionar "un especialista" u otras frases incorrectas).
       const yaTieneLoMinimo = event.fields.Fecha_Evento && event.fields.Servicios_Solicitados && event.fields.Ubicacion;
       if (yaTieneLoMinimo && !event.fields.Cotizacion_Enviada_Diana) {
         await enviarCotizacionADiana(event);
+        aiResult.reply =
+          'Gracias, tengo todos sus datos, inicio su cotización. ' +
+          'En menos de 24 hrs le envío su cotización. Si es urgente el día ' +
+          'de hoy, hágamelo saber y con gusto le damos turno prioritario.';
       }
     }
 
