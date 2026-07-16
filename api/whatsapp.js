@@ -33,6 +33,25 @@ const REFERENCIAS_DECORACION = {
   'elegante-cafe-dorado': { archivo: 'elegante-cafe-dorado.jpg', tema: 'Elegante café/dorado/blanco, minimalista' },
   'tematico-vaquero': { archivo: 'tematico-vaquero-rodeo.jpg', tema: 'Temático vaquero/rodeo, con paca de alfalfa y props' },
   'mesa-honor-veleros': { archivo: 'mesa-honor-veleros.jpg', tema: 'Mesa de honor con veleros, velitas y flor artificial (boda/evento formal)' },
+  'mesas-50p-tiffany-jardin': { archivo: 'mesas-50p-tiffany-jardin-3500.jpg', tema: 'Paquete de mesas para 50 personas, sillas Tiffany o Jardín, $3,500' },
+  'mesas-50p-antonella-lujo': { archivo: 'mesas-50p-antonella-lujo-6200.jpg', tema: 'Paquete de mesas para 50 personas, sillas Antonella, mantel lentejuela de lujo, $6,200' },
+  'mesas-50p-antonella': { archivo: 'mesas-50p-antonella-5400.jpg', tema: 'Paquete de mesas para 50 personas, sillas Antonella, mantel básico, $5,400' },
+  'mesas-50p-jardin-basico': { archivo: 'mesas-50p-jardin-basico-2500.jpg', tema: 'Paquete de mesas para 50 personas, sillas Jardín, básico sin cubiertos, $2,500' },
+  'mesas-50p-tiffany-lentejuela': { archivo: 'mesas-50p-tiffany-lentejuela-4500.jpg', tema: 'Paquete de mesas para 50 personas, sillas Tiffany, mantel lentejuela corrugado de lujo, $4,500' },
+  'mesas-20p-antonella': { archivo: 'mesas-20p-antonella-2200.jpg', tema: 'Paquete de mesas para 20 personas, sillas Antonella, mantel básico, $2,200' },
+  'mesas-20p-antonella-lentejuela': { archivo: 'mesas-20p-antonella-lentejuela-2500.jpg', tema: 'Paquete de mesas para 20 personas, sillas Antonella, mantel lentejuela, $2,500' },
+  'mesas-20p-jardin-basico': { archivo: 'mesas-20p-jardin-basico-1200.jpg', tema: 'Paquete de mesas para 20 personas, sillas Jardín, básico sin cubiertos, $1,200' },
+  'mesas-20p-tiffany-lentejuela': { archivo: 'mesas-20p-tiffany-lentejuela-2000.jpg', tema: 'Paquete de mesas para 20 personas, sillas Tiffany, mantel lentejuela, $2,000' },
+  'decoracion-mesas-20p': { archivo: 'decoracion-mesas-20p-2900.jpg', tema: 'Combo decoración de aro/mampara + 2 mesas para 20 personas, $2,900' },
+  'cristaleria-50p-dorado': { archivo: 'cristaleria-50p-dorado.jpg', tema: 'Combo de cristalería para 50 personas, cubiertos dorados' },
+  'cristaleria-50p-plata-trinche': { archivo: 'cristaleria-50p-plata-trinche.jpg', tema: 'Combo de cristalería para 50 personas, plato trinche, cubiertos plata' },
+  'cristaleria-50p-plata-grueso': { archivo: 'cristaleria-50p-plata-grueso.jpg', tema: 'Combo de cristalería para 50 personas, plato grueso, cubiertos plata' },
+  'cristaleria-100p': { archivo: 'cristaleria-100p-4000.jpg', tema: 'Combo de cristalería para 100 personas, $4,000' },
+  'arcos-cerezos': { archivo: 'arcos-cerezos-1200-3000.jpg', tema: 'Arcos de cerezos blancos/rosa/rojo, 1 arco $1,200 o 3 arcos $3,000' },
+  'tunel-luces': { archivo: 'tunel-luces-4m-1900.jpg', tema: 'Túnel de luces de 4m, $1,900, o túnel con marco de cerezos $3,800' },
+  'tunel-arcos-cerezos-led': { archivo: 'tunel-arcos-cerezos-led-4500.jpg', tema: 'Túnel de 6 medios arcos de cerezos blancos con arcos LED, $4,500' },
+  'decoracion-boda': { archivo: 'decoracion-boda-6500.jpg', tema: 'Paquete completo de decoración para boda, mesa de honor y arco de cerezos, $6,500' },
+  'paquete-xv': { archivo: 'paquete-xv-6000.jpg', tema: 'Paquete completo para XV años, mesa de honor y arco de cerezos, $6,000' },
 };
 
 // ---------- UTILIDADES DE AIRTABLE ----------
@@ -268,18 +287,50 @@ DECORACIÓN DE DIVANNA:
 - Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
 - Paquetes temáticos completos con props especiales (ej. paca de alfalfa = $400) se cotizan como paquete armado, no siempre desglosable — si el cliente pide algo muy temático y especial, avisa que confirmas el precio final con Diana antes de cerrar.
 
-DECORACIONES GRANDES (bodas, XV años, producciones grandes con muchas flores, arcos grandes, luces LED, etc.) — ESTAS NO ESTÁN EN EL CATÁLOGO FIJO de arriba (Aro/Mampara/Shimmer), son diseños a medida que se ven en Instagram: cuando el cliente pida referencias de este tipo de decoración grande (ej. "quiero algo grande para mis XV" o "decoración para boda"), remítelo a Instagram (@divannaeventos) y pídele que te mande captura/foto del diseño específico que le gustó ahí, para poder cotizarlo sobre esa referencia exacta -- nunca inventes un precio para este tipo de producción sin ver antes a cuál publicación se refiere.
+PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio, excepto diciembre salvo que se indique lo contrario):
+- 20 personas (2 mesas), sillas Jardín, mantel básico, plato base, copa, servilletas (SIN cubiertos ni personalizados) = $1,200
+- 20 personas, sillas Antonella, mantel básico, plato base, copa, servilletas, cubiertos y personalizados = $2,200
+- 20 personas (2 mesas), sillas Antonella, mantel lentejuela, plato base, copa, servilletas, cubiertos y personalizados = $2,500
+- 20 personas (2 mesas), sillas Tiffany, mantel de lujo lentejuela corrugado, plato base, copa, servilleta, cubiertos y personalizados = $2,000
+- 20 personas + DECORACIÓN (aro o mampara lisa, 3 colores de globos, letrero led, mesita pastel, tapete, reflector) + 2 mesas decoradas, mantel básico, silla a elección, plato base, copa, servilletas, cubiertos y personalizados = $2,900 (agenda con $1,000, combo con @AngelSamanoCreacion)
+- 50 personas, mantel básico color, sillas Jardín, plato base, copa, servilletas y montaje (SIN cubiertos ni personalizados) = $2,500
+- 50 personas, mantel básico color, sillas Tiffany o Jardín a elección, plato base, copa, servilletas, cubiertos y personalizados, montaje = $3,500
+- 50 personas, sillas Tiffany, mantel de lujo lentejuela corrugado, plato base, copa, servilleta, cubiertos y personalizados = $4,500
+- 50 personas, sillas Antonella, mantel básico, plato base, copa, servilletas, cubiertos y personalizados = $5,400
+- 50 personas, sillas Antonella (negra/beige/rosa), mantel lentejuela de lujo, plato base, copa, servilletas, cubiertos, círculos personalizados, centro de mesa (flores o velas), montaje = $6,200
+
+COMBOS DE CRISTALERÍA POR CANTIDAD DE PERSONAS (paquete cerrado de vajilla, DISTINTO del precio por pieza ya mencionado arriba -- este es precio de bulto para eventos grandes):
+- 50 personas, plato trinche + vaso + tenedor (plata) = $500; agregando cuchillo = $600
+- 50 personas, plato grueso + vaso + tenedor (plata) = $600; + cuchillo = $700; + cuchara = $800
+- 50 personas, plato grueso + vaso + tenedor (dorado) = $700; + cuchillo = $800; + cuchara = $900
+- 100 personas: 100 platos base + 100 copas + 100 servilletas + 100 kit de cubiertos + 100 personalizados = $4,000
+
+ARCOS DE CEREZOS Y TÚNELES DE LUCES (color blanco, rosa o rojo a elegir en los arcos de cerezos):
+- 1 Arco de cerezos = $1,200
+- 3 Arcos de cerezos = $3,000
+- Túnel de luces de 4m = $1,900
+- Túnel de 4m con marco de cerezos = $3,800
+- Túnel de 6 medios arcos de cerezos blancos (2.50m alto) + 3 arcos LED = $4,500 (precio de promoción, normalmente $9,000)
+
+PAQUETES FIJOS PARA BODA Y XV AÑOS (con precio cerrado, SÍ se pueden cotizar directo sin necesidad de remitir a Instagram, aunque también se puede mandar la foto de referencia para que el cliente vea el estilo):
+- Decoración para BODA = $6,500: mesa de honor, sillas de honor, marco de cerezos, letrero led, centro de flores artificial, 1 arco de cerezos blancos, foto gigante (2.20m alto x 1.20m ancho), 2 letras led + corazón de 1.20m alto.
+- Paquete para XV AÑOS = $6,000: mesa de honor, silla de honor, marco con cerezos, letrero led, centro de mesa flor artificial, foto gigante (2.20m alto x 1.20m ancho), arco de cerezos (blanco o combinando colores), letras led "XV" de 1.20m alto.
+Ambos paquetes se arman en el mismo local establecido de Enrique González Martínez 3926 (el mismo edificio de El Vaso Maíz -- Divanna y El Vaso Maíz comparten ese espacio), así que si el cliente quiere verlo en persona, aplica la misma lógica de agendar visita con cita previa.
+
+
 
 FOTOS DE REFERENCIA DE DECORACIÓN (portafolio real, el cliente elige un estilo y lo va configurando desde ahí):
 ${Object.entries(REFERENCIAS_DECORACION).map(([id, r]) => `- "${id}": ${r.tema}`).join('\n')}
 Cuando el cliente pida ejemplos/fotos de decoración, o mencione un estilo/tema (ej. "algo elegante", "tengo una fiesta vaquera", "quiero algo como para XV años"), identifica cuáles de las referencias de arriba se parecen más a lo que busca (1 a 3 máximo, las más relevantes) y ponlas en "imagenes_referencia_a_enviar" usando su id exacto. Si el cliente no menciona ningún tema y solo pide "ver ejemplos" en general, manda 2-3 variadas. Después de que el cliente vea las fotos y diga cuál le gustó, sigue armando su cotización normal con el catálogo de precios de Divanna (Aro/Mampara/Shimmer + extras), nunca inventes un precio nuevo por "parecerse" a una foto -- las fotos son solo inspiración visual, el precio siempre sale del catálogo real.
 
-UBICACIÓN FÍSICA DE EL VASO MAÍZ (IMPORTANTE — SÍ existe, no digas que no hay local físico):
+UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico; es el MISMO edificio compartido por El Vaso Maíz Y Divanna Eventos, ahí se arman los paquetes de boda/XV):
 Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
 Cuando el cliente pregunte cómo/dónde pagar el anticipo, o pregunte por el local: puede ir en persona a pagar, probar productos y disfrutar un rato de la alberca -- agenda con él día/hora dentro del horario (confirmando que ese día esté disponible, no está garantizado por los eventos privados), y sigue ofreciendo también la opción de transferencia/Mercado Pago para quien prefiera no ir físicamente.
 VENTA CRUZADA DE SALONES: cuando mencionas el local o la visita, aprovecha para recomendar también los salones de Divanna Eventos (ej. Casa Isabella) de forma sutil y cordial -- nunca forzado ni como venta dura, solo como una sugerencia amable en el mismo mensaje.
 Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servicial, ventas sutiles, no agresivas.
+
+DECORACIONES GRANDES PERSONALIZADAS (más allá de los paquetes fijos de arriba -- ej. producciones con muchas más flores, arcos extra grandes, diseños muy específicos para bodas/XV que no calzan en los paquetes de $6,000/$6,500): estas SÍ son diseños a medida que solo existen como referencia en Instagram: cuando el cliente pida algo así, remítelo a Instagram (@divannaeventos) y pídele que te mande captura/foto del diseño específico que le gustó ahí, para poder cotizarlo sobre esa referencia exacta -- nunca inventes un precio para este tipo de producción sin ver antes a cuál publicación se refiere.
 
 CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
 1. Si el cliente da suficientes datos (cuántas mesas/sillas, tipo de decoración, si quiere snacks), CALCULA el monto total tú misma sumando los componentes con las reglas de arriba.
