@@ -225,17 +225,7 @@ Tu trabajo en cada mensaje:
 Expediente del evento activo (puede estar vacío si es la primera vez que escribe):
 ${eventoActivo ? JSON.stringify(eventoActivo.fields, null, 2) : 'Ninguno — este es un cliente nuevo o inicia un evento nuevo.'}
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backticks, con esta forma exacta:
-{
-  "negocio": "Divanna Eventos" | "El Vaso Maiz" | "Ambos" | null,
-  "reply": "texto de respuesta para el cliente",
-  "updates": {
-    "Fecha_Evento": "YYYY-MM-DD o null",
-    "Servicios_Solicitados": "texto o null",
-    "Invitados": número o null,
-    "Ubicacion": "texto o null"
-  }
-}`;
+Siempre debes usar la herramienta "responder_cliente" para dar tu respuesta.`;
 
   const messages = historial
     .filter(h => h.mensaje && String(h.mensaje).trim().length > 0)
@@ -244,11 +234,33 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
       content: h.mensaje,
     }));
   messages.push({ role: 'user', content: mensajeCliente });
-  // Técnica de "prefill": forzamos a Claude a continuar desde "{" para
-  // garantizar que la salida sea JSON válido, sin importar qué tan
-  // conversacional se ponga el prompt (con el catálogo, tiende a "olvidar"
-  // la instrucción de responder solo JSON si no se refuerza así).
-  messages.push({ role: 'assistant', content: '{' });
+
+  // En vez de pedirle a Claude que "responda solo en JSON" (poco confiable
+  // una vez que el prompt se vuelve conversacional con el catálogo), usamos
+  // tool use forzado: Claude DEBE llamar a esta herramienta, y su "input"
+  // ya viene como objeto estructurado, sin necesidad de parsear texto.
+  const tools = [{
+    name: 'responder_cliente',
+    description: 'Registra la clasificación del negocio, los datos del evento, y la respuesta para el cliente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        negocio: { type: ['string', 'null'], enum: ['Divanna Eventos', 'El Vaso Maiz', 'Ambos', null] },
+        reply: { type: 'string', description: 'Texto de respuesta para el cliente, en español de México, cálido y breve.' },
+        updates: {
+          type: 'object',
+          properties: {
+            Fecha_Evento: { type: ['string', 'null'], description: 'Formato YYYY-MM-DD, o null si no se sabe.' },
+            Servicios_Solicitados: { type: ['string', 'null'] },
+            Invitados: { type: ['number', 'null'] },
+            Ubicacion: { type: ['string', 'null'] },
+          },
+          required: ['Fecha_Evento', 'Servicios_Solicitados', 'Invitados', 'Ubicacion'],
+        },
+      },
+      required: ['negocio', 'reply', 'updates'],
+    },
+  }];
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -262,6 +274,8 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
       max_tokens: 1024,
       system: systemPrompt,
       messages,
+      tools,
+      tool_choice: { type: 'tool', name: 'responder_cliente' },
     }),
   });
 
@@ -271,22 +285,18 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin backti
   }
 
   const data = await res.json();
-  const rawText = data.content.find(b => b.type === 'text')?.text || '{}';
-  // El prefill "{" no viene incluido en la respuesta -- lo re-agregamos.
-  const cleaned = ('{' + rawText).replace(/```json|```/g, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (e) {
-    // Si Claude no devolvió JSON válido, degradamos con una respuesta segura,
-    // pero dejamos el error y el texto crudo en los logs para poder diagnosticar.
-    console.error('Error parseando respuesta de Claude:', e.message);
-    console.error('Texto crudo recibido (primeros 500 caracteres):', rawText.slice(0, 500));
+  const toolUse = data.content.find(b => b.type === 'tool_use');
+
+  if (!toolUse || !toolUse.input) {
+    console.error('Claude no devolvió tool_use válido. Respuesta completa:', JSON.stringify(data).slice(0, 500));
     return {
       negocio: null,
       reply: 'Gracias por tu mensaje, en un momento te atiendo con todos los detalles.',
       updates: {},
     };
   }
+
+  return toolUse.input;
 }
 
 // ---------- VALIDACIÓN DE FIRMA DE TWILIO ----------
