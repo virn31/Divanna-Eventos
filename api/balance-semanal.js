@@ -40,7 +40,10 @@ async function airtablePost(tableId, fields) {
 }
 
 async function enviarWhatsApp(numeroDestino, mensaje) {
-  if (!numeroDestino) return;
+  if (!numeroDestino) {
+    console.error('enviarWhatsApp: no se recibió numeroDestino (revisa DIANA_WHATSAPP_NUMBER / VICTOR_WHATSAPP_NUMBER en Vercel)');
+    return;
+  }
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_FROM;
