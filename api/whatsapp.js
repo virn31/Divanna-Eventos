@@ -751,7 +751,8 @@ module.exports = async (req, res) => {
     const fromLimpio = from.replace(/\D/g, '');
     const esEquipoInterno = (numeroDianaLimpio && fromLimpio.endsWith(numeroDianaLimpio)) || (numeroVictorLimpio && fromLimpio.endsWith(numeroVictorLimpio));
 
-    if (esEquipoInterno) {
+    const CLAVE_BALANCE = '5555';
+    if (esEquipoInterno && body.trim() === CLAVE_BALANCE) {
       try {
         const formula = encodeURIComponent('NOT({Detalle_Enviado})');
         const balancesPendientes = await airtableRequest(`${TABLES.BALANCES}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Fin&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1`);
@@ -765,6 +766,11 @@ module.exports = async (req, res) => {
             return;
           }
         }
+        // Si escribieron la clave pero no hay ningún balance pendiente, avisamos.
+        const twimlSinBalance = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml('No tengo ningún balance pendiente por mostrarte en este momento 💜')}</Message></Response>`;
+        res.setHeader('Content-Type', 'text/xml');
+        res.status(200).send(twimlSinBalance);
+        return;
       } catch (e) {
         console.error('Error revisando balance pendiente:', e.message);
         // si falla, seguimos el flujo normal en vez de tronar
