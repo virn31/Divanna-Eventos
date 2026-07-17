@@ -64,6 +64,39 @@ async function enviarWhatsApp(numeroDestino, mensaje) {
   if (!res.ok) console.error('Error enviando balance por WhatsApp:', await res.text());
 }
 
+// Plantilla aprobada de WhatsApp "balance_semanal", necesaria porque el cron
+// corre solo, sin que nadie le haya escrito antes a DiMa (mensaje iniciado
+// por el negocio, requiere plantilla aprobada -- ver error 63016).
+async function enviarWhatsAppTemplate(numeroDestino, contentSid, variables) {
+  if (!numeroDestino) {
+    console.error('enviarWhatsAppTemplate: no se recibió numeroDestino');
+    return;
+  }
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!sid || !token || !from) {
+    console.error('Faltan variables de entorno de Twilio para enviar la plantilla del balance');
+    return;
+  }
+  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
+  const body = new URLSearchParams({
+    From: from,
+    To: to,
+    ContentSid: contentSid,
+    ContentVariables: JSON.stringify(variables),
+  });
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  if (!res.ok) console.error('Error enviando plantilla del balance:', await res.text());
+}
+
 // Devuelve el lunes y domingo de la semana que ACABA de terminar
 // (si hoy es lunes, reporta la semana pasada, lunes a domingo).
 function semanaAnterior() {
@@ -145,20 +178,20 @@ module.exports = async (req, res) => {
       Enviado_WhatsApp: true,
     });
 
-    const desglose = (obj) => Object.entries(obj).map(([k, v]) => `  ${k}: $${v.toLocaleString('es-MX')}`).join('\n') || '  (sin registros)';
-
-    const mensaje =
-      `📊 Balance semanal (${inicio} a ${fin})\n\n` +
-      `💰 Ingresos aproximados (eventos autorizados esta semana, ${numEventos} evento${numEventos === 1 ? '' : 's'}):\n${desglose(ingresosPorNegocio)}\n` +
-      `Total ingresos: $${ingresosTotales.toLocaleString('es-MX')}\n\n` +
-      `💸 Gastos registrados:\n${desglose(gastosPorNegocio)}\n` +
-      `Total gastos: $${gastosTotales.toLocaleString('es-MX')}\n\n` +
-      `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
-      `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS.`;
+    // Plantilla aprobada "balance_semanal": "Balance semanal ({{1}} a {{2}}):
+    // Ingresos ${{3}}, Gastos ${{4}}, Utilidad ${{5}}."
+    const CONTENT_SID_BALANCE = 'HXf97a1f85e6ff9cf1a20367d434c78b86';
+    const variables = {
+      '1': inicio,
+      '2': fin,
+      '3': ingresosTotales.toLocaleString('es-MX'),
+      '4': gastosTotales.toLocaleString('es-MX'),
+      '5': utilidad.toLocaleString('es-MX'),
+    };
 
     await Promise.all([
-      enviarWhatsApp(process.env.DIANA_WHATSAPP_NUMBER, mensaje),
-      enviarWhatsApp(process.env.VICTOR_WHATSAPP_NUMBER, mensaje),
+      enviarWhatsAppTemplate(process.env.DIANA_WHATSAPP_NUMBER, CONTENT_SID_BALANCE, variables),
+      enviarWhatsAppTemplate(process.env.VICTOR_WHATSAPP_NUMBER, CONTENT_SID_BALANCE, variables),
     ]);
 
     res.status(200).json({ success: true, inicio, fin, ingresosTotales, gastosTotales, utilidad });
