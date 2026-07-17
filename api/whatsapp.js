@@ -174,6 +174,38 @@ async function enviarWhatsApp(numeroDestino, mensaje) {
   if (!res.ok) console.error('Error enviando WhatsApp:', await res.text());
 }
 
+// Envía un mensaje usando una plantilla de WhatsApp APROBADA (Content Template).
+// Esto es obligatorio para mensajes que el negocio inicia (sin que el cliente
+// haya escrito en las últimas 24h) -- WhatsApp rechaza texto libre en ese caso
+// (error 63016). Por eso las notificaciones proactivas (cotización a Diana,
+// balance semanal, alertas) deben usar esto en vez de enviarWhatsApp() directo.
+async function enviarWhatsAppTemplate(numeroDestino, contentSid, variables) {
+  if (!numeroDestino) return;
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!sid || !token || !from) {
+    console.error('Faltan variables de entorno de Twilio para enviar plantilla de WhatsApp');
+    return;
+  }
+  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
+  const body = new URLSearchParams({
+    From: from,
+    To: to,
+    ContentSid: contentSid,
+    ContentVariables: JSON.stringify(variables),
+  });
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  if (!res.ok) console.error('Error enviando plantilla de WhatsApp:', await res.text());
+}
+
 // Convierte el texto libre de "Servicios_Solicitados" en una lista de artículos,
 // uno por línea, para el checklist de carga de la brigada. Parseo simple por ahora
 // (comas / " y " / saltos de línea) mientras el catálogo estructurado no esté cargado.
@@ -200,19 +232,19 @@ async function enviarCotizacionADiana(event) {
   });
 
   const montoTexto = f.Monto_Estimado_IA
-    ? `$${f.Monto_Estimado_IA} (estimado por DiMa con el catálogo, ajusta si hace falta)`
-    : 'pendiente de confirmar por ti (no se pudo calcular con los datos actuales)';
+    ? `$${f.Monto_Estimado_IA} (estimado, ajusta si hace falta)`
+    : 'pendiente de confirmar';
 
-  const mensaje =
-    `Diana, realicé cotización para evento ${f.Folio_Evento}.\n` +
-    `Fecha: ${f.Fecha_Evento || 'por confirmar'}\n` +
-    `Ubicación: ${f.Ubicacion || 'por confirmar'}\n` +
-    `Invitados: ${f.Invitados || 'por confirmar'}\n` +
-    `Servicios: ${f.Servicios_Solicitados || 'por confirmar'}\n` +
-    `Monto: ${montoTexto}\n\n` +
-    `Responde:\nSI ${f.Folio_Evento}\nNO ${f.Folio_Evento}\nMODIFICAR ${f.Folio_Evento} [tu cambio]`;
-
-  await enviarWhatsApp(process.env.DIANA_WHATSAPP_NUMBER, mensaje);
+  // Plantilla aprobada "cotizacion_diana" (Content Template Builder):
+  // "Diana, realicé cotización para evento {{1}}. Fecha: {{2}} Ubicación: {{3}}
+  //  Monto: {{4}} Responde: SI {{1}} / NO {{1}} / MODIFICAR {{1}} [cambio]"
+  const CONTENT_SID_COTIZACION_DIANA = 'HX060701e12cf9e9d6167f38b4580dbbcb';
+  await enviarWhatsAppTemplate(process.env.DIANA_WHATSAPP_NUMBER, CONTENT_SID_COTIZACION_DIANA, {
+    '1': f.Folio_Evento || '',
+    '2': f.Fecha_Evento || 'por confirmar',
+    '3': f.Ubicacion || 'por confirmar',
+    '4': montoTexto,
+  });
 }
 
 async function logConversation(clientRecordId, eventRecordId, mensaje, rol) {
