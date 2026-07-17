@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/balance-semanal",
+      "schedule": "0 14 * * 1"
+    }
+  ],
+  "functions": {
+    "api/whatsapp.js": {
+      "maxDuration": 30
+    }
+  }
+}
