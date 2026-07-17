@@ -753,7 +753,7 @@ module.exports = async (req, res) => {
 
     if (esEquipoInterno) {
       try {
-        const formula = encodeURIComponent('{Detalle_Enviado} = FALSE()');
+        const formula = encodeURIComponent('NOT({Detalle_Enviado})');
         const balancesPendientes = await airtableRequest(`${TABLES.BALANCES}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Fin&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1`);
         if (balancesPendientes.records.length > 0) {
           const balanceReciente = balancesPendientes.records[0];
