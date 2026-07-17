@@ -754,7 +754,7 @@ module.exports = async (req, res) => {
     const CLAVE_BALANCE = '5555';
     if (esEquipoInterno && body.trim() === CLAVE_BALANCE) {
       try {
-        const formula = encodeURIComponent('NOT({Detalle_Enviado})');
+        const formula = encodeURIComponent("AND(NOT({Detalle_Enviado}), {Detalle_Completo} != '')");
         const balancesPendientes = await airtableRequest(`${TABLES.BALANCES}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Fin&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1`);
         if (balancesPendientes.records.length > 0) {
           const balanceReciente = balancesPendientes.records[0];
