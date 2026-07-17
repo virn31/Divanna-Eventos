@@ -146,6 +146,13 @@ async function updateEvent(recordId, fields) {
   });
 }
 
+async function updateBalance(recordId, fields) {
+  return airtableRequest(TABLES.BALANCES, {
+    method: 'PATCH',
+    body: JSON.stringify({ records: [{ id: recordId, fields }] }),
+  });
+}
+
 async function findEventByFolio(folio) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
@@ -732,6 +739,36 @@ module.exports = async (req, res) => {
     if (!body) {
       res.status(400).send('Missing Body');
       return;
+    }
+
+    // ---------- BALANCE SEMANAL: mandar el detalle completo si hay uno pendiente ----------
+    // Cuando el cron manda la plantilla aprobada del balance (simple, sin
+    // detalle), guarda el mensaje completo en Airtable esperando que Diana o
+    // Víctor respondan algo -- eso abre la ventana de 24h y aquí les mandamos
+    // el desglose real y cálido, en el tono normal de DiMa.
+    const numeroDianaLimpio = (process.env.DIANA_WHATSAPP_NUMBER || '').replace('whatsapp:', '').replace(/\D/g, '');
+    const numeroVictorLimpio = (process.env.VICTOR_WHATSAPP_NUMBER || '').replace('whatsapp:', '').replace(/\D/g, '');
+    const fromLimpio = from.replace(/\D/g, '');
+    const esEquipoInterno = (numeroDianaLimpio && fromLimpio.endsWith(numeroDianaLimpio)) || (numeroVictorLimpio && fromLimpio.endsWith(numeroVictorLimpio));
+
+    if (esEquipoInterno) {
+      try {
+        const formula = encodeURIComponent('{Detalle_Enviado} = FALSE()');
+        const balancesPendientes = await airtableRequest(`${TABLES.BALANCES}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Fin&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1`);
+        if (balancesPendientes.records.length > 0) {
+          const balanceReciente = balancesPendientes.records[0];
+          if (balanceReciente.fields.Detalle_Completo) {
+            await updateBalance(balanceReciente.id, { Detalle_Enviado: true });
+            const twimlBalance = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(balanceReciente.fields.Detalle_Completo)}</Message></Response>`;
+            res.setHeader('Content-Type', 'text/xml');
+            res.status(200).send(twimlBalance);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error revisando balance pendiente:', e.message);
+        // si falla, seguimos el flujo normal en vez de tronar
+      }
     }
 
     // ---------- RESPUESTA DE DIANA (SI / NO / MODIFICAR) ----------

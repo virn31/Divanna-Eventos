@@ -169,6 +169,17 @@ module.exports = async (req, res) => {
 
     // Guardar el registro en BALANCES (sin tocar Periodo/Negocio para evitar
     // errores de opciones de singleSelect que no conocemos de antemano).
+    const desglose = (obj) => Object.entries(obj).map(([k, v]) => `  ${k}: $${v.toLocaleString('es-MX')}`).join('\n') || '  (sin registros)';
+
+    const detalleCompleto =
+      `📊 Aquí está tu balance semanal completo (${inicio} a ${fin}):\n\n` +
+      `💰 Ingresos aproximados (eventos autorizados esta semana, ${numEventos} evento${numEventos === 1 ? '' : 's'}):\n${desglose(ingresosPorNegocio)}\n` +
+      `Total ingresos: $${ingresosTotales.toLocaleString('es-MX')}\n\n` +
+      `💸 Gastos registrados:\n${desglose(gastosPorNegocio)}\n` +
+      `Total gastos: $${gastosTotales.toLocaleString('es-MX')}\n\n` +
+      `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
+      `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS. ¡Que tengas excelente semana! 💜`;
+
     await airtablePost(TABLES.BALANCES, {
       Nombre_Periodo: `Semana ${inicio} a ${fin}`,
       Fecha_Inicio: inicio,
@@ -176,6 +187,8 @@ module.exports = async (req, res) => {
       Ingresos_Totales: ingresosTotales,
       Gastos_Totales: gastosTotales,
       Enviado_WhatsApp: true,
+      Detalle_Completo: detalleCompleto,
+      Detalle_Enviado: false,
     });
 
     // Plantilla aprobada "balance_semanal": "Balance semanal ({{1}} a {{2}}):
