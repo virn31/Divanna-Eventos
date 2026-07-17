@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/balance-semanal",
-      "schedule": "0 14 * * 1"
-    }
-  ]
-}
