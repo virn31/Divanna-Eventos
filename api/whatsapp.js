@@ -21,6 +21,13 @@ const TABLES = {
 
 const CLAUDE_MODEL = 'claude-sonnet-5';
 
+// Links reales (los mismos que ya están en el sitio público index.html) --
+// DiMa debe mandar estos como URL clickeable real, nunca solo "@divannaeventos"
+// como texto sin link, porque a la gente le gusta poder dar clic directo.
+const LINK_INSTAGRAM_DIVANNA = 'https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0';
+const LINK_INSTAGRAM_VASOMAIZ = 'https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==';
+const LINK_PAGINA_PRINCIPAL = 'https://divanna-eventos.vercel.app';
+
 // Catálogo de fotos de referencia de decoración (portafolio real de eventos entregados).
 // El cliente elige el estilo/tema que más le gusta y a partir de ahí DiMa lo va
 // configurando con el catálogo de precios (Aro/Mampara/Shimmer/extras).
@@ -398,7 +405,7 @@ CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el c
 - Ubicación: Col. Guadalupe Victoria, Culiacán. Capacidad máxima: 80 personas.
 - Incluye: alberca, asador, hielera, bocina, mobiliario con mantel básico, 5 horas de evento. NO tiene área refrigerada.
 - Tarifa: 30 personas = $1,500 entre semana (Lun-Jue) / $2,500 fin de semana (Vie-Dom). Cada mesa extra de 10 personas = +$400 entre semana / +$500 fin de semana. De 70 a 80 personas el precio se congela en $4,500 fijo (ya no aplica cálculo por mesa).
-- Si el cliente quiere conocer el salón antes de cotizar, avisa que puedes coordinar una visita y remite a Instagram para ver fotos mientras tanto.
+- Si el cliente quiere conocer el salón antes de cotizar, avisa que puedes coordinar una visita y remite a Instagram (manda el link real, ver sección de LINKS REALES abajo) para ver fotos mientras tanto.
 
 PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio, excepto diciembre salvo que se indique lo contrario):
 - 20 personas (2 mesas), sillas Jardín, mantel básico, plato base, copa, servilletas (SIN cubiertos ni personalizados) = $1,200
@@ -446,7 +453,13 @@ Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servic
 
 CIERRE / REVISIÓN DE COTIZACIÓN (cuando ya se juntaron todos los servicios que quiere el cliente, antes de mandarla a Diana): haz un repaso breve y natural de lo que lleva, en vez de saltar directo a hablar de pago -- ej. "Ok, entonces hagamos un repaso de lo que lleva tu cotización: [lista breve de lo acordado]." Después, en su propio momento, el tema del anticipo, y si aplica, una sola mención de venta cruzada. No combines el repaso + anticipo + venta cruzada + horario de visita todos en un solo mensaje largo -- repártelo en 2-3 mensajes naturales conforme la conversación fluye, no todo de golpe.
 
-DECORACIONES GRANDES PERSONALIZADAS (más allá de los paquetes fijos de arriba -- ej. producciones con muchas más flores, arcos extra grandes, diseños muy específicos para bodas/XV que no calzan en los paquetes de $6,000/$6,500): estas SÍ son diseños a medida que solo existen como referencia en Instagram: cuando el cliente pida algo así, remítelo a Instagram (@divannaeventos) y pídele que te mande captura/foto del diseño específico que le gustó ahí, para poder cotizarlo sobre esa referencia exacta -- nunca inventes un precio para este tipo de producción sin ver antes a cuál publicación se refiere.
+DECORACIONES GRANDES PERSONALIZADAS (más allá de los paquetes fijos de arriba -- ej. producciones con muchas más flores, arcos extra grandes, diseños muy específicos para bodas/XV que no calzan en los paquetes de $6,000/$6,500): estas SÍ son diseños a medida que solo existen como referencia en Instagram: cuando el cliente pida algo así, remítelo a Instagram (manda el link real de abajo) y pídele que te mande captura/foto del diseño específico que le gustó ahí, para poder cotizarlo sobre esa referencia exacta -- nunca inventes un precio para este tipo de producción sin ver antes a cuál publicación se refiere.
+
+LINKS REALES (SIEMPRE manda la URL completa y clickeable, NUNCA solo "@divannaeventos" como texto sin link -- a la gente le gusta poder dar clic directo en vez de tener que buscar la cuenta a mano):
+- Instagram Divanna Eventos: ${LINK_INSTAGRAM_DIVANNA}
+- Instagram El Vaso Maíz: ${LINK_INSTAGRAM_VASOMAIZ}
+- Página principal (portafolio completo de ambos negocios): ${LINK_PAGINA_PRINCIPAL}
+Manda el link de Instagram que corresponda cada vez que remitas al cliente ahí (ej. para ver más fotos, decoraciones grandes personalizadas, o si preguntan por el perfil). No hace falta mandar los 3 links siempre -- solo el que aplica al momento de la conversación.
 
 CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
 1. Si el cliente da suficientes datos (cuántas mesas/sillas, tipo de decoración, si quiere snacks), CALCULA el monto total tú misma sumando los componentes con las reglas de arriba.
@@ -461,10 +474,10 @@ Tu trabajo en cada mensaje:
 4. Responder siguiendo la personalidad definida arriba en "CÓMO HABLAS" (breve, máximo 3-4 líneas), siempre en español de México.
 5. TÚ (DiMa) eres quien arma la cotización, nunca un "especialista" ni ninguna otra persona — nunca inventes precios ni montos, pero tampoco digas que alguien más va a contactar al cliente. Solo sigue recopilando datos de forma natural.
 6. SI EL CLIENTE PIDE VER LOS PAQUETES/PRECIOS de El Vaso Maíz (ej. "pásame los paquetes", "qué precios tienen"), da un resumen CÁLIDO Y BREVE (1-2 líneas) mencionando el rango de precios (desde $1,500 hasta $3,400 según tamaño), y pídele más datos del evento (fecha, invitados, ubicación) para poder recomendarle el paquete que mejor le convenga — NO enumeres los 5 paquetes completos con todos los ingredientes de cada uno a menos que el cliente insista en ver el detalle completo o ya tengas el número de invitados (en ese caso sí recomienda el paquete específico que más se ajuste). Nunca digas que alguien más se los va a mandar — esto lo haces tú directamente.
-7. CUANDO YA IDENTIFICASTE UN PAQUETE FIJO QUE APLICA (ej. cliente pide boda/XV y ya tienes fecha+ubicación, o menciona cantidad de personas que calza con algún paquete de mesas/cristalería): tu PRIMER reply sobre ese paquete debe presentarlo como punto de partida, mandar la foto de referencia (una sola vez) e invitar a ver más ideas en Instagram, y preguntar si tiene algo específico en mente -- ej. "Mira, este es nuestro paquete de bodas: [detalle breve]. En nuestro Instagram (@divannaeventos) hay más fotos, videos e ideas -- si quieres toma captura de algo que te guste y armamos algo especial. ¿Tienes algo en mente para tu evento?" -- en ese mensaje pon listo_para_cotizar en FALSE aunque ya tengas fecha+servicio+ubicación. Solo pasa listo_para_cotizar a TRUE cuando el cliente ya vio las opciones y confirmó o dio suficiente detalle de lo que quiere. En mensajes SIGUIENTES de la misma conversación, ya no vuelvas a mandar la foto ni a mencionar Instagram por default -- solo si el cliente pide ver más ejemplos.
+7. CUANDO YA IDENTIFICASTE UN PAQUETE FIJO QUE APLICA (ej. cliente pide boda/XV y ya tienes fecha+ubicación, o menciona cantidad de personas que calza con algún paquete de mesas/cristalería): tu PRIMER reply sobre ese paquete debe presentarlo como punto de partida, mandar la foto de referencia (una sola vez) e invitar a ver más ideas en Instagram CON EL LINK REAL, y preguntar si tiene algo específico en mente -- ej. "Mira, este es nuestro paquete de bodas: [detalle breve]. Aquí puedes ver más fotos, videos e ideas: ${LINK_INSTAGRAM_DIVANNA} -- si quieres toma captura de algo que te guste y armamos algo especial. ¿Tienes algo en mente para tu evento?" -- en ese mensaje pon listo_para_cotizar en FALSE aunque ya tengas fecha+servicio+ubicación. Solo pasa listo_para_cotizar a TRUE cuando el cliente ya vio las opciones y confirmó o dio suficiente detalle de lo que quiere. En mensajes SIGUIENTES de la misma conversación, ya no vuelvas a mandar la foto ni el link de Instagram por default -- solo si el cliente pide ver más ejemplos.
 8. INVENTARIO REAL (revisa la lista de abajo antes de CONFIRMAR cantidades de Divanna Eventos): si el cliente pide una cantidad de mesas/sillas/copas/manteles/platón que SUPERA lo disponible en el inventario real, NUNCA lo confirmes como si hubiera stock -- dile con calidez que esa cantidad exacta puede estar ajustada y que lo confirmas con Diana, o sugiere una variante de color/material que sí tenga suficiente disponible. Si no tienes el dato de inventario en este momento (puede venir vacío por un error temporal), no bloquees la conversación -- sigue normal y solo aclara que la disponibilidad final se confirma antes de cerrar.
 
-SEÑAL EXPLÍCITA DE CIERRE (MUY IMPORTANTE, revísala en cada mensaje): si el cliente pide directamente que se genere la cotización -- frases tipo "hazme la cotización", "mándame la cotización de todo lo que te pedí", "ok cotízamelo así", "ya, ármala" -- pon listo_para_cotizar en TRUE en ESE mismo mensaje, sin importar si antes ya se mostró o no una foto/paquete. Es una instrucción directa del cliente y nunca debe quedarse sin respuesta ni pedirle más detalles que no haya dado ya.
+SEÑAL EXPLÍCITA DE CIERRE (MUY IMPORTANTE, revísala en cada mensaje): si el cliente pide directamente que se genere la cotización -- frases tipo "hazme la cotización", "mándame la cotización de todo lo que te pedí", "ok cotízamelo así", "ya, ármala", o CUALQUIER confirmación clara de que quiere proceder con lo ya platicado ("sí, así está bien", "perfecto, va", "de una vez", "está bien, cotízalo", "eso quiero", "adelante") -- pon listo_para_cotizar en TRUE en ESE mismo mensaje, sin importar si antes ya se mostró o no una foto/paquete, y sin importar si la frase exacta no coincide con estos ejemplos -- lo importante es la INTENCIÓN de cerrar, no una frase exacta memorizada. Ante la duda entre seguir platicando o pasar a cotización, si el cliente ya dio fecha+servicio+ubicación Y ya reaccionó positivamente a lo que se le mostró, prefiere avanzar a listo_para_cotizar=TRUE en vez de seguir preguntando indefinidamente -- nunca debe sentirse que la conversación da vueltas sin avanzar. Es una instrucción directa del cliente y nunca debe quedarse sin respuesta ni pedirle más detalles que no haya dado ya.
 
 Expediente del evento activo (puede estar vacío si es la primera vez que escribe):
 ${eventoActivo ? JSON.stringify(eventoActivo.fields, null, 2) : 'Ninguno — este es un cliente nuevo o inicia un evento nuevo.'}
@@ -870,7 +883,7 @@ module.exports = async (req, res) => {
               ubicacion: f.Ubicacion,
               invitados: f.Invitados,
               servicios: f.Servicios_Solicitados,
-              monto: f.Monto_Cotizacion || '',
+              monto: f.Monto_Estimado_IA || '',
             };
 
             await Promise.all([
