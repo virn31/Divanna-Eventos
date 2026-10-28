@@ -176,9 +176,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990001', email: null, negocio: 'Ambos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '18:00', horas_servicio: 2, invitados: 100, ubicacion: 'Las Quintas', servicios: 'Paquete 5\n2 paquetes 50 Antonella', productos: [{ clave: 'vm_paquete_5', cantidad: 1, nota: null }, { clave: 'dv_paq50_antonella', cantidad: 2, nota: 'manteles rosa' }, { clave: 'inventada', cantidad: 3, nota: null }], monto_estimado: 14200, fuera_de_ciudad: false, indicaciones: null, preferencia_contacto: 'no_preguntado' } },
   ] }];
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{}] }];
+  // Cliente, cliente nuevo, evento creado; luego eventos cercanos, inventario y personal del semáforo.
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000001' }] },
+    { records: [] }, { records: [{ id: 'recINVTIFF0000001', fields: { Item: 'Silla Antonella grande', Categoria: 'Silla Antonella', Cantidad_Total: 113 } }] }, { records: [] }];
   res = await chat({ historial });
-  const evAgenda = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  const patchSemaforo = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].id === 'recEVTNUEVO000001');
+  ok(patchSemaforo && patchSemaforo.body.records[0].fields.Disponibilidad === '🟡 Amarillo' && patchSemaforo.body.records[0].fields.Disponibilidad_Detalle.includes('Sin conteo en INVENTARIO'), 'semáforo: al registrar se guarda en el evento (aquí amarillo: faltan conteos)');
+  ok(correos.some(c => c.text.includes('🟡 Amarillo') && c.text.includes('Confirmar al cliente antes de')), 'semáforo: el aviso a Diana trae el semáforo y el plazo de 12 h');
+  ok(res.body.texto.includes('Ya tenemos todos los datos') && res.body.texto.includes('no mayor a 12 horas') && !res.body.texto.includes('Amarillo'), 'DiMa: al cliente le dice que ya están los datos y que se le confirma en 12 h, sin semáforo');
+  const evAgenda =llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
   const esquema = llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema;
   ok(esquema.required.includes('hora_inicio') && esquema.required.includes('productos') && esquema.properties.productos.items.properties.clave.enum.includes('dv_paq50_antonella'), 'agenda: DiMa debe mandar hora y productos con claves del catálogo');
   ok(llamadasClaude[0].system.includes('a qué hora empieza'), 'agenda: DiMa pregunta la hora del evento');
@@ -213,6 +219,48 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Casa Isabella')) === '2026-11-15T00:00:00.000Z 2026-11-15T07:00:00.000Z', 'ocupación: Casa Isabella solo las horas del evento');
   ok(prod.capacidadEvento([{ clave: 'dv_paq50_tiffany_jardin', cantidad: 1 }]).resumen.includes('Falta indicar la silla'), 'capacidad: avisa si el paquete deja la silla a elección y no se indicó');
   ok(prod.CLAVES.every(c => Object.keys(prod.PRODUCTOS[c].componentes || {}).every(cat => prod.CATEGORIAS[cat])), 'catálogo: todos los componentes usan categorías conocidas');
+
+  // ---------- Semáforo de agenda (api/_agenda.js) ----------
+  const agendaMod = require(path.join(repo, 'api/_agenda.js'));
+  const ahoraPrueba = Date.parse('2026-11-01T12:00:00-07:00');
+  const evA = (o) => ({ id: 'recX', folio: 'EVT-X', negocio: '', fecha: '2026-11-14', horaInicio: '18:00', horasServicio: 2, productos: [], articulos: [], personal: 0, autorizacion: 'Pendiente', ...o });
+  const semaforo = (ev, otros = [], extra = {}) => agendaMod.evaluarDisponibilidad(ev, { otros, inventario: inv.concat([
+    { id: 'recINVTIFF0000001', nombre: 'Silla Tiffany de fierro', categoria: 'Silla Tiffany', total: 90 },
+    { id: 'recINVTIFF0000002', nombre: 'Silla Tiffany de plástico', categoria: 'Silla Tiffany', total: 80 },
+    { id: 'recINVCASA0000001', nombre: 'Casa Isabella (salón)', categoria: 'Casa Isabella', total: 1 },
+  ]), ahora: ahoraPrueba, ...extra });
+  const vm120 = [{ clave: 'vm_paquete_5', cantidad: 1 }];
+  let s1 = semaforo(evA({ productos: vm120 }));
+  ok(s1.nivel === 'verde' && !s1.motivos.length, 'semáforo: Vaso Maíz 120 piezas sin otros eventos = verde');
+  s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', folio: 'EVT-A1', autorizacion: 'SI', horaInicio: '17:00', personal: 6 }), evA({ id: 'recA2', folio: 'EVT-A2', autorizacion: 'SI', horaInicio: '19:00', personal: 4 })]);
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('quedan 2 libres') && s1.motivos[0].texto.includes('EVT-A1'), 'semáforo: con 10 de 12 personas ocupadas en ese horario = amarillo, dice con quién');
+  s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '17:00', personal: 6 }), evA({ id: 'recA2', autorizacion: 'SI', horaInicio: '19:00', personal: 4 })], { personalPorFecha: { '2026-11-14': 11 } });
+  ok(s1.nivel === 'rojo', 'semáforo: si PERSONAL_DIA baja el cupo y no queda ni un equipo = rojo');
+  s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '10:00', personal: 10 })]);
+  ok(s1.nivel === 'verde', 'semáforo: un evento en la mañana no ocupa el personal de la tarde');
+  s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recP1', folio: 'EVT-P1', autorizacion: 'Pendiente', horaInicio: '18:00', personal: 10 })]);
+  ok(s1.nivel === 'verde' && s1.motivos.some(m => m.nivel === 'info' && m.texto.includes('EVT-P1')), 'semáforo: los pendientes no apartan, solo avisan que compiten');
+
+  const tiff = (n) => [{ clave: 'dv_silla_tiffany', cantidad: n }];
+  s1 = semaforo(evA({ productos: tiff(50) }), [evA({ id: 'recA3', folio: 'EVT-A3', autorizacion: 'SI', fecha: '2026-11-13', productos: tiff(150) })]);
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('faltan 30') && s1.motivos[0].texto.includes('proveedor'), 'semáforo: sillas del día anterior aún no regresan (1 pm): faltan 30, pedir a proveedor');
+  s1 = semaforo(evA({ productos: tiff(50) }), [evA({ id: 'recA3', autorizacion: 'SI', fecha: '2026-11-13', productos: tiff(150) })], { ahora: Date.parse('2026-11-13T20:00:00-07:00') });
+  ok(s1.nivel === 'rojo' && s1.motivos[0].texto.includes('menos de 48 h'), 'semáforo: si faltan menos de 48 h ya no da tiempo con proveedor = rojo');
+  s1 = semaforo(evA({ productos: tiff(50) }), [evA({ id: 'recA3', autorizacion: 'SI', fecha: '2026-11-12', productos: tiff(150) })]);
+  ok(s1.nivel === 'verde', 'semáforo: sillas de hace dos días ya regresaron');
+  const manteles = [{ clave: 'dv_mantel', cantidad: 30 }];
+  s1 = semaforo(evA({ productos: manteles }), [evA({ id: 'recA4', autorizacion: 'SI', fecha: '2026-11-12', productos: manteles })]);
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.startsWith('Mantel'), 'semáforo: manteles de hace dos días siguen en lavado (48 h)');
+  const casa = [{ clave: 'dv_casa_isabella', cantidad: 1 }];
+  s1 = semaforo(evA({ productos: casa }), [evA({ id: 'recA5', folio: 'EVT-A5', autorizacion: 'SI', horaInicio: '16:00', productos: casa })]);
+  ok(s1.nivel === 'rojo' && s1.motivos[0].texto.includes('Casa Isabella ya está apartada'), 'semáforo: Casa Isabella apartada en ese horario = rojo');
+  ok(semaforo(evA({ productos: casa }), [evA({ id: 'recA5', autorizacion: 'SI', horaInicio: '09:00', productos: casa })]).nivel === 'verde', 'semáforo: Casa Isabella en la mañana y en la noche no chocan');
+  const rojas = (n) => [{ id: 'recINVCOPA0000001', nombre: 'Copa Globo - Roja', categoria: 'Copa globo', cantidad: n }];
+  s1 = semaforo(evA({ productos: [{ clave: 'dv_copa_globo', cantidad: 50 }], articulos: rojas(50) }), [evA({ id: 'recA6', folio: 'EVT-A6', autorizacion: 'SI', productos: [{ clave: 'dv_copa_globo', cantidad: 80 }], articulos: rojas(80) })]);
+  ok(s1.nivel === 'amarillo' && s1.motivos.some(m => m.texto.startsWith('Copa Globo - Roja') && m.texto.includes('faltan 21')), 'semáforo: revisa el modelo y color exactos (Copa Globo - Roja: faltan 21)');
+  s1 = semaforo(evA({ productos: [{ clave: 'dv_aro', cantidad: 1 }] }));
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('Sin conteo en INVENTARIO: Aro'), 'semáforo: lo que no tiene conteo en INVENTARIO pide revisión a mano');
+  ok(semaforo(evA({})).nivel === 'amarillo', 'semáforo: sin productos no hay verde');
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
@@ -627,7 +675,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && avisos.length === 1 && avisos[0].body.chat_id === '111' && avisos[0].body.text.includes('EMERGENCIA'), 'telegram: emergencia llega al equipo menos a quien reporta');
 
   reset();
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{}] }, { records: [
+  // Después de crear el evento: eventos cercanos, inventario y personal (semáforo), luego colaboradores de Telegram.
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{}] }, { records: [] }, { records: [] }, { records: [] }, { records: [
     { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
     { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } },
   ] }];

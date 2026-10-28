@@ -128,6 +128,20 @@
   .pedido-actions button:disabled{opacity:0.5; cursor:default;}
   .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
   .pedido-contacto a{color:var(--divanna);}
+  /* Semáforo de agenda (verde / amarillo / rojo) */
+  .semaforo{margin-top:12px; padding:12px 14px; border-radius:14px; border:1.5px solid var(--line); font-size:0.86rem;}
+  .semaforo .sem-titulo{font-weight:800; font-size:1rem;}
+  .semaforo ul{margin:8px 0 0; padding-left:18px;}
+  .semaforo li{margin:4px 0;}
+  .semaforo li.info{color:var(--muted);}
+  .sem-verde{border-color:var(--good); background:rgba(57,233,145,0.10);}
+  .sem-amarillo{border-color:var(--warn); background:rgba(240,185,58,0.12);}
+  .sem-rojo{border-color:var(--bad); background:rgba(255,107,107,0.14);}
+  .badge-sem-verde{background:rgba(57,233,145,0.18); color:var(--good);}
+  .badge-sem-amarillo{background:rgba(240,185,58,0.18); color:var(--warn);}
+  .badge-sem-rojo{background:rgba(255,107,107,0.22); color:var(--bad);}
+  .limite{margin-top:10px; font-size:0.85rem; font-weight:700;}
+  .limite.vencido{color:var(--bad);}
   /* Hora y productos estructurados (agenda, inventario y personal) */
   .capacidad{white-space:pre-wrap; border-color:var(--divanna);}
   .agenda{margin-top:12px; font-size:0.85rem;}
@@ -315,6 +329,43 @@
     contenedor.querySelectorAll('.msgcli-enviar').forEach(b => b.addEventListener('click', () => enviarMensajeCliente(b)));
   }
 
+  // ---------- Semáforo de agenda ----------
+  const SEMAFORO = {
+    verde: { icono: '🟢', titulo: 'Hay disponibilidad' },
+    amarillo: { icono: '🟡', titulo: 'Se puede, con condiciones' },
+    rojo: { icono: '🔴', titulo: 'No alcanza' },
+  };
+
+  // Recuadro completo (pedidos por cotizar): color, título y por qué.
+  function bloqueSemaforo(disp){
+    if(!disp) return '';
+    const s = SEMAFORO[disp.nivel];
+    return `
+      <div class="semaforo sem-${disp.nivel}">
+        <div class="sem-titulo">${s.icono} ${s.titulo}</div>
+        ${disp.motivos.length ? `<ul>${disp.motivos.map(m => `<li class="${m.nivel}">${esc(m.texto)}</li>`).join('')}</ul>` : ''}
+      </div>`;
+  }
+
+  // Etiqueta corta (eventos ya autorizados).
+  function badgeSemaforo(disp){
+    if(!disp) return '';
+    const s = SEMAFORO[disp.nivel];
+    return `<span class="badge badge-sem-${disp.nivel}">${s.icono} ${s.titulo}</span>`;
+  }
+
+  // Plazo de 12 h que DiMa le prometió al cliente.
+  function bloqueLimite(iso){
+    if(!iso) return '';
+    const limite = new Date(iso);
+    const minutos = Math.round((limite - Date.now()) / 60000);
+    const hora = limite.toLocaleString('es-MX', { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    const falta = Math.abs(minutos) >= 60 ? `${Math.floor(Math.abs(minutos) / 60)} h ${Math.abs(minutos) % 60} min` : `${Math.abs(minutos)} min`;
+    return minutos >= 0
+      ? `<div class="limite">⏱️ Confirmar al cliente antes de: ${esc(hora)} (quedan ${falta})</div>`
+      : `<div class="limite vencido">⚠️ Se venció el plazo de 12 h (${esc(hora)}, hace ${falta}). Contacta al cliente.</div>`;
+  }
+
   // ---------- Hora y productos (agenda, inventario y personal) ----------
   function opcionesCatalogo(seleccion){
     const grupos = {};
@@ -461,6 +512,7 @@
               ${ev.estatusPago ? `<span class="badge ${pagoClase}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
               ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
               ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
+              ${badgeSemaforo(ev.disponibilidad)}
               ${ev.fueraDeCiudad ? `<span class="badge badge-fuera">🛣️ Fuera de la ciudad</span>` : ''}
               ${ev.temporadaAlta ? `<span class="badge badge-fuera">🎄 Temporada alta</span>` : ''}
               ${ev.preferenciaContacto ? `<span class="badge badge-pref">📞 ${PREF_TEXTO[ev.preferenciaContacto] || esc(ev.preferenciaContacto)}</span>` : ''}
@@ -484,6 +536,7 @@
               ${ev.zonaAlertaSeguridad ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="alerta_seguridad">✅ Levantar alerta de seguridad</button>` : ''}
             </div>` : ''}
           ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
+          ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
           ${bloqueMensajeCliente(ev)}
           <details class="agenda">
             <summary>🗓️ Hora y productos${ev.horaInicio && ev.productos.length ? '' : ' (completar)'}</summary>
@@ -569,14 +622,16 @@
   function renderPedidos(pedidos){
     // El polling cada 30s no debe borrar lo que Diana está escribiendo:
     // solo se vuelve a pintar si cambió la lista de pedidos.
-    const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}`).join(',');
+    const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
     if(firma === pedidosFirma) return;
     if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio]')) return;
     pedidosFirma = firma;
 
     if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
 
-    pedidosContent.innerHTML = `<h2 class="section-title">🎉 Pedidos por cotizar (${pedidos.length})</h2>` +
+    const cuenta = (nivel) => pedidos.filter(p => p.disponibilidad && p.disponibilidad.nivel === nivel).length;
+    const conteo = ['verde', 'amarillo', 'rojo'].filter(n => cuenta(n)).map(n => `${SEMAFORO[n].icono} ${cuenta(n)}`).join(' · ');
+    pedidosContent.innerHTML = `<h2 class="section-title">🎉 Pedidos por cotizar (${pedidos.length})${conteo ? ' · ' + conteo : ''}</h2>` +
       pedidos.map(p => `
         <div class="pedido-card" data-id="${esc(p.id)}">
           <div class="evento-top">
@@ -585,6 +640,8 @@
               <div class="evento-sub">${formatFecha(p.fecha)}${p.horaInicio ? ' · 🕒 ' + esc(p.horaInicio) : ''} · ${esc(p.negocio || 'Negocio sin especificar')}${p.invitados ? ' · 👥 ' + esc(p.invitados) : ''}</div>
             </div>
           </div>
+          ${bloqueSemaforo(p.disponibilidad)}
+          ${bloqueLimite(p.limiteRespuesta)}
           <div class="meta-line pedido-contacto">
             ${p.clienteTelefono ? `<span>📞 ${telLink(p.clienteTelefono)}</span>` : ''}
             ${p.clienteEmail ? `<span>✉️ <a href="mailto:${esc(p.clienteEmail)}">${esc(p.clienteEmail)}</a></span>` : ''}

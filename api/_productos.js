@@ -365,6 +365,7 @@ module.exports = {
   piezasVasoMaiz,
   personalVasoMaiz,
   inventarioRequerido,
+  inicioEvento,
   ventanaOcupacion,
   ventanaPersonalVasoMaiz,
   normalizarArticulos,

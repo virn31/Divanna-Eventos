@@ -137,3 +137,15 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Descartado:** tablas PRODUCTOS/COMPONENTES/EVENTO_ITEMS en Airtable. El catálogo vive en `api/_productos.js` igual que los precios (`_dima-catalogo.js`), y los productos del evento van en un campo JSON para que la disponibilidad de un rango de fechas salga de una sola consulta a Airtable.
 **Confirmado por Víctor:** 1 pm del día siguiente; lavado de 48 h desde la recepción en bodega; El Vaso Maíz sale 30 min antes. Sin hora registrada se supone que el evento empieza a las 2 pm.
 **Pendiente para fase 2:** las rutas de Divanna (cuántos pedidos caben en una ruta y por brigada) y el personal disponible por día.
+
+## 2026-10-28 — Agenda, fase 2: semáforo de disponibilidad y respuesta en 12 h
+
+**Decisión (Víctor):** automatizar la revisión de agenda para que Diana vea de inmediato si un pedido está en verde, y que DiMa le diga al cliente que ya están todos los datos y que se le confirma en un lapso no mayor a 12 horas.
+**Cómo quedó:**
+- Al registrar un pedido (chat o formulario) se calcula el semáforo contra los eventos autorizados que se traslapan y se guarda en `EVENTOS.Disponibilidad` y `Disponibilidad_Detalle`; va al inicio del aviso de Telegram y del correo, con la hora límite para confirmar al cliente. El dashboard lo recalcula en cada carga (cambia si Diana autoriza otro pedido) y muestra el plazo de 12 h o si ya se venció.
+- Divanna: piezas por categoría y por artículo exacto contra INVENTARIO, con las ventanas de ocupación de la fase 1; Casa Isabella; más de 9 entregas el mismo día (3 brigadas x 3 pedidos por ruta) es amarillo.
+- El Vaso Maíz: pico de personas y equipos ocupados en el horario del evento contra el cupo del día (`PERSONAL_DIA`, 12 si no hay renglón) y los 6 equipos.
+- Rojo solo cuando no hay salida: Casa Isabella ocupada, faltan piezas y quedan menos de 48 h para pedirlas a un proveedor, o no queda ni un equipo de El Vaso Maíz.
+**Decidido sin respuesta explícita (recomendación aceptada al pedir "vamos a hacerlo"):** cupo base 12 personas; solo los autorizados apartan (los pendientes se avisan como competencia); en rojo DiMa registra igual y Diana decide.
+**Descartado:** que DiMa vea el semáforo y le diga algo distinto al cliente (puede equivocarse con datos incompletos y el cliente ya tiene una respuesta clara: 12 h); que los pendientes aparten inventario (un pedido que nunca se paga bloquearía fechas).
+**Límite actual:** mientras falten conteos en INVENTARIO (cubiertos, servilletas, decoración), los paquetes salen en amarillo "sin conteo". Los eventos autorizados sin productos registrados también piden revisión a mano.

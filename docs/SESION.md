@@ -5,7 +5,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 - Repo de trabajo (fuera de OneDrive): `C:\Users\virn3\Proyectos\Divanna-Eventos`
 - Remoto: https://github.com/virn31/Divanna-Eventos
-- Rama de trabajo actual: `agenda-inventario` (nunca trabajar directo en `main`; `main` es producción).
+- Rama de trabajo actual: `agenda-semaforo` (nunca trabajar directo en `main`; `main` es producción).
 
 ## Cuando Víctor dice "cerrar"
 
@@ -28,16 +28,21 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-28 (tarde) · **Rama:** `agenda-inventario` (sin merge) · **Producción:** `main` en 13f1aa3 = PR #4 (`dima-pedido-existente`) fusionado.
+**Actualizado:** 2026-10-28 (noche) · **Rama:** `agenda-semaforo` (sin merge) · **Producción:** `main` en 66859b1 = fase 1 de agenda (merge local de `agenda-inventario`, sin PR).
 
-**En producción:** todo lo de los PR #1 a #4: sin WhatsApp, chat de DiMa, app del equipo con roles y PIN, alertas push, bot de Telegram, vista equipo, GPS en alertas, pedido existente con folio, mensaje de Diana al cliente, traslado aproximado, límite de 35 km, paquetes primero y temporada alta.
+**En producción:** todo lo de los PR #1 a #4 (sin WhatsApp, chat de DiMa, app con roles y PIN, push, Telegram, vista equipo, GPS, pedido existente, mensaje de Diana al cliente, traslado, 35 km, paquetes primero, temporada alta) y la fase 1 de agenda. Verificado: chat de DiMa responde con la API real.
 
-**En la rama `agenda-inventario` (fase 1 de agenda e inventario, falta publicar):**
+**En la rama `agenda-semaforo` (fase 2, falta publicar):**
+- `api/_agenda.js`: semáforo 🟢/🟡/🔴 contra eventos autorizados que se traslapan (inventario por categoría y artículo exacto, Casa Isabella, entregas por día, personal y equipos de El Vaso Maíz). Tabla nueva `PERSONAL_DIA` (cupo por día; 12 si no hay renglón).
+- Al registrar se guarda en `EVENTOS.Disponibilidad`/`Disponibilidad_Detalle` y va en Telegram y correo con la hora límite (12 h). Dashboard: semáforo en vivo en pedidos y eventos, conteo por color y plazo de 12 h (avisa si se venció).
+- DiMa y el formulario: "ya tenemos todos los datos… en un lapso no mayor a 12 horas te confirmamos". El cliente nunca ve el semáforo.
+- 143 pruebas pasan.
+
+**Fase 1 (ya en producción):**
 - `api/_productos.js`: catálogo con claves, piezas de El Vaso Maíz (3 a 4 min por pieza, equipos de 2), mobiliario por categoría y ventanas de ocupación (mobiliario todo el día del evento hasta la 1 pm del día siguiente; manteles +48 h; Casa Isabella solo las horas; Vaso Maíz sale 30 min antes).
 - DiMa pregunta la hora y registra `productos` con clave; EVENTOS guarda `Hora_Inicio`, `Horas_Servicio`, `Productos`, `Piezas_Vaso_Maiz`, `Personal_Requerido`, `Resumen_Capacidad`.
 - Modelo, color y cantidad exactos: `EVENTOS.Articulos` (artículos de INVENTARIO). Dashboard: editor de hora, productos y artículos, aviso "🎨 Falta asignar modelo y color". App: "🕒 Empieza", personas y "📦 Cargar exacto". `CACHE_NAME` = `dima-brigadas-v5`.
 - Airtable (base de producción, solo campos y datos nuevos): 7 campos en EVENTOS, `INVENTARIO.Categoria` con 87 artículos de Divanna clasificados (copas en "Copa globo" y "Copa francesa"), Casa Isabella como 1 unidad.
-- 126 pruebas pasan.
 
 **Pendiente de Víctor:**
 1. Conteos que faltan en INVENTARIO (por la tarde): aros, mamparas, shimmer, mesitas, tapetes, arcos, túneles, letras/números LED, mesa de honor, cubiertos, vasos, platos trinche/grueso, servilletas, manteles de lentejuela y corrugado, centros de mesa. Un renglón por modelo y color, con su `Categoria`.
@@ -46,6 +51,6 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 4. Lo anterior de PIN de Diana, variables `VAPID_*`, alta de brigadas, `assetlinks.json` y limpieza de Twilio (ver decisiones y CLAUDE.md).
 
 **Siguientes pasos:**
-- Publicar `agenda-inventario` (PR con permiso de Víctor) y probar en el dashboard: autorizar un pedido con hora, productos y artículos exactos; ver "Cargar exacto" en la app.
-- Fase 2: semáforo de disponibilidad (🟢/🟡/🔴) cruzando eventos que se traslapan con INVENTARIO por artículo y con el personal del día; DiMa lo consulta antes de registrar.
+- Publicar `agenda-semaforo` con permiso de Víctor y probar: pedido de prueba por el chat, semáforo en Telegram/correo y en el dashboard, plazo de 12 h; autorizar con artículos exactos y ver "Cargar exacto" en la app.
+- Afinar el semáforo con los conteos completos de INVENTARIO y los datos de rutas.
 - Fase 3: gastos y entradas por brigada (`MOVIMIENTOS`, origen del dinero, reembolsos). Fase 4: proveedores y compras de insumos. Fase 5: recordatorios de checklist por Telegram (7, 3 y 1 día antes).

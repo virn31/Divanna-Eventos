@@ -19,7 +19,8 @@ const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
-const { camposAgenda } = require('./_pedidos');
+const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
+const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -27,7 +28,6 @@ const TABLES = {
   BRIGADAS: 'tblwqJrIaC1MsMGNL',
   CLIENTES: 'tblgViisKQRG9TVjh',
   BALANCES: 'tblRJYJHhHzyKcaWH',
-  INVENTARIO: 'tblG7pqvkyGTzBxx0',
 };
 
 async function airtableGet(path) {
@@ -76,24 +76,6 @@ async function ultimoBalance() {
     console.error('No se pudo leer el último balance:', err.message);
     return null;
   }
-}
-
-// Artículos de INVENTARIO con categoría (mobiliario de Divanna), para asignar
-// modelo y color exactos a cada evento.
-async function cargarInventario() {
-  const lista = [];
-  let offset = '';
-  do {
-    const data = await airtableGet(`${TABLES.INVENTARIO}?filterByFormula=${encodeURIComponent('{Categoria} != ""')}&pageSize=100${offset ? '&offset=' + offset : ''}`);
-    (data.records || []).forEach(r => lista.push({
-      id: r.id,
-      nombre: r.fields.Item || '',
-      categoria: r.fields.Categoria || '',
-      total: r.fields.Cantidad_Total || 0,
-    }));
-    offset = data.offset || '';
-  } while (offset);
-  return lista.sort((a, b) => a.categoria.localeCompare(b.categoria, 'es') || a.nombre.localeCompare(b.nombre, 'es'));
 }
 
 function agendaParaVista(f) {
@@ -347,6 +329,8 @@ module.exports = async (req, res) => {
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
         ...agendaParaVista(r.fields),
+        // DiMa le promete al cliente respuesta en 12 h o menos desde que registra.
+        limiteRespuesta: r.createdTime ? new Date(Date.parse(r.createdTime) + HORAS_RESPUESTA * 3600 * 1000).toISOString() : '',
         notas: r.fields.Notas || '',
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',
@@ -357,8 +341,16 @@ module.exports = async (req, res) => {
     const balance = await ultimoBalance();
     // El inventario se lee al final: si falla, el dashboard sigue funcionando sin el selector de artículos.
     const inventario = await cargarInventario().catch(err => { console.error('No se pudo leer INVENTARIO:', err.message); return []; });
-    [...eventos, ...pedidos].forEach(item => { item.porAsignar = porAsignar(item, inventario); });
-    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario });
+    const personalPorFecha = await cargarPersonal().catch(err => { console.error('No se pudo leer PERSONAL_DIA:', err.message); return {}; });
+    // Semáforo en vivo: cada pedido y evento contra los demás eventos autorizados.
+    const paraAgenda = eventosData.records.map(eventoParaAgenda);
+    const porId = new Map(paraAgenda.map(e => [e.id, e]));
+    [...eventos, ...pedidos].forEach(item => {
+      item.porAsignar = porAsignar(item, inventario);
+      const ev = porId.get(item.id);
+      item.disponibilidad = ev ? evaluarDisponibilidad(ev, { otros: paraAgenda, inventario, personalPorFecha }) : null;
+    });
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

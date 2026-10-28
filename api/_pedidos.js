@@ -9,6 +9,10 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { normalizarProductos, capacidadEvento } = require('./_productos');
+const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
+
+// Plazo que DiMa le promete al cliente para confirmar su cotización.
+const HORAS_RESPUESTA = 12;
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -151,14 +155,39 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   const agenda = camposAgenda(datos);
   Object.assign(eventoFields, agenda);
 
-  await airtableRequest(TABLES.EVENTOS, {
+  const creado = await airtableRequest(TABLES.EVENTOS, {
     method: 'POST',
     body: JSON.stringify({ records: [{ fields: eventoFields }] }),
   });
+  const eventoId = creado && creado.records && creado.records[0] && creado.records[0].id;
 
-  // 3. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
+  // 3. Semáforo de agenda: se guarda en el evento y va en los avisos. Si falla,
+  // el pedido sigue registrado y el dashboard lo recalcula al abrirse.
+  let disponibilidad = null;
+  try {
+    disponibilidad = await revisarDisponibilidad({
+      id: eventoId, folio, negocio: eventoFields.Negocio || '', fecha: datos.fecha,
+      horaInicio: datos.horaInicio, horasServicio: datos.horasServicio,
+      productos: datos.productos || [], articulos: [], personal: agenda.Personal_Requerido || 0,
+    });
+    if (eventoId) {
+      await airtableRequest(TABLES.EVENTOS, {
+        method: 'PATCH',
+        body: JSON.stringify({ records: [{ id: eventoId, fields: camposDisponibilidad(disponibilidad) }] }),
+      });
+    }
+  } catch (err) {
+    console.error('No se pudo revisar la disponibilidad:', err.message);
+  }
+  const textoSemaforo = disponibilidad ? `${textoDisponibilidad(disponibilidad)}\n` : '⚪ No se pudo revisar la agenda: revísala en el dashboard.\n';
+  // A DiMa le toca prometer respuesta en 12 h o menos.
+  const limite = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date(Date.now() + HORAS_RESPUESTA * 3600 * 1000));
+  const avisoLimite = `⏱️ Confirmar al cliente antes de: ${limite}\n`;
+
+  // 4. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
   // quedó guardado y aparece en el dashboard: no se le marca error al cliente.
-  const avisoFuera = (enTemporadaAlta(datos.fecha) ? `🎄 TEMPORADA ALTA (${textoTemporada()}): sin paquetes regulares.\n` : '') +
+  const avisoFuera = textoSemaforo + avisoLimite +
+    (enTemporadaAlta(datos.fecha) ? `🎄 TEMPORADA ALTA (${textoTemporada()}): sin paquetes regulares.\n` : '') +
     (datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '') +
     (datos.preferenciaContacto ? `📞 Cómo quiere la respuesta: ${datos.preferenciaContacto}\n` : '');
   const avisoTelegram = enviarTelegramEquipo({
@@ -193,7 +222,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   });
   await avisoTelegram;
 
-  return { folio };
+  return { folio, disponibilidad };
 }
 
 // Pedido existente: el cliente da su folio y su teléfono para agregar o
@@ -280,6 +309,7 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
 }
 
 module.exports = {
+  HORAS_RESPUESTA,
   validarPedido,
   camposAgenda,
   crearPedido,

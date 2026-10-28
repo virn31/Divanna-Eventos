@@ -891,7 +891,7 @@
       if(!res.ok) throw new Error(data.error || 'No pudimos registrar tu pedido, intenta de nuevo.');
       pedidoForm.reset();
       pedidoMsg.className = 'pf-msg ok';
-      pedidoMsg.textContent = `¡Listo! Recibimos tu pedido${data.folio ? ' (folio ' + data.folio + ')' : ''}. Te contactaremos pronto con tu cotización.`;
+      pedidoMsg.textContent = `¡Listo! Recibimos tu pedido${data.folio ? ' (folio ' + data.folio + ')' : ''}. Ya tenemos todos los datos: en un lapso no mayor a 12 horas te confirmamos tu cotización.`;
     } catch(err){
       pedidoMsg.className = 'pf-msg error';
       pedidoMsg.textContent = err.message;

@@ -16,7 +16,7 @@
 
 const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
+const { HORAS_RESPUESTA, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
@@ -188,7 +188,7 @@ FLUJO DE LA COTIZACIÓN:
    - Si pidió mobiliario o decoración, ofrece los snacks de El Vaso Maíz.
    Si dice que no, respétalo y sigue. Si dice que sí, súmalo a la misma cotización.
 4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
-5. Con eso llama a registrar_pedido. Después dile que el equipo revisa la disponibilidad y la gerencia confirma la cotización, y que lo contactan por teléfono para el anticipo y los datos de pago.
+5. Con eso llama a registrar_pedido. Después dile que ya tenemos todos los datos de su evento, que el equipo revisa la disponibilidad y que en un lapso no mayor a ${HORAS_RESPUESTA} horas le confirmamos la cotización; lo contactan por teléfono para el anticipo y los datos de pago.
 - Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
@@ -319,7 +319,7 @@ async function registrarPedido(input, historial, folioPrevio) {
         (datos.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
         `Conversación:\n${transcripcion(historial)}`,
     });
-    return { texto: `Listo, ya pasé tus cambios al equipo para el pedido ${folioPrevio}. La gerencia revisa si cambia la cotización y te confirma.`, folio: folioPrevio };
+    return { texto: `Listo, ya pasé tus cambios al equipo para el pedido ${folioPrevio}. La gerencia revisa si cambia la cotización y te confirma en un lapso no mayor a ${HORAS_RESPUESTA} horas.`, folio: folioPrevio };
   }
 
   const { folio } = await crearPedido(datos, {
@@ -491,7 +491,7 @@ module.exports = async (req, res) => {
           if (resultado.texto) partes.push(resultado.texto);
           if (resultado.folio && !folioNuevo) {
             folioNuevo = resultado.folio;
-            partes.push(`El equipo revisa la disponibilidad y la gerencia te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
+            partes.push(`Ya tenemos todos los datos de tu evento. El equipo revisa la disponibilidad y en un lapso no mayor a ${HORAS_RESPUESTA} horas te confirmamos la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
           } else if (resultado.folio) {
             folioNuevo = resultado.folio;
           }
