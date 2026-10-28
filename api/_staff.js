@@ -9,6 +9,7 @@
 // Los botones guardan la selección en su propio callback_data (máscara de bits
 // sobre la lista ordenada de chicas), así no hay que guardar estado aparte.
 
+const crypto = require('crypto');
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { ventanaPersonalVasoMaiz } = require('./_productos');
 const { enviarTelegram } = require('./_telegram');
@@ -177,16 +178,124 @@ function choqueDe(colaboradorId, ev, invitaciones, eventosPorId) {
   return null;
 }
 
+// ---------- Alta de personal y enlace de activación ----------
+// Las chicas no usan usuario ni PIN: Ángela las agrega con nombre y teléfono,
+// el bot le da un enlace personal (t.me/<bot>?start=...) y ella se lo manda.
+// Al tocarlo y darle "Iniciar", Telegram le manda /start <código> al bot y el
+// chat queda vinculado. (Un bot no puede escribirle a quien nunca lo abrió.)
+
+const BOT_USUARIO = process.env.TELEGRAM_BOT_USUARIO || 'dimaclnbot';
+const PREFIJO_ALTA = '➕ Nuevo personal';
+
+function firmaEnlace(colaboradorId) {
+  return crypto.createHmac('sha256', process.env.SESSION_SECRET || '').update(`staff:${colaboradorId}`).digest('base64url').slice(0, 12);
+}
+
+function enlaceActivacion(colaboradorId) {
+  return `https://t.me/${BOT_USUARIO}?start=s_${colaboradorId}_${firmaEnlace(colaboradorId)}`;
+}
+
+// Devuelve el id del colaborador si el código de /start es válido, o null.
+function leerCodigoActivacion(codigo) {
+  const m = /^s_(rec[A-Za-z0-9]{14})_([A-Za-z0-9_-]{12})$/.exec(String(codigo || ''));
+  if (!m || !process.env.SESSION_SECRET) return null;
+  const esperada = firmaEnlace(m[1]);
+  return crypto.timingSafeEqual(Buffer.from(m[2]), Buffer.from(esperada)) ? m[1] : null;
+}
+
+const digitos = (t) => String(t || '').replace(/\D/g, '');
+
+// "Isabella López 667 123 4567" -> { nombre, telefono } o null.
+function leerAlta(texto) {
+  const m = /^\s*(.*?)[\s,;:-]+(\+?[\d][\d\s-]{8,})\s*$/.exec(String(texto || ''));
+  if (!m) return null;
+  const nombre = m[1].replace(/\s+/g, ' ').trim();
+  const tel = digitos(m[2]).slice(-10);
+  if (nombre.length < 2 || nombre.length > 60 || !/[a-záéíóúñü]/i.test(nombre) || tel.length !== 10) return null;
+  return { nombre, telefono: tel };
+}
+
+// Mensaje que pide los datos (con respuesta forzada: Ángela solo contesta encima).
+function pedirAlta() {
+  return {
+    texto: `${PREFIJO_ALTA}\nEscribe el nombre y el teléfono (10 dígitos), así:\nIsabella López 6671234567`,
+    respuestaForzada: 'Isabella López 6671234567',
+  };
+}
+
+const esRespuestaAlta = (mensaje) => !!(mensaje && mensaje.reply_to_message && mensaje.reply_to_message.from && mensaje.reply_to_message.from.is_bot
+  && String(mensaje.reply_to_message.text || '').startsWith(PREFIJO_ALTA));
+
+async function agregarStaff(colaborador, texto) {
+  const datos = leerAlta(texto);
+  if (!datos) return 'No entendí. Escríbelo así: Isabella López 6671234567 (nombre y teléfono de 10 dígitos). Toca /staff para intentar de nuevo.';
+  const existentes = await todasLasPaginas(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(`{Rol} = "${ROLES.STAFF}"`)}`);
+  const repetida = existentes.find(r => digitos(r.fields.Celular).slice(-10) === datos.telefono);
+  if (repetida) {
+    return `${repetida.fields.Nombre || 'Esa persona'} ya está agregada con ese teléfono${repetida.fields.Activo ? '' : ' (dada de baja: actívala en Airtable)'}.` +
+      (repetida.fields.Telegram_Chat_ID ? '' : `\nSi aún no activa sus mensajes, mándale este enlace:\n${enlaceActivacion(repetida.id)}`);
+  }
+  // Si lo agrega Diana o Víctor, queda con la coordinadora (Ángela).
+  let coordinadora = colaborador.id;
+  if (colaborador.rol === ROLES.ADMIN) {
+    const coord = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('AND({Coordina_Staff}, {Activo})')}&maxRecords=1`);
+    coordinadora = coord.records[0] ? coord.records[0].id : null;
+  }
+  const creado = await airtable(COLABORADORES_TABLE, {
+    method: 'POST',
+    body: JSON.stringify({ records: [{ fields: {
+      Nombre: datos.nombre,
+      Celular: `+52${datos.telefono}`,
+      Rol: ROLES.STAFF,
+      Activo: true,
+      ...(coordinadora ? { Coordinadora: [coordinadora] } : {}),
+    } }] }),
+  });
+  const id = creado.records[0].id;
+  return `✅ Agregué a ${datos.nombre} (${datos.telefono}).\n\n` +
+    `Para que le lleguen los eventos, mándale este enlace por mensaje. Solo tiene que tocarlo y darle "Iniciar" en Telegram (una sola vez, sin códigos):\n${enlaceActivacion(id)}`;
+}
+
+// /start <código> de la chica: vincula su chat. Devuelve el texto de bienvenida o null.
+async function activarStaff(chatId, codigo) {
+  const id = leerCodigoActivacion(codigo);
+  if (!id) return null;
+  const registro = await airtable(`${COLABORADORES_TABLE}/${id}`).catch(() => null);
+  if (!registro || registro.fields.Rol !== ROLES.STAFF || !registro.fields.Activo) return null;
+  // Si este Telegram estaba vinculado a otra persona, se le quita.
+  const anterior = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(`{Telegram_Chat_ID} = "${String(chatId).replace(/\D/g, '')}"`)}&maxRecords=1`);
+  const previo = anterior.records[0];
+  const cambios = [{ id, fields: { Telegram_Chat_ID: String(chatId) } }];
+  if (previo && previo.id !== id) cambios.push({ id: previo.id, fields: { Telegram_Chat_ID: '' } });
+  await airtable(COLABORADORES_TABLE, { method: 'PATCH', body: JSON.stringify({ records: cambios }) });
+
+  const nombre = registro.fields.Nombre || '';
+  const coordId = (registro.fields.Coordinadora || [])[0];
+  const coord = coordId ? await airtable(`${COLABORADORES_TABLE}/${coordId}`).catch(() => null) : null;
+  if (coord && coord.fields.Telegram_Chat_ID) {
+    await enviarTelegram(coord.fields.Telegram_Chat_ID, `📲 ${nombre} ya activó sus mensajes: ya le puedes asignar eventos con /staff.`);
+  }
+  return `¡Hola ${nombre}! 👋 Listo, aquí te llegarán los eventos que ${coord ? coord.fields.Nombre || 'tu coordinadora' : 'tu coordinadora'} te programe. Solo contesta con los botones "Sí puedo" o "No puedo".`;
+}
+
 // ---------- Menús de la coordinadora ----------
+
+function menuInicio() {
+  return {
+    texto: '🧑‍🍳 Staff de El Vaso Maíz\n¿Qué quieres hacer?',
+    botones: [[{ texto: '➕ Agregar personal', dato: 'st:a' }, { texto: '📋 Asignar a evento', dato: 'st:l' }]],
+  };
+}
 
 async function menuEventos() {
   const [eventos, invitaciones] = await Promise.all([eventosVasoMaiz(), invitacionesProximas()]);
-  if (!eventos.length) return { texto: 'No hay eventos autorizados de El Vaso Maíz próximos. 🙌', botones: [] };
+  if (!eventos.length) return { texto: 'No hay eventos autorizados de El Vaso Maíz próximos. 🙌', botones: [[{ texto: '⬅️ Menú', dato: 'st:m' }]] };
   const botones = eventos.map(ev => {
     const confirmadas = invitaciones.filter(i => i.eventoId === ev.id && i.estado === ESTADOS.CONFIRMO).length;
     const listo = ev.personal && confirmadas >= ev.personal ? '✅' : '🧑‍🍳';
     return [{ texto: `${listo} ${ev.folio} · ${fechaTexto(ev.fecha)}${ev.horaInicio ? ' ' + horaTexto(ev.horaInicio) : ''} · ${confirmadas}/${ev.personal || '?'}`, dato: `st:e:${ev.id}:0` }];
   });
+  botones.push([{ texto: '⬅️ Menú', dato: 'st:m' }]);
   return { texto: '¿Para qué evento eliges staff?', botones };
 }
 
@@ -204,7 +313,7 @@ async function menuEvento(colaborador, eventoId, textoSel) {
     const estado = deEsteEvento.get(c.id);
     if (estado === ESTADOS.CONFIRMO) return { texto: `✅ ${c.nombre}`, dato: 'st:x:c' };
     if (estado === ESTADOS.INVITADA) return { texto: `⏳ ${c.nombre}`, dato: 'st:x:i' };
-    if (!c.chatId) return { texto: `📵 ${c.nombre}`, dato: 'st:x:t' };
+    if (!c.chatId) return { texto: `📵 ${c.nombre}`, dato: `st:k:${c.id}` };
     const choque = choqueDe(c.id, ev, invitaciones, eventosPorId);
     if (choque) return { texto: `⛔ ${c.nombre} (${choque.folio})`, dato: 'st:x:o' };
     if (elegida(sel, i)) elegidas++;
@@ -222,7 +331,7 @@ async function menuEvento(colaborador, eventoId, textoSel) {
     `📍 ${ev.ubicacion || 'Ubicación por confirmar'}`,
     `🧑‍🍳 Se necesitan ${ev.personal || '?'} personas · confirmadas ${confirmadas} · esperando respuesta ${invitadas}`,
     '',
-    chicas.length ? 'Toca los nombres para elegir y luego "Invitar".\n✅ confirmó · ⏳ invitada · ❌ no pudo · ⛔ ya tiene otro evento a esa hora · 📵 sin Telegram' : 'No tienes staff asignado en COLABORADORES (campo Coordinadora).',
+    chicas.length ? 'Toca los nombres para elegir y luego "Invitar".\n✅ confirmó · ⏳ invitada · ❌ no pudo · ⛔ ya tiene otro evento a esa hora · 📵 no ha activado sus mensajes (tócala para obtener su enlace)' : 'Aún no tienes personal agregado: usa "➕ Agregar personal" en /staff.',
   ].join('\n');
   return { texto, botones };
 }
@@ -329,6 +438,13 @@ async function staffPorEvento() {
 
 module.exports = {
   ESTADOS,
+  menuInicio,
+  pedirAlta,
+  esRespuestaAlta,
+  agregarStaff,
+  activarStaff,
+  enlaceActivacion,
+  leerAlta,
   puedeCoordinar,
   menuEventos,
   menuEvento,

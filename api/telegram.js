@@ -16,7 +16,10 @@
 const { ROLES, iniciarSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy } = require('./_eventos');
 const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat } = require('./_telegram');
-const { puedeCoordinar, menuEventos, menuEvento, invitar, responderInvitacion } = require('./_staff');
+const {
+  puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
+  pedirAlta, esRespuestaAlta, agregarStaff, activarStaff, enlaceActivacion,
+} = require('./_staff');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -202,7 +205,23 @@ async function atenderBoton(cb) {
       const avisos = { c: 'Ya confirmó.', i: 'Ya está invitada; esperando respuesta.', o: 'Ya confirmó otro evento a esa hora.', t: 'No ha vinculado su Telegram: pídele que entre a @dimaclnbot.' };
       return responderBoton(cb.id, avisos[id] || '', true);
     }
-    const menu = accion === 'l' ? await menuEventos()
+    if (accion === 'a') {
+      // Mensaje nuevo con respuesta forzada: Ángela contesta encima con nombre y teléfono.
+      const alta = pedirAlta();
+      await responderBoton(cb.id);
+      await telegramApi('sendMessage', { chat_id: chatId, text: alta.texto, reply_markup: { force_reply: true, input_field_placeholder: alta.respuestaForzada } });
+      return;
+    }
+    if (accion === 'k') {
+      // Enlace de activación de una chica que aún no abre el bot.
+      await responderBoton(cb.id);
+      if (/^rec[A-Za-z0-9]{14}$/.test(id || '')) {
+        await enviarTelegram(chatId, `Mándale este enlace por mensaje; solo tiene que tocarlo y darle "Iniciar" en Telegram:\n${enlaceActivacion(id)}`);
+      }
+      return;
+    }
+    const menu = accion === 'm' ? menuInicio()
+      : accion === 'l' ? await menuEventos()
       : accion === 'e' ? await menuEvento(colaborador, id, sel)
       : accion === 'i' ? await invitar(colaborador, id, sel)
       : null;
@@ -220,16 +239,26 @@ async function responder(mensaje) {
   const comando = (primera || '').toLowerCase().replace(/@.*$/, '');
 
   if (comando === '/entrar') return entrar(chatId, mensaje, argumentos);
+  // Enlace de activación del staff (t.me/<bot>?start=...): vincula sin usuario ni PIN.
+  if (comando === '/start' && argumentos[0]) {
+    const bienvenida = await activarStaff(chatId, argumentos[0]);
+    if (bienvenida) return bienvenida;
+  }
 
   const colaborador = await colaboradorPorChat(chatId);
   if (!colaborador) return ayuda(null);
+
+  // Respuesta al "➕ Nuevo personal" de /staff: nombre y teléfono.
+  if (esRespuestaAlta(mensaje)) {
+    return (await puedeCoordinar(colaborador)) ? agregarStaff(colaborador, texto) : 'Esta opción es solo para Ángela, Diana y Víctor.';
+  }
 
   switch (comando) {
     case '/hoy': return listaEventos(colaborador, true);
     case '/eventos': return listaEventos(colaborador, false);
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
     case '/staff':
-      return (await puedeCoordinar(colaborador)) ? menuEventos()
+      return (await puedeCoordinar(colaborador)) ? menuInicio()
         : 'Esta opción es solo para Ángela, Diana y Víctor.';
     case '/configurar':
       return colaborador.rol === ROLES.ADMIN ? configurarBot() : 'Esa opción es solo para Diana y Víctor.';

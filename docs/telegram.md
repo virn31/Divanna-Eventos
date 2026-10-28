@@ -62,16 +62,19 @@ Las dos respuestas deben decir `ok : True`. Si cambias el token o el secreto, re
 
 Las chicas de El Vaso Maíz no usan la app: todo les llega por Telegram.
 
-**Alta (una vez por persona, en Airtable > COLABORADORES):** Nombre, Usuario (minúsculas, sin
-espacios), PIN de 6 dígitos, **Rol = Staff**, **Coordinadora = Ángela** (o quien la dirija) y
-**Activo**. Luego ella abre @dimaclnbot y escribe `/entrar suusuario suPIN`.
+**Alta, sin usuario ni PIN:** en `/staff` toca **➕ Agregar personal** y contesta con nombre y
+teléfono (ej. `Isabella López 6671234567`). El bot la da de alta (Rol Staff, Coordinadora = Ángela)
+y te da un **enlace personal** (`t.me/dimaclnbot?start=…`). Mándaselo por mensaje: ella solo lo toca
+y le da **Iniciar** en Telegram, una sola vez. A Ángela le llega "📲 Isabella ya activó sus mensajes".
+(Telegram no deja que un bot le escriba a alguien que nunca lo abrió; por eso ese único toque.)
+Si la pierde, en la lista del evento toca su nombre con 📵 y el bot te da el enlace otra vez.
 
 **Quién puede usar `/staff`:** solo Ángela, Diana y Víctor. Ángela necesita su renglón en COLABORADORES
 (por ejemplo Rol "Encargada de evento") con la casilla **Coordina_Staff** marcada, y vincular su Telegram.
 
 **Cómo se usa:**
 
-1. Escribe `/staff`: aparecen los próximos eventos autorizados de El Vaso Maíz con cuántas
+1. Escribe `/staff` y toca **📋 Asignar a evento**: aparecen los próximos eventos autorizados de El Vaso Maíz con cuántas
    chicas van confirmadas de las que se necesitan.
 2. Toca un evento: aparecen sus chicas. ✅ confirmó · ⏳ invitada · ❌ no pudo · ⛔ ya tiene otro
    evento a esa hora · 📵 no ha vinculado su Telegram.

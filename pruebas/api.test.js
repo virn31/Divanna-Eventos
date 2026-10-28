@@ -701,11 +701,70 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 403 && res.body.error.includes('Telegram') && !res.body.token, 'staff: no entra a la app, se le indica usar Telegram');
 
   reset();
-  respuestas = [{ records: [ANGELA] }, { records: [EVVM] }, { records: [] }];
+  respuestas = [{ records: [ANGELA] }];
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/staff', 777) }, res);
-  const menu1 = enviados('sendMessage')[0];
-  ok(menu1 && menu1.body.reply_markup.inline_keyboard[0][0].callback_data === 'st:e:recEVTVASO0000001:0' && menu1.body.reply_markup.inline_keyboard[0][0].text.includes('EVT-500001'), 'staff: /staff muestra los eventos de El Vaso Maíz como botones');
+  const menu0 = enviados('sendMessage')[0];
+  ok(menu0 && menu0.body.reply_markup.inline_keyboard[0].map(b => b.text + '|' + b.callback_data).join(',') === '➕ Agregar personal|st:a,📋 Asignar a evento|st:l', 'staff: /staff abre el menú con Agregar personal y Asignar a evento');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [EVVM] }, { records: [] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('st:l', 777) }, res);
+  const menu1 = enviados('editMessageText')[0];
+  ok(menu1 && menu1.body.reply_markup.inline_keyboard[0][0].callback_data === 'st:e:recEVTVASO0000001:0' && menu1.body.reply_markup.inline_keyboard[0][0].text.includes('EVT-500001'), 'staff: Asignar muestra los eventos de El Vaso Maíz como botones');
+
+  // Agregar personal: nombre y teléfono, sin usuario ni PIN.
+  reset();
+  respuestas = [{ records: [ANGELA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('st:a', 777) }, res);
+  const pide = enviados('sendMessage')[0];
+  ok(pide && pide.body.text.startsWith('➕ Nuevo personal') && pide.body.reply_markup.force_reply === true, 'staff: Agregar pide nombre y teléfono con respuesta directa');
+
+  const respuestaAlta = (texto) => ({ message: { message_id: 10, chat: { id: 777, type: 'private' }, text: texto, reply_to_message: { from: { is_bot: true }, text: pide.body.text } } });
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [ISA] }, { records: [{ id: 'recCOLABNUEVA0001' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: respuestaAlta('Sofía Ramírez 667 555 1234') }, res);
+  const altaStaff = llamadas.find(l => l.method === 'POST' && l.url.includes('tblHdz4vqUIlIdkwc'));
+  const campoAlta = altaStaff && altaStaff.body.records[0].fields;
+  ok(campoAlta && campoAlta.Nombre === 'Sofía Ramírez' && campoAlta.Celular === '+526675551234' && campoAlta.Rol === 'Staff' && campoAlta.Coordinadora[0] === ANGELA.id && campoAlta.Activo && !campoAlta.PIN && !campoAlta.Usuario, 'staff: Agregar da de alta con nombre y teléfono, Rol Staff y Coordinadora Ángela, sin usuario ni PIN');
+  const enlaceSofia = (respuestaTg().match(/https:\/\/t\.me\/dimaclnbot\?start=(s_recCOLABNUEVA0001_[A-Za-z0-9_-]{12})/) || [])[1];
+  ok(!!enlaceSofia, 'staff: Ángela recibe el enlace personal para mandárselo');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [{ ...ISA, fields: { ...ISA.fields, Celular: '+526671112233', Telegram_Chat_ID: '' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: respuestaAlta('Isa 6671112233') }, res);
+  ok(respuestaTg().includes('ya está agregada') && respuestaTg().includes('start=s_') && !llamadas.some(l => l.method === 'POST'), 'staff: no duplica a quien ya está con ese teléfono y le recuerda el enlace');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: respuestaAlta('Sofía') }, res);
+  ok(respuestaTg().includes('No entendí') && !llamadas.some(l => l.method === 'POST'), 'staff: sin teléfono válido no da de alta');
+
+  // La chica toca el enlace: /start <código> vincula su Telegram sin códigos que escribir.
+  const SOFIA = { id: 'recCOLABNUEVA0001', fields: { Nombre: 'Sofía Ramírez', Rol: 'Staff', Activo: true, Coordinadora: [ANGELA.id] } };
+  reset();
+  respuestas = [SOFIA, { records: [] }, {}, ANGELA];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg(`/start ${enlaceSofia}`, 333) }, res);
+  const vinculaSofia = llamadas.find(l => l.method === 'PATCH');
+  ok(vinculaSofia && vinculaSofia.body.records[0].id === SOFIA.id && vinculaSofia.body.records[0].fields.Telegram_Chat_ID === '333', 'staff: al tocar el enlace queda vinculado su Telegram');
+  ok(enviados('sendMessage').some(t => t.body.chat_id === 333 && t.body.text.includes('¡Hola Sofía Ramírez!')) && enviados('sendMessage').some(t => t.body.chat_id === '777' && t.body.text.includes('ya activó sus mensajes')), 'staff: bienvenida a la chica y aviso a Ángela');
+
+  reset();
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg(`/start ${enlaceSofia.slice(0, -1)}x`, 333) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && respuestaTg().includes('/entrar'), 'staff: un enlace alterado no vincula');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton(`st:k:${SOFIA.id}`, 777) }, res);
+  ok(respuestaTg().includes(`start=${enlaceSofia}`), 'staff: tocar a quien no ha activado sus mensajes da de nuevo su enlace');
 
   reset();
   respuestas = [{ records: [ANGELA] }, EVVM, { records: [ISA, KAR, ZOE] }, { records: [] }, { records: [EVVM] }];
