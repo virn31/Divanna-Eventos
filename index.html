@@ -330,6 +330,8 @@
   .dc-form textarea:focus{border-color:var(--divanna);}
   .dc-form button{width:46px;flex:none;border:none;border-radius:14px;background:var(--maiz);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .dc-form button:disabled{opacity:.5;cursor:default;}
+  .dc-form textarea:disabled{opacity:.6;}
+  .dc-ir-form{align-self:center;margin-top:6px;background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:10px 18px;font:inherit;font-weight:700;font-size:0.9rem;cursor:pointer;}
 
   footer{
     border-top:1px solid var(--line);padding:44px 0;
@@ -626,7 +628,7 @@
   const dimaForm = document.getElementById('dimaForm');
   const dimaInput = document.getElementById('dimaInput');
   const dimaEnviar = document.getElementById('dimaEnviar');
-  let chat = { historial: [], folio: null, vistas: [] };
+  let chat = { historial: [], folio: null, vistas: [], terminado: false };
   try { chat = JSON.parse(sessionStorage.getItem(CHAT_KEY)) || chat; } catch(e){}
   let ultimoFoco = null;
 
@@ -662,6 +664,30 @@
     dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
   }
 
+  // Cuando DiMa ya cerró la conversación (límite de mensajes), se desactiva la
+  // caja de texto y se ofrece el formulario para que el cliente no se quede colgado.
+  function aplicarTerminado(){
+    dimaInput.disabled = chat.terminado;
+    dimaEnviar.disabled = chat.terminado;
+    dimaInput.placeholder = chat.terminado ? 'Conversación terminada. Toca "Nueva" para empezar otra.' : 'Escribe tu mensaje…';
+    if(chat.terminado){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dc-ir-form';
+      btn.textContent = 'Llenar el formulario';
+      btn.addEventListener('click', () => {
+        cerrarChat();
+        const form = document.getElementById('pedidoForm');
+        form.hidden = false;
+        mostrarFormBtn.setAttribute('aria-expanded', 'true');
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        form.nombre.focus();
+      });
+      dimaMsgs.appendChild(btn);
+      dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+    }
+  }
+
   function pintarChat(){
     dimaMsgs.innerHTML = '';
     agregarBurbuja('dima', formatear(SALUDO));
@@ -669,6 +695,7 @@
       agregarBurbuja(m.rol === 'cliente' ? 'cliente' : 'dima', formatear(m.texto));
       if(m.fotos) agregarFotos(m.fotos);
     });
+    aplicarTerminado();
   }
 
   function abrirChat(e){
@@ -688,7 +715,7 @@
   document.getElementById('dimaCerrar').addEventListener('click', cerrarChat);
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && !dimaChat.hidden) cerrarChat(); });
   document.getElementById('dimaNuevo').addEventListener('click', () => {
-    chat = { historial: [], folio: null, vistas: [] };
+    chat = { historial: [], folio: null, vistas: [], terminado: false };
     guardarChat();
     pintarChat();
     dimaInput.focus();
@@ -705,7 +732,7 @@
   dimaForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const texto = dimaInput.value.trim();
-    if(!texto || dimaEnviar.disabled) return;
+    if(!texto || dimaEnviar.disabled || chat.terminado) return;
     dimaInput.value = '';
     dimaInput.style.height = 'auto';
     chat.historial.push({ rol: 'cliente', texto });
@@ -730,6 +757,7 @@
       chat.vistas.push(...fotos);
       chat.historial.push({ rol: 'dima', texto: data.texto, fotos });
       if(data.folio) chat.folio = data.folio;
+      if(data.limite) chat.terminado = true;
       guardarChat();
       agregarBurbuja('dima', formatear(data.texto));
       agregarFotos(fotos);
@@ -742,7 +770,8 @@
       agregarBurbuja('error', escapar(err.message));
     } finally {
       dimaEnviar.disabled = false;
-      dimaInput.focus();
+      aplicarTerminado();
+      if(!chat.terminado) dimaInput.focus();
     }
   });
 

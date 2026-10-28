@@ -56,3 +56,9 @@ Recomendación: (a), con una excepción: si solo hay una alerta pendiente no se 
 **Por qué:** Víctor quiere la experiencia de DiMa sin depender de WhatsApp, y que cada colaborador vea solo lo que le corresponde. La sesión firmada cierra los hallazgos de seguridad de la Fase 0.
 **Detalles:** modelo `claude-opus-5-5` con esfuerzo bajo (chat corto) y respaldo automático ante rechazos; el historial vive en el navegador y se limita a 40 mensajes; los datos de pago ya no están en el prompt. Admin usa `dashboard.html` con la misma sesión. El formulario queda como respaldo si el chat falla.
 **Descartado:** app nativa (el APK de la PWA cubre Android y se actualiza solo con cada deploy); login solo con PIN (con usuario + PIN cuesta mucho más adivinar un acceso); guardar la conversación en el servidor (más costo y complejidad; se guarda en `Notas` al registrar el pedido).
+
+## 2026-10-27 — DiMa con Sonnet 5.5, chat acotado y emergencias con push
+
+**Decisión:** el chat usa `claude-sonnet-5-5` (esfuerzo bajo) en vez de Opus 5.5. La plática se acota con cortesía: desde el mensaje 14 del cliente DiMa recibe la instrucción de ir cerrando (repaso, datos, registrar); pasado el 20 se despide y ofrece el formulario; además, freno por IP (2 s entre mensajes, 40 cada 30 min). Las emergencias y alertas de seguridad llegan como notificación push con sonido y vibración aunque la app esté cerrada, y suenan/vibran también con la app abierta.
+**Por qué:** pedido de Víctor: bajar costo del chat público sin cortar feo al cliente, y que una emergencia no dependa de que alguien abra la app o el correo.
+**Descartado:** límite duro sin aviso (corta al cliente a media cotización); captcha desde el inicio (fricción para clientes reales; queda como opción si hay abuso); límite por IP en Airtable (una escritura por mensaje, más lento y caro).

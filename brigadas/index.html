@@ -182,6 +182,15 @@
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
   }
 
+  /* ---------- ACTIVAR ALERTAS PUSH ---------- */
+  .alertas-banner{
+    margin:14px 18px 0; padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
+    background:rgba(240,185,58,0.12); border:1.5px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .alertas-banner[hidden]{display:none;}
+  .alertas-banner span{flex:1; min-width:180px;}
+  .alertas-banner button{border:none; border-radius:10px; padding:10px 14px; background:var(--maiz); color:var(--ink); font-weight:800; cursor:pointer;}
+
   /* ---------- ALERTAS DE OTRAS BRIGADAS (antes llegaban por WhatsApp) ---------- */
   .alerta-equipo{
     margin-bottom:14px; padding:14px 16px; border-radius:14px;
@@ -262,6 +271,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
   </header>
+  <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main id="mainContent">
     <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
   </main>
@@ -271,6 +281,7 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="alertas.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   // Sesión compartida con dashboard.html (mismo origen): { token, nombre, rol }.
@@ -555,9 +566,38 @@
     appScreen.style.display = 'flex';
   }
 
+  // Con la app abierta revisa cada 45 s si hay alertas nuevas (suena y vibra
+  // con DimaAlertas). Con la app cerrada, las alertas llegan por push.
+  let revisionTimer = null;
+  let ultimaFoto = null;
+  function iniciarRevision(){
+    DimaAlertas.iniciar({ contenedorBoton: $('alertasBanner'), token: () => sesion && sesion.token });
+    if(revisionTimer) clearInterval(revisionTimer);
+    revisionTimer = setInterval(() => {
+      if(sesion && document.visibilityState === 'visible') loadEventos(true);
+    }, 45000);
+  }
+
+  function clavesDeAlertas(data){
+    const claves = [];
+    (data.alertasEquipo || []).forEach(a => {
+      if(a.emergencia) claves.push(`${a.folio}|E|${a.motivoEmergencia}`);
+      if(a.zonaAlertaSeguridad) claves.push(`${a.folio}|S|${a.zonaAlertaSeguridad}`);
+    });
+    (data.eventos || []).forEach(ev => {
+      if(ev.emergencia) claves.push(`${ev.id}|E|${ev.motivoEmergencia}`);
+      if(ev.zonaAlertaSeguridad) claves.push(`${ev.id}|S|${ev.zonaAlertaSeguridad}`);
+    });
+    return claves;
+  }
+
   function cerrarSesion(mensaje){
     try { localStorage.removeItem(SESION_KEY); } catch(e){}
     sesion = null;
+    if(revisionTimer) clearInterval(revisionTimer);
+    revisionTimer = null;
+    ultimaFoto = null;
+    DimaAlertas.reiniciar();
     document.body.classList.remove('rol-asistente');
     appScreen.style.display = 'none';
     loginScreen.style.display = 'flex';
@@ -572,10 +612,15 @@
     return true;
   }
 
-  async function loadEventos(){
-    mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
+  // silencioso: revisión automática, sin "Cargando…" y sin repintar si nada cambió.
+  async function loadEventos(silencioso){
+    if(!silencioso) mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
     try {
       const data = await api('/api/brigada-eventos');
+      DimaAlertas.revisar(clavesDeAlertas(data));
+      const foto = JSON.stringify([data.eventos, data.alertasEquipo]);
+      if(silencioso && foto === ultimaFoto) return;
+      ultimaFoto = foto;
       const rolTexto = ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol;
       if(data.brigada){
         $('brigadaNombre').textContent = data.brigada.nombre;
@@ -587,7 +632,7 @@
       renderEventos(data.eventos, data.alertasEquipo);
       mostrarApp();
     } catch(e){
-      if(e.message === 'sesion') return;
+      if(e.message === 'sesion' || silencioso) return;
       mainContent.innerHTML = `<div class="empty-state"><div class="big">📡</div>No se pudieron cargar tus eventos.<br>Revisa tu señal y toca actualizar.</div>`;
       mostrarApp();
     }
@@ -610,7 +655,7 @@
       sesion = { token: data.token, nombre: data.colaborador.nombre, rol: data.colaborador.rol };
       guardarSesion(sesion);
       pinInput.value = '';
-      if(irSegunRol()) await loadEventos();
+      if(irSegunRol()){ iniciarRevision(); await loadEventos(); }
     } catch(e){
       loginError.textContent = e.message;
     } finally {
@@ -631,6 +676,7 @@
 
   // Si ya hay sesión guardada, entra directo.
   if(sesion && sesion.token && irSegunRol()){
+    iniciarRevision();
     loadEventos();
   }
 

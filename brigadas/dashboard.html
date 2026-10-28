@@ -102,6 +102,13 @@
   .balance-card summary{cursor:pointer; font-weight:700;}
   .balance-card pre{white-space:pre-wrap; font-family:inherit; font-size:0.88rem; color:var(--muted); margin:12px 0 0;}
 
+  .alertas-banner{
+    max-width:900px; margin:14px auto 0; width:calc(100% - 36px); padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
+    background:rgba(240,185,58,0.12); border:1.5px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .alertas-banner[hidden]{display:none;}
+  .alertas-banner span{flex:1; min-width:180px;}
+  .alertas-banner button{border:none; border-radius:10px; padding:10px 14px; background:var(--maiz); color:var(--ink); font-weight:800; cursor:pointer;}
   .empty-state{text-align:center; padding:60px 20px; color:var(--muted);}
   .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
   .spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--maiz); animation:spin 0.7s linear infinite;}
@@ -122,6 +129,7 @@
       </button>
     </div>
   </header>
+  <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main>
     <div id="pedidosContent"></div>
     <div id="balanceContent"></div>
@@ -131,6 +139,7 @@
   </main>
 </div>
 
+<script src="alertas.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   // Sesión compartida con /brigadas/ (mismo origen). Solo el rol Admin entra aquí.
@@ -355,6 +364,11 @@
   async function loadDashboard(){
     try {
       const data = await api('/api/dashboard-eventos');
+      // Suena y vibra si apareció una emergencia o alerta de seguridad nueva.
+      DimaAlertas.revisar((data.eventos || []).flatMap(ev => [
+        ev.emergencia ? `${ev.id}|E|${ev.motivoEmergencia}` : null,
+        ev.zonaAlertaSeguridad ? `${ev.id}|S|${ev.zonaAlertaSeguridad}` : null,
+      ].filter(Boolean)));
       renderPedidos(data.pedidos || []);
       renderBalance(data.balance);
       renderEventos(data.eventos);
@@ -368,6 +382,7 @@
   $('logoutBtn').addEventListener('click', salir);
 
   if(sesion && sesion.rol === 'Admin'){
+    DimaAlertas.iniciar({ contenedorBoton: $('alertasBanner'), token: () => sesion.token });
     loadDashboard();
     // Actualiza cada 30s mientras la pantalla está abierta.
     pollTimer = setInterval(loadDashboard, 30000);

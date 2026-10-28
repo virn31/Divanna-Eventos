@@ -1,15 +1,16 @@
 // api/brigada-estatus.js
 // Actualiza el estatus logístico ampliado de un evento (Preparando -> Cerrado),
 // retrasos normales, emergencias, y alertas de seguridad en la ciudad.
-// En emergencias y alertas de seguridad avisa por correo a Diana y Víctor; las
-// demás brigadas activas la ven en su app -- DiMa nunca decide ni reasigna
-// sola, solo alerta.
+// En emergencias y alertas de seguridad manda una notificación push con sonido
+// y vibración a los teléfonos de todo el equipo (api/_push.js) y un correo a
+// Diana y Víctor -- DiMa nunca decide ni reasigna sola, solo alerta.
 //
 // Requiere sesión. El asistente solo marca la carga y lanza alertas; el resto
 // de cambios son del líder, la encargada del evento o un admin.
 
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
+const { enviarPushEquipo } = require('./_push');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -43,10 +44,13 @@ async function airtablePatch(tableId, recordId, fields) {
   return res.json();
 }
 
-// Avisa por correo a Diana y Víctor. Las demás brigadas activas ven la alerta
-// en su app (api/brigada-eventos.js devuelve las alertas del día).
-async function notificarEquipo({ asunto, mensaje }) {
-  const enviado = await enviarCorreoEquipo({ asunto, texto: mensaje });
+// Push a todo el equipo (menos quien reporta) y correo a Diana y Víctor, en
+// paralelo. Si el push falla, el correo y el aviso dentro de la app quedan.
+async function notificarEquipo({ asunto, mensaje, reportaId }) {
+  const [enviado] = await Promise.all([
+    enviarCorreoEquipo({ asunto, texto: mensaje }),
+    enviarPushEquipo({ titulo: asunto, cuerpo: mensaje, excluirColaboradorId: reportaId }),
+  ]);
   if (!enviado) console.error('No se pudo enviar por correo la alerta:', asunto);
 }
 
@@ -178,7 +182,7 @@ module.exports = async (req, res) => {
     // Se espera el envío antes de responder: en Vercel la función se congela al
     // responder y un correo pendiente nunca saldría.
     if (alertaMensaje) {
-      await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje }).catch(err =>
+      await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje, reportaId: colaborador.id }).catch(err =>
         console.error('Error notificando al equipo:', err)
       );
     }

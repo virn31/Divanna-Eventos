@@ -11,6 +11,7 @@ y se actualiza sola con cada deploy (no hay que reinstalar el APK por cambios de
 2. Elige **Android → Generate package**. Opciones:
    - Package ID: `app.vercel.divanna_eventos.equipo` (o el que prefieras; no se puede cambiar después).
    - App name: `DiMa Equipo`.
+   - **Notifications: Enable** (notification delegation). Sin esto las alertas de emergencia no suenan con la app cerrada.
    - Signing key: **Create new**. Guarda el archivo `.keystore` y sus contraseñas fuera del repo
      (por ejemplo en un gestor de contraseñas). Sin esa llave no se pueden publicar actualizaciones del APK.
 3. Descarga el zip. Trae el `.apk` (para instalar directo) y `assetlinks.json`.
@@ -21,7 +22,9 @@ y se actualiza sola con cada deploy (no hay que reinstalar el APK por cambios de
 
 Manda el `.apk` a cada colaborador (Drive, correo o cable). Al abrirlo, Android pide permitir
 "instalar apps de fuentes desconocidas" para esa app; se acepta una vez.
-Después cada quien entra con su usuario y PIN (tabla COLABORADORES en Airtable).
+Después cada quien entra con su usuario y PIN (tabla COLABORADORES en Airtable) y toca **Activar alertas**.
+Para que las emergencias se oigan: el teléfono no debe estar en "No molestar" para esta app, y en
+Ajustes > Apps > DiMa Equipo > Notificaciones deben estar permitidas con sonido.
 
 ## Notas
 

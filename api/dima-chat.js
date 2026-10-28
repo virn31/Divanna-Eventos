@@ -5,8 +5,12 @@
 // Diana lo revise y autorice en la app.
 //
 // El servidor no guarda estado: el navegador manda el historial completo (solo
-// texto) en cada mensaje. Por eso se limita su tamaño, para acotar el costo de
-// cada llamada a Claude.
+// texto) en cada mensaje. Para que la plática no se alargue (ni el costo):
+// - a partir de AVISO_CIERRE mensajes del cliente, DiMa recibe la instrucción
+//   de ir cerrando con amabilidad (resumen, datos de contacto, registrar);
+// - al pasar MAX_MENSAJES_CLIENTE ya no se llama a Claude: se le ofrece al
+//   cliente que Diana lo contacte o usar el formulario;
+// - límite de envíos por IP (ver limiteDeEnvios).
 //
 // Requiere ANTHROPIC_API_KEY en Vercel.
 
@@ -15,12 +19,39 @@ const { validarPedido, crearPedido } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 
-const MODELO = 'claude-opus-5-5';
-const MAX_MENSAJES = 40;
+const MODELO = 'claude-sonnet-5-5';
+const MAX_MENSAJES_CLIENTE = 20;
+const AVISO_CIERRE = 14;
+const MAX_MENSAJES = MAX_MENSAJES_CLIENTE * 2;
 const MAX_CARACTERES_MENSAJE = 1500;
 const MAX_CARACTERES_TOTAL = 30000;
 
 const client = new Anthropic();
+
+// Límite de envíos por IP: mínimo 2 s entre mensajes y máximo 40 mensajes cada
+// 30 minutos. Vive en la memoria de cada instancia de la función, así que es un
+// freno básico contra abuso, no un límite exacto; para algo más firme se agrega
+// una regla de rate limiting en el Firewall de Vercel.
+const ENVIOS_POR_IP = new Map();
+const VENTANA_MS = 30 * 60 * 1000;
+const MAX_ENVIOS_VENTANA = 40;
+const ESPERA_MINIMA_MS = 2000;
+
+function limiteDeEnvios(ip) {
+  const ahora = Date.now();
+  const envios = (ENVIOS_POR_IP.get(ip) || []).filter(t => ahora - t < VENTANA_MS);
+  if (envios.length && ahora - envios[envios.length - 1] < ESPERA_MINIMA_MS) return 'rapido';
+  if (envios.length >= MAX_ENVIOS_VENTANA) return 'muchos';
+  envios.push(ahora);
+  ENVIOS_POR_IP.set(ip, envios);
+  if (ENVIOS_POR_IP.size > 5000) ENVIOS_POR_IP.clear();
+  return null;
+}
+
+const MENSAJE_LIMITE =
+  'Ya platicamos bastante y no quiero quitarte más tiempo. Si ya registramos tu pedido, Diana te contacta ' +
+  'para confirmarlo. Si todavía no, deja tus datos en el formulario de abajo y Diana te llama para terminar ' +
+  'tu cotización. ¡Gracias por la confianza!';
 
 const ID_FOTOS_VASOMAIZ = 'paquetes-vasomaiz';
 
@@ -167,17 +198,50 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   const { historial, folio } = req.body || {};
+  const folioPrevio = /^EVT-\d{6}$/.test(folio || '') ? folio : null;
+
+  // Se revisa antes de validar el tamaño del historial: al pasarse del límite
+  // el cliente recibe la despedida amable, no un error.
+  const mensajesCliente = Array.isArray(historial) ? historial.filter(h => h && h.rol === 'cliente').length : 0;
+  if (mensajesCliente > MAX_MENSAJES_CLIENTE) {
+    res.status(200).json({ texto: MENSAJE_LIMITE, fotos: [], folio: folioPrevio, limite: true });
+    return;
+  }
+
   const mensajes = construirMensajes(historial);
   if (!mensajes) {
     res.status(400).json({ error: 'La conversación es demasiado larga o no es válida. Recarga la página para empezar de nuevo.' });
     return;
   }
-  const folioPrevio = /^EVT-\d{6}$/.test(folio || '') ? folio : null;
+
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sin-ip';
+  const limite = limiteDeEnvios(ip);
+  if (limite) {
+    res.status(429).json({
+      error: limite === 'rapido'
+        ? 'Dame un segundito para leerte y me vuelves a escribir.'
+        : 'Recibimos muchos mensajes desde tu conexión. Intenta en un rato o usa el formulario de abajo.',
+    });
+    return;
+  }
+
+  // Instrucción del sistema al final de la conversación (no se guarda en el
+  // historial del navegador) para que DiMa vaya cerrando sin cortar al cliente.
+  if (mensajesCliente >= AVISO_CIERRE) {
+    const restantes = MAX_MENSAJES_CLIENTE - mensajesCliente;
+    mensajes.push({
+      role: 'system',
+      content: `La conversación ya va larga (quedan ${restantes} mensajes del cliente). Ve cerrando con amabilidad y sin prisas visibles: ` +
+        (folioPrevio
+          ? 'el pedido ya está registrado; resuelve lo que falte en pocas palabras y despídete diciendo que Diana lo contacta.'
+          : 'haz un repaso breve de lo acordado, pide nombre y teléfono si faltan y registra el pedido; si aún tiene dudas, dile que Diana se las resuelve al confirmar.'),
+    });
+  }
 
   try {
     const respuesta = await client.beta.messages.create({
       model: MODELO,
-      max_tokens: 8000,
+      max_tokens: 4000,
       // Chat de ventas: respuestas cortas, no requiere razonamiento profundo.
       output_config: { effort: 'low' },
       // Si un clasificador de seguridad rechaza la petición, la API la reintenta
@@ -219,7 +283,7 @@ module.exports = async (req, res) => {
     if (!texto && fotos.length) texto = 'Claro, mira estos ejemplos:';
     if (!texto) texto = 'Perdona, se me fue la idea. ¿Me repites lo último?';
 
-    res.status(200).json({ texto, fotos, folio: folioNuevo });
+    res.status(200).json({ texto, fotos, folio: folioNuevo, limite: mensajesCliente >= MAX_MENSAJES_CLIENTE });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
       console.error('DiMa: límite de uso de la API de Claude', err.message);

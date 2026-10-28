@@ -9,3 +9,6 @@ VERCEL/
 # Documentación interna
 *.md
 docs/
+
+# Pruebas locales (npm test)
+pruebas/
