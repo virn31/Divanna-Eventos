@@ -41,7 +41,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - 53 pruebas locales pasan (`npm test`). Nada probado aún contra Claude, Airtable, Telegram ni Vercel reales.
 
 **Pendiente de Víctor (antes del merge):**
-1. Vercel → variables (Production y Preview): `SESSION_SECRET` (✅ hecho 2026-10-27), `EMAILS_EQUIPO` (instrucciones dadas), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (están en `DIVANNA HOMEPAGE\keys\vapid-dima.txt`, no subirlas al repo), `TELEGRAM_BOT_TOKEN` y `TELEGRAM_WEBHOOK_SECRET` (crear el bot con BotFather, ver `docs/telegram.md`). Confirmar `ANTHROPIC_API_KEY`.
+1. Vercel → variables (Production y Preview): `SESSION_SECRET` (✅ hecho 2026-10-27), `EMAILS_EQUIPO` (instrucciones dadas), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (están en `DIVANNA HOMEPAGE\keys\vapid-dima.txt`, no subirlas al repo), `TELEGRAM_BOT_TOKEN` y `TELEGRAM_WEBHOOK_SECRET` (bot ya creado: @dimaclnbot; ver `docs/telegram.md`). Confirmar `ANTHROPIC_API_KEY`.
 2. Llenar COLABORADORES (Usuario, PIN de 6 dígitos, Rol, Brigada, Activo). Sin esto nadie entra a la app tras el merge.
 3. Abrir el PR y probar el preview: cotización completa con DiMa, login con cada rol, activar alertas y lanzar una emergencia de prueba.
 

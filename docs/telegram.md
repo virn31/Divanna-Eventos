@@ -1,5 +1,7 @@
 # Bot de Telegram del equipo
 
+**Bot:** [@dimaclnbot](https://t.me/dimaclnbot) (creado con BotFather el 2026-10-27).
+
 Bot interno (no es para clientes). Cada colaborador lo vincula una vez con su usuario y PIN
 de la app, y desde ahí:
 
@@ -13,7 +15,7 @@ Para marcar checklist o cambiar estatus se sigue usando la app.
 ## Crear el bot (una sola vez, lo hace Víctor)
 
 1. En Telegram abre **@BotFather** (el oficial, con palomita azul) y manda `/newbot`.
-2. Nombre visible: `DiMa Equipo`. Usuario: algo que termine en `bot`, por ejemplo `dima_equipo_bot`.
+2. Nombre visible: `DiMa Equipo`. Usuario: `dimaclnbot` (ya creado).
 3. BotFather te da un **token** (algo como `123456:ABC...`). Es la llave del bot: no la compartas
    ni la pegues en chats.
 4. Manda a BotFather `/setjoingroups`, elige el bot y luego `Disable` (el bot solo trabaja por privado).
@@ -50,7 +52,7 @@ Las dos respuestas deben decir `ok : True`. Si cambias el token o el secreto, re
 
 ## Cómo se vincula cada colaborador
 
-1. Busca el bot por su usuario (ej. `@dima_equipo_bot`) y toca **Iniciar**.
+1. Busca **@dimaclnbot** en Telegram (o abre https://t.me/dimaclnbot) y toca **Iniciar**.
 2. Escribe `/entrar tuusuario tuPIN` (los mismos de la app). El bot borra ese mensaje en cuanto lo
    lee, para que el PIN no quede en el chat.
 3. Listo. Para desvincular: `/salir`. Si alguien deja el equipo, basta con desmarcar `Activo` en
