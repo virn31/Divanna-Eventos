@@ -65,7 +65,8 @@ async function guardarSuscripcion(colaboradorId, suscripcion) {
 // Manda la alerta a los teléfonos de todos los colaboradores activos, menos
 // el de quien la reportó. Nunca lanza error: si falla, se reporta en logs y el
 // correo sigue siendo el respaldo.
-async function enviarPushEquipo({ titulo, cuerpo, excluirColaboradorId }) {
+// soloColaboradores: si se pasa (lista de IDs), solo a esas personas.
+async function enviarPushEquipo({ titulo, cuerpo, excluirColaboradorId, soloColaboradores = null }) {
   if (!pushConfigurado()) {
     console.error('Push sin configurar: faltan VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT');
     return 0;
@@ -78,7 +79,8 @@ async function enviarPushEquipo({ titulo, cuerpo, excluirColaboradorId }) {
     );
     const suscripciones = (await todos(TABLES.SUSCRIPCIONES)).filter(r => {
       const colab = (r.fields.Colaborador || [])[0];
-      return colab && activos.has(colab) && colab !== excluirColaboradorId && r.fields.Endpoint && r.fields.Claves;
+      return colab && activos.has(colab) && colab !== excluirColaboradorId && r.fields.Endpoint && r.fields.Claves
+        && (!soloColaboradores || soloColaboradores.includes(colab));
     });
 
     const payload = JSON.stringify({ titulo, cuerpo });

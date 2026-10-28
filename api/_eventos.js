@@ -56,6 +56,8 @@ function formatearEvento(r) {
     etaConfirmado: r.fields.ETA_Confirmado_Brigada || '',
     estatusPago: r.fields.Estatus_Pago || '',
     montoAdeudado: r.fields.Monto_Adeudado || null,
+    instrucciones: r.fields.Instrucciones_Equipo || '',
+    fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
   };
 }
 

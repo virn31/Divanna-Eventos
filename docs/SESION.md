@@ -40,7 +40,10 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - COLABORADORES: `victor` (Admin, con PIN, Telegram vinculado) y `diana` (Admin, **falta que Víctor le ponga PIN**).
 
 **En la rama `vista-equipo-admin` (falta publicar):**
-- "Vista equipo" para Admin: botón en el dashboard que abre la app como la ve cada brigada o encargada, con "Como asistente". 55 pruebas pasan.
+- "Vista equipo" para Admin: botón en el dashboard que abre la app como la ve cada brigada o encargada, con "Como asistente".
+- Cobertura: DiMa reconoce eventos fuera de la ciudad (caso de prueba: San Pedro, Navolato), no los confirma y los marca `Fuera_De_Ciudad`. El formulario pregunta si es dentro de la ciudad.
+- Instrucciones para el equipo (`Instrucciones_Equipo`): DiMa guarda las del cliente, Diana las edita en el dashboard y se avisa al equipo asignado (push + Telegram).
+- Campos nuevos en Airtable (EVENTOS): `Instrucciones_Equipo`, `Fuera_De_Ciudad`. 62 pruebas pasan.
 
 **Pendiente de Víctor:**
 1. PIN de Diana en Airtable; pasarle el APK; que se vincule en @dimaclnbot.

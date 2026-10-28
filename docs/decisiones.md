@@ -68,3 +68,10 @@ Recomendación: (a), con una excepción: si solo hay una alerta pendiente no se 
 **Decisión:** bot interno de Telegram (no para clientes). Cada colaborador lo vincula por chat privado con su usuario y PIN de la app; el bot respeta el rol. Emergencias y alertas de seguridad a todo el equipo (menos quien reporta); pedidos nuevos, cambios de pedido y balance solo a Admin. Consultas por comando (`/hoy`, `/eventos`, `/alertas`, `/pedidos`). Las acciones (checklist, estatus) siguen en la app.
 **Por qué:** pedido de Víctor; Telegram es gratis, no requiere aprobación de plantillas como WhatsApp y es un canal más para que una emergencia no pase desapercibida.
 **Descartado:** grupo de Telegram para todo el equipo (no respeta roles: un asistente vería pedidos y montos); responder con IA en lenguaje libre (más costo; se puede agregar después sobre los mismos comandos); hacer acciones desde Telegram (duplicaría la app y sus permisos).
+
+## 2026-10-27 — Cobertura fuera de la ciudad e instrucciones para el equipo
+
+**Contexto:** en una prueba, un cliente pidió un evento en San Pedro, Navolato y DiMa lo trató como si fuera en Culiacán.
+**Decisión:** DiMa distingue la ciudad de Culiacán de todo lo demás (sindicaturas, Navolato, playas, otros municipios). Fuera de la ciudad no confirma cobertura ni inventa costo de traslado: avisa al cliente que Diana lo confirma y marca el pedido `Fuera_De_Ciudad`, que se resalta en el dashboard, el correo y Telegram. El formulario pregunta si el evento es dentro de la ciudad.
+Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente indique (horario, acceso, referencias) y Diana agrega o corrige desde el dashboard; al guardar se avisa por push y Telegram solo al equipo asignado. La brigada lo ve en la app y en `/hoy`.
+**Descartado:** cálculo automático de distancia/costo de traslado (requiere mapas y tarifas que aún no existen; Diana lo decide caso por caso); chat libre entre Diana y la brigada (las instrucciones por evento cubren el caso sin otra herramienta).

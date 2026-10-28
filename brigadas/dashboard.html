@@ -83,6 +83,20 @@
   .badge-seguridad{background:rgba(255,82,82,0.2); color:var(--e-seguridad);}
   .meta-line{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-size:0.86rem; color:var(--muted);}
   .motivo{font-size:0.83rem; margin-top:10px; padding:10px 12px; background:var(--ink); border-radius:12px; border:1px solid var(--line);}
+  .badge-fuera{background:rgba(255,159,74,0.2); color:var(--sec);}
+  .aviso-fuera{border-color:var(--sec); color:var(--sec);}
+  /* Instrucciones para el equipo (se ven en la app de la brigada/encargada y en Telegram) */
+  .instr{margin-top:12px; font-size:0.85rem;}
+  .instr summary{cursor:pointer; font-weight:700; color:var(--divanna);}
+  .instr textarea, .pedido-card .pedido-instr{
+    width:100%; min-height:70px; margin-top:8px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font:inherit; font-size:0.9rem; resize:vertical; outline:none;
+  }
+  .instr textarea:focus{border-color:var(--divanna);}
+  .instr-fila{display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;}
+  .instr-guardar{border:none; border-radius:10px; padding:9px 14px; background:var(--divanna); color:var(--ink); font-weight:800; cursor:pointer;}
+  .instr-guardar:disabled{opacity:.5;}
+  .instr-msg{font-size:0.8rem; color:var(--muted);}
 
   /* Pedidos de la landing por cotizar (antes Diana respondía SI/NO por WhatsApp) */
   .section-title{font-size:1.15rem; margin:4px 0 12px;}
@@ -223,6 +237,8 @@
   }
 
   function renderEventos(eventos){
+    // El polling cada 30s no debe borrar instrucciones a medio escribir.
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio]')) return;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
       return;
@@ -254,6 +270,7 @@
               ${ev.estatusPago ? `<span class="badge ${pagoClase}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
               ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
               ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
+              ${ev.fueraDeCiudad ? `<span class="badge badge-fuera">🛣️ Fuera de la ciudad</span>` : ''}
             </div>
           </div>
           <div class="meta-line">
@@ -264,11 +281,49 @@
           ${ev.retraso && ev.motivoRetraso ? `<div class="motivo">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo">🆘 ${esc(ev.motivoEmergencia)}</div>` : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
+          <details class="instr" ${ev.instrucciones ? 'open' : ''}>
+            <summary>📌 Instrucciones para el equipo${ev.instrucciones ? '' : ' (agregar)'}</summary>
+            <textarea class="instr-texto" data-id="${esc(ev.id)}" maxlength="2000" placeholder="Ej. Llegar a las 4 pm, entrar por la puerta de atrás, preguntar por Sra. López">${esc(ev.instrucciones)}</textarea>
+            <div class="instr-fila">
+              <button class="instr-guardar" data-id="${esc(ev.id)}">Guardar y avisar al equipo</button>
+              <span class="instr-msg"></span>
+            </div>
+          </details>
         </div>
       `;
     });
 
     mainContent.innerHTML = html;
+
+    mainContent.querySelectorAll('.instr-texto').forEach(t => {
+      t.addEventListener('input', () => { t.dataset.sucio = '1'; });
+    });
+    mainContent.querySelectorAll('.instr-guardar').forEach(b => {
+      b.addEventListener('click', () => guardarInstrucciones(b));
+    });
+  }
+
+  async function guardarInstrucciones(btn){
+    const caja = btn.closest('.instr');
+    const texto = caja.querySelector('.instr-texto');
+    const msg = caja.querySelector('.instr-msg');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const data = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'instrucciones', instrucciones: texto.value }),
+      });
+      delete texto.dataset.sucio;
+      msg.textContent = data.avisados ? `Guardado. Aviso enviado a ${data.avisados} del equipo.`
+        : texto.value.trim() ? 'Guardado. Aún no hay equipo asignado a este evento para avisar.' : 'Guardado.';
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function telLink(tel){
@@ -299,6 +354,7 @@
             ${p.clienteEmail ? `<span>✉️ <a href="mailto:${esc(p.clienteEmail)}">${esc(p.clienteEmail)}</a></span>` : ''}
             ${p.ubicacion ? `<span>📍 ${esc(p.ubicacion)}</span>` : ''}
           </div>
+          ${p.fueraDeCiudad ? `<div class="motivo aviso-fuera">🛣️ Fuera de la ciudad: confirma cobertura y suma el costo de traslado al monto.</div>` : ''}
           ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
           <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
@@ -306,6 +362,8 @@
           ${p.montoEstimado ? '<div class="evento-sub">Estimado de DiMa, ajústalo si hace falta.</div>' : ''}
           <label for="items-${esc(p.id)}">Checklist de carga (un artículo por línea)</label>
           <textarea id="items-${esc(p.id)}" class="pedido-items">${esc(p.servicios)}</textarea>
+          <label for="instr-${esc(p.id)}">Instrucciones para el equipo (opcional)</label>
+          <textarea id="instr-${esc(p.id)}" class="pedido-instr" maxlength="2000" placeholder="Horario de montaje, acceso, a quién buscar…">${esc(p.instrucciones)}</textarea>
           <div class="pedido-actions">
             <button class="btn-autorizar" data-accion="autorizar">✅ Autorizar</button>
             <button class="btn-rechazar" data-accion="rechazar">Rechazar</button>
@@ -325,6 +383,7 @@
     const accion = btn.dataset.accion;
     const monto = card.querySelector('.pedido-monto').value;
     const items = card.querySelector('.pedido-items').value;
+    const instrucciones = card.querySelector('.pedido-instr').value;
 
     if(accion === 'autorizar' && !(Number(monto) > 0)){
       msg.style.color = 'var(--bad)';
@@ -339,7 +398,7 @@
       const data = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventoId: card.dataset.id, accion, monto, items }),
+        body: JSON.stringify({ eventoId: card.dataset.id, accion, monto, items, instrucciones }),
       });
       msg.style.color = 'var(--good)';
       msg.textContent = accion === 'rechazar' ? 'Pedido rechazado.'

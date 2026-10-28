@@ -79,14 +79,16 @@ async function guardarChat(colaboradorId, chatId) {
 }
 
 // Manda un aviso a los colaboradores activos con Telegram vinculado.
-// roles: lista de roles que lo reciben (null = todos). Nunca lanza error.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null }) {
+// roles: lista de roles que lo reciben (null = todos); soloColaboradores: lista
+// de IDs para mandarlo solo a esas personas. Nunca lanza error.
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null }) {
   if (!telegramConfigurado()) return 0;
   try {
     const formula = encodeURIComponent('AND({Activo}, {Telegram_Chat_ID} != "")');
     const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
     const destinos = data.records.map(aColaborador)
-      .filter(c => c.id !== excluirColaboradorId && (!roles || roles.includes(c.rol)));
+      .filter(c => c.id !== excluirColaboradorId && (!roles || roles.includes(c.rol))
+        && (!soloColaboradores || soloColaboradores.includes(c.id)));
 
     let enviados = 0;
     await Promise.all(destinos.map(async (c) => {

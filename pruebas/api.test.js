@@ -322,6 +322,48 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await checklist({ method: 'POST', headers: auth(tokenEnc), body: { eventoId: 'recEVENTO00000008', etapa: 'montaje', valor: true } }, res);
   ok(res.code === 403, 'encargada no toca eventos de otra encargada');
 
+  // ---------- Cobertura e instrucciones ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Luz', telefono: '6672223344', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Cumpleaños', fecha: '2026-11-20', invitados: 60, ubicacion: 'San Pedro, Navolato', servicios: 'Paquete 3', monto_estimado: 2700, fuera_de_ciudad: true, indicaciones: 'Montar a las 5 pm, casa con portón verde' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000004', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial });
+  const evFuera = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(evFuera.Fuera_De_Ciudad === true && evFuera.Instrucciones_Equipo === 'Del cliente: Montar a las 5 pm, casa con portón verde', 'chat: fuera de la ciudad e indicaciones del cliente quedan en el evento');
+  ok(res.body.texto.includes('fuera de la ciudad') && correos[0].subject.includes('fuera de la ciudad') && correos[0].text.includes('FUERA DE LA CIUDAD'), 'chat: cliente y Diana reciben el aviso de cobertura');
+  ok(llamadasClaude[0].system.includes('COBERTURA') && llamadasClaude[0].system.includes('San Pedro') && llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema.required.includes('fuera_de_ciudad'), 'chat: DiMa tiene las reglas de cobertura y el campo para marcarlo');
+
+  reset();
+  respuestas = [
+    ADMIN,
+    { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-11-20', Brigada_Asignada: ['recBRIGADA0000001'], Instrucciones_Equipo: '' } },
+    {},
+    { records: [LIDER, ASIST, ADMIN] },
+    { records: [LIDER, ASIST, ADMIN] },
+    { records: [
+      { id: 'recSUB00000000010', fields: { Endpoint: 'https://push.example/lider', Colaborador: [LIDER.id], Claves: '{"p256dh":"a","auth":"b"}' } },
+      { id: 'recSUB00000000011', fields: { Endpoint: 'https://push.example/admin', Colaborador: [ADMIN.id], Claves: '{"p256dh":"a","auth":"b"}' } },
+    ] },
+  ];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'Llevar extensión de 20 m' } }, res);
+  const patchInstr = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchInstr.Instrucciones_Equipo === 'Llevar extensión de 20 m' && res.body.avisados === 2, 'dashboard: guarda instrucciones y avisa a los 2 de la brigada');
+  ok(pushes.length === 1 && pushes[0].endpoint.endsWith('/lider') && pushes[0].payload.cuerpo.includes('extensión'), 'instrucciones: push solo al equipo asignado, no a Admin');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Instrucciones_Equipo: 'Igual' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'Igual' } }, res);
+  ok(res.code === 200 && res.body.avisados === 0 && pushes.length === 0, 'instrucciones sin cambios: no se vuelve a avisar');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'x' } }, res);
+  ok(res.code === 403, 'instrucciones: solo Admin las puede escribir');
+
   // ---------- Suscripción push ----------
   reset();
   res = resMock();

@@ -73,6 +73,8 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v3`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.
 7. Los datos de pago (cuenta/tarjeta) **no** van en el prompt de DiMa: se mandan con la cotización confirmada por Diana.
+8. **Cobertura:** servicio normal dentro de la ciudad de Culiacán, radio máximo 35 km. Fuera de la ciudad (sindicaturas, Navolato y San Pedro, playas) DiMa no confirma: marca `EVENTOS.Fuera_De_Ciudad` y Diana confirma cobertura y costo de traslado. Las reglas viven en el prompt de `api/dima-chat.js`.
+9. **Instrucciones para el equipo:** `EVENTOS.Instrucciones_Equipo`. DiMa guarda las indicaciones del cliente ("Del cliente: ..."); Diana las edita en el dashboard y al guardar se avisa por push y Telegram solo a la brigada/encargada asignada. Se muestran en la app y en `/hoy` de Telegram.
 
 ## Hallazgos de seguridad abiertos
 

@@ -57,6 +57,8 @@ function validarPedido(entrada) {
     ubicacion: texto(entrada.ubicacion, 150),
     servicios: texto(entrada.servicios, 1500),
     montoEstimado: Number(entrada.montoEstimado),
+    fueraDeCiudad: entrada.fueraDeCiudad === true,
+    indicaciones: texto(entrada.indicaciones, 800),
   };
   if (!datos.nombre || datos.telefonoDigitos.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha) || !datos.servicios) {
     return { error: 'Revisa tu nombre, teléfono (10 dígitos), fecha y lo que necesitas.' };
@@ -112,6 +114,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   if (datos.ubicacion) eventoFields.Ubicacion = datos.ubicacion;
   if (datos.invitados > 0 && datos.invitados < 100000) eventoFields.Invitados = datos.invitados;
   if (montoValido) eventoFields.Monto_Estimado_IA = datos.montoEstimado;
+  if (datos.fueraDeCiudad) eventoFields.Fuera_De_Ciudad = true;
+  if (datos.indicaciones) eventoFields.Instrucciones_Equipo = `Del cliente: ${datos.indicaciones}`;
 
   await airtableRequest(TABLES.EVENTOS, {
     method: 'POST',
@@ -120,24 +124,21 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
 
   // 3. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
   // quedó guardado y aparece en el dashboard: no se le marca error al cliente.
+  const avisoFuera = datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '';
   const avisoTelegram = enviarTelegramEquipo({
     roles: [ROLES.ADMIN],
-    texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})
-` +
-      `${datos.nombre} · ${telefono}
-📅 ${datos.fecha}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}
-` +
-      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}
-` : '') +
-      `
-${datos.servicios}
-
-Cotízalo en https://divanna-eventos.vercel.app/brigadas/`,
+    texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})\n` + avisoFuera +
+      `${datos.nombre} · ${telefono}\n` +
+      `📅 ${datos.fecha}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}${datos.ubicacion ? ' · 📍 ' + datos.ubicacion : ''}\n` +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
+      `\n${datos.servicios}\n` +
+      (datos.indicaciones ? `\n📌 ${datos.indicaciones}\n` : '') +
+      `\nCotízalo en https://divanna-eventos.vercel.app/brigadas/`,
   });
   await enviarCorreoEquipo({
-    asunto: `🎉 Pedido nuevo ${folio} - ${datos.nombre}`,
+    asunto: `🎉 Pedido nuevo ${folio} - ${datos.nombre}${datos.fueraDeCiudad ? ' (fuera de la ciudad)' : ''}`,
     texto:
-      `Llegó un pedido nuevo desde la página (${origen === 'chat' ? 'chat con DiMa' : 'formulario'}).\n\n` +
+      `Llegó un pedido nuevo desde la página (${origen === 'chat' ? 'chat con DiMa' : 'formulario'}).\n\n` + avisoFuera +
       `Folio: ${folio}\n` +
       `Cliente: ${datos.nombre}\n` +
       `Teléfono: ${telefono}\n` +
@@ -149,6 +150,7 @@ Cotízalo en https://divanna-eventos.vercel.app/brigadas/`,
       `Ubicación: ${datos.ubicacion || 'sin especificar'}\n` +
       (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
       `\nLo que necesita:\n${datos.servicios}\n\n` +
+      (datos.indicaciones ? `Indicaciones del cliente:\n${datos.indicaciones}\n\n` : '') +
       `Cotízalo en la app: https://divanna-eventos.vercel.app/brigadas/`,
   });
   await avisoTelegram;

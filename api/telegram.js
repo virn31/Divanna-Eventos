@@ -37,6 +37,8 @@ function textoEvento(ev) {
     `📍 ${ev.ubicacion || 'Ubicación por confirmar'}`,
     `🚚 ${ev.estatusLogistico}${ev.invitados ? ' · 👥 ' + ev.invitados : ''}`,
   ];
+  if (ev.fueraDeCiudad) lineas.push('🛣️ Fuera de la ciudad');
+  if (ev.instrucciones) lineas.push(`📌 ${ev.instrucciones}`);
   if (ev.estatusPago) lineas.push(`💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · debe $' + ev.montoAdeudado : ''}`);
   if (ev.retraso && ev.motivoRetraso) lineas.push(`🚦 Retraso: ${ev.motivoRetraso}`);
   if (ev.emergencia) lineas.push(`🆘 Emergencia: ${ev.motivoEmergencia || 'sin detalle'}`);
