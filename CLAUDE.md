@@ -57,7 +57,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 
 ## Roles (campo `Rol` en COLABORADORES)
 
-- **Admin** (Diana, Víctor): dashboard completo.
+- **Admin** (Diana, Víctor): dashboard completo y **Vista equipo** (`/brigadas/?vista=equipo`): la app como la ve cada brigada o encargada, con opción "Como asistente".
 - **Lider de brigada**: eventos de su brigada; todo lo operativo.
 - **Asistente**: eventos de su brigada; solo checklist de carga y alertas (emergencia/seguridad).
 - **Encargada de evento** (El Vaso Maíz): los eventos donde está en `EVENTOS.Encargada`; lo mismo que un líder.
@@ -70,7 +70,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 2. Los campos de Airtable deben existir con el nombre exacto. Ya hubo un bug por `Monto_Cotizacion` (el real es `Monto_Estimado_IA`). Verifica el esquema antes de escribir un campo nuevo.
 3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 10 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal (los archivos con `_` no cuentan).
 4. La PWA ya está instalada con scope `/brigadas/` y el APK apunta ahí. **No cambies el scope ni el `start_url`** sin plan de migración.
-5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v2`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
+5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v3`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.
 7. Los datos de pago (cuenta/tarjeta) **no** van en el prompt de DiMa: se mandan con la cotización confirmada por Diana.
 
