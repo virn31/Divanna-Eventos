@@ -121,4 +121,4 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 
 **Decisión (Víctor):** una semana antes de Navidad y hasta entrando el año los precios suben 70% y no se manejan paquetes regulares; el aumento se justifica con sutileza por la demanda de trabajo.
 **Cómo quedó:** del 18 de diciembre al 1 de enero según la fecha del evento (`api/_temporada.js`); aplica a Divanna y a El Vaso Maíz. DiMa cotiza por pieza x 1.7 y lo explica como "tarifa de temporada". Recordatorio automático si el cliente menciona fechas de temporada; pedidos marcados en Notas, correo, Telegram y dashboard.
-**Confirmado:** sube todo, Divanna y El Vaso Maíz. **Por confirmar:** si "entrando el año" termina el 1 de enero o se extiende, y si el traslado también sube. Las promociones de diciembre llegan en carpetas aparte.
+**Confirmado:** sube todo, Divanna y El Vaso Maíz. **Por confirmar:** si "entrando el año" termina el 1 de enero o se extiende, El traslado no sube: se mantiene km x $10 x 4. Las promociones de diciembre llegan en carpetas aparte.

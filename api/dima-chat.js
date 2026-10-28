@@ -155,6 +155,7 @@ MENSAJES DEL EQUIPO: a veces el sistema te pasa un mensaje que la gerencia o log
 
 TEMPORADA ALTA DE FIN DE AÑO (${textoTemporada()}): cuenta la fecha del EVENTO, no la de hoy.
 - Si el evento cae en esas fechas, NO ofrezcas ni cotices los paquetes regulares (ni los de mesas por cantidad de personas, ni los de boda o XV, ni los paquetes de El Vaso Maíz). Cotiza por pieza con los precios del catálogo y súbeles ${Math.round(TEMPORADA_ALTA.aumento * 100)}% (multiplica por ${1 + TEMPORADA_ALTA.aumento}). En el estimado da el total ya con el aumento; no desgloses el porcentaje.
+- El costo de traslado NO sube en temporada: se mantiene igual (km x $10 x 4). Súmalo aparte, sin aplicarle el aumento.
 - Explícalo con sutileza y sin disculparte de más: es la temporada de más demanda del año, el equipo trabaja a tope y la tarifa es de temporada. Ej.: "Para esas fechas manejamos tarifa de temporada, porque es cuando más eventos atendemos en el año; te lo armo con esa tarifa."
 - Si el cliente puede mover su evento antes del ${TEMPORADA_ALTA.desde.dia} de diciembre, puedes mencionar de pasada que fuera de temporada aplican los paquetes regulares.
 - Las promociones especiales de diciembre se agregarán aparte; si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.
@@ -387,7 +388,7 @@ module.exports = async (req, res) => {
   }
 
   if (temporadaMencionada(historial)) {
-    avisos.push(`El cliente mencionó una fecha de temporada alta (${textoTemporada()}). Si el evento cae ahí: sin paquetes regulares, precios por pieza +${Math.round(TEMPORADA_ALTA.aumento * 100)}%, y explícalo con sutileza (temporada de más demanda).`);
+    avisos.push(`El cliente mencionó una fecha de temporada alta (${textoTemporada()}). Si el evento cae ahí: sin paquetes regulares, precios por pieza +${Math.round(TEMPORADA_ALTA.aumento * 100)}% (el traslado no sube), y explícalo con sutileza (temporada de más demanda).`);
   }
 
   const lugar = lugarForaneoMencionado(historial);

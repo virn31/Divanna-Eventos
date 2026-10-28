@@ -692,6 +692,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'Es para el 20 de diciembre' }] });
   const avisoTemp = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
   ok(llamadasClaude[0].system.includes('TEMPORADA ALTA DE FIN DE AÑO') && llamadasClaude[0].system.includes('multiplica por 1.7') && avisoTemp.role === 'system' && avisoTemp.content.includes('+70%'), 'temporada: DiMa tiene la regla y recibe el recordatorio al oír "20 de diciembre"');
+  ok(llamadasClaude[0].system.includes('El costo de traslado NO sube en temporada') && avisoTemp.content.includes('el traslado no sube'), 'temporada: el traslado se mantiene igual');
   ok(llamadasClaude[0].system.includes('NO aplican en TEMPORADA ALTA'), 'temporada: el catálogo aclara que los paquetes no aplican en temporada alta');
 
   reset();
