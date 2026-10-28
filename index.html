@@ -725,6 +725,34 @@
     aplicarTerminado();
   }
 
+  // Si el cliente ya tiene pedido y deja el chat abierto, cada 30 s se revisa
+  // si Diana ya le dejó respuesta; al llegar, DiMa la muestra en la plática.
+  let revisionDiana = null;
+  function iniciarRevisionDiana(){
+    if(revisionDiana || !chat.folio || dimaChat.hidden) return;
+    revisionDiana = setInterval(async () => {
+      if(dimaChat.hidden || !chat.folio || document.visibilityState !== 'visible') return;
+      try {
+        const res = await fetch('/api/dima-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accion: 'revisar', folio: chat.folio, folioFirma: chat.folioFirma }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if(data.mensaje){
+          const texto = `📩 Diana ya revisó tu pedido ${chat.folio}:\n${data.mensaje}`;
+          chat.historial.push({ rol: 'dima', texto });
+          guardarChat();
+          agregarBurbuja('dima', formatear(texto));
+          if(navigator.vibrate) navigator.vibrate(200);
+        }
+      } catch(e){}
+    }, 30000);
+  }
+  function detenerRevisionDiana(){
+    if(revisionDiana){ clearInterval(revisionDiana); revisionDiana = null; }
+  }
+
   function abrirChat(e){
     if(e) e.preventDefault();
     ultimoFoco = document.activeElement;
@@ -732,9 +760,11 @@
     dimaChat.hidden = false;
     pintarChat();
     dimaInput.focus();
+    iniciarRevisionDiana();
   }
   function cerrarChat(){
     dimaChat.hidden = true;
+    detenerRevisionDiana();
     if(ultimoFoco) ultimoFoco.focus();
   }
 
@@ -789,7 +819,7 @@
       const fotos = (data.fotos || []).filter(u => !chat.vistas.includes(u));
       chat.vistas.push(...fotos);
       chat.historial.push({ rol: 'dima', texto: data.texto, fotos });
-      if(data.folio){ chat.folio = data.folio; chat.folioFirma = data.folioFirma || null; }
+      if(data.folio){ chat.folio = data.folio; chat.folioFirma = data.folioFirma || null; iniciarRevisionDiana(); }
       if(data.limite) chat.terminado = true;
       guardarChat();
       agregarBurbuja('dima', formatear(data.texto));

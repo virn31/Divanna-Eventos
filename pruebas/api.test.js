@@ -156,6 +156,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV\n9 mesas', monto_estimado: 6400 } },
   ] }];
   const firmar = (f) => require('crypto').createHmac('sha256', process.env.SESSION_SECRET).update(`folio:${f}`).digest('base64url').slice(0, 32);
+  respuestas = [{ records: [] }]; // sin mensaje pendiente de Diana
   res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
   ok(res.body.folio === 'EVT-123456' && !llamadas.some(l => l.method === 'POST') && correos.length === 1 && correos[0].subject.includes('Cambio en el pedido EVT-123456'), 'chat: cambios después de registrar no duplican el evento');
 
@@ -348,7 +349,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && res.body.folio === 'EVT-777777' && res.body.folioFirma === firmar('EVT-777777') && avisoPedido.role === 'system' && avisoPedido.content.includes('Paquete 3') && avisoPedido.content.includes('ya confirmó'), 'chat: pedido existente verificado, DiMa recibe su contenido y el folio queda firmado');
 
   reset();
-  respuestas = [{ records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Notas: 'previas', Instrucciones_Equipo: '' } }] }, {}];
+  respuestas = [{ records: [] }, { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Notas: 'previas', Instrucciones_Equipo: '' } }] }, {}];
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990000', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Fiesta', fecha: '2026-12-01', invitados: 90, ubicacion: 'Centro', servicios: 'Paquete 3\n20 sillas', monto_estimado: 3000, fuera_de_ciudad: false, indicaciones: 'Tocar el timbre de la casa azul' } },
   ] }];
@@ -362,6 +363,44 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const avisoForaneo = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
   ok(avisoForaneo.role === 'system' && avisoForaneo.content.includes('se validan'), 'chat: al mencionar San Pedro, DiMa recibe el recordatorio de explicar la validación');
   ok(llamadasClaude[0].system.includes('VENTA CRUZADA') && llamadasClaude[0].system.includes('mobiliario'), 'chat: DiMa tiene la regla de venta cruzada');
+
+  // ---------- Preferencia de contacto y mensajes de Diana al cliente ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Luz', telefono: '6672223344', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Cumpleaños', fecha: '2026-11-20', invitados: 60, ubicacion: 'San Pedro, Navolato', servicios: 'Paquete 3', monto_estimado: 2700, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'llamada' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000011', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial });
+  const evPref = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(evPref.Preferencia_Contacto === 'Llamada' && correos[0].text.includes('Cómo quiere la respuesta: Llamada'), 'chat: la preferencia de contacto del cliente queda en el pedido y le llega a Diana');
+  ok(llamadasClaude[0].system.includes('¿quieres esperar aquí la respuesta de la cotización') && llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema.required.includes('preferencia_contacto'), 'chat: DiMa pregunta en foráneos si espera en el chat o lo contactan');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'mensaje_cliente', mensaje: 'Sí llegamos, traslado $500' } }, res);
+  const patchMsg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchMsg.Mensaje_Para_Cliente === 'Sí llegamos, traslado $500' && patchMsg.Mensaje_Cliente_Entregado === false, 'dashboard: Diana deja un mensaje para el cliente');
+
+  reset();
+  respuestas = [{ records: [{ id: 'recEVENTO00000001', fields: { Mensaje_Para_Cliente: 'Sí llegamos, traslado $500' } }] }, {}];
+  res = await chat({ accion: 'revisar', folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
+  const marcado = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && res.body.mensaje === 'Sí llegamos, traslado $500' && marcado.body.records[0].fields.Mensaje_Cliente_Entregado === true && llamadasClaude.length === 0, 'chat: el cliente que espera recibe el mensaje de Diana y se marca entregado (sin llamar a Claude)');
+  reset();
+  res = await chat({ accion: 'revisar', folio: 'EVT-123456', folioFirma: 'inventada' });
+  ok(res.code === 400 && llamadas.length === 0, 'chat: revisar sin folio firmado se rechaza');
+
+  reset();
+  respuestas = [
+    { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Cliente: ['recCLIENTE0000009'], Fecha_Evento: '2026-12-01', Servicios_Solicitados: 'Paquete 3', Mensaje_Para_Cliente: 'El traslado a San Pedro son $500' } }] },
+    { id: 'recCLIENTE0000009', fields: { Nombre: 'Rosa', Telefono_WhatsApp: '+526679990000' } },
+    {},
+  ];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Diana te manda decir que el traslado son $500.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'hola, ¿ya hay respuesta?' }], pedidoExistente: { folio: 'EVT-777777', telefono: '6679990000' } });
+  const ultimoAviso = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(ultimoAviso.content.includes('El traslado a San Pedro son $500') && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Mensaje_Cliente_Entregado === true), 'chat: el cliente que regresa con su folio recibe el mensaje pendiente de Diana');
 
   // ---------- Cobertura e instrucciones ----------
   reset();

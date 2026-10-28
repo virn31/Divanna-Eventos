@@ -45,7 +45,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - DiMa explica la validación de eventos foráneos (prompt + recordatorio automático al detectar lugares como San Pedro/Navolato).
 - Venta cruzada obligatoria antes de pedir datos.
 - Cuadro "¿Ya tienes número de pedido?" en la landing (folio + teléfono) para agregar cosas o indicaciones; se guardan en el evento y avisan a Diana. Folio firmado para que nadie toque pedidos ajenos.
-- 78 pruebas pasan.
+- DiMa pregunta en foráneos si el cliente espera en el chat o prefiere mensaje/llamada (`Preferencia_Contacto`).
+- Diana deja "Mensaje para el cliente" en el dashboard; DiMa lo entrega en el chat (en vivo cada 30 s o cuando el cliente regresa con su folio). Campos `Preferencia_Contacto`, `Mensaje_Para_Cliente`, `Mensaje_Cliente_Entregado`.
+- 84 pruebas pasan.
 - Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**

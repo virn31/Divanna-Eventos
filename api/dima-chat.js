@@ -16,7 +16,7 @@
 
 const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { validarPedido, crearPedido, verificarPedido, registrarCambioCliente } = require('./_pedidos');
+const { validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
@@ -95,8 +95,9 @@ const TOOLS = [
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
+        preferencia_contacto: { type: 'string', enum: ['esperar_en_chat', 'mensaje', 'llamada', 'no_preguntado'], description: 'Cómo quiere el cliente recibir la respuesta de la cotización: esperar aquí en el chat, por mensaje o por llamada. "no_preguntado" si no aplica.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'invitados', 'ubicacion', 'servicios', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'invitados', 'ubicacion', 'servicios', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'preferencia_contacto'],
       additionalProperties: false,
     },
   },
@@ -127,6 +128,9 @@ COBERTURA (revísala en cuanto sepas dónde es el evento):
 - Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
 - Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: Diana revisa que el equipo pueda trasladarse ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
 - Sigue armando la cotización normal. En el repaso final vuelve a mencionar, en una frase, que falta validar el traslado, y registra el pedido con fuera_de_ciudad = true.
+- En los foráneos, cuando pidas los datos de contacto pregúntale también: "Tu pedido es foráneo: ¿quieres esperar aquí la respuesta de la cotización, o prefieres que te contactemos por mensaje o por llamada?". Guarda su respuesta en preferencia_contacto (esperar_en_chat, mensaje o llamada). Si elige esperar, dile que puede dejar esta ventana abierta o regresar después con su número de pedido en "¿Ya tienes número de pedido?".
+
+MENSAJES DE DIANA: a veces el sistema te pasa un mensaje que Diana dejó para el cliente sobre su pedido (por ejemplo, la respuesta de un foráneo). Entrégaselo al inicio de tu respuesta, con sus palabras y sin cambiar montos, fechas ni condiciones, y después sigue la plática.
 - Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
 - Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y Diana revisa si se puede atender.
 
@@ -218,6 +222,7 @@ async function registrarPedido(input, historial, folioPrevio) {
     montoEstimado: input.monto_estimado,
     fueraDeCiudad: input.fuera_de_ciudad,
     indicaciones: input.indicaciones,
+    preferenciaContacto: input.preferencia_contacto,
   });
   if (error) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
@@ -232,6 +237,7 @@ async function registrarPedido(input, historial, folioPrevio) {
       indicaciones: datos.indicaciones,
       montoEstimado: datos.montoEstimado,
       transcripcion: transcripcion(historial),
+      preferenciaContacto: datos.preferenciaContacto,
     }).catch(err => console.error('No se pudo guardar el cambio en el evento:', err.message));
     await enviarTelegramEquipo({
       roles: [ROLES.ADMIN],
@@ -259,8 +265,23 @@ async function registrarPedido(input, historial, folioPrevio) {
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { historial, folio, folioFirma, pedidoExistente } = req.body || {};
+  const { historial, folio, folioFirma, pedidoExistente, accion } = req.body || {};
   let folioPrevio = folioFirmado(folio, folioFirma);
+
+  // El navegador revisa cada rato si Diana ya dejó respuesta para el cliente
+  // que está esperando en el chat. No llama a Claude; solo lee Airtable.
+  if (accion === 'revisar') {
+    if (!folioPrevio) { res.status(400).json({ error: 'Pedido no válido' }); return; }
+    try {
+      const pendiente = await mensajeDianaPendiente(folioPrevio);
+      if (pendiente) await marcarMensajeEntregado(pendiente.id);
+      res.status(200).json({ mensaje: pendiente ? pendiente.mensaje : null });
+    } catch (err) {
+      console.error('Error revisando mensaje de Diana:', err.message);
+      res.status(200).json({ mensaje: null });
+    }
+    return;
+  }
 
   // Se revisa antes de validar el tamaño del historial: al pasarse del límite
   // el cliente recibe la despedida amable, no un error.
@@ -290,6 +311,7 @@ module.exports = async (req, res) => {
   // Avisos del sistema al final de la conversación (no se guardan en el
   // historial del navegador). Van juntos en un solo mensaje "system".
   const avisos = [];
+  let mensajeAEntregar = null;
 
   // Cliente que vuelve con su folio y teléfono para agregar o cambiar algo.
   if (pedidoExistente && !folioPrevio) {
@@ -299,6 +321,9 @@ module.exports = async (req, res) => {
       return;
     }
     folioPrevio = pedido.folio;
+    if (pedido.mensajeDiana) {
+      mensajeAEntregar = { id: pedido.id, mensaje: pedido.mensajeDiana };
+    }
     avisos.push(
       `El cliente ya tiene el pedido ${pedido.folio} registrado a nombre de ${pedido.nombre || 'el cliente'}` +
       ` (${pedido.negocio || 'negocio sin especificar'}, ${pedido.fecha}, ${pedido.ubicacion || 'ubicación sin especificar'}` +
@@ -308,6 +333,14 @@ module.exports = async (req, res) => {
       (pedido.autorizado ? 'Diana ya confirmó esta cotización: cualquier cambio lo vuelve a revisar ella.\n' : 'Diana todavía no confirma la cotización.\n') +
       'Lo que pida ahora son agregados o cambios a ESE pedido. No pidas otra vez sus datos de contacto. Cuando tengas claro el cambio, llama registrar_pedido con los datos completos ya actualizados (nombre y teléfono del pedido).'
     );
+  }
+
+  // Cliente que sigue en la misma conversación con su pedido ya registrado.
+  if (folioPrevio && !mensajeAEntregar && !pedidoExistente) {
+    mensajeAEntregar = await mensajeDianaPendiente(folioPrevio).catch(() => null);
+  }
+  if (mensajeAEntregar) {
+    avisos.push(`Diana dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones:\n"${mensajeAEntregar.mensaje}"`);
   }
 
   const lugar = lugarForaneoMencionado(historial);
@@ -366,6 +399,9 @@ module.exports = async (req, res) => {
         }
       }
     }
+
+    // Diana ya quedó atendida: no se le vuelve a entregar el mismo mensaje.
+    if (mensajeAEntregar) await marcarMensajeEntregado(mensajeAEntregar.id).catch(() => {});
 
     let texto = partes.join('\n\n');
     if (!texto && fotos.length) texto = 'Claro, mira estos ejemplos:';

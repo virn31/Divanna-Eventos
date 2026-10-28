@@ -92,3 +92,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - Cuadro "¿Ya tienes número de pedido?" en la landing: folio + teléfono abren el chat sobre ese pedido. Los cambios se guardan en el evento (Notas e Instrucciones_Equipo) y se avisa a Diana.
 - Seguridad: el chat solo acepta cambios con folio firmado por el servidor (HMAC), o verificado con el teléfono del cliente; un folio inventado se ignora.
 **Descartado:** reescribir el pedido automáticamente (servicios/monto) con lo que pide el cliente: Diana sigue confirmando cualquier cambio de cotización.
+
+## 2026-10-27 — Diana responde al cliente a través de DiMa; preferencia de contacto
+
+**Decisión:** en los foráneos DiMa pregunta si el cliente quiere esperar la respuesta en el chat o prefiere mensaje o llamada (`Preferencia_Contacto`, visible en dashboard, correo y Telegram). Diana escribe en el dashboard un "Mensaje para el cliente"; DiMa se lo entrega tal cual: si el cliente sigue con el chat abierto aparece solo (revisión cada 30 s sin costo de IA) y si regresa después con su número de pedido, DiMa se lo da al inicio. Se marca como entregado para no repetirlo.
+**Por qué:** pedido de Víctor tras probar un foráneo: el cliente se quedaba sin saber si esperar, y Diana no tenía cómo contestarle por el mismo canal.
+**Descartado:** mandar el mensaje al cliente por SMS o WhatsApp (se quitó WhatsApp y SMS cuesta y requiere proveedor; si el cliente prefiere mensaje o llamada, Diana lo contacta directo con el teléfono del pedido).

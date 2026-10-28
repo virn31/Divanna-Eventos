@@ -18,6 +18,13 @@ const TABLES = {
 // opción: se deja sin Negocio y se anota en Notas.
 const NEGOCIOS_VALIDOS = ['Divanna Eventos', 'El Vaso Maiz'];
 
+// Valores que manda DiMa -> opciones reales de EVENTOS.Preferencia_Contacto.
+const PREFERENCIAS = {
+  esperar_en_chat: 'Esperar en el chat',
+  mensaje: 'Mensaje',
+  llamada: 'Llamada',
+};
+
 async function airtableRequest(path, options = {}) {
   const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${path}`, {
     ...options,
@@ -59,6 +66,7 @@ function validarPedido(entrada) {
     montoEstimado: Number(entrada.montoEstimado),
     fueraDeCiudad: entrada.fueraDeCiudad === true,
     indicaciones: texto(entrada.indicaciones, 800),
+    preferenciaContacto: PREFERENCIAS[entrada.preferenciaContacto] || null,
   };
   if (!datos.nombre || datos.telefonoDigitos.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha) || !datos.servicios) {
     return { error: 'Revisa tu nombre, teléfono (10 dígitos), fecha y lo que necesitas.' };
@@ -116,6 +124,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   if (montoValido) eventoFields.Monto_Estimado_IA = datos.montoEstimado;
   if (datos.fueraDeCiudad) eventoFields.Fuera_De_Ciudad = true;
   if (datos.indicaciones) eventoFields.Instrucciones_Equipo = `Del cliente: ${datos.indicaciones}`;
+  if (datos.preferenciaContacto) eventoFields.Preferencia_Contacto = datos.preferenciaContacto;
 
   await airtableRequest(TABLES.EVENTOS, {
     method: 'POST',
@@ -124,7 +133,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
 
   // 3. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
   // quedó guardado y aparece en el dashboard: no se le marca error al cliente.
-  const avisoFuera = datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '';
+  const avisoFuera = (datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '') +
+    (datos.preferenciaContacto ? `📞 Cómo quiere la respuesta: ${datos.preferenciaContacto}\n` : '');
   const avisoTelegram = enviarTelegramEquipo({
     roles: [ROLES.ADMIN],
     texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})\n` + avisoFuera +
@@ -187,13 +197,29 @@ async function verificarPedido(folio, telefono) {
     instrucciones: f.Instrucciones_Equipo || '',
     autorizado: f.Autorizacion_Diana === 'SI',
     fueraDeCiudad: !!f.Fuera_De_Ciudad,
+    mensajeDiana: f.Mensaje_Para_Cliente && !f.Mensaje_Cliente_Entregado ? f.Mensaje_Para_Cliente : '',
   };
+}
+
+// Mensaje que Diana dejó para el cliente y que aún no se entrega, o null.
+async function mensajeDianaPendiente(folio) {
+  const formula = encodeURIComponent(`AND({Folio_Evento} = "${folio}", {Mensaje_Para_Cliente} != "", NOT({Mensaje_Cliente_Entregado}))`);
+  const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
+  const r = data.records[0];
+  return r ? { id: r.id, mensaje: r.fields.Mensaje_Para_Cliente } : null;
+}
+
+async function marcarMensajeEntregado(eventoId) {
+  await airtableRequest(TABLES.EVENTOS, {
+    method: 'PATCH',
+    body: JSON.stringify({ records: [{ id: eventoId, fields: { Mensaje_Cliente_Entregado: true } }] }),
+  });
 }
 
 // Guarda en el evento lo que el cliente agregó o cambió después de registrar
 // el pedido: queda en Notas (historial) y las indicaciones nuevas se suman a
 // Instrucciones_Equipo. Diana ajusta la cotización si hace falta.
-async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion }) {
+async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto }) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
@@ -208,6 +234,7 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
   ].filter(Boolean).join('\n');
 
   const fields = { Notas: `${r.fields.Notas || ''}${cambio}`.slice(-90000) };
+  if (preferenciaContacto) fields.Preferencia_Contacto = preferenciaContacto;
   if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
     fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
   }
@@ -218,4 +245,11 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
   return true;
 }
 
-module.exports = { validarPedido, crearPedido, verificarPedido, registrarCambioCliente };
+module.exports = {
+  validarPedido,
+  crearPedido,
+  verificarPedido,
+  registrarCambioCliente,
+  mensajeDianaPendiente,
+  marcarMensajeEntregado,
+};
