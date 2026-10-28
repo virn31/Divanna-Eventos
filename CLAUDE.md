@@ -34,7 +34,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | Ruta | Qué es |
 |---|---|
 | `index.html` | Landing pública. Los botones "Haz aquí tu cotización" abren el chat con DiMa; abajo hay un formulario de respaldo. |
-| `api/dima-chat.js` | POST público del chat. El navegador manda el historial (solo texto). DiMa da estimados y llama `registrar_pedido` / `mostrar_fotos`. Desde el mensaje 14 del cliente va cerrando; pasado el 20 se despide y ofrece el formulario. Límite por IP en memoria. |
+| `api/dima-chat.js` | POST público del chat. Acepta `pedidoExistente: {folio, telefono}` (se verifica contra el teléfono del cliente) y `folio` + `folioFirma` (HMAC con `SESSION_SECRET`): solo con folio firmado un cambio se guarda en el evento existente. Detecta lugares foráneos en lo que escribe el cliente y se lo recuerda a DiMa. El navegador manda el historial (solo texto). DiMa da estimados y llama `registrar_pedido` / `mostrar_fotos`. Desde el mensaje 14 del cliente va cerrando; pasado el 20 se despide y ofrece el formulario. Límite por IP en memoria. |
 | `api/pedido.js` | POST público del formulario de respaldo. Campo trampa `sitio_web` contra bots. |
 | `api/_pedidos.js` | Crea CLIENTE + EVENTO (`Autorizacion_Diana` = Pendiente, `Monto_Estimado_IA` si DiMa lo calculó) y avisa por correo. Lo usan el chat y el formulario. |
 | `api/sesion.js` + `api/_sesion.js` | Login (usuario + PIN de 6 dígitos), token de 7 días y permisos por rol. Cada llamada revisa en Airtable que el colaborador siga `Activo`. |

@@ -14,8 +14,9 @@
 //
 // Requiere ANTHROPIC_API_KEY en Vercel.
 
+const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { validarPedido, crearPedido } = require('./_pedidos');
+const { validarPedido, crearPedido, verificarPedido, registrarCambioCliente } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
@@ -124,7 +125,8 @@ CÓMO HABLAS:
 COBERTURA (revísala en cuanto sepas dónde es el evento):
 - El servicio normal es dentro de la ciudad de Culiacán. La cobertura máxima es un radio de 35 km desde Culiacán, y todo lo que está fuera de la ciudad se confirma caso por caso.
 - Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
-- Si el evento es fuera de la ciudad: díselo al cliente con naturalidad, sin cerrarle la puerta. Explícale que Diana revisa si llegan hasta allá y el costo de traslado, que se suma a la cotización. Nunca confirmes cobertura ni inventes un costo de traslado. Sigue armando la cotización normal y registra el pedido con fuera_de_ciudad = true.
+- Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: Diana revisa que el equipo pueda trasladarse ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
+- Sigue armando la cotización normal. En el repaso final vuelve a mencionar, en una frase, que falta validar el traslado, y registra el pedido con fuera_de_ciudad = true.
 - Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
 - Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y Diana revisa si se puede atender.
 
@@ -133,9 +135,13 @@ INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso a
 FLUJO DE LA COTIZACIÓN:
 1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, invitados, ubicación y qué necesita.
 2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
-3. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
-4. Con eso llama a registrar_pedido. Después dile que Diana revisa la disponibilidad y confirma la cotización, y que lo contactan por teléfono para el anticipo y los datos de pago.
-- Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, avanza al paso 3 sin seguir preguntando.
+3. VENTA CRUZADA, una vez y antes de pedir datos de contacto: si el cliente solo ha hablado de un negocio, ofrécele el otro en una o dos frases, ligadas a su evento.
+   - Si pidió snacks de El Vaso Maíz, ofrece el mobiliario (mesas, sillas, mantelería) y la decoración de Divanna (aro, mampara, arcos de cerezos).
+   - Si pidió mobiliario o decoración, ofrece los snacks de El Vaso Maíz.
+   Si dice que no, respétalo y sigue. Si dice que sí, súmalo a la misma cotización.
+4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
+5. Con eso llama a registrar_pedido. Después dile que Diana revisa la disponibilidad y confirma la cotización, y que lo contactan por teléfono para el anticipo y los datos de pago.
+- Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que Diana confirma.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que Diana lo confirma al revisar el pedido.
 
@@ -158,6 +164,19 @@ function construirMensajes(historial) {
   return mensajes;
 }
 
+// Lugares fuera de la ciudad de Culiacán que suelen pedir. Si el cliente menciona
+// alguno, se le recuerda a DiMa que explique la validación de eventos foráneos.
+const LUGARES_FORANEOS = [
+  'navolato', 'san pedro', 'altata', 'el tambor', 'ponce', 'eldorado', 'el dorado', 'costa rica',
+  'quila', 'quilá', 'tepuche', 'imala', 'jesus maria', 'jesús maría', 'culiacancito', 'el salado',
+  'tacuichamona', 'sanalona', 'las tapias', 'cosala', 'cosalá', 'elota', 'badiraguato',
+  'guamuchil', 'guamúchil', 'mocorito', 'guasave', 'los mochis', 'mazatlan', 'mazatlán', 'angostura', 'sindicatura',
+];
+function lugarForaneoMencionado(historial) {
+  const textoCliente = historial.filter(h => h.rol === 'cliente').map(h => h.texto.toLowerCase()).join(' ');
+  return LUGARES_FORANEOS.find(l => new RegExp(`(^|[^a-záéíóúñ])${l}([^a-záéíóúñ]|$)`).test(textoCliente)) || null;
+}
+
 function urlsDeFotos(ids) {
   const urls = [];
   for (const id of ids || []) {
@@ -165,6 +184,20 @@ function urlsDeFotos(ids) {
     else if (REFERENCIAS_DECORACION[id]) urls.push(`/referencias/${REFERENCIAS_DECORACION[id].archivo}`);
   }
   return [...new Set(urls)].slice(0, 6);
+}
+
+// El navegador guarda el folio del pedido de esta conversación. Para que nadie
+// pueda inventar un folio y meter cambios en un pedido ajeno, el servidor lo
+// firma (HMAC con SESSION_SECRET) y solo acepta cambios con folio + firma válidos.
+function firmaFolio(folio) {
+  if (!process.env.SESSION_SECRET) return null;
+  return crypto.createHmac('sha256', process.env.SESSION_SECRET).update(`folio:${folio}`).digest('base64url').slice(0, 32);
+}
+function folioFirmado(folio, firma) {
+  if (!/^EVT-\d{6}$/.test(folio || '') || typeof firma !== 'string') return null;
+  const esperada = firmaFolio(folio);
+  if (!esperada || firma.length !== esperada.length) return null;
+  return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada)) ? folio : null;
 }
 
 function transcripcion(historial) {
@@ -190,9 +223,16 @@ async function registrarPedido(input, historial, folioPrevio) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
   }
 
-  // Si ya se registró en esta conversación, no se duplica el evento: se avisa
-  // del cambio al equipo para que Diana lo ajuste en el pedido existente.
+  // Si ya hay pedido (registrado en esta conversación o abierto con folio y
+  // teléfono), no se duplica el evento: el cambio se guarda en el evento y se
+  // avisa a Diana para que ajuste la cotización.
   if (folioPrevio) {
+    await registrarCambioCliente(folioPrevio, {
+      servicios: datos.servicios,
+      indicaciones: datos.indicaciones,
+      montoEstimado: datos.montoEstimado,
+      transcripcion: transcripcion(historial),
+    }).catch(err => console.error('No se pudo guardar el cambio en el evento:', err.message));
     await enviarTelegramEquipo({
       roles: [ROLES.ADMIN],
       texto: `✏️ Cambio en el pedido ${folioPrevio} (${datos.nombre}). Así queda:\n\n${datos.servicios}` +
@@ -205,7 +245,7 @@ async function registrarPedido(input, historial, folioPrevio) {
         (datos.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
         `Conversación:\n${transcripcion(historial)}`,
     });
-    return { texto: `Listo, le pasé tus cambios a Diana para el pedido ${folioPrevio}.`, folio: folioPrevio };
+    return { texto: `Listo, le pasé tus cambios a Diana para el pedido ${folioPrevio}. Ella revisa si cambia la cotización y te confirma.`, folio: folioPrevio };
   }
 
   const { folio } = await crearPedido(datos, {
@@ -219,14 +259,14 @@ async function registrarPedido(input, historial, folioPrevio) {
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { historial, folio } = req.body || {};
-  const folioPrevio = /^EVT-\d{6}$/.test(folio || '') ? folio : null;
+  const { historial, folio, folioFirma, pedidoExistente } = req.body || {};
+  let folioPrevio = folioFirmado(folio, folioFirma);
 
   // Se revisa antes de validar el tamaño del historial: al pasarse del límite
   // el cliente recibe la despedida amable, no un error.
   const mensajesCliente = Array.isArray(historial) ? historial.filter(h => h && h.rol === 'cliente').length : 0;
   if (mensajesCliente > MAX_MENSAJES_CLIENTE) {
-    res.status(200).json({ texto: MENSAJE_LIMITE, fotos: [], folio: folioPrevio, limite: true });
+    res.status(200).json({ texto: MENSAJE_LIMITE, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true });
     return;
   }
 
@@ -247,18 +287,43 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Instrucción del sistema al final de la conversación (no se guarda en el
-  // historial del navegador) para que DiMa vaya cerrando sin cortar al cliente.
+  // Avisos del sistema al final de la conversación (no se guardan en el
+  // historial del navegador). Van juntos en un solo mensaje "system".
+  const avisos = [];
+
+  // Cliente que vuelve con su folio y teléfono para agregar o cambiar algo.
+  if (pedidoExistente && !folioPrevio) {
+    const pedido = await verificarPedido(pedidoExistente.folio, pedidoExistente.telefono).catch(() => null);
+    if (!pedido) {
+      res.status(400).json({ error: 'No encontramos ese número de pedido con ese teléfono. Revisa los dos datos o escríbenos desde el chat normal.' });
+      return;
+    }
+    folioPrevio = pedido.folio;
+    avisos.push(
+      `El cliente ya tiene el pedido ${pedido.folio} registrado a nombre de ${pedido.nombre || 'el cliente'}` +
+      ` (${pedido.negocio || 'negocio sin especificar'}, ${pedido.fecha}, ${pedido.ubicacion || 'ubicación sin especificar'}` +
+      `${pedido.invitados ? ', ' + pedido.invitados + ' invitados' : ''}${pedido.fueraDeCiudad ? ', fuera de la ciudad' : ''}).\n` +
+      `Lo que lleva:\n${pedido.servicios}\n` +
+      (pedido.instrucciones ? `Indicaciones ya guardadas:\n${pedido.instrucciones}\n` : '') +
+      (pedido.autorizado ? 'Diana ya confirmó esta cotización: cualquier cambio lo vuelve a revisar ella.\n' : 'Diana todavía no confirma la cotización.\n') +
+      'Lo que pida ahora son agregados o cambios a ESE pedido. No pidas otra vez sus datos de contacto. Cuando tengas claro el cambio, llama registrar_pedido con los datos completos ya actualizados (nombre y teléfono del pedido).'
+    );
+  }
+
+  const lugar = lugarForaneoMencionado(historial);
+  if (lugar) {
+    avisos.push(`El cliente mencionó "${lugar}", que es fuera de la ciudad de Culiacán. Si todavía no se lo explicaste, explícale en esta respuesta que los eventos foráneos se validan antes de confirmar (traslado del equipo ese día, distancia y costo de traslado) y que Diana se lo confirma. Registra con fuera_de_ciudad = true.`);
+  }
+
   if (mensajesCliente >= AVISO_CIERRE) {
     const restantes = MAX_MENSAJES_CLIENTE - mensajesCliente;
-    mensajes.push({
-      role: 'system',
-      content: `La conversación ya va larga (quedan ${restantes} mensajes del cliente). Ve cerrando con amabilidad y sin prisas visibles: ` +
-        (folioPrevio
-          ? 'el pedido ya está registrado; resuelve lo que falte en pocas palabras y despídete diciendo que Diana lo contacta.'
-          : 'haz un repaso breve de lo acordado, pide nombre y teléfono si faltan y registra el pedido; si aún tiene dudas, dile que Diana se las resuelve al confirmar.'),
-    });
+    avisos.push(`La conversación ya va larga (quedan ${restantes} mensajes del cliente). Ve cerrando con amabilidad y sin prisas visibles: ` +
+      (folioPrevio
+        ? 'el pedido ya está registrado; resuelve lo que falte en pocas palabras y despídete diciendo que Diana lo contacta.'
+        : 'haz un repaso breve de lo acordado, pide nombre y teléfono si faltan y registra el pedido; si aún tiene dudas, dile que Diana se las resuelve al confirmar.'));
   }
+
+  if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
     const respuesta = await client.beta.messages.create({
@@ -296,7 +361,8 @@ module.exports = async (req, res) => {
         partes.push(resultado.texto);
         if (resultado.folio) {
           folioNuevo = resultado.folio;
-          partes.push('Diana revisa la disponibilidad y te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago.');
+          // En un cambio, registrarPedido ya explicó que Diana lo revisa.
+          if (!folioPrevio) partes.push(`Diana revisa la disponibilidad y te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
         }
       }
     }
@@ -305,7 +371,13 @@ module.exports = async (req, res) => {
     if (!texto && fotos.length) texto = 'Claro, mira estos ejemplos:';
     if (!texto) texto = 'Perdona, se me fue la idea. ¿Me repites lo último?';
 
-    res.status(200).json({ texto, fotos, folio: folioNuevo, limite: mensajesCliente >= MAX_MENSAJES_CLIENTE });
+    res.status(200).json({
+      texto,
+      fotos,
+      folio: folioNuevo,
+      folioFirma: folioNuevo ? firmaFolio(folioNuevo) : null,
+      limite: mensajesCliente >= MAX_MENSAJES_CLIENTE,
+    });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
       console.error('DiMa: límite de uso de la API de Claude', err.message);

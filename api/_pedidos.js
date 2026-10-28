@@ -158,4 +158,64 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   return { folio };
 }
 
-module.exports = { validarPedido, crearPedido };
+// Pedido existente: el cliente da su folio y su teléfono para agregar o
+// cambiar algo. Devuelve el resumen del pedido solo si el teléfono coincide
+// con el del cliente del pedido (así nadie toca un pedido ajeno).
+async function verificarPedido(folio, telefono) {
+  const folioLimpio = String(folio || '').trim().toUpperCase();
+  const diezDigitos = String(telefono || '').replace(/\D/g, '').slice(-10);
+  if (!/^EVT-\d{6}$/.test(folioLimpio) || diezDigitos.length < 10) return null;
+
+  const formula = encodeURIComponent(`{Folio_Evento} = "${folioLimpio}"`);
+  const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
+  const r = data.records[0];
+  const clienteId = r && (r.fields.Cliente || [])[0];
+  if (!clienteId) return null;
+  const cliente = await airtableRequest(`${TABLES.CLIENTES}/${clienteId}`);
+  if (String(cliente.fields.Telefono_WhatsApp || '').replace(/\D/g, '').slice(-10) !== diezDigitos) return null;
+
+  const f = r.fields;
+  return {
+    id: r.id,
+    folio: folioLimpio,
+    nombre: cliente.fields.Nombre || '',
+    negocio: f.Negocio || '',
+    fecha: f.Fecha_Evento || '',
+    ubicacion: f.Ubicacion || '',
+    invitados: f.Invitados || null,
+    servicios: f.Servicios_Solicitados || '',
+    instrucciones: f.Instrucciones_Equipo || '',
+    autorizado: f.Autorizacion_Diana === 'SI',
+    fueraDeCiudad: !!f.Fuera_De_Ciudad,
+  };
+}
+
+// Guarda en el evento lo que el cliente agregó o cambió después de registrar
+// el pedido: queda en Notas (historial) y las indicaciones nuevas se suman a
+// Instrucciones_Equipo. Diana ajusta la cotización si hace falta.
+async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion }) {
+  const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
+  const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
+  const r = data.records[0];
+  if (!r) return false;
+  const fecha = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
+  const cambio = [
+    `\n--- Cambio pedido por el cliente en el chat (${fecha}) ---`,
+    `Así lo quiere ahora:\n${servicios}`,
+    montoEstimado > 0 ? `Nuevo estimado de DiMa: $${Number(montoEstimado).toLocaleString('es-MX')}` : '',
+    indicaciones ? `Indicaciones: ${indicaciones}` : '',
+    transcripcion ? `Conversación:\n${transcripcion}` : '',
+  ].filter(Boolean).join('\n');
+
+  const fields = { Notas: `${r.fields.Notas || ''}${cambio}`.slice(-90000) };
+  if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
+    fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
+  }
+  await airtableRequest(TABLES.EVENTOS, {
+    method: 'PATCH',
+    body: JSON.stringify({ records: [{ id: r.id, fields }] }),
+  });
+  return true;
+}
+
+module.exports = { validarPedido, crearPedido, verificarPedido, registrarCambioCliente };

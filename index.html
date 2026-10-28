@@ -290,6 +290,14 @@
   .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:0.95rem;}
   .pf-msg.ok{color:var(--maiz-husk);}
   .pf-msg.error{color:#ff8a8a;}
+  .pedido-existente{max-width:760px;margin:34px auto 0;padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--ink-2);text-align:left;}
+  .pedido-existente p{margin:0 0 12px;color:var(--muted);font-size:0.95rem;}
+  .pedido-existente p b{color:var(--paper);}
+  .pe-fila{display:flex;gap:10px;flex-wrap:wrap;}
+  .pe-fila input{flex:1;min-width:150px;padding:13px 15px;border-radius:12px;border:1px solid var(--line);background:var(--ink);color:var(--paper);font:inherit;font-size:0.95rem;outline:none;}
+  .pe-fila input:focus{border-color:var(--divanna);}
+  .pe-fila .btn{cursor:pointer;font-family:inherit;background:transparent;border-color:var(--divanna);}
+  .pedido-existente .pf-msg{margin:10px 0 0;}
   .pf-alterno{background:none;border:none;color:var(--muted);text-decoration:underline;font:inherit;font-size:0.92rem;margin:22px auto 0;display:block;cursor:pointer;}
   .pf-alterno:hover{color:var(--paper);}
   .closing .pedido-form{margin-top:28px;}
@@ -558,6 +566,15 @@
     <div class="btn-row">
       <button type="button" class="btn btn-primary" data-abrir-chat>Haz aquí tu cotización</button>
     </div>
+    <div class="pedido-existente">
+      <p><b>¿Ya tienes número de pedido?</b> Agrega cosas, indicaciones o cambios con DiMa.</p>
+      <div class="pe-fila">
+        <input id="peFolio" placeholder="EVT-123456" maxlength="10" autocapitalize="characters" aria-label="Número de pedido">
+        <input id="peTel" type="tel" inputmode="tel" placeholder="Teléfono del pedido" maxlength="20" autocomplete="tel" aria-label="Teléfono con el que hiciste el pedido">
+        <button type="button" class="btn btn-ghost" id="peAbrir">Agregar a mi pedido</button>
+      </div>
+      <p class="pf-msg error" id="peMsg" role="status"></p>
+    </div>
     <button type="button" class="pf-alterno" id="mostrarFormBtn" aria-expanded="false" aria-controls="pedidoForm">¿Prefieres llenar un formulario?</button>
     <form class="pedido-form" id="pedidoForm" novalidate hidden>
       <div class="pf-grid">
@@ -636,7 +653,7 @@
   const dimaForm = document.getElementById('dimaForm');
   const dimaInput = document.getElementById('dimaInput');
   const dimaEnviar = document.getElementById('dimaEnviar');
-  let chat = { historial: [], folio: null, vistas: [], terminado: false };
+  let chat = { historial: [], folio: null, folioFirma: null, vistas: [], terminado: false, pedidoExistente: null };
   try { chat = JSON.parse(sessionStorage.getItem(CHAT_KEY)) || chat; } catch(e){}
   let ultimoFoco = null;
 
@@ -698,7 +715,9 @@
 
   function pintarChat(){
     dimaMsgs.innerHTML = '';
-    agregarBurbuja('dima', formatear(SALUDO));
+    agregarBurbuja('dima', formatear(chat.pedidoExistente
+      ? `¡Hola! Soy DiMa. Vamos a trabajar sobre tu pedido ${chat.pedidoExistente.folio}. ¿Qué te gustaría agregar o cambiar? También puedes dejarme indicaciones para el equipo (horario, cómo llegar, a quién buscar).`
+      : SALUDO));
     chat.historial.forEach((m, i) => {
       agregarBurbuja(m.rol === 'cliente' ? 'cliente' : 'dima', formatear(m.texto));
       if(m.fotos) agregarFotos(m.fotos);
@@ -723,7 +742,7 @@
   document.getElementById('dimaCerrar').addEventListener('click', cerrarChat);
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && !dimaChat.hidden) cerrarChat(); });
   document.getElementById('dimaNuevo').addEventListener('click', () => {
-    chat = { historial: [], folio: null, vistas: [], terminado: false };
+    chat = { historial: [], folio: null, folioFirma: null, vistas: [], terminado: false, pedidoExistente: null };
     guardarChat();
     pintarChat();
     dimaInput.focus();
@@ -756,7 +775,13 @@
       const res = await fetch('/api/dima-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ historial: chat.historial.map(({ rol, texto }) => ({ rol, texto })), folio: chat.folio }),
+        body: JSON.stringify({
+          historial: chat.historial.map(({ rol, texto }) => ({ rol, texto })),
+          folio: chat.folio,
+          folioFirma: chat.folioFirma,
+          // Solo hasta que el servidor confirma el pedido y devuelve el folio firmado.
+          pedidoExistente: chat.folio ? undefined : chat.pedidoExistente,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if(!res.ok) throw new Error(data.error || 'DiMa no está disponible en este momento. Intenta de nuevo.');
@@ -764,7 +789,7 @@
       const fotos = (data.fotos || []).filter(u => !chat.vistas.includes(u));
       chat.vistas.push(...fotos);
       chat.historial.push({ rol: 'dima', texto: data.texto, fotos });
-      if(data.folio) chat.folio = data.folio;
+      if(data.folio){ chat.folio = data.folio; chat.folioFirma = data.folioFirma || null; }
       if(data.limite) chat.terminado = true;
       guardarChat();
       agregarBurbuja('dima', formatear(data.texto));
@@ -781,6 +806,22 @@
       aplicarTerminado();
       if(!chat.terminado) dimaInput.focus();
     }
+  });
+
+  // "¿Ya tienes número de pedido?": abre el chat sobre ese pedido. El servidor
+  // verifica que el teléfono sea el del pedido en el primer mensaje.
+  document.getElementById('peAbrir').addEventListener('click', (e) => {
+    const folio = document.getElementById('peFolio').value.trim().toUpperCase();
+    const telefono = document.getElementById('peTel').value.trim();
+    const peMsg = document.getElementById('peMsg');
+    if(!/^EVT-\d{6}$/.test(folio) || telefono.replace(/\D/g, '').length < 10){
+      peMsg.textContent = 'Escribe tu número de pedido (EVT-123456) y el teléfono a 10 dígitos con el que lo hiciste.';
+      return;
+    }
+    peMsg.textContent = '';
+    chat = { historial: [], folio: null, folioFirma: null, vistas: [], terminado: false, pedidoExistente: { folio, telefono } };
+    guardarChat();
+    abrirChat(e);
   });
 
   // Formulario de respaldo para quien no quiere usar el chat.

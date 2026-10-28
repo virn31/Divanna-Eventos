@@ -155,7 +155,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV\n9 mesas', monto_estimado: 6400 } },
   ] }];
-  res = await chat({ historial, folio: 'EVT-123456' });
+  const firmar = (f) => require('crypto').createHmac('sha256', process.env.SESSION_SECRET).update(`folio:${f}`).digest('base64url').slice(0, 32);
+  res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
   ok(res.body.folio === 'EVT-123456' && !llamadas.some(l => l.method === 'POST') && correos.length === 1 && correos[0].subject.includes('Cambio en el pedido EVT-123456'), 'chat: cambios después de registrar no duplican el evento');
 
   reset();
@@ -321,6 +322,46 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await checklist({ method: 'POST', headers: auth(tokenEnc), body: { eventoId: 'recEVENTO00000008', etapa: 'montaje', valor: true } }, res);
   ok(res.code === 403, 'encargada no toca eventos de otra encargada');
+
+  // ---------- Pedido existente (folio + teléfono) y folio firmado ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 80, ubicacion: 'Centro', servicios: 'Paquete XV\n10 mesas', monto_estimado: 6200, fuera_de_ciudad: false, indicaciones: null } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000010', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial, folio: 'EVT-654321', folioFirma: 'firma-inventada-aaaaaaaaaaaaaaaa' });
+  ok(llamadas.some(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')) && !correos.some(c => c.subject.includes('Cambio en el pedido EVT-654321')), 'chat: un folio sin firma válida no permite tocar ese pedido');
+
+  reset();
+  respuestas = [{ records: [] }];
+  res = await chat({ historial, pedidoExistente: { folio: 'EVT-111111', telefono: '6670000000' } });
+  ok(res.code === 400 && llamadasClaude.length === 0, 'chat: folio y teléfono que no coinciden se rechazan');
+
+  reset();
+  respuestas = [
+    { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Cliente: ['recCLIENTE0000009'], Fecha_Evento: '2026-12-01', Servicios_Solicitados: 'Paquete 3', Autorizacion_Diana: 'SI' } }] },
+    { id: 'recCLIENTE0000009', fields: { Nombre: 'Rosa', Telefono_WhatsApp: '+526679990000' } },
+  ];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Claro, ¿qué le agregamos?' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'quiero agregar sillas' }], pedidoExistente: { folio: 'evt-777777', telefono: '667 999 0000' } });
+  const avisoPedido = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(res.code === 200 && res.body.folio === 'EVT-777777' && res.body.folioFirma === firmar('EVT-777777') && avisoPedido.role === 'system' && avisoPedido.content.includes('Paquete 3') && avisoPedido.content.includes('ya confirmó'), 'chat: pedido existente verificado, DiMa recibe su contenido y el folio queda firmado');
+
+  reset();
+  respuestas = [{ records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Notas: 'previas', Instrucciones_Equipo: '' } }] }, {}];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990000', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Fiesta', fecha: '2026-12-01', invitados: 90, ubicacion: 'Centro', servicios: 'Paquete 3\n20 sillas', monto_estimado: 3000, fuera_de_ciudad: false, indicaciones: 'Tocar el timbre de la casa azul' } },
+  ] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'agrega 20 sillas' }], folio: 'EVT-777777', folioFirma: firmar('EVT-777777') });
+  const patchCambio = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(patchCambio.Notas.startsWith('previas') && patchCambio.Notas.includes('20 sillas') && patchCambio.Instrucciones_Equipo === 'Del cliente: Tocar el timbre de la casa azul' && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')), 'chat: el cambio se guarda en el evento existente, sin crear otro');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es una boda en San Pedro, Navolato' }] });
+  const avisoForaneo = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(avisoForaneo.role === 'system' && avisoForaneo.content.includes('se validan'), 'chat: al mencionar San Pedro, DiMa recibe el recordatorio de explicar la validación');
+  ok(llamadasClaude[0].system.includes('VENTA CRUZADA') && llamadasClaude[0].system.includes('mobiliario'), 'chat: DiMa tiene la regla de venta cruzada');
 
   // ---------- Cobertura e instrucciones ----------
   reset();

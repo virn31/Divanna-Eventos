@@ -82,3 +82,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor probó una emergencia y no la vio en su Telegram (el sistema no le avisa a quien reporta); además pidió la ubicación en tiempo real para poder ir a ayudar.
 **Límite:** una app web no puede seguir mandando la ubicación con la pantalla apagada; el seguimiento continuo requiere la app abierta. La ubicación inicial siempre va si hay permiso.
 **Descartado:** "ubicación en tiempo real" nativa de Telegram (la comparte la persona desde su Telegram, no la app); app nativa con GPS en segundo plano (otro proyecto completo).
+
+## 2026-10-27 — DiMa: explicar eventos foráneos, venta cruzada y agregar a un pedido existente
+
+**Contexto (prueba de Víctor):** DiMa no le explicó al cliente que un evento foráneo se valida, no ofreció mobiliario y decoración, y el cliente no tenía cómo agregar cosas a su pedido después.
+**Decisión:**
+- Foráneos: DiMa debe explicar, en el mismo mensaje en que se entera, que se validan (traslado del equipo ese día, distancia, costo de traslado) y repetirlo en el repaso. Además el servidor detecta nombres de lugares fuera de la ciudad en lo que escribe el cliente y le recuerda a DiMa explicarlo.
+- Venta cruzada obligatoria, una vez y antes de pedir datos: Vaso Maíz ↔ mobiliario y decoración de Divanna.
+- Cuadro "¿Ya tienes número de pedido?" en la landing: folio + teléfono abren el chat sobre ese pedido. Los cambios se guardan en el evento (Notas e Instrucciones_Equipo) y se avisa a Diana.
+- Seguridad: el chat solo acepta cambios con folio firmado por el servidor (HMAC), o verificado con el teléfono del cliente; un folio inventado se ignora.
+**Descartado:** reescribir el pedido automáticamente (servicios/monto) con lo que pide el cliente: Diana sigue confirmando cualquier cambio de cotización.
