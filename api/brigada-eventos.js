@@ -1,6 +1,7 @@
 // api/brigada-eventos.js
 // Recibe un código de brigada, lo valida contra Airtable, y devuelve
-// sus eventos activos (no cerrados) ordenados por fecha.
+// sus eventos activos (no cerrados) ordenados por fecha, más las emergencias y
+// alertas de seguridad que otras brigadas reportaron hoy (antes llegaban por WhatsApp).
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -14,6 +15,35 @@ async function airtableGet(path) {
   });
   if (!res.ok) throw new Error(`Airtable error ${res.status}: ${await res.text()}`);
   return res.json();
+}
+
+// Fecha de hoy en Culiacán (YYYY-MM-DD). TODAY() de Airtable usa UTC y por la
+// tarde ya marcaría el día siguiente.
+function hoyCuliacan() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+}
+
+// Emergencias y alertas de seguridad activas hoy en eventos de OTRAS brigadas.
+// Si falla no bloquea la app: la brigada sigue viendo sus propios eventos.
+async function alertasEquipoDeHoy(eventoIdsPropios) {
+  try {
+    const formula = encodeURIComponent(
+      `AND(DATESTR({Fecha_Evento}) = "${hoyCuliacan()}", {Estado} != "Cerrado", OR({Emergencia}, {Zona_Alerta_Seguridad} != ""))`
+    );
+    const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formula}`);
+    return data.records
+      .filter(r => !eventoIdsPropios.includes(r.id))
+      .map(r => ({
+        folio: r.fields.Folio_Evento || '',
+        ubicacion: r.fields.Ubicacion || '',
+        emergencia: !!r.fields.Emergencia,
+        motivoEmergencia: r.fields.Motivo_Emergencia || '',
+        zonaAlertaSeguridad: r.fields.Zona_Alerta_Seguridad || '',
+      }));
+  } catch (err) {
+    console.error('No se pudieron obtener las alertas del equipo:', err);
+    return [];
+  }
 }
 
 module.exports = async (req, res) => {
@@ -42,6 +72,7 @@ module.exports = async (req, res) => {
     // ARRAYJOIN, porque Airtable resuelve ARRAYJOIN sobre un vínculo devolviendo
     // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
     const eventoIds = brigada.fields.EVENTOS || [];
+    const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
     if (eventoIds.length === 0) {
       res.status(200).json({
         brigada: {
@@ -51,6 +82,7 @@ module.exports = async (req, res) => {
           vehiculo: brigada.fields.Vehiculo || '',
         },
         eventos: [],
+        alertasEquipo,
       });
       return;
     }
@@ -102,6 +134,7 @@ module.exports = async (req, res) => {
         vehiculo: brigada.fields.Vehiculo || '',
       },
       eventos,
+      alertasEquipo,
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

@@ -1,9 +1,11 @@
 // api/brigada-estatus.js
 // Actualiza el estatus logístico ampliado de un evento (Preparando -> Cerrado),
 // retrasos normales, emergencias, y alertas de seguridad en la ciudad.
-// En emergencias y alertas de seguridad, notifica por WhatsApp de forma
-// instantánea y simultánea a Diana, Víctor, y todas las brigadas activas
-// ese mismo día -- DiMa nunca decide ni reasigna sola, solo alerta.
+// En emergencias y alertas de seguridad avisa por correo a Diana y Víctor; las
+// demás brigadas activas la ven en su app -- DiMa nunca decide ni reasigna
+// sola, solo alerta.
+
+const { enviarCorreoEquipo } = require('./_google-integrations');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -36,50 +38,11 @@ async function airtablePatch(tableId, recordId, fields) {
   return res.json();
 }
 
-async function enviarWhatsApp(numeroDestino, mensaje) {
-  if (!numeroDestino) return;
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM; // ej. 'whatsapp:+528111111111'
-  if (!sid || !token || !from) {
-    console.error('Faltan variables de entorno de Twilio para enviar alerta WhatsApp');
-    return;
-  }
-  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
-  const body = new URLSearchParams({ From: from, To: to, Body: mensaje });
-
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  if (!res.ok) {
-    console.error(`Error enviando WhatsApp a ${to}:`, await res.text());
-  }
-}
-
-// Notifica a Diana, Víctor, y todas las brigadas activas hoy (excepto la que reporta).
-async function notificarEquipoCompleto({ mensaje, brigadaQueReportaId }) {
-  const destinatarios = [];
-
-  if (process.env.DIANA_WHATSAPP_NUMBER) destinatarios.push(process.env.DIANA_WHATSAPP_NUMBER);
-  if (process.env.VICTOR_WHATSAPP_NUMBER) destinatarios.push(process.env.VICTOR_WHATSAPP_NUMBER);
-
-  try {
-    const brigadasData = await airtableGet(`${TABLES.BRIGADAS}?filterByFormula=${encodeURIComponent('{Disponible_Hoy} = TRUE()')}`);
-    brigadasData.records.forEach(b => {
-      if (b.id !== brigadaQueReportaId && b.fields.Celular_Lider) {
-        destinatarios.push(b.fields.Celular_Lider);
-      }
-    });
-  } catch (err) {
-    console.error('No se pudo obtener la lista de brigadas activas para la alerta:', err);
-  }
-
-  await Promise.all(destinatarios.map(num => enviarWhatsApp(num, mensaje)));
+// Avisa por correo a Diana y Víctor. Las demás brigadas activas ven la alerta
+// en su app (api/brigada-eventos.js devuelve las alertas del día).
+async function notificarEquipo({ asunto, mensaje }) {
+  const enviado = await enviarCorreoEquipo({ asunto, texto: mensaje });
+  if (!enviado) console.error('No se pudo enviar por correo la alerta:', asunto);
 }
 
 module.exports = async (req, res) => {
@@ -104,6 +67,7 @@ module.exports = async (req, res) => {
 
     let fieldsToUpdate = {};
     let alertaMensaje = null;
+    let alertaAsunto = '';
 
     switch (tipo) {
       case 'checklist_item': {
@@ -165,11 +129,12 @@ module.exports = async (req, res) => {
         fieldsToUpdate.Emergencia = !!valor;
         fieldsToUpdate.Motivo_Emergencia = motivo || '';
         if (valor) {
+          alertaAsunto = `🆘 EMERGENCIA - Evento ${folio}`;
           alertaMensaje =
             `🆘 EMERGENCIA - Evento ${folio} (${ubicacion})\n` +
             `Brigada: ${brigadaNombre || 'sin identificar'}\n` +
             `Motivo: ${motivo || 'sin especificar'}\n` +
-            `Si estás cerca, por favor acude a ayudar. Coordinemos por WhatsApp.`;
+            `Si estás cerca, por favor acude a ayudar. Coordinemos por teléfono.`;
         }
         break;
 
@@ -177,6 +142,7 @@ module.exports = async (req, res) => {
         fieldsToUpdate.Estatus_Logistico = 'Retraso - situación de seguridad en la ciudad';
         fieldsToUpdate.Zona_Alerta_Seguridad = motivo || '';
         if (valor) {
+          alertaAsunto = `⚠️ Alerta de seguridad - Evento ${folio}`;
           alertaMensaje =
             `⚠️ ALERTA DE SEGURIDAD - reportada por brigada ${brigadaNombre || ''}\n` +
             `Zona: ${motivo || 'sin especificar'}\n` +
@@ -196,17 +162,16 @@ module.exports = async (req, res) => {
 
     await airtablePatch(TABLES.EVENTOS, eventoId, fieldsToUpdate);
 
-    // Alertas simultáneas a todo el equipo (no bloqueamos la respuesta al cliente/brigada por esto)
+    // Se espera el envío antes de responder: en Vercel la función se congela al
+    // responder y un correo pendiente nunca saldría.
     if (alertaMensaje) {
-      notificarEquipoCompleto({ mensaje: alertaMensaje, brigadaQueReportaId: brigadaId }).catch(err =>
+      await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje }).catch(err =>
         console.error('Error notificando al equipo:', err)
       );
     }
 
-    // Si es alerta de seguridad, además le mandamos al cliente el mensaje directo acordado.
-    // (El envío real al cliente vía WhatsApp lo dispara api/whatsapp.js al detectar el
-    // cambio de estatus; aquí solo dejamos el estatus y el motivo guardados en Airtable.)
-
+    // En alerta de seguridad, la app le muestra a la brigada el mensaje acordado
+    // para que se lo comunique al cliente por teléfono.
     res.status(200).json({ success: true, mensajeCliente: tipo === 'alerta_seguridad' ? MENSAJE_ALERTA_SEGURIDAD_CLIENTE : null });
   } catch (err) {
     console.error('Error en brigada-estatus:', err);

@@ -100,15 +100,27 @@
   .meta-line{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-size:0.86rem; color:var(--muted);}
   .motivo{font-size:0.83rem; margin-top:10px; padding:10px 12px; background:var(--ink); border-radius:12px; border:1px solid var(--line);}
 
-  /* Botón flotante: acceso directo a DiMa por WhatsApp */
-  .dima-fab{
-    position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
-    display:flex; align-items:center; gap:10px; padding:14px 20px 14px 16px; border-radius:100px;
-    background:linear-gradient(120deg, var(--maiz), var(--divanna)); color:var(--ink);
-    text-decoration:none; font-weight:800; font-size:0.92rem;
-    box-shadow:0 12px 32px -10px rgba(0,0,0,0.7); z-index:30;
+  /* Pedidos de la landing por cotizar (antes Diana respondía SI/NO por WhatsApp) */
+  .section-title{font-size:1.15rem; margin:4px 0 12px;}
+  .pedido-card{background:var(--ink-2); border:1px solid var(--maiz); border-radius:18px; padding:18px 20px; margin-bottom:14px;}
+  .pedido-card .servicios{white-space:pre-wrap; font-size:0.88rem; margin-top:10px; padding:10px 12px; background:var(--ink); border-radius:12px; border:1px solid var(--line);}
+  .pedido-card label{display:block; font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px;}
+  .pedido-card input, .pedido-card textarea{
+    width:100%; padding:12px 14px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font-size:0.95rem; font-family:inherit; outline:none;
   }
-  .dima-fab .dot{width:9px; height:9px; border-radius:50%; background:var(--e-cerrado); box-shadow:0 0 0 4px rgba(57,233,145,0.25);}
+  .pedido-card input:focus, .pedido-card textarea:focus{border-color:var(--divanna);}
+  .pedido-card textarea{min-height:96px; resize:vertical;}
+  .pedido-actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .pedido-actions button{flex:1; min-width:130px; padding:13px; border-radius:12px; font-weight:800; font-size:0.92rem; cursor:pointer;}
+  .btn-autorizar{background:var(--good); color:var(--ink); border:none;}
+  .btn-rechazar{background:transparent; color:var(--bad); border:1.5px solid var(--bad);}
+  .pedido-actions button:disabled{opacity:0.5; cursor:default;}
+  .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
+  .pedido-contacto a{color:var(--divanna);}
+  .balance-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 20px; margin-bottom:20px;}
+  .balance-card summary{cursor:pointer; font-weight:700;}
+  .balance-card pre{white-space:pre-wrap; font-family:inherit; font-size:0.88rem; color:var(--muted); margin:12px 0 0;}
 
   .empty-state{text-align:center; padding:60px 20px; color:var(--muted);}
   .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
@@ -135,12 +147,13 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
   </header>
-  <main id="mainContent">
-    <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+  <main>
+    <div id="pedidosContent"></div>
+    <div id="balanceContent"></div>
+    <div id="mainContent">
+      <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+    </div>
   </main>
-  <a class="dima-fab" href="https://wa.me/526674027074" target="_blank" rel="noopener">
-    <span class="dot"></span> Escribir a DiMa
-  </a>
 </div>
 
 <script>
@@ -154,8 +167,19 @@
   const mainContent = $('mainContent');
   const refreshBtn = $('refreshBtn');
 
+  const pedidosContent = $('pedidosContent');
+  const balanceContent = $('balanceContent');
+
   let currentCodigo = null;
   let pollTimer = null;
+  let pedidosFirma = null;
+
+  // Varios campos vienen del formulario público de la landing: siempre escapar.
+  function esc(valor){
+    return String(valor == null ? '' : valor)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
 
   // Cada etapa tiene su propio color E icono -- nunca solo color, para accesibilidad.
   const ESTATUS_VISUAL = {
@@ -217,8 +241,8 @@
         <div class="evento-row ${claseFila}" style="border-left-color:${colorCss};">
           <div class="evento-top">
             <div>
-              <h3>${ev.ubicacion || 'Ubicación por confirmar'} · ${ev.folio}</h3>
-              <div class="evento-sub">${formatFecha(ev.fecha)} · ${ev.negocio || ''} · Brigada: ${ev.brigadaNombre}${ev.brigadaLider ? ' (' + ev.brigadaLider + ')' : ''}</div>
+              <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')} · ${esc(ev.folio)}</h3>
+              <div class="evento-sub">${formatFecha(ev.fecha)} · ${ev.negocio || ''} · Brigada: ${esc(ev.brigadaNombre)}${ev.brigadaLider ? ' (' + esc(ev.brigadaLider) + ')' : ''}</div>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;">
               <span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${ev.estatusLogistico}</span>
@@ -229,12 +253,12 @@
           </div>
           <div class="meta-line">
             ${ev.invitados ? `<span>👥 ${ev.invitados} invitados</span>` : ''}
-            ${ev.etaConfirmado ? `<span>⏱️ ETA confirmado: ${ev.etaConfirmado}</span>` : ''}
+            ${ev.etaConfirmado ? `<span>⏱️ ETA confirmado: ${esc(ev.etaConfirmado)}</span>` : ''}
             ${ev.autorizacionDiana ? `<span>✅ Autorización: ${ev.autorizacionDiana}</span>` : ''}
           </div>
-          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo">🚦 Retraso: ${ev.motivoRetraso}</div>` : ''}
-          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo">🆘 ${ev.motivoEmergencia}</div>` : ''}
-          ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${ev.zonaAlertaSeguridad}</div>` : ''}
+          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
+          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo">🆘 ${esc(ev.motivoEmergencia)}</div>` : ''}
+          ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
         </div>
       `;
     });
@@ -242,11 +266,109 @@
     mainContent.innerHTML = html;
   }
 
+  function telLink(tel){
+    const digitos = String(tel || '').replace(/\D/g, '');
+    return digitos ? `<a href="tel:+${digitos}">${esc(tel.replace('whatsapp:', ''))}</a>` : '';
+  }
+
+  function renderPedidos(pedidos){
+    // El polling cada 30s no debe borrar lo que Diana está escribiendo:
+    // solo se vuelve a pintar si cambió la lista de pedidos.
+    const firma = pedidos.map(p => p.id).join(',');
+    if(firma === pedidosFirma) return;
+    pedidosFirma = firma;
+
+    if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
+
+    pedidosContent.innerHTML = `<h2 class="section-title">🎉 Pedidos por cotizar (${pedidos.length})</h2>` +
+      pedidos.map(p => `
+        <div class="pedido-card" data-id="${esc(p.id)}">
+          <div class="evento-top">
+            <div>
+              <h3>${esc(p.clienteNombre || 'Cliente')} · ${esc(p.folio)}</h3>
+              <div class="evento-sub">${formatFecha(p.fecha)} · ${esc(p.negocio || 'Negocio sin especificar')}${p.invitados ? ' · 👥 ' + esc(p.invitados) : ''}</div>
+            </div>
+          </div>
+          <div class="meta-line pedido-contacto">
+            ${p.clienteTelefono ? `<span>📞 ${telLink(p.clienteTelefono)}</span>` : ''}
+            ${p.clienteEmail ? `<span>✉️ <a href="mailto:${esc(p.clienteEmail)}">${esc(p.clienteEmail)}</a></span>` : ''}
+            ${p.ubicacion ? `<span>📍 ${esc(p.ubicacion)}</span>` : ''}
+          </div>
+          ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
+          <div class="servicios">${esc(p.servicios)}</div>
+          <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
+          <input type="number" id="monto-${esc(p.id)}" class="pedido-monto" min="1" step="1" inputmode="numeric" placeholder="Ej. 4500">
+          <label for="items-${esc(p.id)}">Checklist de carga (un artículo por línea)</label>
+          <textarea id="items-${esc(p.id)}" class="pedido-items">${esc(p.servicios)}</textarea>
+          <div class="pedido-actions">
+            <button class="btn-autorizar" data-accion="autorizar">✅ Autorizar</button>
+            <button class="btn-rechazar" data-accion="rechazar">Rechazar</button>
+          </div>
+          <div class="pedido-msg"></div>
+        </div>
+      `).join('');
+
+    pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
+      btn.addEventListener('click', () => resolverPedido(btn));
+    });
+  }
+
+  async function resolverPedido(btn){
+    const card = btn.closest('.pedido-card');
+    const msg = card.querySelector('.pedido-msg');
+    const accion = btn.dataset.accion;
+    const monto = card.querySelector('.pedido-monto').value;
+    const items = card.querySelector('.pedido-items').value;
+
+    if(accion === 'autorizar' && !(Number(monto) > 0)){
+      msg.style.color = 'var(--bad)';
+      msg.textContent = 'Escribe el monto antes de autorizar.';
+      return;
+    }
+
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    msg.style.color = 'var(--muted)';
+    msg.textContent = accion === 'autorizar' ? 'Autorizando…' : 'Rechazando…';
+    try {
+      const res = await fetch('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: currentCodigo, eventoId: card.dataset.id, accion, monto, items }),
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Error');
+      msg.style.color = 'var(--good)';
+      msg.textContent = accion === 'rechazar' ? 'Pedido rechazado.'
+        : data.googleOk ? 'Autorizado. Checklist listo para la brigada.'
+        : 'Autorizado, pero falló Calendar, Sheets o el correo al cliente. Revísalo a mano.';
+      pedidosFirma = null;
+      setTimeout(() => loadDashboard(currentCodigo), 1500);
+    } catch(e){
+      msg.style.color = 'var(--bad)';
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+      card.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+  }
+
+  function renderBalance(balance){
+    if(!balance){ balanceContent.innerHTML = ''; return; }
+    const abierto = balanceContent.querySelector('details')?.open ? 'open' : '';
+    const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX');
+    balanceContent.innerHTML = `
+      <details class="balance-card" ${abierto}>
+        <summary>📊 Último balance · ${esc(balance.periodo)} · Utilidad ${fmt(balance.ingresos - balance.gastos)}</summary>
+        <pre>${esc(balance.detalle)}</pre>
+      </details>
+    `;
+  }
+
   async function loadDashboard(codigo){
     try {
       const res = await fetch(`/api/dashboard-eventos?codigo=${encodeURIComponent(codigo)}`);
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Error');
+      renderPedidos(data.pedidos || []);
+      renderBalance(data.balance);
       renderEventos(data.eventos);
       loginScreen.style.display = 'none';
       appScreen.style.display = 'flex';

@@ -1,0 +1,11 @@
+# Credenciales y notas privadas: nunca subir a Vercel
+keys/
+twilio/
+VERCEL/
+*.txt
+.env
+.env.*
+
+# Documentación interna
+*.md
+docs/

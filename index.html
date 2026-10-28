@@ -272,6 +272,24 @@
   .closing h2{font-size:clamp(2rem,4.4vw,3.2rem);max-width:16ch;margin:0 auto 22px;line-height:1.12;}
   .closing p{color:var(--muted);font-size:1.08rem;max-width:520px;margin:0 auto 40px;}
   .closing .btn-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+  .pedido-form{max-width:760px;margin:0 auto;text-align:left;}
+  .pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:640px){.pf-grid{grid-template-columns:1fr;}}
+  .pedido-form label{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;font-weight:700;color:var(--paper);}
+  .pedido-form label span{font-weight:500;color:var(--muted);}
+  .pedido-form input,.pedido-form select,.pedido-form textarea{
+    padding:13px 15px;border-radius:12px;border:1px solid var(--line);
+    background:var(--ink-2);color:var(--paper);font:inherit;font-size:0.95rem;outline:none;color-scheme:dark;
+  }
+  .pedido-form input:focus,.pedido-form select:focus,.pedido-form textarea:focus{border-color:var(--divanna);}
+  .pedido-form textarea{min-height:110px;resize:vertical;}
+  .pf-full{margin-top:16px;}
+  .pf-trampa{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
+  .pedido-form .btn{margin-top:22px;cursor:pointer;font-family:inherit;}
+  .pedido-form .btn:disabled{opacity:0.6;cursor:default;transform:none;}
+  .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:0.95rem;}
+  .pf-msg.ok{color:var(--maiz-husk);}
+  .pf-msg.error{color:#ff8a8a;}
 
   footer{
     border-top:1px solid var(--line);padding:44px 0;
@@ -326,7 +344,7 @@
       <a href="#vasomaiz">Snacks</a>
       <a href="#experiencia">Experiencia</a>
       <a href="#cobertura">Cobertura</a>
-      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="nav-cta">Cotizar</a>
+      <a href="#pedido" class="nav-cta">Cotizar</a>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">☰</button>
   </nav>
@@ -351,7 +369,7 @@
       Dos marcas hermanas, un mismo estándar de confianza.
     </p>
     <div class="hero-ctas">
-      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="btn btn-primary">Cotizar por WhatsApp</a>
+      <a href="#pedido" class="btn btn-primary">Cotizar mi evento</a>
       <a href="#divanna" class="btn btn-ghost">Ver mobiliario</a>
       <a href="#vasomaiz" class="btn btn-ghost">Ver snacks</a>
     </div>
@@ -426,7 +444,7 @@
         </div>
         <div class="combo-item">
           <span class="combo-mark">3</span>
-          <div><h4>Atención personalizada</h4><p>Un solo canal de WhatsApp para cotizar ambos servicios sin vueltas.</p></div>
+          <div><h4>Atención personalizada</h4><p>Un solo formulario para cotizar ambos servicios sin vueltas.</p></div>
         </div>
         <div class="combo-item">
           <span class="combo-mark">4</span>
@@ -453,7 +471,7 @@
     </div>
     <div class="benefits-grid">
       <div class="benefit"><span class="k">✓</span><h4>Experiencia comprobada</h4><p>Más de 3,000 eventos ya atendidos entre ambas marcas.</p></div>
-      <div class="benefit"><span class="k">⚡</span><h4>Atención rápida por WhatsApp</h4><p>Cotiza en minutos, sin llamadas ni formularios largos.</p></div>
+      <div class="benefit"><span class="k">⚡</span><h4>Cotización rápida</h4><p>Cuéntanos de tu evento en un formulario corto y te contactamos con tu cotización.</p></div>
       <div class="benefit"><span class="k">🪑</span><h4>Renta confiable de mobiliario</h4><p>Equipo en buen estado, montado a tiempo.</p></div>
       <div class="benefit"><span class="k">🌽</span><h4>Snacks ideales para eventos</h4><p>Preparados el mismo día de tu celebración.</p></div>
       <div class="benefit"><span class="k">◎</span><h4>Servicio sin confusión</h4><p>Cada marca hace una cosa concreta — sabes qué esperar de cada una.</p></div>
@@ -468,7 +486,7 @@
       <div class="coverage-radius"><div class="center"></div></div>
       <div>
         <h3>Zona de cobertura</h3>
-        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde Culiacán</b>. Escríbenos por WhatsApp para confirmar disponibilidad en tu ubicación.</p>
+        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde Culiacán</b>. Indica tu ubicación en el formulario y te confirmamos disponibilidad.</p>
       </div>
     </div>
   </div>
@@ -491,13 +509,32 @@
   </div>
 </section>
 
-<section class="closing">
+<section class="closing" id="pedido">
   <div class="wrap">
     <h2>Tu evento merece experiencia, estilo y sabor</h2>
-    <p>Cotiza hoy con Divanna Eventos y El Vaso Maíz.</p>
-    <div class="btn-row">
-      <a href="https://wa.me/526674027074?text=Hola%2C%20me%20gustar%C3%ADa%20cotizar%20un%20evento" class="btn btn-primary">Cotizar por WhatsApp</a>
-    </div>
+    <p>Cotiza hoy con Divanna Eventos y El Vaso Maíz. Cuéntanos de tu evento y te contactamos con tu cotización.</p>
+    <form class="pedido-form" id="pedidoForm" novalidate>
+      <div class="pf-grid">
+        <label>Nombre<input name="nombre" required maxlength="80" autocomplete="name"></label>
+        <label>Teléfono (10 dígitos)<input name="telefono" type="tel" required maxlength="20" inputmode="tel" autocomplete="tel"></label>
+        <label>Correo <span>(opcional)</span><input name="email" type="email" maxlength="120" autocomplete="email"></label>
+        <label>¿Qué te interesa?
+          <select name="negocio">
+            <option value="Divanna Eventos">Mobiliario (Divanna Eventos)</option>
+            <option value="El Vaso Maiz">Snacks (El Vaso Maíz)</option>
+            <option value="Ambos">Ambos</option>
+          </select>
+        </label>
+        <label>Tipo de evento<input name="tipoEvento" maxlength="60" placeholder="Boda, XV años, cumpleaños…"></label>
+        <label>Fecha del evento<input name="fecha" type="date" required></label>
+        <label>Invitados<input name="invitados" type="number" min="1" max="5000" inputmode="numeric"></label>
+        <label>Ubicación<input name="ubicacion" maxlength="150" placeholder="Colonia o salón, Culiacán"></label>
+      </div>
+      <label class="pf-full">¿Qué necesitas?<textarea name="servicios" required maxlength="1500" placeholder="Ej. 10 mesas redondas, 100 sillas Tiffany, decoración en tonos dorados"></textarea></label>
+      <label class="pf-trampa" aria-hidden="true">Sitio web<input name="sitio_web" tabindex="-1" autocomplete="off"></label>
+      <button type="submit" class="btn btn-primary" id="pedidoBtn">Enviar pedido</button>
+      <p class="pf-msg" id="pedidoMsg" role="status"></p>
+    </form>
   </div>
 </section>
 
@@ -514,6 +551,42 @@
 <script>
   document.getElementById('navToggle').addEventListener('click', function(){
     document.getElementById('navLinks').classList.toggle('open');
+  });
+
+  // Formulario de pedido: crea el pedido en Airtable vía /api/pedido y Diana lo cotiza.
+  const pedidoForm = document.getElementById('pedidoForm');
+  const pedidoBtn = document.getElementById('pedidoBtn');
+  const pedidoMsg = document.getElementById('pedidoMsg');
+  pedidoForm.fecha.min = new Date().toLocaleDateString('en-CA');
+
+  pedidoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const datos = Object.fromEntries(new FormData(pedidoForm));
+    if(!datos.nombre.trim() || datos.telefono.replace(/\D/g, '').length < 10 || !datos.fecha || !datos.servicios.trim()){
+      pedidoMsg.className = 'pf-msg error';
+      pedidoMsg.textContent = 'Completa tu nombre, teléfono a 10 dígitos, fecha y lo que necesitas.';
+      return;
+    }
+    pedidoBtn.disabled = true;
+    pedidoMsg.className = 'pf-msg';
+    pedidoMsg.textContent = 'Enviando…';
+    try {
+      const res = await fetch('/api/pedido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos),
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'No pudimos registrar tu pedido, intenta de nuevo.');
+      pedidoForm.reset();
+      pedidoMsg.className = 'pf-msg ok';
+      pedidoMsg.textContent = `¡Listo! Recibimos tu pedido${data.folio ? ' (folio ' + data.folio + ')' : ''}. Te contactaremos pronto con tu cotización.`;
+    } catch(err){
+      pedidoMsg.className = 'pf-msg error';
+      pedidoMsg.textContent = err.message;
+    } finally {
+      pedidoBtn.disabled = false;
+    }
   });
 
   // Música de fondo: el navegador bloquea autoplay con sonido,
