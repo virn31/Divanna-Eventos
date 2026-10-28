@@ -8,6 +8,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
+const { normalizarProductos, capacidadEvento } = require('./_productos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -68,6 +69,9 @@ function validarPedido(entrada) {
     fueraDeCiudad: entrada.fueraDeCiudad === true,
     indicaciones: texto(entrada.indicaciones, 800),
     preferenciaContacto: PREFERENCIAS[entrada.preferenciaContacto] || null,
+    horaInicio: /^([01]\d|2[0-3]):[0-5]\d$/.test(texto(entrada.horaInicio, 5)) ? texto(entrada.horaInicio, 5) : '',
+    horasServicio: Number(entrada.horasServicio) >= 0.5 && Number(entrada.horasServicio) <= 24 ? Number(entrada.horasServicio) : null,
+    productos: normalizarProductos(entrada.productos),
   };
   if (!datos.nombre || datos.telefonoDigitos.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha) || !datos.servicios) {
     return { error: 'Revisa tu nombre, teléfono (10 dígitos), fecha y lo que necesitas.' };
@@ -76,6 +80,23 @@ function validarPedido(entrada) {
     return { error: 'El correo no parece válido.' };
   }
   return { datos };
+}
+
+// Campos de agenda y capacidad del evento (hora, productos estructurados,
+// piezas y personal de El Vaso Maíz, mobiliario de Divanna). Solo incluye
+// lo que se conoce, para no borrar datos al registrar un cambio.
+function camposAgenda(datos) {
+  const fields = {};
+  if (datos.horaInicio) fields.Hora_Inicio = datos.horaInicio;
+  if (datos.horasServicio) fields.Horas_Servicio = datos.horasServicio;
+  if (datos.productos && datos.productos.length) {
+    const c = capacidadEvento(datos.productos, datos.horasServicio);
+    fields.Productos = JSON.stringify(datos.productos);
+    fields.Piezas_Vaso_Maiz = c.piezas;
+    fields.Personal_Requerido = c.personal;
+    fields.Resumen_Capacidad = c.resumen;
+  }
+  return fields;
 }
 
 // origen: 'formulario' o 'chat'. notasExtra: texto adicional para Notas (ej. la conversación).
@@ -127,6 +148,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   if (datos.fueraDeCiudad) eventoFields.Fuera_De_Ciudad = true;
   if (datos.indicaciones) eventoFields.Instrucciones_Equipo = `Del cliente: ${datos.indicaciones}`;
   if (datos.preferenciaContacto) eventoFields.Preferencia_Contacto = datos.preferenciaContacto;
+  const agenda = camposAgenda(datos);
+  Object.assign(eventoFields, agenda);
 
   await airtableRequest(TABLES.EVENTOS, {
     method: 'POST',
@@ -142,9 +165,10 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     roles: [ROLES.ADMIN],
     texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})\n` + avisoFuera +
       `${datos.nombre} · ${telefono}\n` +
-      `📅 ${datos.fecha}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}${datos.ubicacion ? ' · 📍 ' + datos.ubicacion : ''}\n` +
+      `📅 ${datos.fecha}${datos.horaInicio ? ' · 🕒 ' + datos.horaInicio : ''}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}${datos.ubicacion ? ' · 📍 ' + datos.ubicacion : ''}\n` +
       (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
       `\n${datos.servicios}\n` +
+      (agenda.Resumen_Capacidad ? `\n${agenda.Resumen_Capacidad}\n` : '') +
       (datos.indicaciones ? `\n📌 ${datos.indicaciones}\n` : '') +
       `\nCotízalo en https://divanna-eventos.vercel.app/brigadas/`,
   });
@@ -158,11 +182,12 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
       `Correo: ${datos.email || 'no lo dio'}\n` +
       `Negocio: ${datos.negocio || 'sin especificar'}\n` +
       `Tipo de evento: ${datos.tipoEvento || 'sin especificar'}\n` +
-      `Fecha: ${datos.fecha}\n` +
+      `Fecha: ${datos.fecha}${datos.horaInicio ? ' a las ' + datos.horaInicio : ''}\n` +
       `Invitados: ${datos.invitados > 0 ? datos.invitados : 'sin especificar'}\n` +
       `Ubicación: ${datos.ubicacion || 'sin especificar'}\n` +
       (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
       `\nLo que necesita:\n${datos.servicios}\n\n` +
+      (agenda.Resumen_Capacidad ? `Capacidad:\n${agenda.Resumen_Capacidad}\n\n` : '') +
       (datos.indicaciones ? `Indicaciones del cliente:\n${datos.indicaciones}\n\n` : '') +
       `Cotízalo en la app: https://divanna-eventos.vercel.app/brigadas/`,
   });
@@ -194,6 +219,7 @@ async function verificarPedido(folio, telefono) {
     nombre: cliente.fields.Nombre || '',
     negocio: f.Negocio || '',
     fecha: f.Fecha_Evento || '',
+    horaInicio: f.Hora_Inicio || '',
     ubicacion: f.Ubicacion || '',
     invitados: f.Invitados || null,
     servicios: f.Servicios_Solicitados || '',
@@ -222,7 +248,7 @@ async function marcarMensajeEntregado(eventoId) {
 // Guarda en el evento lo que el cliente agregó o cambió después de registrar
 // el pedido: queda en Notas (historial) y las indicaciones nuevas se suman a
 // Instrucciones_Equipo. Diana ajusta la cotización si hace falta.
-async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto }) {
+async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
@@ -238,6 +264,11 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
 
   const fields = { Notas: `${r.fields.Notas || ''}${cambio}`.slice(-90000) };
   if (preferenciaContacto) fields.Preferencia_Contacto = preferenciaContacto;
+  // Si el pedido ya está autorizado, los productos los ajusta Diana: aquí solo
+  // se actualizan mientras sigue pendiente de cotizar.
+  if (r.fields.Autorizacion_Diana !== 'SI') {
+    Object.assign(fields, camposAgenda({ horaInicio, horasServicio, productos: productos || [] }));
+  }
   if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
     fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
   }
@@ -250,6 +281,7 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
 
 module.exports = {
   validarPedido,
+  camposAgenda,
   crearPedido,
   verificarPedido,
   registrarCambioCliente,

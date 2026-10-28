@@ -18,6 +18,8 @@ const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { enTemporadaAlta } = require('./_temporada');
+const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
+const { camposAgenda } = require('./_pedidos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -25,6 +27,7 @@ const TABLES = {
   BRIGADAS: 'tblwqJrIaC1MsMGNL',
   CLIENTES: 'tblgViisKQRG9TVjh',
   BALANCES: 'tblRJYJHhHzyKcaWH',
+  INVENTARIO: 'tblG7pqvkyGTzBxx0',
 };
 
 async function airtableGet(path) {
@@ -75,6 +78,40 @@ async function ultimoBalance() {
   }
 }
 
+// Artículos de INVENTARIO con categoría (mobiliario de Divanna), para asignar
+// modelo y color exactos a cada evento.
+async function cargarInventario() {
+  const lista = [];
+  let offset = '';
+  do {
+    const data = await airtableGet(`${TABLES.INVENTARIO}?filterByFormula=${encodeURIComponent('{Categoria} != ""')}&pageSize=100${offset ? '&offset=' + offset : ''}`);
+    (data.records || []).forEach(r => lista.push({
+      id: r.id,
+      nombre: r.fields.Item || '',
+      categoria: r.fields.Categoria || '',
+      total: r.fields.Cantidad_Total || 0,
+    }));
+    offset = data.offset || '';
+  } while (offset);
+  return lista.sort((a, b) => a.categoria.localeCompare(b.categoria, 'es') || a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function agendaParaVista(f) {
+  return {
+    horaInicio: f.Hora_Inicio || '',
+    horasServicio: f.Horas_Servicio || null,
+    productos: leerProductos(f.Productos),
+    articulos: leerArticulos(f.Articulos),
+    personalRequerido: f.Personal_Requerido || 0,
+    resumenCapacidad: f.Resumen_Capacidad || '',
+  };
+}
+
+// Lo que el evento pide y todavía no tiene modelo y color asignados.
+function porAsignar(item, inventario) {
+  return textoPorAsignar(coberturaArticulos(inventarioRequerido(item.productos), item.articulos, inventario));
+}
+
 function itemsDeTexto(texto) {
   return (texto || '').split('\n').map(s => s.trim()).filter(Boolean);
 }
@@ -105,16 +142,41 @@ async function avisarInstrucciones(eventoFields, texto) {
   return asignados.length;
 }
 
+// Hora, horas de servicio y productos que Diana ajusta en el dashboard. Solo
+// toca lo que viene en la petición; una lista de productos vacía los borra.
+function agendaDesdeDashboard(body, inventario) {
+  const b = body || {};
+  const datos = {
+    horaInicio: /^([01]\d|2[0-3]):[0-5]\d$/.test(b.horaInicio || '') ? b.horaInicio : '',
+    horasServicio: Number(b.horasServicio) >= 0.5 && Number(b.horasServicio) <= 24 ? Number(b.horasServicio) : null,
+    productos: normalizarProductos(b.productos),
+  };
+  const campos = camposAgenda(datos);
+  if (b.horaInicio === '') campos.Hora_Inicio = '';
+  if (Array.isArray(b.productos) && !datos.productos.length) {
+    Object.assign(campos, { Productos: '', Piezas_Vaso_Maiz: 0, Personal_Requerido: 0, Resumen_Capacidad: '' });
+  } else if (!Array.isArray(b.productos) && datos.horasServicio) {
+    delete campos.Horas_Servicio; // sin productos no se puede recalcular el personal
+  }
+  if (Array.isArray(b.articulos)) {
+    const articulos = normalizarArticulos(b.articulos, inventario);
+    campos.Articulos = articulos.length ? JSON.stringify(articulos) : '';
+  }
+  return campos;
+}
+
 async function resolverPedido(req, res) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
 
   const evento = await airtableGet(`${TABLES.EVENTOS}/${eventoId}`);
   const f = evento.fields;
+  // Solo se lee INVENTARIO si Diana mandó artículos (para validar y guardar su nombre).
+  const inventario = Array.isArray((req.body || {}).articulos) ? await cargarInventario() : [];
 
   if (accion === 'mensaje_cliente') {
     const mensaje = typeof (req.body || {}).mensaje === 'string' ? req.body.mensaje.trim().slice(0, 1500) : '';
@@ -132,6 +194,14 @@ async function resolverPedido(req, res) {
       ? await avisarInstrucciones(f, instrucciones)
       : 0;
     res.status(200).json({ success: true, avisados });
+    return;
+  }
+
+  if (accion === 'agenda') {
+    const campos = agendaDesdeDashboard(req.body, inventario);
+    if (!Object.keys(campos).length) { res.status(400).json({ error: 'Nada que guardar' }); return; }
+    await airtablePatch(TABLES.EVENTOS, eventoId, campos);
+    res.status(200).json({ success: true, resumen: campos.Resumen_Capacidad || '' });
     return;
   }
 
@@ -155,6 +225,7 @@ async function resolverPedido(req, res) {
     Checklist_Items: listaItems.join('\n'),
     Checklist_Items_Marcados: '[]',
     ...(instrucciones !== null ? { Instrucciones_Equipo: instrucciones } : {}),
+    ...agendaDesdeDashboard(req.body, inventario),
   });
 
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
@@ -251,6 +322,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        ...agendaParaVista(r.fields),
       };
     });
 
@@ -274,6 +346,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        ...agendaParaVista(r.fields),
         notas: r.fields.Notas || '',
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',
@@ -281,7 +354,11 @@ module.exports = async (req, res) => {
       };
     });
 
-    res.status(200).json({ eventos, pedidos, balance: await ultimoBalance() });
+    const balance = await ultimoBalance();
+    // El inventario se lee al final: si falla, el dashboard sigue funcionando sin el selector de artículos.
+    const inventario = await cargarInventario().catch(err => { console.error('No se pudo leer INVENTARIO:', err.message); return []; });
+    [...eventos, ...pedidos].forEach(item => { item.porAsignar = porAsignar(item, inventario); });
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

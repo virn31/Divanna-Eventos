@@ -3,6 +3,7 @@
 // día. Lo usan la app (api/brigada-eventos.js) y el bot de Telegram (api/telegram.js).
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { leerArticulos } = require('./_productos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -36,6 +37,10 @@ function formatearEvento(r) {
     folio: r.fields.Folio_Evento || '',
     negocio: r.fields.Negocio || '',
     fecha: r.fields.Fecha_Evento || '',
+    horaInicio: r.fields.Hora_Inicio || '',
+    personalRequerido: r.fields.Personal_Requerido || 0,
+    // Modelo, color y cantidad exactos que asignó Diana (lo que se carga).
+    articulos: leerArticulos(r.fields.Articulos).map(a => ({ nombre: a.nombre, cantidad: a.cantidad })),
     estado: r.fields.Estado || '',
     servicios: r.fields.Servicios_Solicitados || '',
     invitados: r.fields.Invitados || null,

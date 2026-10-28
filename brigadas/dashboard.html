@@ -128,6 +128,21 @@
   .pedido-actions button:disabled{opacity:0.5; cursor:default;}
   .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
   .pedido-contacto a{color:var(--divanna);}
+  /* Hora y productos estructurados (agenda, inventario y personal) */
+  .capacidad{white-space:pre-wrap; border-color:var(--divanna);}
+  .agenda{margin-top:12px; font-size:0.85rem;}
+  .agenda > summary{cursor:pointer; font-weight:700; color:var(--divanna);}
+  .agenda-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .agenda .ag-label{display:block; font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin:12px 0 6px;}
+  .agenda select, .agenda input{
+    width:100%; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font-size:0.9rem; font-family:inherit; outline:none; min-width:0;
+  }
+  .agenda select:focus, .agenda input:focus{border-color:var(--divanna);}
+  .prod-fila{display:grid; grid-template-columns:minmax(0,1fr) 76px 40px; gap:6px; margin-top:8px; padding-bottom:8px; border-bottom:1px solid var(--line);}
+  .prod-fila .prod-nota{grid-column:1 / -1;}
+  .prod-quitar{border:1.5px solid var(--bad); background:transparent; color:var(--bad); border-radius:10px; cursor:pointer; font-weight:800;}
+  .prod-agregar{margin-top:8px; border:1.5px dashed var(--divanna); background:transparent; color:var(--divanna); border-radius:10px; padding:9px 14px; font-weight:800; cursor:pointer;}
   .balance-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 20px; margin-bottom:20px;}
   .balance-card summary{cursor:pointer; font-weight:700;}
   .balance-card pre{white-space:pre-wrap; font-family:inherit; font-size:0.88rem; color:var(--muted); margin:12px 0 0;}
@@ -204,6 +219,10 @@
 
   let pollTimer = null;
   let pedidosFirma = null;
+  // Catálogo de productos (clave, nombre, negocio) que manda el servidor.
+  let catalogo = [];
+  // Artículos de INVENTARIO (modelo y color) para asignar a cada evento.
+  let inventario = [];
 
   // Varios campos vienen del formulario público de la landing: siempre escapar.
   function esc(valor){
@@ -296,9 +315,121 @@
     contenedor.querySelectorAll('.msgcli-enviar').forEach(b => b.addEventListener('click', () => enviarMensajeCliente(b)));
   }
 
+  // ---------- Hora y productos (agenda, inventario y personal) ----------
+  function opcionesCatalogo(seleccion){
+    const grupos = {};
+    catalogo.forEach(p => { (grupos[p.negocio || 'Otros'] = grupos[p.negocio || 'Otros'] || []).push(p); });
+    return Object.entries(grupos).map(([negocio, lista]) =>
+      `<optgroup label="${esc(negocio)}">${lista.map(p => `<option value="${esc(p.clave)}" ${p.clave === seleccion ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</optgroup>`
+    ).join('');
+  }
+
+  function filaProducto(p){
+    return `
+      <div class="prod-fila">
+        <select class="prod-clave" aria-label="Producto">${opcionesCatalogo(p.clave)}</select>
+        <input type="number" class="prod-cant" min="1" step="1" inputmode="numeric" value="${esc(p.cantidad || 1)}" aria-label="Cantidad">
+        <button type="button" class="prod-quitar" aria-label="Quitar producto">✕</button>
+        <input class="prod-nota" maxlength="150" placeholder="Nota: color, sabor, variante…" value="${esc(p.nota || '')}">
+      </div>`;
+  }
+
+  function opcionesInventario(seleccion){
+    const grupos = {};
+    inventario.forEach(i => { (grupos[i.categoria] = grupos[i.categoria] || []).push(i); });
+    return Object.entries(grupos).map(([cat, lista]) =>
+      `<optgroup label="${esc(cat)}">${lista.map(i => `<option value="${esc(i.id)}" ${i.id === seleccion ? 'selected' : ''}>${esc(i.nombre)} (${esc(i.total)})</option>`).join('')}</optgroup>`
+    ).join('');
+  }
+
+  function filaArticulo(a){
+    return `
+      <div class="prod-fila art-fila">
+        <select class="art-id" aria-label="Modelo y color">${opcionesInventario(a.id)}</select>
+        <input type="number" class="art-cant" min="1" step="1" inputmode="numeric" value="${esc(a.cantidad || 1)}" aria-label="Cantidad">
+        <button type="button" class="prod-quitar art-quitar" aria-label="Quitar artículo">✕</button>
+      </div>`;
+  }
+
+  // Campos de hora, horas de servicio y productos. Se usan en los pedidos por
+  // cotizar y en los eventos ya autorizados.
+  function camposAgenda(item){
+    return `
+      <div class="agenda-grid">
+        <div><label class="ag-label">Hora de inicio</label><input type="time" class="ag-hora" value="${esc(item.horaInicio)}"></div>
+        <div><label class="ag-label">Horas de servicio (Vaso Maíz)</label><input type="number" class="ag-horas" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="2" value="${item.horasServicio ? esc(item.horasServicio) : ''}"></div>
+      </div>
+      <label class="ag-label">Productos (para inventario y personal)</label>
+      <div class="prod-lista">${(item.productos || []).map(filaProducto).join('')}</div>
+      <button type="button" class="prod-agregar">+ Agregar producto</button>
+      <label class="ag-label">Modelo, color y cantidad (lo que carga la brigada)</label>
+      ${item.porAsignar ? `<div class="motivo aviso-fuera">🎨 Falta asignar modelo y color: ${esc(item.porAsignar)}</div>` : ''}
+      <div class="art-lista">${(item.articulos || []).map(filaArticulo).join('')}</div>
+      <button type="button" class="prod-agregar art-agregar">+ Agregar modelo y color</button>`;
+  }
+
+  function leerAgenda(contenedor){
+    return {
+      horaInicio: contenedor.querySelector('.ag-hora').value,
+      horasServicio: contenedor.querySelector('.ag-horas').value,
+      articulos: [...contenedor.querySelectorAll('.art-fila')].map(f => ({
+        id: f.querySelector('.art-id').value,
+        cantidad: Number(f.querySelector('.art-cant').value),
+      })),
+      productos: [...contenedor.querySelectorAll('.prod-fila:not(.art-fila)')].map(f => ({
+        clave: f.querySelector('.prod-clave').value,
+        cantidad: Number(f.querySelector('.prod-cant').value),
+        nota: f.querySelector('.prod-nota').value.trim() || null,
+      })),
+    };
+  }
+
+  // Agregar/quitar renglones y marcar el bloque como "a medio editar" para
+  // que el polling no lo borre.
+  function conectarAgenda(contenedor){
+    contenedor.querySelectorAll('.agenda').forEach(caja => {
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      caja.addEventListener('click', (e) => {
+        if(e.target.closest('.art-agregar')){
+          caja.querySelector('.art-lista').insertAdjacentHTML('beforeend', filaArticulo({ id: '', cantidad: 1 }));
+          caja.dataset.sucio = '1';
+        } else if(e.target.closest('.prod-agregar')){
+          caja.querySelector('.prod-lista').insertAdjacentHTML('beforeend', filaProducto({ clave: '', cantidad: 1 }));
+          caja.dataset.sucio = '1';
+        } else if(e.target.closest('.prod-quitar')){
+          e.target.closest('.prod-fila').remove();
+          caja.dataset.sucio = '1';
+        }
+      });
+    });
+    contenedor.querySelectorAll('.agenda-guardar').forEach(b => b.addEventListener('click', () => guardarAgenda(b)));
+  }
+
+  async function guardarAgenda(btn){
+    const caja = btn.closest('.agenda');
+    const msg = caja.querySelector('.agenda-msg');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'agenda', ...leerAgenda(caja) }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = 'Guardado.';
+      setTimeout(loadDashboard, 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function renderEventos(eventos){
     // El polling cada 30s no debe borrar instrucciones a medio escribir.
-    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio]')) return;
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio]')) return;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
       return;
@@ -336,6 +467,7 @@
             </div>
           </div>
           <div class="meta-line">
+            ${ev.horaInicio ? `<span>🕒 ${esc(ev.horaInicio)}</span>` : ''}
             ${ev.invitados ? `<span>👥 ${ev.invitados} invitados</span>` : ''}
             ${ev.etaConfirmado ? `<span>⏱️ ETA confirmado: ${esc(ev.etaConfirmado)}</span>` : ''}
             ${ev.autorizacionDiana ? `<span>✅ Autorización: ${ev.autorizacionDiana}</span>` : ''}
@@ -351,7 +483,16 @@
               ${ev.emergencia ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="emergencia">✅ Marcar emergencia resuelta</button>` : ''}
               ${ev.zonaAlertaSeguridad ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="alerta_seguridad">✅ Levantar alerta de seguridad</button>` : ''}
             </div>` : ''}
+          ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
           ${bloqueMensajeCliente(ev)}
+          <details class="agenda">
+            <summary>🗓️ Hora y productos${ev.horaInicio && ev.productos.length ? '' : ' (completar)'}</summary>
+            ${camposAgenda(ev)}
+            <div class="instr-fila">
+              <button class="instr-guardar agenda-guardar" data-id="${esc(ev.id)}">Guardar</button>
+              <span class="instr-msg agenda-msg"></span>
+            </div>
+          </details>
           <details class="instr" ${ev.instrucciones ? 'open' : ''}>
             <summary>📌 Instrucciones para el equipo${ev.instrucciones ? '' : ' (agregar)'}</summary>
             <textarea class="instr-texto" data-id="${esc(ev.id)}" maxlength="2000" placeholder="Ej. Llegar a las 4 pm, entrar por la puerta de atrás, preguntar por Sra. López">${esc(ev.instrucciones)}</textarea>
@@ -373,6 +514,7 @@
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
     conectarMensajeCliente(mainContent);
+    conectarAgenda(mainContent);
     mainContent.querySelectorAll('.resolver-btn').forEach(b => {
       b.addEventListener('click', () => resolverAlerta(b));
     });
@@ -429,7 +571,7 @@
     // solo se vuelve a pintar si cambió la lista de pedidos.
     const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}`).join(',');
     if(firma === pedidosFirma) return;
-    if(pedidosContent.querySelector('input:focus, textarea:focus, .msgcli-texto[data-sucio]')) return;
+    if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio]')) return;
     pedidosFirma = firma;
 
     if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
@@ -440,7 +582,7 @@
           <div class="evento-top">
             <div>
               <h3>${esc(p.clienteNombre || 'Cliente')} · ${esc(p.folio)}</h3>
-              <div class="evento-sub">${formatFecha(p.fecha)} · ${esc(p.negocio || 'Negocio sin especificar')}${p.invitados ? ' · 👥 ' + esc(p.invitados) : ''}</div>
+              <div class="evento-sub">${formatFecha(p.fecha)}${p.horaInicio ? ' · 🕒 ' + esc(p.horaInicio) : ''} · ${esc(p.negocio || 'Negocio sin especificar')}${p.invitados ? ' · 👥 ' + esc(p.invitados) : ''}</div>
             </div>
           </div>
           <div class="meta-line pedido-contacto">
@@ -454,6 +596,8 @@
           ${bloqueMensajeCliente(p)}
           ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
+          ${p.resumenCapacidad ? `<div class="motivo capacidad">${esc(p.resumenCapacidad)}</div>` : ''}
+          <div class="agenda">${camposAgenda(p)}</div>
           <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
           <input type="number" id="monto-${esc(p.id)}" class="pedido-monto" min="1" step="1" inputmode="numeric" placeholder="Ej. 4500" value="${p.montoEstimado ? esc(p.montoEstimado) : ''}">
           ${p.montoEstimado ? '<div class="evento-sub">Estimado de DiMa, ajústalo si hace falta.</div>' : ''}
@@ -470,6 +614,7 @@
       `).join('');
 
     conectarMensajeCliente(pedidosContent);
+    conectarAgenda(pedidosContent);
     pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
       btn.addEventListener('click', () => resolverPedido(btn));
     });
@@ -496,7 +641,7 @@
       const data = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventoId: card.dataset.id, accion, monto, items, instrucciones }),
+        body: JSON.stringify({ eventoId: card.dataset.id, accion, monto, items, instrucciones, ...(accion === 'autorizar' ? leerAgenda(card.querySelector('.agenda')) : {}) }),
       });
       msg.style.color = 'var(--good)';
       msg.textContent = accion === 'rechazar' ? 'Pedido rechazado.'
@@ -526,6 +671,8 @@
   async function loadDashboard(){
     try {
       const data = await api('/api/dashboard-eventos');
+      catalogo = data.catalogo || [];
+      inventario = data.inventario || [];
       // Suena y vibra si apareció una emergencia o alerta de seguridad nueva.
       DimaAlertas.revisar((data.eventos || []).flatMap(ev => [
         ev.emergencia ? `${ev.id}|E|${ev.motivoEmergencia}` : null,

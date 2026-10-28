@@ -5,7 +5,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 - Repo de trabajo (fuera de OneDrive): `C:\Users\virn3\Proyectos\Divanna-Eventos`
 - Remoto: https://github.com/virn31/Divanna-Eventos
-- Rama de trabajo actual: `quitar-whatsapp` (nunca trabajar directo en `main`; `main` es producción).
+- Rama de trabajo actual: `agenda-inventario` (nunca trabajar directo en `main`; `main` es producción).
 
 ## Cuando Víctor dice "cerrar"
 
@@ -28,43 +28,24 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-27 (noche) · **Rama:** `vista-equipo-admin` (sin merge) · **Producción:** `main` en b027b48 = PR #1 fusionado.
+**Actualizado:** 2026-10-28 (tarde) · **Rama:** `agenda-inventario` (sin merge) · **Producción:** `main` en 13f1aa3 = PR #4 (`dima-pedido-existente`) fusionado.
 
-**En producción (PR #1, ya fusionado por Víctor):**
-- Sin WhatsApp. Landing con chat de DiMa (Claude Sonnet 5.5), formulario de respaldo.
-- App del equipo con usuario + PIN y roles; dashboard para Admin; alertas push; bot de Telegram.
-- Verificado en producción: landing con chat, login, endpoint de Telegram, `/api/whatsapp` ya no existe.
-- Telegram conectado a producción (`setWebhook` a `https://divanna-eventos.vercel.app/api/telegram`). Víctor ya vinculado.
-- APK generado con PWABuilder e instalado en el teléfono de Víctor.
-- Airtable limpio para pruebas: EVENTOS y COTIZACIONES vacías (se borraron 2 eventos falsos). CLIENTES conserva "Dr Victor Ivan" (prueba).
-- COLABORADORES: `victor` (Admin, con PIN, Telegram vinculado) y `diana` (Admin, **falta que Víctor le ponga PIN**).
+**En producción:** todo lo de los PR #1 a #4: sin WhatsApp, chat de DiMa, app del equipo con roles y PIN, alertas push, bot de Telegram, vista equipo, GPS en alertas, pedido existente con folio, mensaje de Diana al cliente, traslado aproximado, límite de 35 km, paquetes primero y temporada alta.
 
-**Publicado (PR #3, `vista-equipo-admin`):** vista equipo para Admin, cobertura fuera de la ciudad, instrucciones para el equipo, ubicación GPS en alertas, desactivar alertas y "Marcar resuelta".
-
-**En la rama `dima-pedido-existente` (falta publicar):**
-- DiMa explica la validación de eventos foráneos (prompt + recordatorio automático al detectar lugares como San Pedro/Navolato).
-- Venta cruzada obligatoria antes de pedir datos.
-- Cuadro "¿Ya tienes número de pedido?" en la landing (folio + teléfono) para agregar cosas o indicaciones; se guardan en el evento y avisan a Diana. Folio firmado para que nadie toque pedidos ajenos.
-- DiMa pregunta en foráneos si el cliente espera en el chat o prefiere mensaje/llamada (`Preferencia_Contacto`).
-- Diana deja "Mensaje para el cliente" en el dashboard; DiMa lo entrega en el chat (en vivo cada 30 s o cuando el cliente regresa con su folio). Campos `Preferencia_Contacto`, `Mensaje_Para_Cliente`, `Mensaje_Cliente_Entregado`.
-- Con el cliente DiMa ya no menciona a Diana: dice "el equipo de logística" o "la gerencia".
-- Aproximado de traslado (`api/_traslado.js`): km desde la salida de Culiacán x $10 x 4 con rutas de OpenStreetMap; DiMa lo da solo si el cliente lo pide. **Pendiente de Víctor:** comparar con Google (San Pedro dio 4 km desde la salida, puede ser bajo).
-- Límite duro de 35 km desde la salida de Culiacán (chat, formulario y página); más lejos no se registra el pedido.
-- Precios: regla de "paquetes primero" (100 personas Antonella = 2 x $5,400 = $10,800 + extras).
-- Temporada alta (18 dic - 1 ene, fecha del evento): +70%, sin paquetes regulares, explicado con sutileza. Confirmado por Víctor: aplica a todos los servicios (Divanna y El Vaso Maíz). Termina el 1 de enero (confirmado). El traslado NO sube (confirmado).
-- **Mañana Víctor sube carpetas con las promociones de diciembre**: agregarlas a DiMa (como `referencias/`: fotos + textos y precios) y que DiMa las ofrezca en temporada.
-- 104 pruebas pasan.
-- Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
+**En la rama `agenda-inventario` (fase 1 de agenda e inventario, falta publicar):**
+- `api/_productos.js`: catálogo con claves, piezas de El Vaso Maíz (3 a 4 min por pieza, equipos de 2), mobiliario por categoría y ventanas de ocupación (mobiliario todo el día del evento hasta la 1 pm del día siguiente; manteles +48 h; Casa Isabella solo las horas; Vaso Maíz sale 30 min antes).
+- DiMa pregunta la hora y registra `productos` con clave; EVENTOS guarda `Hora_Inicio`, `Horas_Servicio`, `Productos`, `Piezas_Vaso_Maiz`, `Personal_Requerido`, `Resumen_Capacidad`.
+- Modelo, color y cantidad exactos: `EVENTOS.Articulos` (artículos de INVENTARIO). Dashboard: editor de hora, productos y artículos, aviso "🎨 Falta asignar modelo y color". App: "🕒 Empieza", personas y "📦 Cargar exacto". `CACHE_NAME` = `dima-brigadas-v5`.
+- Airtable (base de producción, solo campos y datos nuevos): 7 campos en EVENTOS, `INVENTARIO.Categoria` con 87 artículos de Divanna clasificados (copas en "Copa globo" y "Copa francesa"), Casa Isabella como 1 unidad.
+- 126 pruebas pasan.
 
 **Pendiente de Víctor:**
-1. PIN de Diana en Airtable; pasarle el APK; que se vincule en @dimaclnbot.
-2. Variables `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` en Vercel (Production y Preview) + Redeploy. Hoy `/api/push` devuelve `publicKey: null`: el push no funciona aún (Telegram y correo sí).
-3. Dar de alta brigadas y encargadas en COLABORADORES (los códigos viejos ya no sirven).
-4. Subir `assetlinks.json` del zip de PWABuilder a `.well-known/` (pedirle la ruta del archivo) para quitar la barra del navegador en el APK.
-5. Limpieza: webhook de Twilio y variables viejas de Vercel.
+1. Conteos que faltan en INVENTARIO (por la tarde): aros, mamparas, shimmer, mesitas, tapetes, arcos, túneles, letras/números LED, mesa de honor, cubiertos, vasos, platos trinche/grueso, servilletas, manteles de lentejuela y corrugado, centros de mesa. Un renglón por modelo y color, con su `Categoria`.
+2. Lista de proveedores aliados (precio = ~10% menos que el nuestro, pedir con 48 h mínimo, ideal una semana).
+3. Rutas de Divanna: cuántos pedidos caben por ruta y por brigada (hoy 2 o 3).
+4. Lo anterior de PIN de Diana, variables `VAPID_*`, alta de brigadas, `assetlinks.json` y limpieza de Twilio (ver decisiones y CLAUDE.md).
 
 **Siguientes pasos:**
-- Publicar la rama `vista-equipo-admin` (PR o merge con permiso de Víctor).
-- Pruebas de punta a punta con datos falsos: cotización por chat → autorizar en dashboard → evento asignado a una brigada de prueba → checklist → emergencia (push/Telegram/correo).
-- Opcional: fijar la versión de Node en `package.json` (Vercel avisa por `"node": ">=18"`).
-- Fases siguientes en `CLAUDE.md`.
+- Publicar `agenda-inventario` (PR con permiso de Víctor) y probar en el dashboard: autorizar un pedido con hora, productos y artículos exactos; ver "Cargar exacto" en la app.
+- Fase 2: semáforo de disponibilidad (🟢/🟡/🔴) cruzando eventos que se traslapan con INVENTARIO por artículo y con el personal del día; DiMa lo consulta antes de registrar.
+- Fase 3: gastos y entradas por brigada (`MOVIMIENTOS`, origen del dinero, reembolsos). Fase 4: proveedores y compras de insumos. Fase 5: recordatorios de checklist por Telegram (7, 3 y 1 día antes).
