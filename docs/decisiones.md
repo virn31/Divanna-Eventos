@@ -62,3 +62,9 @@ Recomendación: (a), con una excepción: si solo hay una alerta pendiente no se 
 **Decisión:** el chat usa `claude-sonnet-5-5` (esfuerzo bajo) en vez de Opus 5.5. La plática se acota con cortesía: desde el mensaje 14 del cliente DiMa recibe la instrucción de ir cerrando (repaso, datos, registrar); pasado el 20 se despide y ofrece el formulario; además, freno por IP (2 s entre mensajes, 40 cada 30 min). Las emergencias y alertas de seguridad llegan como notificación push con sonido y vibración aunque la app esté cerrada, y suenan/vibran también con la app abierta.
 **Por qué:** pedido de Víctor: bajar costo del chat público sin cortar feo al cliente, y que una emergencia no dependa de que alguien abra la app o el correo.
 **Descartado:** límite duro sin aviso (corta al cliente a media cotización); captcha desde el inicio (fricción para clientes reales; queda como opción si hay abuso); límite por IP en Airtable (una escritura por mensaje, más lento y caro).
+
+## 2026-10-27 — Bot de Telegram para el equipo
+
+**Decisión:** bot interno de Telegram (no para clientes). Cada colaborador lo vincula por chat privado con su usuario y PIN de la app; el bot respeta el rol. Emergencias y alertas de seguridad a todo el equipo (menos quien reporta); pedidos nuevos, cambios de pedido y balance solo a Admin. Consultas por comando (`/hoy`, `/eventos`, `/alertas`, `/pedidos`). Las acciones (checklist, estatus) siguen en la app.
+**Por qué:** pedido de Víctor; Telegram es gratis, no requiere aprobación de plantillas como WhatsApp y es un canal más para que una emergencia no pase desapercibida.
+**Descartado:** grupo de Telegram para todo el equipo (no respeta roles: un asistente vería pedidos y montos); responder con IA en lenguaje libre (más costo; se puede agregar después sobre los mismos comandos); hacer acciones desde Telegram (duplicaría la app y sus permisos).

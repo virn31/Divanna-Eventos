@@ -17,6 +17,8 @@
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { validarPedido, crearPedido } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
+const { enviarTelegramEquipo } = require('./_telegram');
+const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 
 const MODELO = 'claude-sonnet-5-5';
@@ -178,6 +180,15 @@ async function registrarPedido(input, historial, folioPrevio) {
   // Si ya se registró en esta conversación, no se duplica el evento: se avisa
   // del cambio al equipo para que Diana lo ajuste en el pedido existente.
   if (folioPrevio) {
+    await enviarTelegramEquipo({
+      roles: [ROLES.ADMIN],
+      texto: `✏️ Cambio en el pedido ${folioPrevio} (${datos.nombre}). Así queda:
+
+${datos.servicios}` +
+        (datos.montoEstimado > 0 ? `
+
+Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}` : ''),
+    });
     await enviarCorreoEquipo({
       asunto: `✏️ Cambio en el pedido ${folioPrevio} - ${datos.nombre}`,
       texto: `El cliente pidió cambios en el chat después de registrar el pedido ${folioPrevio}.\n\nAsí queda ahora:\n${datos.servicios}\n\n` +

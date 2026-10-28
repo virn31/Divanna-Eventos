@@ -11,6 +11,7 @@
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
+const { enviarTelegramEquipo } = require('./_telegram');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -44,12 +45,13 @@ async function airtablePatch(tableId, recordId, fields) {
   return res.json();
 }
 
-// Push a todo el equipo (menos quien reporta) y correo a Diana y Víctor, en
-// paralelo. Si el push falla, el correo y el aviso dentro de la app quedan.
+// Push y Telegram a todo el equipo (menos quien reporta) y correo a Diana y
+// Víctor, en paralelo. Si un canal falla, los demás y el aviso en la app quedan.
 async function notificarEquipo({ asunto, mensaje, reportaId }) {
   const [enviado] = await Promise.all([
     enviarCorreoEquipo({ asunto, texto: mensaje }),
     enviarPushEquipo({ titulo: asunto, cuerpo: mensaje, excluirColaboradorId: reportaId }),
+    enviarTelegramEquipo({ texto: mensaje, excluirColaboradorId: reportaId }),
   ]);
   if (!enviado) console.error('No se pudo enviar por correo la alerta:', asunto);
 }

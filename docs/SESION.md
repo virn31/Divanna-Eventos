@@ -36,16 +36,18 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Chat acotado: desde el mensaje 14 del cliente DiMa va cerrando; al pasar 20 se despide y ofrece el formulario; límite por IP (2 s entre mensajes, 40 cada 30 min, en memoria).
 - App del equipo con usuario + PIN (tabla COLABORADORES) y roles: Admin, Líder de brigada, Asistente, Encargada de evento.
 - Emergencias y alertas de seguridad: push con sonido y vibración (app cerrada o teléfono bloqueado) + sonido/vibración con la app abierta + correo. Tabla PUSH_SUSCRIPCIONES.
-- Airtable: creadas COLABORADORES y PUSH_SUSCRIPCIONES, y el campo EVENTOS.Encargada. COLABORADORES está **vacía**.
-- 44 pruebas locales pasan (`npm test`). Nada probado aún contra Claude, Airtable ni Vercel reales.
+- Bot de Telegram interno (`api/telegram.js`, `docs/telegram.md`): vincular con `/entrar usuario PIN`, consultas por rol, emergencias a todo el equipo y pedidos/cambios/balance a Admin.
+- Airtable: creadas COLABORADORES y PUSH_SUSCRIPCIONES, y los campos EVENTOS.Encargada y COLABORADORES.Telegram_Chat_ID. COLABORADORES está **vacía**.
+- 53 pruebas locales pasan (`npm test`). Nada probado aún contra Claude, Airtable, Telegram ni Vercel reales.
 
 **Pendiente de Víctor (antes del merge):**
-1. Vercel → variables (Production y Preview): `SESSION_SECRET`, `EMAILS_EQUIPO`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (las VAPID están en `DIVANNA HOMEPAGE\keys\vapid-dima.txt`, no subirlas al repo). Confirmar `ANTHROPIC_API_KEY`.
+1. Vercel → variables (Production y Preview): `SESSION_SECRET` (✅ hecho 2026-10-27), `EMAILS_EQUIPO` (instrucciones dadas), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (están en `DIVANNA HOMEPAGE\keys\vapid-dima.txt`, no subirlas al repo), `TELEGRAM_BOT_TOKEN` y `TELEGRAM_WEBHOOK_SECRET` (crear el bot con BotFather, ver `docs/telegram.md`). Confirmar `ANTHROPIC_API_KEY`.
 2. Llenar COLABORADORES (Usuario, PIN de 6 dígitos, Rol, Brigada, Activo). Sin esto nadie entra a la app tras el merge.
 3. Abrir el PR y probar el preview: cotización completa con DiMa, login con cada rol, activar alertas y lanzar una emergencia de prueba.
 
 **Siguientes pasos (después del merge):**
 - Generar el APK (`docs/apk.md`, con notificaciones activadas), poner `.well-known/assetlinks.json`.
+- Conectar el webhook de Telegram con producción (comandos en `docs/telegram.md`) y que cada colaborador se vincule.
 - Apagar el webhook de Twilio y borrar variables viejas (lista en `CLAUDE.md`).
 - Opcional: regla de rate limiting en el Firewall de Vercel para `/api/dima-chat`.
 - Fases siguientes en `CLAUDE.md` (situación con cliente, semáforo, asignar encargada desde el dashboard).

@@ -13,6 +13,8 @@
 // es un estimado, no una cifra contable exacta.
 
 const { enviarCorreoEquipo } = require('./_google-integrations');
+const { enviarTelegramEquipo } = require('./_telegram');
+const { ROLES } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -125,10 +127,10 @@ module.exports = async (req, res) => {
       `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
       `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS. ¡Que tengas excelente semana! 💜`;
 
-    const correoEnviado = await enviarCorreoEquipo({
-      asunto: `📊 Balance semanal ${inicio} a ${fin}`,
-      texto: detalleCompleto,
-    });
+    const [correoEnviado] = await Promise.all([
+      enviarCorreoEquipo({ asunto: `📊 Balance semanal ${inicio} a ${fin}`, texto: detalleCompleto }),
+      enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto: detalleCompleto }),
+    ]);
 
     // Enviado_WhatsApp queda en false: el campo es histórico de cuando el
     // balance salía por WhatsApp. Detalle_Enviado indica si llegó el correo.

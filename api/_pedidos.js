@@ -5,6 +5,8 @@
 // y el formulario de respaldo (api/pedido.js).
 
 const { enviarCorreoEquipo } = require('./_google-integrations');
+const { enviarTelegramEquipo } = require('./_telegram');
+const { ROLES } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -116,8 +118,22 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     body: JSON.stringify({ records: [{ fields: eventoFields }] }),
   });
 
-  // 3. Aviso al equipo. Si el correo falla el pedido ya quedó guardado y
-  // aparece en el dashboard, así que no se le marca error al cliente.
+  // 3. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
+  // quedó guardado y aparece en el dashboard: no se le marca error al cliente.
+  const avisoTelegram = enviarTelegramEquipo({
+    roles: [ROLES.ADMIN],
+    texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})
+` +
+      `${datos.nombre} · ${telefono}
+📅 ${datos.fecha}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}
+` +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}
+` : '') +
+      `
+${datos.servicios}
+
+Cotízalo en https://divanna-eventos.vercel.app/brigadas/`,
+  });
   await enviarCorreoEquipo({
     asunto: `🎉 Pedido nuevo ${folio} - ${datos.nombre}`,
     texto:
@@ -135,6 +151,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
       `\nLo que necesita:\n${datos.servicios}\n\n` +
       `Cotízalo en la app: https://divanna-eventos.vercel.app/brigadas/`,
   });
+  await avisoTelegram;
 
   return { folio };
 }

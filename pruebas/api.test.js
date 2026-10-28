@@ -39,7 +39,13 @@ Module._load = function (req, parent, ...rest) {
 
 const llamadas = [];
 let respuestas = [];
+const telegram = [];
 global.fetch = async (url, opts = {}) => {
+  // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
+  if (url.startsWith('https://api.telegram.org/')) {
+    telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
+    return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
+  }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
   const r = respuestas.shift() || { records: [] };
   return { ok: true, status: 200, json: async () => r, text: async () => '' };
@@ -62,7 +68,7 @@ process.env.VAPID_PRIVATE_KEY = 'privada';
 process.env.VAPID_SUBJECT = 'mailto:prueba@example.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { llamadas.length = 0; correos.length = 0; pushes.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -79,6 +85,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const sesionApi = require(path.join(repo, 'api/sesion.js'));
   const chatApi = require(path.join(repo, 'api/dima-chat.js'));
   const pushApi = require(path.join(repo, 'api/push.js'));
+  const telegramApi = require(path.join(repo, 'api/telegram.js'));
   // Cada llamada al chat simula una IP distinta para no chocar con el límite por IP.
   let ipN = 0;
   const chat = (body) => { const r = resMock(); return chatApi({ method: 'POST', body, headers: { 'x-forwarded-for': `10.0.0.${++ipN}` } }, r).then(() => r); };
@@ -319,4 +326,76 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await balance({ headers: {}, query: {} }, res);
   const bal = llamadas.find(l => l.method === 'POST').body.records[0].fields;
   ok(res.code === 200 && correos.length === 1 && bal.Detalle_Enviado === true, 'balance: correo enviado y registrado');
+
+  // ---------- Bot de Telegram del equipo ----------
+  process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';
+  process.env.TELEGRAM_WEBHOOK_SECRET = 'secreto-webhook';
+  delete process.env.VAPID_PUBLIC_KEY;
+  const tgHeaders = { 'x-telegram-bot-api-secret-token': 'secreto-webhook' };
+  const msg = (texto, chatId = 555, tipo = 'private') => ({ message: { message_id: 9, chat: { id: chatId, type: tipo }, text: texto } });
+  const respuestaTg = () => telegram.filter(t => t.metodo === 'sendMessage').map(t => t.body.text).join('\n');
+
+  reset();
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: {}, body: msg('/hoy') }, res);
+  ok(res.code === 401 && telegram.length === 0, 'telegram: sin el secreto del webhook, 401');
+
+  reset();
+  respuestas = [{ records: [LIDER] }, { records: [] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/entrar Juan 123456') }, res);
+  const vinculo = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && telegram[0].metodo === 'deleteMessage' && vinculo && vinculo.body.records[0].fields.Telegram_Chat_ID === '555' && respuestaTg().includes('vinculado'), 'telegram: /entrar borra el mensaje con el PIN y vincula');
+
+  reset();
+  respuestas = [{ records: [] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/hoy') }, res);
+  ok(respuestaTg().includes('/entrar') && !llamadas.some(l => l.url.includes('tblzLAin65BZPP2c6')), 'telegram: sin vincular no muestra eventos, explica /entrar');
+
+  reset();
+  respuestas = [{ records: [LIDER] }, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: ['recEVENTO00000001'] } }, { records: [{ id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-10-27', Ubicacion: 'Las Quintas', Emergencia: true, Motivo_Emergencia: 'llanta' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/hoy') }, res);
+  ok(respuestaTg().includes('EVT-1') && respuestaTg().includes('llanta') && llamadas[2].url.includes('DATESTR({Fecha_Evento})'), 'telegram: /hoy del líder muestra sus eventos de hoy');
+
+  reset();
+  respuestas = [{ records: [LIDER] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/pedidos') }, res);
+  ok(respuestaTg().includes('solo para Diana y Víctor') && llamadas.length === 1, 'telegram: /pedidos negado a quien no es Admin');
+
+  reset();
+  respuestas = [{ records: [ADMIN] }, { records: [{ fields: { Folio_Evento: 'EVT-7', Fecha_Evento: '2026-12-01', Servicios_Solicitados: 'Paquete XV', Monto_Estimado_IA: 6000 } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/pedidos') }, res);
+  ok(respuestaTg().includes('EVT-7') && respuestaTg().includes('$6,000'), 'telegram: /pedidos del Admin lista los pendientes con estimado');
+
+  reset();
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/entrar Juan 123456', -100, 'group') }, res);
+  ok(telegram.some(t => t.metodo === 'deleteMessage') && respuestaTg().includes('privado') && llamadas.length === 0, 'telegram: en grupo no vincula y borra el PIN');
+
+  reset();
+  respuestas = [
+    LIDER, eventoBrigada, {},
+    { records: [
+      { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+      { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } },
+    ] },
+  ];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: true, motivo: 'choque' } }, res);
+  const avisos = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && avisos.length === 1 && avisos[0].body.chat_id === '111' && avisos[0].body.text.includes('EMERGENCIA'), 'telegram: emergencia llega al equipo menos a quien reporta');
+
+  reset();
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{}] }, { records: [
+    { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+    { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } },
+  ] }];
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Rosa', telefono: '6679990000', negocio: 'El Vaso Maiz', fecha: '2026-12-20', servicios: 'Paquete 3' } }, res);
+  const avisosPedido = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && avisosPedido.length === 1 && avisosPedido[0].body.chat_id === '111' && avisosPedido[0].body.text.includes('Pedido nuevo'), 'telegram: pedido nuevo solo a los Admin');
 })();

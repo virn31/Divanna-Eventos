@@ -24,6 +24,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 - IA: **Claude API con el SDK oficial** `@anthropic-ai/sdk`, modelo `claude-sonnet-5-5` (esfuerzo `low`), en `api/dima-chat.js`. Herramientas con `strict: true` y `tool_choice: auto` (este modelo no acepta tool use forzado). Catálogo y precios en `api/_dima-catalogo.js`.
 - **Sin WhatsApp ni Twilio** desde 2026-10-27. Avisos al equipo por **correo** (`enviarCorreoEquipo`, destinatarios en `EMAILS_EQUIPO`) y dentro de la app.
 - Emergencias y alertas de seguridad: **Web Push** (`web-push`, llaves `VAPID_*`) con sonido y vibración aunque la app esté cerrada, más sonido/vibración con la app abierta (`brigadas/alertas.js`).
+- **Bot de Telegram interno** (solo equipo, no clientes): avisos y consultas según rol. Ver `docs/telegram.md`.
 - Sesión de la app: usuario + PIN contra COLABORADORES → token HMAC (`SESSION_SECRET`) en `Authorization: Bearer`. Ver `api/_sesion.js`.
 - Integraciones Google en `api/_google-integrations.js` (Calendar, Sheets, Gmail).
 - Cron semanal en `vercel.json` (balance, lunes).
@@ -39,6 +40,8 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `api/sesion.js` + `api/_sesion.js` | Login (usuario + PIN de 6 dígitos), token de 7 días y permisos por rol. Cada llamada revisa en Airtable que el colaborador siga `Activo`. |
 | `api/brigada-eventos.js` | GET eventos según el rol (líder/asistente: su brigada; encargada: los de `EVENTOS.Encargada`) + alertas de otras brigadas del día. |
 | `api/brigada-estatus.js` | POST carga, estatus logístico, retraso, emergencia, alerta de seguridad. El asistente solo carga y alertas. Emergencia/seguridad: push a todo el equipo + correo. |
+| `api/telegram.js` + `api/_telegram.js` | Webhook del bot del equipo (`/entrar usuario PIN`, `/hoy`, `/eventos`, `/alertas`, `/pedidos`, `/salir`) y envío de avisos. Vincula el chat en `COLABORADORES.Telegram_Chat_ID`. Valida `TELEGRAM_WEBHOOK_SECRET`. |
+| `api/_eventos.js` | Qué eventos ve cada rol y alertas del día; lo usan la app y el bot. |
 | `api/push.js` + `api/_push.js` | Suscripción del teléfono a las alertas (tabla PUSH_SUSCRIPCIONES `tblSyRGsMwcSnkcAR`) y envío. Solo a colaboradores activos, nunca a quien reporta. |
 | `api/brigada-checklist.js` | POST etapas del evento (líder, encargada, admin). |
 | `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. |
@@ -65,7 +68,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 
 1. Todo texto que viene de clientes (chat, formulario) se escapa antes de pintarlo con `innerHTML` (`esc()` en las apps, `escapar()` en la landing) o en correos (`escapeHtml`).
 2. Los campos de Airtable deben existir con el nombre exacto. Ya hubo un bug por `Monto_Cotizacion` (el real es `Monto_Estimado_IA`). Verifica el esquema antes de escribir un campo nuevo.
-3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 9 rutas en `api/`: dima-chat, pedido, sesion, push, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal (los archivos con `_` no cuentan).
+3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 10 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal (los archivos con `_` no cuentan).
 4. La PWA ya está instalada con scope `/brigadas/` y el APK apunta ahí. **No cambies el scope ni el `start_url`** sin plan de migración.
 5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v2`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.
@@ -87,5 +90,5 @@ Corregidos el 2026-10-27: endpoints de brigada sin validación, inyección en `f
 ## Pendientes de contexto
 
 - Variables de Vercel sin uso que se pueden borrar: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `DIANA_WHATSAPP_NUMBER`, `VICTOR_WHATSAPP_NUMBER`, `ENFORCE_TWILIO_SIGNATURE`, `DASHBOARD_ACCESS_CODES`. **`ANTHROPIC_API_KEY` sí se usa** (chat de DiMa).
-- Variables nuevas necesarias: `SESSION_SECRET`, `EMAILS_EQUIPO`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (las VAPID generadas están en la carpeta local `keys\vapid-dima.txt` de Víctor, nunca en el repo).
+- Variables nuevas necesarias: `SESSION_SECRET`, `EMAILS_EQUIPO`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (las VAPID generadas están en la carpeta local `keys\vapid-dima.txt` de Víctor, nunca en el repo), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`.
 - Ya nadie escribe en CONVERSACIONES (log de WhatsApp) ni en `BRIGADAS.Codigo_Acceso`. La conversación del chat queda en `EVENTOS.Notas`. El campo `Enviado_WhatsApp` de BALANCES queda histórico.
