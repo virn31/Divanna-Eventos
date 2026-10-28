@@ -2,7 +2,8 @@
 // Se ejecuta automáticamente cada lunes (via Vercel Cron, ver vercel.json)
 // y también se puede llamar manualmente para pruebas.
 // Calcula el balance de la semana que acaba de terminar (lunes a domingo)
-// y le manda el resumen a Diana (y a Víctor) por WhatsApp.
+// y le manda el resumen a Diana (y a Víctor) por correo. También queda en
+// BALANCES y se ve en el dashboard.
 //
 // NOTA IMPORTANTE sobre "Ingresos": no existe todavía una tabla de ingresos
 // reales cobrados, así que usamos como aproximación la suma de
@@ -10,6 +11,10 @@
 // cuya Fecha_Evento cae dentro de la semana -- esto es el monto CONTRATADO,
 // no necesariamente lo que ya se cobró en efectivo. Se le avisa a Diana que
 // es un estimado, no una cifra contable exacta.
+
+const { enviarCorreoEquipo } = require('./_google-integrations');
+const { enviarTelegramEquipo } = require('./_telegram');
+const { ROLES } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -37,64 +42,6 @@ async function airtablePost(tableId, fields) {
   });
   if (!res.ok) throw new Error(`Airtable POST error ${res.status}: ${await res.text()}`);
   return res.json();
-}
-
-async function enviarWhatsApp(numeroDestino, mensaje) {
-  if (!numeroDestino) {
-    console.error('enviarWhatsApp: no se recibió numeroDestino (revisa DIANA_WHATSAPP_NUMBER / VICTOR_WHATSAPP_NUMBER en Vercel)');
-    return;
-  }
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  if (!sid || !token || !from) {
-    console.error('Faltan variables de entorno de Twilio para enviar el balance');
-    return;
-  }
-  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
-  const body = new URLSearchParams({ From: from, To: to, Body: mensaje });
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  if (!res.ok) console.error('Error enviando balance por WhatsApp:', await res.text());
-}
-
-// Plantilla aprobada de WhatsApp "balance_semanal", necesaria porque el cron
-// corre solo, sin que nadie le haya escrito antes a DiMa (mensaje iniciado
-// por el negocio, requiere plantilla aprobada -- ver error 63016).
-async function enviarWhatsAppTemplate(numeroDestino, contentSid, variables) {
-  if (!numeroDestino) {
-    console.error('enviarWhatsAppTemplate: no se recibió numeroDestino');
-    return;
-  }
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  if (!sid || !token || !from) {
-    console.error('Faltan variables de entorno de Twilio para enviar la plantilla del balance');
-    return;
-  }
-  const to = numeroDestino.startsWith('whatsapp:') ? numeroDestino : `whatsapp:${numeroDestino}`;
-  const body = new URLSearchParams({
-    From: from,
-    To: to,
-    ContentSid: contentSid,
-    ContentVariables: JSON.stringify(variables),
-  });
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  if (!res.ok) console.error('Error enviando plantilla del balance:', await res.text());
 }
 
 // Devuelve el lunes y domingo de la semana que ACABA de terminar
@@ -180,34 +127,24 @@ module.exports = async (req, res) => {
       `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
       `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS. ¡Que tengas excelente semana! 💜`;
 
+    const [correoEnviado] = await Promise.all([
+      enviarCorreoEquipo({ asunto: `📊 Balance semanal ${inicio} a ${fin}`, texto: detalleCompleto }),
+      enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto: detalleCompleto }),
+    ]);
+
+    // Enviado_WhatsApp queda en false: el campo es histórico de cuando el
+    // balance salía por WhatsApp. Detalle_Enviado indica si llegó el correo.
     await airtablePost(TABLES.BALANCES, {
       Nombre_Periodo: `Semana ${inicio} a ${fin}`,
       Fecha_Inicio: inicio,
       Fecha_Fin: fin,
       Ingresos_Totales: ingresosTotales,
       Gastos_Totales: gastosTotales,
-      Enviado_WhatsApp: true,
       Detalle_Completo: detalleCompleto,
-      Detalle_Enviado: false,
+      Detalle_Enviado: correoEnviado,
     });
 
-    // Plantilla aprobada "balance_semanal": "Balance semanal ({{1}} a {{2}}):
-    // Ingresos ${{3}}, Gastos ${{4}}, Utilidad ${{5}}."
-    const CONTENT_SID_BALANCE = 'HXf97a1f85e6ff9cf1a20367d434c78b86';
-    const variables = {
-      '1': inicio,
-      '2': fin,
-      '3': ingresosTotales.toLocaleString('es-MX'),
-      '4': gastosTotales.toLocaleString('es-MX'),
-      '5': utilidad.toLocaleString('es-MX'),
-    };
-
-    await Promise.all([
-      enviarWhatsAppTemplate(process.env.DIANA_WHATSAPP_NUMBER, CONTENT_SID_BALANCE, variables),
-      enviarWhatsAppTemplate(process.env.VICTOR_WHATSAPP_NUMBER, CONTENT_SID_BALANCE, variables),
-    ]);
-
-    res.status(200).json({ success: true, inicio, fin, ingresosTotales, gastosTotales, utilidad });
+    res.status(200).json({ success: true, inicio, fin, ingresosTotales, gastosTotales, utilidad, correoEnviado });
   } catch (err) {
     console.error('Error en balance-semanal:', err.message);
     res.status(500).json({ error: 'Error interno generando el balance' });

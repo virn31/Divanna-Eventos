@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0c0b10">
-<title>DiMa Brigadas</title>
+<title>DiMa Equipo</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -66,6 +66,14 @@
   }
   .login-btn:active{transform:scale(0.98);}
   .login-btn:disabled{opacity:0.55;}
+  .code-input.usuario{text-transform:none; letter-spacing:0.02em;}
+  .code-input + .code-input{margin-top:12px;}
+  /* El asistente solo marca la carga y lanza alertas: se ocultan los controles del líder. */
+  body.rol-asistente .estatus-select,
+  body.rol-asistente .alert-btn.retraso,
+  body.rol-asistente .checklist,
+  body.rol-asistente .progress-bar{display:none;}
+  body.rol-asistente .alert-actions{grid-template-columns:1fr 1fr;}
   .login-error{
     color:#ff8a8a; font-size:0.88rem; margin-top:14px; text-align:center; min-height:18px;
   }
@@ -174,6 +182,23 @@
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
   }
 
+  /* ---------- ACTIVAR ALERTAS PUSH ---------- */
+  .alertas-banner{
+    margin:14px 18px 0; padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
+    background:rgba(240,185,58,0.12); border:1.5px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .alertas-banner[hidden]{display:none;}
+  .alertas-banner span{flex:1; min-width:180px;}
+  .alertas-banner button{border:none; border-radius:10px; padding:10px 14px; background:var(--maiz); color:var(--ink); font-weight:800; cursor:pointer;}
+
+  /* ---------- ALERTAS DE OTRAS BRIGADAS (antes llegaban por WhatsApp) ---------- */
+  .alerta-equipo{
+    margin-bottom:14px; padding:14px 16px; border-radius:14px;
+    border:1.5px solid #ff6b6b; background:rgba(255,107,107,0.1); font-size:0.88rem; line-height:1.45;
+  }
+  .alerta-equipo.seguridad{border-color:#ff9f4a; background:rgba(255,159,74,0.1);}
+  .alerta-equipo b{display:block; margin-bottom:2px;}
+
   /* ---------- CHECKLIST DE CARGA (por items de la cotización) ---------- */
   .carga-box{margin:14px 0; padding:14px 16px; background:var(--ink); border-radius:14px; border:1px solid var(--line);}
   .carga-title{font-size:0.82rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
@@ -225,13 +250,14 @@
 <div id="loginScreen">
   <div class="login-brand"><span class="dv">divanna</span>&nbsp;×&nbsp;<span class="vm">vaso maíz</span></div>
   <div class="login-card">
-    <h1>DiMa Brigadas</h1>
-    <p>Ingresa el código de tu brigada para ver tus eventos asignados y marcar tu checklist del día.</p>
-    <input type="text" id="codeInput" class="code-input" placeholder="EDEN2026" autocomplete="off" autocapitalize="characters" maxlength="20">
+    <h1>DiMa Equipo</h1>
+    <p>Entra con tu usuario y tu PIN para ver tus eventos y lo que te toca hoy.</p>
+    <input type="text" id="usuarioInput" class="code-input usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30">
+    <input type="password" id="pinInput" class="code-input" placeholder="PIN de 6 dígitos" autocomplete="current-password" inputmode="numeric" pattern="[0-9]*" maxlength="6">
     <button id="loginBtn" class="login-btn">Entrar</button>
     <div id="loginError" class="login-error"></div>
   </div>
-  <div class="login-hint">¿No tienes tu código? Pídeselo a Diana o a Víctor.</div>
+  <div class="login-hint">¿No tienes usuario o PIN? Pídeselo a Diana o a Víctor.</div>
 </div>
 
 <!-- ---------- APP ---------- -->
@@ -245,6 +271,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
   </header>
+  <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main id="mainContent">
     <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
   </main>
@@ -254,22 +281,44 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="alertas.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const STORAGE_KEY = 'dima_brigada_codigo';
+  // Sesión compartida con dashboard.html (mismo origen): { token, nombre, rol }.
+  const SESION_KEY = 'dima_sesion';
 
   const loginScreen = $('loginScreen');
   const appScreen = $('appScreen');
-  const codeInput = $('codeInput');
+  const usuarioInput = $('usuarioInput');
+  const pinInput = $('pinInput');
   const loginBtn = $('loginBtn');
   const loginError = $('loginError');
   const mainContent = $('mainContent');
   const refreshBtn = $('refreshBtn');
   const toast = $('toast');
 
-  let currentBrigadaId = null;
-  let currentCodigo = null;
-  let currentBrigadaNombre = '';
+  function leerSesion(){
+    try { return JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); } catch(e){ return null; }
+  }
+  function guardarSesion(sesion){
+    try { localStorage.setItem(SESION_KEY, JSON.stringify(sesion)); } catch(e){}
+  }
+  let sesion = leerSesion();
+
+  // fetch con el token de sesión; si expiró, regresa al login.
+  async function api(url, opciones = {}){
+    const res = await fetch(url, {
+      ...opciones,
+      headers: { ...(opciones.headers || {}), Authorization: `Bearer ${sesion ? sesion.token : ''}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 401){
+      cerrarSesion(data.error || 'Tu sesión expiró, vuelve a entrar.');
+      throw new Error('sesion');
+    }
+    if(!res.ok) throw new Error(data.error || 'fail');
+    return data;
+  }
 
   const ESTATUS_LOGISTICO_OPCIONES = [
     'Preparando', 'Salió del almacén', 'En camino', 'Llegó al lugar',
@@ -293,13 +342,28 @@
     return negocio === 'El Vaso Maiz' ? 'badge-vasomaiz' : 'badge-divanna';
   }
 
-  function renderEventos(eventos){
+  // Ubicación, servicios y motivos pueden venir del formulario público: siempre escapar.
+  function esc(valor){
+    return String(valor == null ? '' : valor)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function renderAlertasEquipo(alertas){
+    return (alertas || []).map(a => a.emergencia
+      ? `<div class="alerta-equipo"><b>🆘 Emergencia de otra brigada · ${esc(a.folio)}</b>${esc(a.ubicacion)}${a.motivoEmergencia ? ' — ' + esc(a.motivoEmergencia) : ''}<br>Si estás cerca, comunícate con Diana o Víctor.</div>`
+      : `<div class="alerta-equipo seguridad"><b>⚠️ Alerta de seguridad · ${esc(a.folio)}</b>Zona: ${esc(a.zonaAlertaSeguridad)}. Eviten la zona si es posible.</div>`
+    ).join('');
+  }
+
+  function renderEventos(eventos, alertasEquipo){
+    const alertasHtml = renderAlertasEquipo(alertasEquipo);
     if(!eventos.length){
-      mainContent.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
+      mainContent.innerHTML = alertasHtml + `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
       return;
     }
 
-    let html = '';
+    let html = alertasHtml;
     let lastFecha = null;
     eventos.forEach(ev => {
       const fechaLabel = formatFecha(ev.fecha);
@@ -320,16 +384,16 @@
         <div class="event-card" data-id="${ev.id}">
           <div class="event-top">
             <div>
-              <span class="event-badge ${badgeClass(ev.negocio)}">${ev.negocio || 'Sin clasificar'}</span>
-              <h3>${ev.ubicacion || 'Ubicación por confirmar'}</h3>
-              <div class="event-folio">${ev.folio}</div>
+              <span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span>
+              <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')}</h3>
+              <div class="event-folio">${esc(ev.folio)}</div>
             </div>
           </div>
           <div class="event-meta">
             <span>👥 ${ev.invitados ? ev.invitados + ' invitados' : 'Invitados por confirmar'}</span>
-            <span>📍 ${ev.estado}</span>
+            <span>📍 ${esc(ev.estado)}</span>
           </div>
-          ${ev.servicios ? `<div class="event-services">${ev.servicios}</div>` : ''}
+          ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
 
           ${ev.checklistItems && ev.checklistItems.length ? `
             <div class="carga-box">
@@ -337,7 +401,7 @@
               ${ev.checklistItems.map((item, i) => `
                 <div class="carga-item ${item.marcado ? 'marcado' : ''}" data-evento="${ev.id}" data-idx="${i}">
                   <span class="box">${item.marcado ? '✓' : ''}</span>
-                  <span class="texto">${item.texto}</span>
+                  <span class="texto">${esc(item.texto)}</span>
                 </div>
               `).join('')}
               ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">⚠️ Falta marcar todo para poder salir del almacén</div>` : ''}
@@ -356,9 +420,9 @@
             <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
             <div class="alert-btn seguridad" data-evento="${ev.id}" data-accion="alerta_seguridad">⚠️ Seguridad</div>
           </div>
-          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">🚦 Retraso: ${ev.motivoRetraso}</div>` : ''}
-          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${ev.motivoEmergencia}</div>` : ''}
-          ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${ev.zonaAlertaSeguridad}</div>` : ''}
+          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
+          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
+          ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
 
           <div class="checklist" style="margin-top:14px;">
             ${stages.map(s => `
@@ -391,15 +455,12 @@
     });
   }
 
-  async function enviarEstatus(payload){
-    const res = await fetch('/api/brigada-estatus', {
+  function enviarEstatus(payload){
+    return api('/api/brigada-estatus', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'fail');
-    return data;
   }
 
   async function toggleCargaItem(item){
@@ -407,8 +468,8 @@
     const idx = item.dataset.idx;
     const yaMarcado = item.classList.contains('marcado');
     try {
-      await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar', brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
-      loadEventos(currentCodigo);
+      await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar' });
+      loadEventos();
     } catch(e){
       showToast('No se pudo actualizar, intenta de nuevo');
     }
@@ -418,7 +479,7 @@
     const eventoId = sel.dataset.evento;
     const valorAnterior = sel.dataset.valorAnterior || sel.value;
     try {
-      await enviarEstatus({ eventoId, tipo: 'estatus_logistico', valor: sel.value, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+      await enviarEstatus({ eventoId, tipo: 'estatus_logistico', valor: sel.value });
       sel.dataset.valorAnterior = sel.value;
       showToast(`Estatus actualizado: ${sel.value}`);
     } catch(e){
@@ -439,22 +500,24 @@
         if(!motivo){ return; }
       }
       try {
-        await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo });
         btn.classList.toggle('active', activando);
-        showToast(accion === 'emergencia' && activando ? '🆘 Alerta enviada a Diana, Víctor y brigadas activas' : 'Actualizado');
-        loadEventos(currentCodigo);
+        showToast(accion === 'emergencia' && activando ? '🆘 Alerta enviada a Diana y Víctor' : 'Actualizado');
+        loadEventos();
       } catch(e){
         showToast('No se pudo enviar, intenta de nuevo');
       }
     }
 
     if(accion === 'alerta_seguridad'){
-      const zona = prompt('¿En qué zona o calle? (se notificará a todo el equipo y al cliente)') || '';
+      const zona = prompt('¿En qué zona o calle? (se notificará a todo el equipo)') || '';
       if(!zona) return;
       try {
-        await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: true, motivo: zona, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        const data = await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: true, motivo: zona });
         showToast('⚠️ Alerta de seguridad enviada a todo el equipo');
-        loadEventos(currentCodigo);
+        // Ya no hay mensaje automático al cliente: la brigada se lo dice por teléfono.
+        if(data && data.mensajeCliente) alert('Avísale al cliente por teléfono:\n\n' + data.mensajeCliente);
+        loadEventos();
       } catch(e){
         showToast('No se pudo enviar, intenta de nuevo');
       }
@@ -470,12 +533,11 @@
     item.querySelector('.box').textContent = nuevoValor ? '✓' : '';
 
     try {
-      const res = await fetch('/api/brigada-checklist', {
+      await api('/api/brigada-checklist', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ eventoId, etapa, valor: nuevoValor }),
       });
-      if(!res.ok) throw new Error('fail');
       showToast(nuevoValor ? `${etapa} marcado ✓` : `${etapa} desmarcado`);
       recalcProgress(item.closest('.event-card'));
     } catch(e){
@@ -493,59 +555,129 @@
     card.querySelector('.progress-fill').style.width = pct + '%';
   }
 
-  async function loadEventos(codigo){
-    mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
+  const ROL_TEXTO = {
+    'Lider de brigada': 'Líder de brigada',
+    'Asistente': 'Asistente',
+    'Encargada de evento': 'Encargada de evento',
+  };
+
+  function mostrarApp(){
+    loginScreen.style.display = 'none';
+    appScreen.style.display = 'flex';
+  }
+
+  // Con la app abierta revisa cada 45 s si hay alertas nuevas (suena y vibra
+  // con DimaAlertas). Con la app cerrada, las alertas llegan por push.
+  let revisionTimer = null;
+  let ultimaFoto = null;
+  function iniciarRevision(){
+    DimaAlertas.iniciar({ contenedorBoton: $('alertasBanner'), token: () => sesion && sesion.token });
+    if(revisionTimer) clearInterval(revisionTimer);
+    revisionTimer = setInterval(() => {
+      if(sesion && document.visibilityState === 'visible') loadEventos(true);
+    }, 45000);
+  }
+
+  function clavesDeAlertas(data){
+    const claves = [];
+    (data.alertasEquipo || []).forEach(a => {
+      if(a.emergencia) claves.push(`${a.folio}|E|${a.motivoEmergencia}`);
+      if(a.zonaAlertaSeguridad) claves.push(`${a.folio}|S|${a.zonaAlertaSeguridad}`);
+    });
+    (data.eventos || []).forEach(ev => {
+      if(ev.emergencia) claves.push(`${ev.id}|E|${ev.motivoEmergencia}`);
+      if(ev.zonaAlertaSeguridad) claves.push(`${ev.id}|S|${ev.zonaAlertaSeguridad}`);
+    });
+    return claves;
+  }
+
+  function cerrarSesion(mensaje){
+    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    sesion = null;
+    if(revisionTimer) clearInterval(revisionTimer);
+    revisionTimer = null;
+    ultimaFoto = null;
+    DimaAlertas.reiniciar();
+    document.body.classList.remove('rol-asistente');
+    appScreen.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    pinInput.value = '';
+    loginError.textContent = mensaje || '';
+  }
+
+  // Diana y Víctor (Admin) usan el dashboard, en la misma app.
+  function irSegunRol(){
+    if(sesion.rol === 'Admin'){ location.replace('dashboard.html'); return false; }
+    document.body.classList.toggle('rol-asistente', sesion.rol === 'Asistente');
+    return true;
+  }
+
+  // silencioso: revisión automática, sin "Cargando…" y sin repintar si nada cambió.
+  async function loadEventos(silencioso){
+    if(!silencioso) mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
     try {
-      const res = await fetch(`/api/brigada-eventos?codigo=${encodeURIComponent(codigo)}`);
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.error || 'Error');
-
-      currentBrigadaId = data.brigada.id;
-      currentBrigadaNombre = data.brigada.nombre;
-      $('brigadaNombre').textContent = data.brigada.nombre;
-      $('brigadaDetalle').textContent = `${data.brigada.lider} · ${data.brigada.vehiculo}`;
-
-      renderEventos(data.eventos);
-      loginScreen.style.display = 'none';
-      appScreen.style.display = 'flex';
+      const data = await api('/api/brigada-eventos');
+      DimaAlertas.revisar(clavesDeAlertas(data));
+      const foto = JSON.stringify([data.eventos, data.alertasEquipo]);
+      if(silencioso && foto === ultimaFoto) return;
+      ultimaFoto = foto;
+      const rolTexto = ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol;
+      if(data.brigada){
+        $('brigadaNombre').textContent = data.brigada.nombre;
+        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · ' + data.brigada.vehiculo : ''}`;
+      } else {
+        $('brigadaNombre').textContent = data.colaborador.nombre;
+        $('brigadaDetalle').textContent = rolTexto;
+      }
+      renderEventos(data.eventos, data.alertasEquipo);
+      mostrarApp();
     } catch(e){
-      loginError.textContent = 'Código no válido. Verifica con Diana o Víctor.';
-      localStorage.removeItem(STORAGE_KEY);
+      if(e.message === 'sesion' || silencioso) return;
+      mainContent.innerHTML = `<div class="empty-state"><div class="big">📡</div>No se pudieron cargar tus eventos.<br>Revisa tu señal y toca actualizar.</div>`;
+      mostrarApp();
     }
   }
 
-  loginBtn.addEventListener('click', () => {
-    const codigo = codeInput.value.trim().toUpperCase();
-    if(!codigo){ loginError.textContent = 'Escribe tu código de brigada.'; return; }
+  loginBtn.addEventListener('click', async () => {
+    const usuario = usuarioInput.value.trim().toLowerCase();
+    const pin = pinInput.value.trim();
+    if(!usuario || !/^\d{6}$/.test(pin)){ loginError.textContent = 'Escribe tu usuario y tu PIN de 6 dígitos.'; return; }
     loginError.textContent = '';
     loginBtn.disabled = true;
-    localStorage.setItem(STORAGE_KEY, codigo);
-    currentCodigo = codigo;
-    loadEventos(codigo).finally(() => loginBtn.disabled = false);
+    try {
+      const res = await fetch('/api/sesion', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ usuario, pin }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'No se pudo entrar, intenta de nuevo.');
+      sesion = { token: data.token, nombre: data.colaborador.nombre, rol: data.colaborador.rol };
+      guardarSesion(sesion);
+      pinInput.value = '';
+      if(irSegunRol()){ iniciarRevision(); await loadEventos(); }
+    } catch(e){
+      loginError.textContent = e.message;
+    } finally {
+      loginBtn.disabled = false;
+    }
   });
 
-  codeInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+  pinInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+  usuarioInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pinInput.focus(); });
 
   refreshBtn.addEventListener('click', () => {
-    if(!currentCodigo) return;
+    if(!sesion) return;
     refreshBtn.classList.add('spinning');
-    loadEventos(currentCodigo).finally(() => refreshBtn.classList.remove('spinning'));
+    loadEventos().finally(() => refreshBtn.classList.remove('spinning'));
   });
 
-  $('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_KEY);
-    currentCodigo = null;
-    appScreen.style.display = 'none';
-    loginScreen.style.display = 'flex';
-    codeInput.value = '';
-  });
+  $('logoutBtn').addEventListener('click', () => cerrarSesion());
 
-  // Auto-login si ya hay código guardado
-  const savedCodigo = localStorage.getItem(STORAGE_KEY);
-  if(savedCodigo){
-    currentCodigo = savedCodigo;
-    codeInput.value = savedCodigo;
-    loadEventos(savedCodigo);
+  // Si ya hay sesión guardada, entra directo.
+  if(sesion && sesion.token && irSegunRol()){
+    iniciarRevision();
+    loadEventos();
   }
 
   // Registrar service worker para que la app sea instalable

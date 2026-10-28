@@ -1,7 +1,8 @@
 // api/_google-integrations.js
 // Integraciones de Google para DiMa OS: agenda automática en Calendar,
 // registro de cotizaciones confirmadas en Sheets, y envío opcional de
-// la cotización por correo al cliente (solo si dio su email).
+// la cotización por correo al cliente (solo si dio su email). También manda
+// los avisos internos (pedidos nuevos, emergencias, balance) a Diana y Víctor.
 //
 // Requiere estas variables de entorno en Vercel:
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL  -> dima-calendar-sheets@dima-os.iam.gserviceaccount.com
@@ -10,9 +11,29 @@
 //   GOOGLE_SHEET_ID               -> ID de la hoja de cálculo (de la URL)
 //   GMAIL_USER                    -> dima.divanna@gmail.com
 //   GMAIL_APP_PASSWORD            -> contraseña de aplicación de Gmail (16 caracteres)
+//   EMAILS_EQUIPO                 -> correos de Diana y Víctor separados por coma
+//                                    (si falta, los avisos llegan a GMAIL_USER)
 
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
+
+function crearTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+}
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function getAuth(scopes) {
   const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
@@ -103,13 +124,7 @@ async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEv
   if (!emailCliente) return false;
 
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
+    const transporter = crearTransporter();
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
@@ -117,9 +132,9 @@ async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEv
         <p><strong>Folio:</strong> ${folio}</p>
         <p><strong>Negocio:</strong> ${negocio}</p>
         <p><strong>Fecha del evento:</strong> ${fechaEvento || 'por confirmar'}</p>
-        <p><strong>Ubicación:</strong> ${ubicacion || 'por confirmar'}</p>
-        <p><strong>Invitados:</strong> ${invitados || 'por confirmar'}</p>
-        <p><strong>Servicios:</strong> ${servicios || 'por confirmar'}</p>
+        <p><strong>Ubicación:</strong> ${escapeHtml(ubicacion || 'por confirmar')}</p>
+        <p><strong>Invitados:</strong> ${escapeHtml(invitados || 'por confirmar')}</p>
+        <p><strong>Servicios:</strong> ${escapeHtml(servicios || 'por confirmar')}</p>
         <p><strong>Monto total:</strong> $${monto || 'por confirmar'}</p>
         <p style="color:#777; font-size:0.9em;">Este es un costo aproximado y se ajustaría cuando se revise detalladamente.</p>
         <hr style="border:none;border-top:1px solid #eee; margin:20px 0;">
@@ -144,8 +159,36 @@ async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEv
   }
 }
 
+// ---------- AVISOS INTERNOS AL EQUIPO (Diana y Víctor) ----------
+// Reemplaza los avisos que antes iban por WhatsApp. El texto se manda tal cual,
+// respetando saltos de línea; nunca se interpreta como HTML porque puede traer
+// datos escritos por clientes o brigadas.
+async function enviarCorreoEquipo({ asunto, texto }) {
+  const destinatarios = (process.env.EMAILS_EQUIPO || process.env.GMAIL_USER || '')
+    .split(',').map(e => e.trim()).filter(Boolean);
+  if (!destinatarios.length) {
+    console.error('enviarCorreoEquipo: no hay destinatarios (revisa EMAILS_EQUIPO / GMAIL_USER en Vercel)');
+    return false;
+  }
+
+  try {
+    await crearTransporter().sendMail({
+      from: `"DiMa OS" <${process.env.GMAIL_USER}>`,
+      to: destinatarios.join(', '),
+      subject: asunto,
+      text: texto,
+      html: `<div style="font-family: Arial, sans-serif; white-space: pre-wrap; max-width: 560px;">${escapeHtml(texto)}</div>`,
+    });
+    return true;
+  } catch (err) {
+    console.error('Error enviando aviso al equipo:', err.message);
+    return false;
+  }
+}
+
 module.exports = {
   crearEventoCalendar,
   agregarFilaCotizacion,
   enviarCotizacionPorCorreo,
+  enviarCorreoEquipo,
 };
