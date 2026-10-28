@@ -47,7 +47,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Cuadro "¿Ya tienes número de pedido?" en la landing (folio + teléfono) para agregar cosas o indicaciones; se guardan en el evento y avisan a Diana. Folio firmado para que nadie toque pedidos ajenos.
 - DiMa pregunta en foráneos si el cliente espera en el chat o prefiere mensaje/llamada (`Preferencia_Contacto`).
 - Diana deja "Mensaje para el cliente" en el dashboard; DiMa lo entrega en el chat (en vivo cada 30 s o cuando el cliente regresa con su folio). Campos `Preferencia_Contacto`, `Mensaje_Para_Cliente`, `Mensaje_Cliente_Entregado`.
-- 84 pruebas pasan.
+- Con el cliente DiMa ya no menciona a Diana: dice "el equipo de logística" o "la gerencia".
+- 87 pruebas pasan.
+- **Pendiente de Víctor:** tarifa de traslado por km (precio, ida/vuelta, mínimo, desde dónde se mide, distancias a lugares comunes) para que DiMa dé un aproximado. DiMa NO tiene hoy ningún precio por km.
 - Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**

@@ -740,7 +740,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if(data.mensaje){
-          const texto = `📩 Diana ya revisó tu pedido ${chat.folio}:\n${data.mensaje}`;
+          const texto = `📩 El equipo ya revisó tu pedido ${chat.folio}:\n${data.mensaje}`;
           chat.historial.push({ rol: 'dima', texto });
           guardarChat();
           agregarBurbuja('dima', formatear(texto));

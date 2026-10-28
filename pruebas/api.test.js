@@ -402,6 +402,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const ultimoAviso = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
   ok(ultimoAviso.content.includes('El traslado a San Pedro son $500') && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Mensaje_Cliente_Entregado === true), 'chat: el cliente que regresa con su folio recibe el mensaje pendiente de Diana');
 
+  // ---------- DiMa nunca menciona a Diana con el cliente ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Eva', telefono: '6675556677', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Fiesta', fecha: '2026-12-05', invitados: 40, ubicacion: 'Navolato', servicios: 'Paquete 1', monto_estimado: 1500, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'esperar_en_chat' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000012', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es en Navolato' }] });
+  const promptCompleto = llamadasClaude[0].system + JSON.stringify(llamadasClaude[0].messages) + JSON.stringify(llamadasClaude[0].tools);
+  ok(!/Diana/.test(res.body.texto), 'chat: el texto que ve el cliente al registrar no menciona a Diana');
+  ok((promptCompleto.match(/Diana/g) || []).length === 1 && promptCompleto.includes('nunca menciones a nadie del equipo por su nombre'), 'chat: lo único sobre Diana en el prompt es la regla de no nombrarla');
+  res = await chat({ historial: Array.from({ length: 41 }, (_, i) => ({ rol: i % 2 ? 'dima' : 'cliente', texto: 'x' })) });
+  ok(!/Diana/.test(res.body.texto), 'chat: la despedida por límite no menciona a Diana');
+
   // ---------- Cobertura e instrucciones ----------
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [

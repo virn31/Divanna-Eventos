@@ -52,8 +52,8 @@ function limiteDeEnvios(ip) {
 }
 
 const MENSAJE_LIMITE =
-  'Ya platicamos bastante y no quiero quitarte más tiempo. Si ya registramos tu pedido, Diana te contacta ' +
-  'para confirmarlo. Si todavía no, deja tus datos en el formulario de abajo y Diana te llama para terminar ' +
+  'Ya platicamos bastante y no quiero quitarte más tiempo. Si ya registramos tu pedido, nuestro equipo te contacta ' +
+  'para confirmarlo. Si todavía no, deja tus datos en el formulario de abajo y te llamamos para terminar ' +
   'tu cotización. ¡Gracias por la confianza!';
 
 const ID_FOTOS_VASOMAIZ = 'paquetes-vasomaiz';
@@ -78,7 +78,7 @@ const TOOLS = [
   },
   {
     name: 'registrar_pedido',
-    description: 'Registra el pedido para que Diana lo revise y confirme la cotización. Úsala solo cuando el cliente ya confirmó lo que quiere y ya te dio nombre, teléfono y fecha. Si ya registraste el pedido en esta conversación y el cliente pide cambios, vuelve a llamarla con los datos completos actualizados.',
+    description: 'Registra el pedido para que la gerencia lo revise y confirme la cotización. Úsala solo cuando el cliente ya confirmó lo que quiere y ya te dio nombre, teléfono y fecha. Si ya registraste el pedido en esta conversación y el cliente pide cambios, vuelve a llamarla con los datos completos actualizados.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -91,7 +91,7 @@ const TOOLS = [
         fecha: { type: 'string', description: 'Fecha del evento en formato YYYY-MM-DD.' },
         invitados: { type: ['integer', 'null'] },
         ubicacion: { type: 'string', description: 'Colonia, salón o dirección del evento.' },
-        servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). Diana usa estas líneas como checklist de carga.' },
+        servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). El equipo usa estas líneas como checklist de carga.' },
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
@@ -121,18 +121,19 @@ CÓMO HABLAS:
 - Cuando algo no lo manejan, no cierres la puerta: reconoce lo que sí ofrecen y explora con el cliente qué tiene en mente.
 - No repitas el desglose completo de un paquete que ya presentaste; refiérete a él ("el paquete que ya vimos").
 - Una idea por mensaje: no apiles repaso + anticipo + visita + venta cruzada en un solo mensaje.
+- NOMBRES: nunca menciones a nadie del equipo por su nombre (ni a Diana ni a ninguna otra persona). Para cobertura, traslado, disponibilidad y montaje di "el equipo de logística"; para precios, autorizaciones y confirmar la cotización di "la gerencia". Si el cliente pregunta con quién habla, eres DiMa, la asistente de Divanna Eventos y El Vaso Maíz.
 - Este chat no tiene archivos adjuntos: si el cliente quiere enseñarte una imagen de referencia, pídele que la describa o que la mande por Instagram (${LINK_INSTAGRAM_DIVANNA}).
 
 COBERTURA (revísala en cuanto sepas dónde es el evento):
 - El servicio normal es dentro de la ciudad de Culiacán. La cobertura máxima es un radio de 35 km desde Culiacán, y todo lo que está fuera de la ciudad se confirma caso por caso.
 - Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
-- Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: Diana revisa que el equipo pueda trasladarse ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
+- Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: el equipo de logística revisa que se pueda trasladar ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
 - Sigue armando la cotización normal. En el repaso final vuelve a mencionar, en una frase, que falta validar el traslado, y registra el pedido con fuera_de_ciudad = true.
 - En los foráneos, cuando pidas los datos de contacto pregúntale también: "Tu pedido es foráneo: ¿quieres esperar aquí la respuesta de la cotización, o prefieres que te contactemos por mensaje o por llamada?". Guarda su respuesta en preferencia_contacto (esperar_en_chat, mensaje o llamada). Si elige esperar, dile que puede dejar esta ventana abierta o regresar después con su número de pedido en "¿Ya tienes número de pedido?".
 
-MENSAJES DE DIANA: a veces el sistema te pasa un mensaje que Diana dejó para el cliente sobre su pedido (por ejemplo, la respuesta de un foráneo). Entrégaselo al inicio de tu respuesta, con sus palabras y sin cambiar montos, fechas ni condiciones, y después sigue la plática.
+MENSAJES DEL EQUIPO: a veces el sistema te pasa un mensaje que la gerencia o logística dejó para el cliente sobre su pedido (por ejemplo, la respuesta de un foráneo). Entrégaselo al inicio de tu respuesta, con sus palabras y sin cambiar montos, fechas ni condiciones, y después sigue la plática.
 - Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
-- Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y Diana revisa si se puede atender.
+- Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y el equipo de logística revisa si se puede atender.
 
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
@@ -144,10 +145,10 @@ FLUJO DE LA COTIZACIÓN:
    - Si pidió mobiliario o decoración, ofrece los snacks de El Vaso Maíz.
    Si dice que no, respétalo y sigue. Si dice que sí, súmalo a la misma cotización.
 4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
-5. Con eso llama a registrar_pedido. Después dile que Diana revisa la disponibilidad y confirma la cotización, y que lo contactan por teléfono para el anticipo y los datos de pago.
+5. Con eso llama a registrar_pedido. Después dile que el equipo revisa la disponibilidad y la gerencia confirma la cotización, y que lo contactan por teléfono para el anticipo y los datos de pago.
 - Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
-- Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que Diana confirma.
-- Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que Diana lo confirma al revisar el pedido.
+- Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
+- Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
 ${CATALOGO}`;
 }
@@ -251,14 +252,14 @@ async function registrarPedido(input, historial, folioPrevio) {
         (datos.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
         `Conversación:\n${transcripcion(historial)}`,
     });
-    return { texto: `Listo, le pasé tus cambios a Diana para el pedido ${folioPrevio}. Ella revisa si cambia la cotización y te confirma.`, folio: folioPrevio };
+    return { texto: `Listo, ya pasé tus cambios al equipo para el pedido ${folioPrevio}. La gerencia revisa si cambia la cotización y te confirma.`, folio: folioPrevio };
   }
 
   const { folio } = await crearPedido(datos, {
     origen: 'chat',
     notasExtra: `\nConversación con DiMa:\n${transcripcion(historial)}`,
   });
-  const aviso = datos.fueraDeCiudad ? ' Como es fuera de la ciudad, Diana te confirma la cobertura y el costo de traslado.' : '';
+  const aviso = datos.fueraDeCiudad ? ' Como es fuera de la ciudad, el equipo de logística te confirma la cobertura y el costo de traslado.' : '';
   return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${aviso}`, folio };
 }
 
@@ -330,7 +331,7 @@ module.exports = async (req, res) => {
       `${pedido.invitados ? ', ' + pedido.invitados + ' invitados' : ''}${pedido.fueraDeCiudad ? ', fuera de la ciudad' : ''}).\n` +
       `Lo que lleva:\n${pedido.servicios}\n` +
       (pedido.instrucciones ? `Indicaciones ya guardadas:\n${pedido.instrucciones}\n` : '') +
-      (pedido.autorizado ? 'Diana ya confirmó esta cotización: cualquier cambio lo vuelve a revisar ella.\n' : 'Diana todavía no confirma la cotización.\n') +
+      (pedido.autorizado ? 'La gerencia ya confirmó esta cotización: cualquier cambio lo vuelve a revisar.\n' : 'La gerencia todavía no confirma la cotización.\n') +
       'Lo que pida ahora son agregados o cambios a ESE pedido. No pidas otra vez sus datos de contacto. Cuando tengas claro el cambio, llama registrar_pedido con los datos completos ya actualizados (nombre y teléfono del pedido).'
     );
   }
@@ -340,20 +341,20 @@ module.exports = async (req, res) => {
     mensajeAEntregar = await mensajeDianaPendiente(folioPrevio).catch(() => null);
   }
   if (mensajeAEntregar) {
-    avisos.push(`Diana dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones:\n"${mensajeAEntregar.mensaje}"`);
+    avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
   }
 
   const lugar = lugarForaneoMencionado(historial);
   if (lugar) {
-    avisos.push(`El cliente mencionó "${lugar}", que es fuera de la ciudad de Culiacán. Si todavía no se lo explicaste, explícale en esta respuesta que los eventos foráneos se validan antes de confirmar (traslado del equipo ese día, distancia y costo de traslado) y que Diana se lo confirma. Registra con fuera_de_ciudad = true.`);
+    avisos.push(`El cliente mencionó "${lugar}", que es fuera de la ciudad de Culiacán. Si todavía no se lo explicaste, explícale en esta respuesta que los eventos foráneos se validan antes de confirmar (traslado del equipo ese día, distancia y costo de traslado) y que el equipo de logística se lo confirma. Registra con fuera_de_ciudad = true.`);
   }
 
   if (mensajesCliente >= AVISO_CIERRE) {
     const restantes = MAX_MENSAJES_CLIENTE - mensajesCliente;
     avisos.push(`La conversación ya va larga (quedan ${restantes} mensajes del cliente). Ve cerrando con amabilidad y sin prisas visibles: ` +
       (folioPrevio
-        ? 'el pedido ya está registrado; resuelve lo que falte en pocas palabras y despídete diciendo que Diana lo contacta.'
-        : 'haz un repaso breve de lo acordado, pide nombre y teléfono si faltan y registra el pedido; si aún tiene dudas, dile que Diana se las resuelve al confirmar.'));
+        ? 'el pedido ya está registrado; resuelve lo que falte en pocas palabras y despídete diciendo que el equipo lo contacta.'
+        : 'haz un repaso breve de lo acordado, pide nombre y teléfono si faltan y registra el pedido; si aún tiene dudas, dile que la gerencia se las resuelve al confirmar.'));
   }
 
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
@@ -395,7 +396,7 @@ module.exports = async (req, res) => {
         if (resultado.folio) {
           folioNuevo = resultado.folio;
           // En un cambio, registrarPedido ya explicó que Diana lo revisa.
-          if (!folioPrevio) partes.push(`Diana revisa la disponibilidad y te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
+          if (!folioPrevio) partes.push(`El equipo revisa la disponibilidad y la gerencia te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
         }
       }
     }
