@@ -17,6 +17,8 @@ const ROLES = {
   LIDER: 'Lider de brigada',
   ASISTENTE: 'Asistente',
   ENCARGADA: 'Encargada de evento',
+  // Chicas de El Vaso Maíz: solo usan Telegram (invitaciones de su coordinadora).
+  STAFF: 'Staff',
 };
 
 const DURACION_MS = 7 * 24 * 60 * 60 * 1000;

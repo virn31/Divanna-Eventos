@@ -36,15 +36,39 @@ async function telegramApi(metodo, cuerpo) {
   return { ok: res.ok && data.ok, status: res.status, data };
 }
 
+// Botones bajo el mensaje: lista de renglones de { texto, dato } (dato = callback_data, máx. 64 bytes).
+function teclado(botones) {
+  return { inline_keyboard: botones.map(fila => fila.map(b => ({ text: b.texto, callback_data: b.dato }))) };
+}
+
 // Texto plano (sin parse_mode) para no tener que escapar lo que escriben
-// clientes y brigadas.
-async function enviarTelegram(chatId, texto) {
+// clientes y brigadas. "botones" es opcional.
+async function enviarTelegram(chatId, texto, botones = null) {
   if (!telegramConfigurado()) return { ok: false, status: 0 };
   return telegramApi('sendMessage', {
     chat_id: chatId,
     text: String(texto).slice(0, LIMITE_TEXTO),
     disable_web_page_preview: true,
+    ...(botones ? { reply_markup: teclado(botones) } : {}),
   });
+}
+
+// Cambia el texto (y los botones) de un mensaje que ya mandó el bot.
+async function editarTelegram(chatId, mensajeId, texto, botones = null) {
+  if (!telegramConfigurado()) return { ok: false, status: 0 };
+  return telegramApi('editMessageText', {
+    chat_id: chatId,
+    message_id: mensajeId,
+    text: String(texto).slice(0, LIMITE_TEXTO),
+    disable_web_page_preview: true,
+    reply_markup: teclado(botones || []),
+  });
+}
+
+// Respuesta a un toque de botón (quita el relojito; "alerta" lo muestra como ventana).
+async function responderBoton(callbackId, texto = '', alerta = false) {
+  if (!telegramConfigurado()) return;
+  await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: String(texto).slice(0, 190), show_alert: alerta }).catch(() => {});
 }
 
 async function borrarMensaje(chatId, mensajeId) {
@@ -112,7 +136,10 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
 
 module.exports = {
   telegramConfigurado,
+  telegramApi,
   enviarTelegram,
+  editarTelegram,
+  responderBoton,
   borrarMensaje,
   colaboradorPorChat,
   guardarChat,

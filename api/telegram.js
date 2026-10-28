@@ -5,13 +5,18 @@
 //   /hoy      eventos de hoy           /eventos  próximos eventos
 //   /alertas  emergencias y seguridad  /pedidos  pedidos por cotizar (Admin)
 //   /salir    desvincular Telegram     /ayuda    lista de comandos
+//   /staff    coordinadora (o Admin): invitar a las chicas de El Vaso Maíz a un evento
+//   /configurar (Admin) activa los botones del bot y la lista de comandos
+// El staff (Rol "Staff") solo usa Telegram: recibe invitaciones con botones
+// "Sí puedo" / "No puedo" y ve sus eventos confirmados con /hoy y /eventos.
 //
 // Requiere en Vercel: TELEGRAM_BOT_TOKEN y TELEGRAM_WEBHOOK_SECRET (Telegram lo
 // manda en cada llamada; así nadie más puede hacerse pasar por Telegram).
 
 const { ROLES, iniciarSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy } = require('./_eventos');
-const { enviarTelegram, borrarMensaje, colaboradorPorChat, guardarChat } = require('./_telegram');
+const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat } = require('./_telegram');
+const { puedeCoordinar, menuEventos, menuEvento, invitar, responderInvitacion } = require('./_staff');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -22,7 +27,9 @@ const ROL_TEXTO = {
   [ROLES.LIDER]: 'Líder de brigada',
   [ROLES.ASISTENTE]: 'Asistente',
   [ROLES.ENCARGADA]: 'Encargada de evento',
+  [ROLES.STAFF]: 'Staff de El Vaso Maíz',
 };
+const URL_WEBHOOK = 'https://divanna-eventos.vercel.app/api/telegram';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function fechaCorta(iso) {
@@ -40,7 +47,15 @@ function lineaUbicacion(e) {
   return e.ubicacionAlerta ? `📍 https://maps.google.com/?q=${e.ubicacionAlerta}${e.ubicacionAlertaHora ? ' (' + horaCorta(e.ubicacionAlertaHora) + ')' : ''}` : null;
 }
 
-function textoEvento(ev) {
+function textoEvento(ev, rol) {
+  // El staff no ve pagos ni montos del cliente.
+  if (rol === ROLES.STAFF) {
+    return [
+      `📅 ${fechaCorta(ev.fecha)}${ev.horaInicio ? ' · ' + ev.horaInicio : ''} · ${ev.folio}`,
+      `📍 ${ev.ubicacion || 'Ubicación por confirmar'}`,
+      ev.instrucciones ? `📌 ${ev.instrucciones}` : null,
+    ].filter(Boolean).join('\n');
+  }
   const lineas = [
     `📅 ${fechaCorta(ev.fecha)} · ${ev.folio}${ev.negocio ? ' · ' + ev.negocio : ''}`,
     `📍 ${ev.ubicacion || 'Ubicación por confirmar'}`,
@@ -62,12 +77,18 @@ function ayuda(colaborador) {
       'Para vincular tu cuenta escribe:\n/entrar tuusuario tuPIN\n\n' +
       'Son los mismos datos de la app. Borro tu mensaje en cuanto lo leo para que tu PIN no quede en el chat.';
   }
+  if (colaborador.rol === ROLES.STAFF) {
+    return `${colaborador.nombre} (${ROL_TEXTO[ROLES.STAFF]})\n\n` +
+      '/hoy — tus eventos confirmados de hoy\n/eventos — tus próximos eventos confirmados\n/salir — desvincular este Telegram\n\n' +
+      'Aquí te llegan las invitaciones a eventos: contesta con los botones "Sí puedo" o "No puedo".';
+  }
   const comandos = [
     '/hoy — tus eventos de hoy',
     '/eventos — tus próximos eventos',
     '/alertas — emergencias y alertas de seguridad de hoy',
+    '/staff — invitar a tu staff de El Vaso Maíz a un evento',
   ];
-  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar');
+  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/configurar — activar botones y comandos del bot');
   comandos.push('/salir — desvincular este Telegram');
   return `${colaborador.nombre} (${ROL_TEXTO[colaborador.rol] || colaborador.rol})\n\n${comandos.join('\n')}\n\n` +
     `Aquí te llegan las emergencias${colaborador.rol === ROLES.ADMIN ? ', los pedidos nuevos y el balance semanal' : ''}.\n` +
@@ -80,7 +101,7 @@ async function listaEventos(colaborador, soloHoy) {
   if (!eventos.length) return soloHoy ? 'No tienes eventos hoy. 🙌' : 'No tienes eventos próximos.';
   const mostrados = eventos.slice(0, 10);
   const extra = eventos.length > mostrados.length ? `\n\n…y ${eventos.length - mostrados.length} más en la app.` : '';
-  return `${soloHoy ? 'Tus eventos de hoy' : 'Tus próximos eventos'}:\n\n${mostrados.map(textoEvento).join('\n\n')}${extra}`;
+  return `${soloHoy ? 'Tus eventos de hoy' : 'Tus próximos eventos'}:\n\n${mostrados.map(ev => textoEvento(ev, colaborador.rol)).join('\n\n')}${extra}`;
 }
 
 async function listaAlertas() {
@@ -132,6 +153,66 @@ async function entrar(chatId, mensaje, argumentos) {
   return `Listo, quedó vinculado tu Telegram. (Borré tu mensaje con el PIN.)\n\n${ayuda(sesion.colaborador)}`;
 }
 
+// Vuelve a registrar el webhook para recibir también los toques de botones
+// (callback_query) y actualiza la lista de comandos. Usa las mismas variables
+// de Vercel, así no hay que correr nada a mano.
+async function configurarBot() {
+  const webhook = await telegramApi('setWebhook', {
+    url: URL_WEBHOOK,
+    secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
+    allowed_updates: ['message', 'callback_query'],
+  });
+  const comandos = await telegramApi('setMyCommands', {
+    commands: [
+      { command: 'hoy', description: 'Tus eventos de hoy' },
+      { command: 'eventos', description: 'Tus próximos eventos' },
+      { command: 'staff', description: 'Invitar staff de El Vaso Maíz a un evento' },
+      { command: 'alertas', description: 'Emergencias y alertas de hoy' },
+      { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
+      { command: 'ayuda', description: 'Qué puedo hacer' },
+      { command: 'salir', description: 'Desvincular este Telegram' },
+    ],
+  });
+  return webhook.ok && comandos.ok
+    ? '✅ Listo: el bot ya acepta botones y tiene la lista de comandos actualizada (incluye /staff).'
+    : `⚠️ No se pudo configurar todo (webhook: ${webhook.ok ? 'ok' : webhook.status}, comandos: ${comandos.ok ? 'ok' : comandos.status}).`;
+}
+
+// Toques de botones: menú de /staff (st:...) y respuestas a invitaciones (inv:...).
+async function atenderBoton(cb) {
+  const chatId = cb.message && cb.message.chat && cb.message.chat.id;
+  const mensajeId = cb.message && cb.message.message_id;
+  const dato = String(cb.data || '');
+  if (!chatId) return responderBoton(cb.id);
+
+  const colaborador = await colaboradorPorChat(chatId);
+  if (!colaborador) return responderBoton(cb.id, 'Primero vincula tu Telegram con /entrar.', true);
+
+  const [tipo, accion, id, sel] = dato.split(':');
+  if (tipo === 'inv' && (accion === 's' || accion === 'n')) {
+    const r = await responderInvitacion(colaborador, id, accion === 's');
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    return;
+  }
+
+  if (tipo === 'st') {
+    if (!(await puedeCoordinar(colaborador))) return responderBoton(cb.id, 'Esta opción es para quien coordina staff.', true);
+    if (accion === 'x') {
+      const avisos = { c: 'Ya confirmó.', i: 'Ya está invitada; esperando respuesta.', o: 'Ya confirmó otro evento a esa hora.', t: 'No ha vinculado su Telegram: pídele que entre a @dimaclnbot.' };
+      return responderBoton(cb.id, avisos[id] || '', true);
+    }
+    const menu = accion === 'l' ? await menuEventos()
+      : accion === 'e' ? await menuEvento(colaborador, id, sel)
+      : accion === 'i' ? await invitar(colaborador, id, sel)
+      : null;
+    await responderBoton(cb.id, accion === 'i' ? 'Invitaciones enviadas' : '');
+    if (menu) await editarTelegram(chatId, mensajeId, menu.texto, menu.botones);
+    return;
+  }
+  return responderBoton(cb.id);
+}
+
 async function responder(mensaje) {
   const chatId = mensaje.chat.id;
   const texto = String(mensaje.text || '').trim();
@@ -146,7 +227,12 @@ async function responder(mensaje) {
   switch (comando) {
     case '/hoy': return listaEventos(colaborador, true);
     case '/eventos': return listaEventos(colaborador, false);
-    case '/alertas': return listaAlertas();
+    case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
+    case '/staff':
+      return (await puedeCoordinar(colaborador)) ? menuEventos()
+        : 'Esta opción es para quien coordina staff de El Vaso Maíz. Pídele a Víctor que te asigne tus chicas (campo Coordinadora en COLABORADORES).';
+    case '/configurar':
+      return colaborador.rol === ROLES.ADMIN ? configurarBot() : 'Esa opción es solo para Diana y Víctor.';
     case '/pedidos':
       return colaborador.rol === ROLES.ADMIN ? listaPedidos() : 'Esa consulta es solo para Diana y Víctor.';
     case '/salir':
@@ -166,6 +252,20 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Toque de un botón (solo por chat privado).
+  const boton = (req.body || {}).callback_query;
+  if (boton) {
+    try {
+      if (boton.message && boton.message.chat && boton.message.chat.type === 'private') await atenderBoton(boton);
+      else await responderBoton(boton.id);
+    } catch (err) {
+      console.error('Error en botón de telegram:', err);
+      await responderBoton(boton.id, 'Tuve un problema. Intenta de nuevo en un momento.', true).catch(() => {});
+    }
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   const mensaje = (req.body || {}).message;
   // Siempre 200 a Telegram (si no, reintenta el mismo mensaje una y otra vez).
   if (!mensaje || !mensaje.chat || typeof mensaje.text !== 'string') { res.status(200).json({ ok: true }); return; }
@@ -178,7 +278,9 @@ module.exports = async (req, res) => {
         await enviarTelegram(mensaje.chat.id, 'Escríbeme por mensaje privado: aquí no puedo mostrar información del equipo.');
       }
     } else {
-      await enviarTelegram(mensaje.chat.id, await responder(mensaje));
+      const respuesta = await responder(mensaje);
+      if (respuesta && typeof respuesta === 'object') await enviarTelegram(mensaje.chat.id, respuesta.texto, respuesta.botones);
+      else await enviarTelegram(mensaje.chat.id, respuesta);
     }
   } catch (err) {
     console.error('Error en telegram:', err);

@@ -4,6 +4,7 @@
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { leerArticulos } = require('./_productos');
+const { eventosConfirmadosDe } = require('./_staff');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -75,6 +76,8 @@ function formatearEvento(r) {
 // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
 async function alcanceDe(colaborador) {
   if (colaborador.rol === ROLES.ADMIN) return { brigada: null, eventoIds: null };
+  // Staff de El Vaso Maíz: los eventos que confirmó por Telegram.
+  if (colaborador.rol === ROLES.STAFF) return { brigada: null, eventoIds: await eventosConfirmadosDe(colaborador.id) };
   if (colaborador.rol === ROLES.ENCARGADA) {
     const registro = await airtableGet(`${COLABORADORES_TABLE}/${colaborador.id}?returnFieldsByFieldId=true`);
     return { brigada: null, eventoIds: registro.fields[CAMPO_EVENTOS_DE_ENCARGADA] || [] };

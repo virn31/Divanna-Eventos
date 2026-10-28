@@ -37,7 +37,7 @@ no puede entrar). En PowerShell, en tu computadora:
 ```powershell
 $token = Read-Host "Token del bot"
 $secreto = Read-Host "TELEGRAM_WEBHOOK_SECRET"
-Invoke-RestMethod "https://api.telegram.org/bot$token/setWebhook" -Method Post -ContentType "application/json" -Body (@{ url = "https://divanna-eventos.vercel.app/api/telegram"; secret_token = $secreto; allowed_updates = @("message") } | ConvertTo-Json)
+Invoke-RestMethod "https://api.telegram.org/bot$token/setWebhook" -Method Post -ContentType "application/json" -Body (@{ url = "https://divanna-eventos.vercel.app/api/telegram"; secret_token = $secreto; allowed_updates = @("message", "callback_query") } | ConvertTo-Json)
 Invoke-RestMethod "https://api.telegram.org/bot$token/setMyCommands" -Method Post -ContentType "application/json" -Body (@{ commands = @(
   @{ command = "hoy"; description = "Tus eventos de hoy" },
   @{ command = "eventos"; description = "Tus próximos eventos" },
@@ -57,3 +57,29 @@ Las dos respuestas deben decir `ok : True`. Si cambias el token o el secreto, re
    lee, para que el PIN no quede en el chat.
 3. Listo. Para desvincular: `/salir`. Si alguien deja el equipo, basta con desmarcar `Activo` en
    COLABORADORES: deja de recibir avisos y el bot ya no le responde.
+
+## Staff de El Vaso Maíz (`/staff`)
+
+Las chicas de El Vaso Maíz no usan la app: todo les llega por Telegram.
+
+**Alta (una vez por persona, en Airtable > COLABORADORES):** Nombre, Usuario (minúsculas, sin
+espacios), PIN de 6 dígitos, **Rol = Staff**, **Coordinadora = Ángela** (o quien la dirija) y
+**Activo**. Luego ella abre @dimaclnbot y escribe `/entrar suusuario suPIN`.
+
+**La coordinadora** (también necesita su renglón en COLABORADORES, por ejemplo con Rol
+"Encargada de evento", y vincular su Telegram):
+
+1. Escribe `/staff`: aparecen los próximos eventos autorizados de El Vaso Maíz con cuántas
+   chicas van confirmadas de las que se necesitan.
+2. Toca un evento: aparecen sus chicas. ✅ confirmó · ⏳ invitada · ❌ no pudo · ⛔ ya tiene otro
+   evento a esa hora · 📵 no ha vinculado su Telegram.
+3. Toca los nombres que quiere (☑️) y luego **📨 Invitar**.
+4. A cada una le llega: "Hola Isabella 👋 Ángela te programó un evento: …" con los datos (sin
+   montos ni datos de pago) y los botones **✅ Sí puedo / ❌ No puedo**.
+5. Cada respuesta le llega a la coordinadora ("✅ Isabella confirmó EVT-… · 3 de 4"), y cuando
+   se completa: "🎉 Equipo completo". Diana lo ve en el dashboard en cada evento.
+
+Admin (Diana, Víctor) también puede usar `/staff` y ve a todas las chicas.
+
+**Activar los botones (una sola vez, después de publicar):** Diana o Víctor escriben
+`/configurar` en el bot. Responde "✅ Listo" cuando el webhook ya acepta los botones.

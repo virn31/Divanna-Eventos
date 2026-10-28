@@ -20,6 +20,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
+const { staffPorEvento } = require('./_staff');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -345,7 +346,9 @@ module.exports = async (req, res) => {
     // Semáforo en vivo: cada pedido y evento contra los demás eventos autorizados.
     const paraAgenda = eventosData.records.map(eventoParaAgenda);
     const porId = new Map(paraAgenda.map(e => [e.id, e]));
+    const staff = await staffPorEvento().catch(err => { console.error('No se pudo leer STAFF_EVENTO:', err.message); return {}; });
     [...eventos, ...pedidos].forEach(item => {
+      item.staff = staff[item.id] || [];
       item.porAsignar = porAsignar(item, inventario);
       const ev = porId.get(item.id);
       item.disponibilidad = ev ? evaluarDisponibilidad(ev, { otros: paraAgenda, inventario, personalPorFecha }) : null;

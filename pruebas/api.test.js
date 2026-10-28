@@ -685,6 +685,78 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const avisosPedido = telegram.filter(t => t.metodo === 'sendMessage');
   ok(res.code === 200 && avisosPedido.length === 1 && avisosPedido[0].body.chat_id === '111' && avisosPedido[0].body.text.includes('Pedido nuevo'), 'telegram: pedido nuevo solo a los Admin');
 
+  // ---------- Staff de El Vaso Maíz por Telegram (/staff) ----------
+  const ANGELA = { id: 'recCOLAB000000005', fields: { Nombre: 'Ángela', Rol: 'Encargada de evento', Activo: true, Telegram_Chat_ID: '777' } };
+  const ISA = { id: 'recCOLAB000000006', fields: { Nombre: 'Isabella', Rol: 'Staff', Activo: true, Coordinadora: [ANGELA.id], Telegram_Chat_ID: '888' } };
+  const KAR = { id: 'recCOLAB000000007', fields: { Nombre: 'Karla', Rol: 'Staff', Activo: true, Coordinadora: [ANGELA.id], Telegram_Chat_ID: '999' } };
+  const ZOE = { id: 'recCOLAB000000008', fields: { Nombre: 'Zoe', Rol: 'Staff', Activo: true, Coordinadora: ['recCOLABOTRA00001'], Telegram_Chat_ID: '444' } };
+  const EVVM = { id: 'recEVTVASO0000001', fields: { Folio_Evento: 'EVT-500001', Fecha_Evento: '2026-11-21', Hora_Inicio: '18:00', Horas_Servicio: 2, Ubicacion: 'Las Quintas', Piezas_Vaso_Maiz: 120, Personal_Requerido: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 3400 } };
+  const boton = (dato, chatId) => ({ callback_query: { id: 'cb1', data: dato, message: { message_id: 50, chat: { id: chatId, type: 'private' }, text: 'Invitación original' } } });
+  const enviados = (metodo) => telegram.filter(t => t.metodo === metodo);
+
+  reset();
+  respuestas = [{ records: [ISA] }];
+  res = resMock();
+  await sesionApi({ method: 'POST', body: { usuario: 'isabella', pin: '123456' } }, res);
+  ok(res.code === 403 && res.body.error.includes('Telegram') && !res.body.token, 'staff: no entra a la app, se le indica usar Telegram');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [ISA, KAR, ZOE] }, { records: [EVVM] }, { records: [] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/staff', 777) }, res);
+  const menu1 = enviados('sendMessage')[0];
+  ok(menu1 && menu1.body.reply_markup.inline_keyboard[0][0].callback_data === 'st:e:recEVTVASO0000001:0' && menu1.body.reply_markup.inline_keyboard[0][0].text.includes('EVT-500001'), 'staff: /staff muestra los eventos de El Vaso Maíz como botones');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [ISA, KAR, ZOE] }, EVVM, { records: [ISA, KAR, ZOE] }, { records: [] }, { records: [EVVM] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('st:e:recEVTVASO0000001:0', 777) }, res);
+  const menu2 = enviados('editMessageText')[0];
+  const botonesMenu2 = menu2 ? menu2.body.reply_markup.inline_keyboard.flat() : [];
+  ok(botonesMenu2.some(b => b.text === '⬜ Isabella' && b.callback_data === 'st:e:recEVTVASO0000001:1') && botonesMenu2.some(b => b.text === '⬜ Karla' && b.callback_data === 'st:e:recEVTVASO0000001:2') && !botonesMenu2.some(b => b.text.includes('Zoe')), 'staff: el evento muestra solo las chicas de Ángela, cada toque marca o desmarca');
+  ok(menu2.body.text.includes('Se necesitan 2 personas') && enviados('answerCallbackQuery').length === 1, 'staff: dice cuántas personas necesita el evento y responde el toque');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }, { records: [ISA, KAR, ZOE] }, EVVM, { records: [ISA, KAR, ZOE] }, { records: [] }, { records: [EVVM] },
+    { records: [{ id: 'recINVITA00000001' }] }, { records: [{ id: 'recINVITA00000002' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('st:i:recEVTVASO0000001:3', 777) }, res);
+  const invIsa = enviados('sendMessage').find(t => t.body.chat_id === '888');
+  const altaInv = llamadas.find(l => l.method === 'POST' && l.url.includes('tblvTVcC3NMt5ddjr'));
+  ok(invIsa && invIsa.body.text.startsWith('Hola Isabella 👋 Ángela te programó un evento') && invIsa.body.text.includes('EVT-500001') && invIsa.body.text.includes('salida 5:30 pm') && invIsa.body.text.includes('confírmame'), 'staff: a Isabella le llega la invitación con los datos del evento');
+  ok(!invIsa.body.text.includes('3400') && !invIsa.body.text.includes('3,400'), 'staff: la invitación no trae montos del cliente');
+  ok(invIsa.body.reply_markup.inline_keyboard[0].map(b => b.callback_data).join(',') === 'inv:s:recINVITA00000001,inv:n:recINVITA00000001', 'staff: la invitación trae botones Sí puedo / No puedo');
+  ok(altaInv && altaInv.body.records[0].fields.Estado === 'Invitada' && altaInv.body.records[0].fields.Colaborador[0] === ISA.id && enviados('sendMessage').some(t => t.body.chat_id === '999'), 'staff: se registran las invitaciones de Isabella y Karla');
+  ok(enviados('editMessageText')[0].body.text.includes('Invitaciones enviadas: Isabella, Karla'), 'staff: Ángela ve a quién se le envió');
+
+  const INV1 = { id: 'recINVITA00000001', fields: { Evento: [EVVM.id], Colaborador: [ISA.id], Invito: [ANGELA.id], Estado: 'Invitada', Fecha_Evento: '2026-11-21' } };
+  reset();
+  respuestas = [{ records: [ISA] }, INV1, EVVM, { records: [] }, { records: [EVVM] }, {}, ANGELA, { records: [{ ...INV1, fields: { ...INV1.fields, Estado: 'Confirmó' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('inv:s:recINVITA00000001', 888) }, res);
+  const confirma = llamadas.find(l => l.method === 'PATCH');
+  const avisoAngela = enviados('sendMessage').find(t => t.body.chat_id === '777');
+  ok(confirma && confirma.body.records[0].fields.Estado === 'Confirmó' && avisoAngela && avisoAngela.body.text.includes('✅ Isabella confirmó EVT-500001') && avisoAngela.body.text.includes('1 de 2'), 'staff: Isabella confirma y a Ángela le llega el aviso con cuántas van');
+  ok(enviados('editMessageText')[0].body.chat_id === 888 && enviados('editMessageText')[0].body.text.includes('Confirmaste'), 'staff: el mensaje de Isabella cambia a "Confirmaste" y se quitan los botones');
+
+  reset();
+  respuestas = [{ records: [KAR] }, INV1];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('inv:s:recINVITA00000001', 999) }, res);
+  ok(enviados('answerCallbackQuery')[0].body.text.includes('no es tuya') && !llamadas.some(l => l.method === 'PATCH'), 'staff: nadie puede contestar una invitación ajena');
+
+  reset();
+  respuestas = [{ records: [{ ...ISA }] }, { records: [{ ...INV1, fields: { ...INV1.fields, Estado: 'Confirmó' } }] }, { records: [EVVM] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/eventos', 888) }, res);
+  ok(respuestaTg().includes('EVT-500001') && !respuestaTg().includes('💰'), 'staff: /eventos muestra sus eventos confirmados, sin pagos');
+
+  reset();
+  respuestas = [{ records: [LIDER] }, { records: [ISA, KAR] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/staff') }, res);
+  ok(respuestaTg().includes('para quien coordina staff'), 'staff: /staff negado a quien no coordina a nadie');
+
   // ---------- Ubicación en tiempo real de las alertas ----------
   const ubicLider = { lat: 24.7701234, lng: -107.6012345, precision: 15 };
   const conTelegram = [
