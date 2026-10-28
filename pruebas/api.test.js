@@ -682,4 +682,27 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
   ok(llamadasClaude[0].system.includes('PAQUETES PRIMERO') && llamadasClaude[0].system.includes('2 x paquete de 50 personas Antonella ($5,400) = $10,800'), 'precios: DiMa cotiza con paquetes completos antes que piezas sueltas');
   ok(llamadasClaude[0].system.includes('Más de 35 km NO se atiende') && !llamadasClaude[0].system.includes('caso por caso'), 'límite: DiMa tiene la regla de no atender a más de 35 km');
+
+  // ---------- Temporada alta de fin de año (18 dic - 1 ene, +70%, sin paquetes) ----------
+  const { enTemporadaAlta } = require(path.join(repo, 'api/_temporada.js'));
+  ok(!enTemporadaAlta('2026-12-17') && enTemporadaAlta('2026-12-18') && enTemporadaAlta('2027-01-01') && !enTemporadaAlta('2027-01-02'), 'temporada: del 18 de diciembre al 1 de enero');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Para esas fechas manejamos tarifa de temporada.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es para el 20 de diciembre' }] });
+  const avisoTemp = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(llamadasClaude[0].system.includes('TEMPORADA ALTA DE FIN DE AÑO') && llamadasClaude[0].system.includes('multiplica por 1.7') && avisoTemp.role === 'system' && avisoTemp.content.includes('+70%'), 'temporada: DiMa tiene la regla y recibe el recordatorio al oír "20 de diciembre"');
+  ok(llamadasClaude[0].system.includes('NO aplican en TEMPORADA ALTA'), 'temporada: el catálogo aclara que los paquetes no aplican en temporada alta');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es para el 10 de diciembre' }] });
+  ok(llamadasClaude[0].messages.every(m => m.role !== 'system'), 'temporada: el 10 de diciembre no dispara el recordatorio');
+
+  reset();
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000013', fields: {} }] }, { records: [{}] }];
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Sol', telefono: '6674445566', negocio: 'Divanna Eventos', fecha: '2026-12-24', enCiudad: 'si', servicios: 'Mesas para 50' } }, res);
+  const evTemp = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(res.code === 200 && evTemp.Notas.includes('Temporada alta') && correos[0].text.includes('TEMPORADA ALTA'), 'temporada: el pedido del 24 de diciembre llega marcado a Diana');
 })();

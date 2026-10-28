@@ -7,6 +7,7 @@
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
+const { enTemporadaAlta, textoTemporada } = require('./_temporada');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -106,6 +107,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     origen === 'chat' ? 'Pedido armado con DiMa en la página web.' : 'Pedido desde el formulario de la página web.',
     datos.tipoEvento ? `Tipo de evento: ${datos.tipoEvento}` : '',
     datos.negocio && !NEGOCIOS_VALIDOS.includes(datos.negocio) ? `Negocio solicitado: ${datos.negocio}` : '',
+    enTemporadaAlta(datos.fecha) ? `🎄 Temporada alta (${textoTemporada()}): sin paquetes regulares.` : '',
     notasExtra,
   ].filter(Boolean).join('\n');
 
@@ -133,7 +135,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
 
   // 3. Aviso a Diana y Víctor (correo + Telegram). Si fallan, el pedido ya
   // quedó guardado y aparece en el dashboard: no se le marca error al cliente.
-  const avisoFuera = (datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '') +
+  const avisoFuera = (enTemporadaAlta(datos.fecha) ? `🎄 TEMPORADA ALTA (${textoTemporada()}): sin paquetes regulares.\n` : '') +
+    (datos.fueraDeCiudad ? '⚠️ FUERA DE LA CIUDAD: revisar cobertura y costo de traslado.\n' : '') +
     (datos.preferenciaContacto ? `📞 Cómo quiere la respuesta: ${datos.preferenciaContacto}\n` : '');
   const avisoTelegram = enviarTelegramEquipo({
     roles: [ROLES.ADMIN],

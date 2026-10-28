@@ -17,6 +17,7 @@ const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } 
 const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
+const { enTemporadaAlta } = require('./_temporada');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -249,6 +250,7 @@ module.exports = async (req, res) => {
         preferenciaContacto: r.fields.Preferencia_Contacto || '',
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
+        temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
       };
     });
 
@@ -271,6 +273,7 @@ module.exports = async (req, res) => {
         preferenciaContacto: r.fields.Preferencia_Contacto || '',
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
+        temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
         notas: r.fields.Notas || '',
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',

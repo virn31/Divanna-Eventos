@@ -22,6 +22,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
+const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -152,6 +153,12 @@ MENSAJES DEL EQUIPO: a veces el sistema te pasa un mensaje que la gerencia o log
 - Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
 - Si el lugar está claramente lejos (por ejemplo Mazatlán, Los Mochis, Guamúchil o Guasave), dile de una vez que está fuera de nuestro límite de 35 km y que por ahora no damos servicio ahí.
 
+TEMPORADA ALTA DE FIN DE AÑO (${textoTemporada()}): cuenta la fecha del EVENTO, no la de hoy.
+- Si el evento cae en esas fechas, NO ofrezcas ni cotices los paquetes regulares (ni los de mesas por cantidad de personas, ni los de boda o XV, ni los paquetes de El Vaso Maíz). Cotiza por pieza con los precios del catálogo y súbeles ${Math.round(TEMPORADA_ALTA.aumento * 100)}% (multiplica por ${1 + TEMPORADA_ALTA.aumento}). En el estimado da el total ya con el aumento; no desgloses el porcentaje.
+- Explícalo con sutileza y sin disculparte de más: es la temporada de más demanda del año, el equipo trabaja a tope y la tarifa es de temporada. Ej.: "Para esas fechas manejamos tarifa de temporada, porque es cuando más eventos atendemos en el año; te lo armo con esa tarifa."
+- Si el cliente puede mover su evento antes del ${TEMPORADA_ALTA.desde.dia} de diciembre, puedes mencionar de pasada que fuera de temporada aplican los paquetes regulares.
+- Las promociones especiales de diciembre se agregarán aparte; si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.
+
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
 FLUJO DE LA COTIZACIÓN:
@@ -194,6 +201,13 @@ const LUGARES_FORANEOS = [
   'tacuichamona', 'sanalona', 'las tapias', 'cosala', 'cosalá', 'elota', 'badiraguato',
   'guamuchil', 'guamúchil', 'mocorito', 'guasave', 'los mochis', 'mazatlan', 'mazatlán', 'angostura', 'sindicatura',
 ];
+// ¿El cliente mencionó una fecha de temporada alta? (navidad, fin de año, del 18
+// de diciembre en adelante o el 1 de enero). Así DiMa no se olvida del aumento.
+const FECHAS_TEMPORADA = /\b(1[89]|2\d|3[01])\s+de\s+diciembre\b|navidad|nochebuena|noche\s*vieja|fin\s+de\s+a[ñn]o|a[ñn]o\s+nuevo|\b(1|1ro|1°|primero)\s+de\s+enero\b/i;
+function temporadaMencionada(historial) {
+  return historial.some(h => h.rol === 'cliente' && FECHAS_TEMPORADA.test(h.texto));
+}
+
 function lugarForaneoMencionado(historial) {
   const textoCliente = historial.filter(h => h.rol === 'cliente').map(h => h.texto.toLowerCase()).join(' ');
   return LUGARES_FORANEOS.find(l => new RegExp(`(^|[^a-záéíóúñ])${l}([^a-záéíóúñ]|$)`).test(textoCliente)) || null;
@@ -370,6 +384,10 @@ module.exports = async (req, res) => {
   }
   if (mensajeAEntregar) {
     avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
+  }
+
+  if (temporadaMencionada(historial)) {
+    avisos.push(`El cliente mencionó una fecha de temporada alta (${textoTemporada()}). Si el evento cae ahí: sin paquetes regulares, precios por pieza +${Math.round(TEMPORADA_ALTA.aumento * 100)}%, y explícalo con sutileza (temporada de más demanda).`);
   }
 
   const lugar = lugarForaneoMencionado(historial);

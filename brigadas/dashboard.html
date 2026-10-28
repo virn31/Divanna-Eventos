@@ -331,6 +331,7 @@
               ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
               ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
               ${ev.fueraDeCiudad ? `<span class="badge badge-fuera">🛣️ Fuera de la ciudad</span>` : ''}
+              ${ev.temporadaAlta ? `<span class="badge badge-fuera">🎄 Temporada alta</span>` : ''}
               ${ev.preferenciaContacto ? `<span class="badge badge-pref">📞 ${PREF_TEXTO[ev.preferenciaContacto] || esc(ev.preferenciaContacto)}</span>` : ''}
             </div>
           </div>
@@ -448,6 +449,7 @@
             ${p.ubicacion ? `<span>📍 ${esc(p.ubicacion)}</span>` : ''}
           </div>
           ${p.fueraDeCiudad ? `<div class="motivo aviso-fuera">🛣️ Fuera de la ciudad: confirma cobertura y suma el costo de traslado al monto.</div>` : ''}
+          ${p.temporadaAlta ? `<div class="motivo aviso-fuera">🎄 Temporada alta: sin paquetes regulares; precios de temporada (+70%).</div>` : ''}
           ${p.preferenciaContacto ? `<div class="motivo">📞 ${PREF_TEXTO[p.preferenciaContacto] || esc(p.preferenciaContacto)}</div>` : ''}
           ${bloqueMensajeCliente(p)}
           ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}

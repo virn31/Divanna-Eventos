@@ -116,3 +116,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Contexto (prueba de Víctor):** para 100 personas con sillas Antonella, mantelería y cristalería DiMa sumó piezas sueltas ($5,700 de mesas/sillas + cristalería aparte) en lugar de usar el paquete de 50 personas Antonella ($5,400, que ya incluye mantel, plato, copa, servilletas, cubiertos y personalizados).
 **Decisión:** cuando lo pedido coincide con un paquete, DiMa cotiza con paquetes completos y los combina (50 + 20) para llegar a los invitados; solo suma piezas sueltas para lo que el paquete no trae. Ejemplo en el prompt: 100 personas Antonella = 2 x $5,400 = $10,800 + extras.
 **Abierto:** el catálogo dice que los paquetes son fijos "excepto diciembre"; falta que Víctor diga cómo se cotiza en diciembre.
+
+## 2026-10-28 — Temporada alta de fin de año
+
+**Decisión (Víctor):** una semana antes de Navidad y hasta entrando el año los precios suben 70% y no se manejan paquetes regulares; el aumento se justifica con sutileza por la demanda de trabajo.
+**Cómo quedó:** del 18 de diciembre al 1 de enero según la fecha del evento (`api/_temporada.js`); aplica a Divanna y a El Vaso Maíz. DiMa cotiza por pieza x 1.7 y lo explica como "tarifa de temporada". Recordatorio automático si el cliente menciona fechas de temporada; pedidos marcados en Notas, correo, Telegram y dashboard.
+**Por confirmar con Víctor:** si "entrando el año" termina el 1 de enero o se extiende; si El Vaso Maíz también sube. Las promociones de diciembre llegan en carpetas aparte.

@@ -51,8 +51,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Aproximado de traslado (`api/_traslado.js`): km desde la salida de Culiacán x $10 x 4 con rutas de OpenStreetMap; DiMa lo da solo si el cliente lo pide. **Pendiente de Víctor:** comparar con Google (San Pedro dio 4 km desde la salida, puede ser bajo).
 - Límite duro de 35 km desde la salida de Culiacán (chat, formulario y página); más lejos no se registra el pedido.
 - Precios: regla de "paquetes primero" (100 personas Antonella = 2 x $5,400 = $10,800 + extras).
-- **Pregunta abierta para Víctor:** el catálogo dice que los paquetes son fijos "excepto diciembre": ¿cómo cotiza DiMa en diciembre?
-- 99 pruebas pasan.
+- Temporada alta (18 dic - 1 ene, fecha del evento): +70%, sin paquetes regulares, explicado con sutileza. **Por confirmar:** fecha final (¿1 de enero o más?) y si El Vaso Maíz también sube.
+- **Mañana Víctor sube carpetas con las promociones de diciembre**: agregarlas a DiMa (como `referencias/`: fotos + textos y precios) y que DiMa las ofrezca en temporada.
+- 104 pruebas pasan.
 - Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**
