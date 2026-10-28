@@ -1,6 +1,8 @@
 // api/brigada-checklist.js
 // Actualiza una etapa del checklist (salida/llegada/montaje/recoleccion)
-// de un evento específico.
+// de un evento específico. Requiere sesión: líder, encargada del evento o admin.
+
+const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -13,18 +15,27 @@ const CHECKLIST_FIELD_MAP = {
 };
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
+    const colaborador = await requerirSesion(req, res, [ROLES.LIDER, ROLES.ENCARGADA, ROLES.ADMIN]);
+    if (!colaborador) return;
+
     const { eventoId, etapa, valor } = req.body || {};
     const campo = CHECKLIST_FIELD_MAP[etapa];
 
-    if (!eventoId || !campo || typeof valor !== 'boolean') {
+    if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !campo || typeof valor !== 'boolean') {
       res.status(400).json({ error: 'Parámetros inválidos' });
+      return;
+    }
+
+    const eventoRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${EVENTOS_TABLE}/${eventoId}`, {
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}` },
+    });
+    if (!eventoRes.ok) throw new Error(`Airtable error ${eventoRes.status}: ${await eventoRes.text()}`);
+    const evento = await eventoRes.json();
+    if (!puedeOperarEvento(colaborador, evento.fields)) {
+      res.status(403).json({ error: 'Este evento no está asignado a ti.' });
       return;
     }
 

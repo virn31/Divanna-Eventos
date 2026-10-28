@@ -4,14 +4,19 @@
 // En emergencias y alertas de seguridad avisa por correo a Diana y Víctor; las
 // demás brigadas activas la ven en su app -- DiMa nunca decide ni reasigna
 // sola, solo alerta.
+//
+// Requiere sesión. El asistente solo marca la carga y lanza alertas; el resto
+// de cambios son del líder, la encargada del evento o un admin.
 
 const { enviarCorreoEquipo } = require('./_google-integrations');
+const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
-  BRIGADAS: 'tblwqJrIaC1MsMGNL',
 };
+
+const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad'];
 
 const MENSAJE_ALERTA_SEGURIDAD_CLIENTE =
   'Hay una situación de inseguridad en la ciudad que nos está retrasando, ' +
@@ -46,22 +51,30 @@ async function notificarEquipo({ asunto, mensaje }) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    const { eventoId, tipo, valor, motivo, brigadaId, brigadaNombre } = req.body || {};
+    const colaborador = await requerirSesion(req, res, [ROLES.LIDER, ROLES.ASISTENTE, ROLES.ENCARGADA, ROLES.ADMIN]);
+    if (!colaborador) return;
 
-    if (!eventoId || !tipo) {
+    const { eventoId, tipo, valor, motivo } = req.body || {};
+
+    if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !tipo) {
       res.status(400).json({ error: 'Parámetros inválidos' });
+      return;
+    }
+    if (colaborador.rol === ROLES.ASISTENTE && !TIPOS_ASISTENTE.includes(tipo)) {
+      res.status(403).json({ error: 'Este cambio lo hace el líder de la brigada.' });
       return;
     }
 
     // Necesitamos folio/ubicación del evento para armar mensajes de alerta claros.
     const eventoData = await airtableGet(`${TABLES.EVENTOS}/${eventoId}`);
+    if (!puedeOperarEvento(colaborador, eventoData.fields)) {
+      res.status(403).json({ error: 'Este evento no está asignado a ti.' });
+      return;
+    }
+    const reporta = colaborador.nombre || 'sin identificar';
     const folio = eventoData.fields.Folio_Evento || eventoId;
     const ubicacion = eventoData.fields.Ubicacion || 'ubicación por confirmar';
 
@@ -132,7 +145,7 @@ module.exports = async (req, res) => {
           alertaAsunto = `🆘 EMERGENCIA - Evento ${folio}`;
           alertaMensaje =
             `🆘 EMERGENCIA - Evento ${folio} (${ubicacion})\n` +
-            `Brigada: ${brigadaNombre || 'sin identificar'}\n` +
+            `Reporta: ${reporta}\n` +
             `Motivo: ${motivo || 'sin especificar'}\n` +
             `Si estás cerca, por favor acude a ayudar. Coordinemos por teléfono.`;
         }
@@ -144,7 +157,7 @@ module.exports = async (req, res) => {
         if (valor) {
           alertaAsunto = `⚠️ Alerta de seguridad - Evento ${folio}`;
           alertaMensaje =
-            `⚠️ ALERTA DE SEGURIDAD - reportada por brigada ${brigadaNombre || ''}\n` +
+            `⚠️ ALERTA DE SEGURIDAD - reportada por ${reporta}\n` +
             `Zona: ${motivo || 'sin especificar'}\n` +
             `Evento afectado: ${folio} (${ubicacion})\n` +
             `Eviten la zona si es posible.`;

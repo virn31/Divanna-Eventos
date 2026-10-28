@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0c0b10">
-<title>DiMa Brigadas</title>
+<title>DiMa Equipo</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -66,6 +66,14 @@
   }
   .login-btn:active{transform:scale(0.98);}
   .login-btn:disabled{opacity:0.55;}
+  .code-input.usuario{text-transform:none; letter-spacing:0.02em;}
+  .code-input + .code-input{margin-top:12px;}
+  /* El asistente solo marca la carga y lanza alertas: se ocultan los controles del líder. */
+  body.rol-asistente .estatus-select,
+  body.rol-asistente .alert-btn.retraso,
+  body.rol-asistente .checklist,
+  body.rol-asistente .progress-bar{display:none;}
+  body.rol-asistente .alert-actions{grid-template-columns:1fr 1fr;}
   .login-error{
     color:#ff8a8a; font-size:0.88rem; margin-top:14px; text-align:center; min-height:18px;
   }
@@ -233,13 +241,14 @@
 <div id="loginScreen">
   <div class="login-brand"><span class="dv">divanna</span>&nbsp;×&nbsp;<span class="vm">vaso maíz</span></div>
   <div class="login-card">
-    <h1>DiMa Brigadas</h1>
-    <p>Ingresa el código de tu brigada para ver tus eventos asignados y marcar tu checklist del día.</p>
-    <input type="text" id="codeInput" class="code-input" placeholder="EDEN2026" autocomplete="off" autocapitalize="characters" maxlength="20">
+    <h1>DiMa Equipo</h1>
+    <p>Entra con tu usuario y tu PIN para ver tus eventos y lo que te toca hoy.</p>
+    <input type="text" id="usuarioInput" class="code-input usuario" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30">
+    <input type="password" id="pinInput" class="code-input" placeholder="PIN de 6 dígitos" autocomplete="current-password" inputmode="numeric" pattern="[0-9]*" maxlength="6">
     <button id="loginBtn" class="login-btn">Entrar</button>
     <div id="loginError" class="login-error"></div>
   </div>
-  <div class="login-hint">¿No tienes tu código? Pídeselo a Diana o a Víctor.</div>
+  <div class="login-hint">¿No tienes usuario o PIN? Pídeselo a Diana o a Víctor.</div>
 </div>
 
 <!-- ---------- APP ---------- -->
@@ -264,20 +273,41 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
-  const STORAGE_KEY = 'dima_brigada_codigo';
+  // Sesión compartida con dashboard.html (mismo origen): { token, nombre, rol }.
+  const SESION_KEY = 'dima_sesion';
 
   const loginScreen = $('loginScreen');
   const appScreen = $('appScreen');
-  const codeInput = $('codeInput');
+  const usuarioInput = $('usuarioInput');
+  const pinInput = $('pinInput');
   const loginBtn = $('loginBtn');
   const loginError = $('loginError');
   const mainContent = $('mainContent');
   const refreshBtn = $('refreshBtn');
   const toast = $('toast');
 
-  let currentBrigadaId = null;
-  let currentCodigo = null;
-  let currentBrigadaNombre = '';
+  function leerSesion(){
+    try { return JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); } catch(e){ return null; }
+  }
+  function guardarSesion(sesion){
+    try { localStorage.setItem(SESION_KEY, JSON.stringify(sesion)); } catch(e){}
+  }
+  let sesion = leerSesion();
+
+  // fetch con el token de sesión; si expiró, regresa al login.
+  async function api(url, opciones = {}){
+    const res = await fetch(url, {
+      ...opciones,
+      headers: { ...(opciones.headers || {}), Authorization: `Bearer ${sesion ? sesion.token : ''}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 401){
+      cerrarSesion(data.error || 'Tu sesión expiró, vuelve a entrar.');
+      throw new Error('sesion');
+    }
+    if(!res.ok) throw new Error(data.error || 'fail');
+    return data;
+  }
 
   const ESTATUS_LOGISTICO_OPCIONES = [
     'Preparando', 'Salió del almacén', 'En camino', 'Llegó al lugar',
@@ -414,15 +444,12 @@
     });
   }
 
-  async function enviarEstatus(payload){
-    const res = await fetch('/api/brigada-estatus', {
+  function enviarEstatus(payload){
+    return api('/api/brigada-estatus', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'fail');
-    return data;
   }
 
   async function toggleCargaItem(item){
@@ -430,8 +457,8 @@
     const idx = item.dataset.idx;
     const yaMarcado = item.classList.contains('marcado');
     try {
-      await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar', brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
-      loadEventos(currentCodigo);
+      await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar' });
+      loadEventos();
     } catch(e){
       showToast('No se pudo actualizar, intenta de nuevo');
     }
@@ -441,7 +468,7 @@
     const eventoId = sel.dataset.evento;
     const valorAnterior = sel.dataset.valorAnterior || sel.value;
     try {
-      await enviarEstatus({ eventoId, tipo: 'estatus_logistico', valor: sel.value, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+      await enviarEstatus({ eventoId, tipo: 'estatus_logistico', valor: sel.value });
       sel.dataset.valorAnterior = sel.value;
       showToast(`Estatus actualizado: ${sel.value}`);
     } catch(e){
@@ -462,10 +489,10 @@
         if(!motivo){ return; }
       }
       try {
-        await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo });
         btn.classList.toggle('active', activando);
         showToast(accion === 'emergencia' && activando ? '🆘 Alerta enviada a Diana y Víctor' : 'Actualizado');
-        loadEventos(currentCodigo);
+        loadEventos();
       } catch(e){
         showToast('No se pudo enviar, intenta de nuevo');
       }
@@ -475,11 +502,11 @@
       const zona = prompt('¿En qué zona o calle? (se notificará a todo el equipo)') || '';
       if(!zona) return;
       try {
-        const data = await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: true, motivo: zona, brigadaId: currentBrigadaId, brigadaNombre: currentBrigadaNombre });
+        const data = await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: true, motivo: zona });
         showToast('⚠️ Alerta de seguridad enviada a todo el equipo');
         // Ya no hay mensaje automático al cliente: la brigada se lo dice por teléfono.
         if(data && data.mensajeCliente) alert('Avísale al cliente por teléfono:\n\n' + data.mensajeCliente);
-        loadEventos(currentCodigo);
+        loadEventos();
       } catch(e){
         showToast('No se pudo enviar, intenta de nuevo');
       }
@@ -495,12 +522,11 @@
     item.querySelector('.box').textContent = nuevoValor ? '✓' : '';
 
     try {
-      const res = await fetch('/api/brigada-checklist', {
+      await api('/api/brigada-checklist', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ eventoId, etapa, valor: nuevoValor }),
       });
-      if(!res.ok) throw new Error('fail');
       showToast(nuevoValor ? `${etapa} marcado ✓` : `${etapa} desmarcado`);
       recalcProgress(item.closest('.event-card'));
     } catch(e){
@@ -518,59 +544,94 @@
     card.querySelector('.progress-fill').style.width = pct + '%';
   }
 
-  async function loadEventos(codigo){
+  const ROL_TEXTO = {
+    'Lider de brigada': 'Líder de brigada',
+    'Asistente': 'Asistente',
+    'Encargada de evento': 'Encargada de evento',
+  };
+
+  function mostrarApp(){
+    loginScreen.style.display = 'none';
+    appScreen.style.display = 'flex';
+  }
+
+  function cerrarSesion(mensaje){
+    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    sesion = null;
+    document.body.classList.remove('rol-asistente');
+    appScreen.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    pinInput.value = '';
+    loginError.textContent = mensaje || '';
+  }
+
+  // Diana y Víctor (Admin) usan el dashboard, en la misma app.
+  function irSegunRol(){
+    if(sesion.rol === 'Admin'){ location.replace('dashboard.html'); return false; }
+    document.body.classList.toggle('rol-asistente', sesion.rol === 'Asistente');
+    return true;
+  }
+
+  async function loadEventos(){
     mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
     try {
-      const res = await fetch(`/api/brigada-eventos?codigo=${encodeURIComponent(codigo)}`);
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.error || 'Error');
-
-      currentBrigadaId = data.brigada.id;
-      currentBrigadaNombre = data.brigada.nombre;
-      $('brigadaNombre').textContent = data.brigada.nombre;
-      $('brigadaDetalle').textContent = `${data.brigada.lider} · ${data.brigada.vehiculo}`;
-
+      const data = await api('/api/brigada-eventos');
+      const rolTexto = ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol;
+      if(data.brigada){
+        $('brigadaNombre').textContent = data.brigada.nombre;
+        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · ' + data.brigada.vehiculo : ''}`;
+      } else {
+        $('brigadaNombre').textContent = data.colaborador.nombre;
+        $('brigadaDetalle').textContent = rolTexto;
+      }
       renderEventos(data.eventos, data.alertasEquipo);
-      loginScreen.style.display = 'none';
-      appScreen.style.display = 'flex';
+      mostrarApp();
     } catch(e){
-      loginError.textContent = 'Código no válido. Verifica con Diana o Víctor.';
-      localStorage.removeItem(STORAGE_KEY);
+      if(e.message === 'sesion') return;
+      mainContent.innerHTML = `<div class="empty-state"><div class="big">📡</div>No se pudieron cargar tus eventos.<br>Revisa tu señal y toca actualizar.</div>`;
+      mostrarApp();
     }
   }
 
-  loginBtn.addEventListener('click', () => {
-    const codigo = codeInput.value.trim().toUpperCase();
-    if(!codigo){ loginError.textContent = 'Escribe tu código de brigada.'; return; }
+  loginBtn.addEventListener('click', async () => {
+    const usuario = usuarioInput.value.trim().toLowerCase();
+    const pin = pinInput.value.trim();
+    if(!usuario || !/^\d{6}$/.test(pin)){ loginError.textContent = 'Escribe tu usuario y tu PIN de 6 dígitos.'; return; }
     loginError.textContent = '';
     loginBtn.disabled = true;
-    localStorage.setItem(STORAGE_KEY, codigo);
-    currentCodigo = codigo;
-    loadEventos(codigo).finally(() => loginBtn.disabled = false);
+    try {
+      const res = await fetch('/api/sesion', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ usuario, pin }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'No se pudo entrar, intenta de nuevo.');
+      sesion = { token: data.token, nombre: data.colaborador.nombre, rol: data.colaborador.rol };
+      guardarSesion(sesion);
+      pinInput.value = '';
+      if(irSegunRol()) await loadEventos();
+    } catch(e){
+      loginError.textContent = e.message;
+    } finally {
+      loginBtn.disabled = false;
+    }
   });
 
-  codeInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+  pinInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
+  usuarioInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pinInput.focus(); });
 
   refreshBtn.addEventListener('click', () => {
-    if(!currentCodigo) return;
+    if(!sesion) return;
     refreshBtn.classList.add('spinning');
-    loadEventos(currentCodigo).finally(() => refreshBtn.classList.remove('spinning'));
+    loadEventos().finally(() => refreshBtn.classList.remove('spinning'));
   });
 
-  $('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_KEY);
-    currentCodigo = null;
-    appScreen.style.display = 'none';
-    loginScreen.style.display = 'flex';
-    codeInput.value = '';
-  });
+  $('logoutBtn').addEventListener('click', () => cerrarSesion());
 
-  // Auto-login si ya hay código guardado
-  const savedCodigo = localStorage.getItem(STORAGE_KEY);
-  if(savedCodigo){
-    currentCodigo = savedCodigo;
-    codeInput.value = savedCodigo;
-    loadEventos(savedCodigo);
+  // Si ya hay sesión guardada, entra directo.
+  if(sesion && sesion.token && irSegunRol()){
+    loadEventos();
   }
 
   // Registrar service worker para que la app sea instalable

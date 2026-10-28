@@ -49,3 +49,10 @@ Recomendación: (a), con una excepción: si solo hay una alerta pendiente no se 
 **Por qué:** el número propio de WhatsApp seguía atorado (Twilio error 22300, sandbox), la landing mandaba a los clientes al número personal de Diana, y las plantillas aprobadas complicaban cada aviso nuevo.
 **Se pierde:** el estimado automático con IA (Diana cotiza a mano), el aviso instantáneo al celular (el correo es menos inmediato; las brigadas solo ven alertas ajenas al abrir o refrescar la app, lo cubre Fase 3) y el mensaje automático al cliente en alertas de seguridad (la app se lo muestra a la brigada para que llame).
 **Descartado:** formulario + estimado con IA (se puede agregar después sin cambiar el flujo) y Web Push inmediato (más trabajo; queda en Fase 3).
+
+## 2026-10-27 — DiMa vuelve como chat en la landing; app con roles y PIN
+
+**Decisión:** el botón de la landing dice "Haz aquí tu cotización" y abre un chat con DiMa (`api/dima-chat.js`). DiMa platica, da un estimado con el catálogo y registra el pedido con `Monto_Estimado_IA`; Diana lo confirma en el dashboard (opción a). La app del equipo pide usuario + PIN (tabla COLABORADORES) y muestra la vista según el rol: Admin, Líder de brigada, Asistente y Encargada de evento (El Vaso Maíz, asignada por evento en `EVENTOS.Encargada`). Se distribuye como APK (TWA de la PWA), porque todo el equipo usa Android.
+**Por qué:** Víctor quiere la experiencia de DiMa sin depender de WhatsApp, y que cada colaborador vea solo lo que le corresponde. La sesión firmada cierra los hallazgos de seguridad de la Fase 0.
+**Detalles:** modelo `claude-opus-5-5` con esfuerzo bajo (chat corto) y respaldo automático ante rechazos; el historial vive en el navegador y se limita a 40 mensajes; los datos de pago ya no están en el prompt. Admin usa `dashboard.html` con la misma sesión. El formulario queda como respaldo si el chat falla.
+**Descartado:** app nativa (el APK de la PWA cubre Android y se actualiza solo con cada deploy); login solo con PIN (con usuario + PIN cuesta mucho más adivinar un acceso); guardar la conversación en el servidor (más costo y complejidad; se guarda en `Notas` al registrar el pedido).

@@ -1,13 +1,18 @@
 // api/brigada-eventos.js
-// Recibe un código de brigada, lo valida contra Airtable, y devuelve
-// sus eventos activos (no cerrados) ordenados por fecha, más las emergencias y
-// alertas de seguridad que otras brigadas reportaron hoy (antes llegaban por WhatsApp).
+// Devuelve los eventos activos (no cerrados) que el colaborador puede ver según
+// su rol -- los de su brigada (líder/asistente) o los que tiene asignados
+// (encargada de evento) -- más las emergencias y alertas de seguridad que
+// otras brigadas reportaron hoy. Requiere sesión (api/_sesion.js).
+
+const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
   BRIGADAS: 'tblwqJrIaC1MsMGNL',
   EVENTOS: 'tblzLAin65BZPP2c6',
 };
+// Vínculo inverso COLABORADORES -> EVENTOS (lado del campo EVENTOS.Encargada).
+const CAMPO_EVENTOS_DE_ENCARGADA = 'fld52PrtsNA4CnRw2';
 
 async function airtableGet(path) {
   const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${path}`, {
@@ -24,7 +29,7 @@ function hoyCuliacan() {
 }
 
 // Emergencias y alertas de seguridad activas hoy en eventos de OTRAS brigadas.
-// Si falla no bloquea la app: la brigada sigue viendo sus propios eventos.
+// Si falla no bloquea la app: el colaborador sigue viendo sus propios eventos.
 async function alertasEquipoDeHoy(eventoIdsPropios) {
   try {
     const formula = encodeURIComponent(
@@ -47,43 +52,41 @@ async function alertasEquipoDeHoy(eventoIdsPropios) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    const codigo = (req.query.codigo || '').trim().toUpperCase();
-    if (!codigo) { res.status(400).json({ error: 'Falta el código de brigada' }); return; }
+    const colaborador = await requerirSesion(req, res, [ROLES.LIDER, ROLES.ASISTENTE, ROLES.ENCARGADA, ROLES.ADMIN]);
+    if (!colaborador) return;
 
-    // 1. Validar el código contra BRIGADAS
-    const formula = encodeURIComponent(`{Codigo_Acceso} = "${codigo}"`);
-    const brigadaData = await airtableGet(`${TABLES.BRIGADAS}?filterByFormula=${formula}&maxRecords=1`);
-    const brigada = brigadaData.records[0];
-
-    if (!brigada) {
-      res.status(401).json({ error: 'Código no válido' });
-      return;
-    }
-
-    // 2. Buscar eventos asignados a esta brigada.
-    // Usamos el campo de vínculo directo (array de IDs) en vez de una fórmula
+    // 1. IDs de los eventos que le tocan.
+    // Se usa el campo de vínculo directo (array de IDs) en vez de una fórmula
     // ARRAYJOIN, porque Airtable resuelve ARRAYJOIN sobre un vínculo devolviendo
     // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
-    const eventoIds = brigada.fields.EVENTOS || [];
+    let brigada = null;
+    let eventoIds = [];
+    if (colaborador.rol === ROLES.ENCARGADA) {
+      const registro = await airtableGet(`${COLABORADORES_TABLE}/${colaborador.id}?returnFieldsByFieldId=true`);
+      eventoIds = registro.fields[CAMPO_EVENTOS_DE_ENCARGADA] || [];
+    } else if (colaborador.brigadaId) {
+      const b = await airtableGet(`${TABLES.BRIGADAS}/${colaborador.brigadaId}`);
+      brigada = {
+        id: b.id,
+        nombre: b.fields.Nombre_Brigada || '',
+        lider: b.fields.Lider || '',
+        vehiculo: b.fields.Vehiculo || '',
+      };
+      eventoIds = b.fields.EVENTOS || [];
+    }
+
+    const respuestaBase = {
+      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol },
+      brigada,
+    };
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
+
     if (eventoIds.length === 0) {
-      res.status(200).json({
-        brigada: {
-          id: brigada.id,
-          nombre: brigada.fields.Nombre_Brigada || '',
-          lider: brigada.fields.Lider || '',
-          vehiculo: brigada.fields.Vehiculo || '',
-        },
-        eventos: [],
-        alertasEquipo,
-      });
+      res.status(200).json({ ...respuestaBase, eventos: [], alertasEquipo });
       return;
     }
 
@@ -126,16 +129,7 @@ module.exports = async (req, res) => {
       };
     });
 
-    res.status(200).json({
-      brigada: {
-        id: brigada.id,
-        nombre: brigada.fields.Nombre_Brigada || '',
-        lider: brigada.fields.Lider || '',
-        vehiculo: brigada.fields.Vehiculo || '',
-      },
-      eventos,
-      alertasEquipo,
-    });
+    res.status(200).json({ ...respuestaBase, eventos, alertasEquipo });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

@@ -2,14 +2,14 @@
 // Vista general para Diana y Víctor: TODAS las brigadas, TODOS los eventos
 // activos del día (y próximos), con su estatus logístico, retrasos,
 // emergencias, alertas de seguridad, y estatus de pago -- todo en tiempo real.
-// Login separado del de brigadas: se valida contra DASHBOARD_ACCESS_CODES
-// (variable de entorno, lista separada por comas, ej. "DIANA2026,VICTOR2026").
+// Requiere sesión con rol Admin (api/_sesion.js).
 //
 // POST: Diana autoriza o rechaza la cotización de un pedido (antes respondía
 // SI / NO por WhatsApp). Al autorizar se genera el checklist de carga y se
 // agenda en Calendar, se registra en Sheets y se manda correo al cliente.
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
+const { ROLES, requerirSesion } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -38,12 +38,6 @@ async function airtablePatch(tableId, recordId, fields) {
   });
   if (!res.ok) throw new Error(`Airtable PATCH error ${res.status}: ${await res.text()}`);
   return res.json();
-}
-
-function codigoValido(codigoRecibido) {
-  const codigo = (codigoRecibido || '').trim().toUpperCase();
-  const codigosValidos = (process.env.DASHBOARD_ACCESS_CODES || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
-  return !!codigo && codigosValidos.includes(codigo);
 }
 
 // Datos de los clientes vinculados a los pedidos pendientes, en una sola consulta.
@@ -78,8 +72,7 @@ function itemsDeTexto(texto) {
 }
 
 async function resolverPedido(req, res) {
-  const { codigo, eventoId, accion, monto, items } = req.body || {};
-  if (!codigoValido(codigo)) { res.status(401).json({ error: 'Código no válido' }); return; }
+  const { eventoId, accion, monto, items } = req.body || {};
   if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
@@ -144,14 +137,11 @@ async function resolverPedido(req, res) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   if (req.method === 'POST') {
     try {
+      if (!(await requerirSesion(req, res, [ROLES.ADMIN]))) return;
       await resolverPedido(req, res);
     } catch (err) {
       console.error('Error resolviendo pedido:', err);
@@ -162,10 +152,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    if (!codigoValido(req.query.codigo)) {
-      res.status(401).json({ error: 'Código no válido' });
-      return;
-    }
+    if (!(await requerirSesion(req, res, [ROLES.ADMIN]))) return;
 
     // Traemos todas las brigadas (para el nombre/vehículo/líder de cada una)
     const brigadasData = await airtableGet(`${TABLES.BRIGADAS}`);
@@ -217,6 +204,7 @@ module.exports = async (req, res) => {
         ubicacion: r.fields.Ubicacion || '',
         invitados: r.fields.Invitados || null,
         servicios: r.fields.Servicios_Solicitados || '',
+        montoEstimado: r.fields.Monto_Estimado_IA || null,
         notas: r.fields.Notas || '',
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',

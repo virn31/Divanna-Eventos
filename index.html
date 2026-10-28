@@ -290,6 +290,46 @@
   .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:0.95rem;}
   .pf-msg.ok{color:var(--maiz-husk);}
   .pf-msg.error{color:#ff8a8a;}
+  .pf-alterno{background:none;border:none;color:var(--muted);text-decoration:underline;font:inherit;font-size:0.92rem;margin:22px auto 0;display:block;cursor:pointer;}
+  .pf-alterno:hover{color:var(--paper);}
+  .closing .pedido-form{margin-top:28px;}
+
+  /* ---------- CHAT CON DIMA ---------- */
+  .dima-chat{
+    position:fixed;right:20px;bottom:20px;z-index:100;width:min(420px,calc(100vw - 32px));height:min(640px,calc(100dvh - 40px));
+    display:flex;flex-direction:column;background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,0.8);overflow:hidden;
+  }
+  .dima-chat[hidden]{display:none;}
+  @media (max-width:600px){.dima-chat{inset:0;width:100%;height:100dvh;border-radius:0;border:none;}}
+  .dc-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);}
+  .dc-avatar{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:700;color:var(--ink);background:linear-gradient(135deg,var(--maiz),var(--divanna));}
+  .dc-head-txt{flex:1;min-width:0;}
+  .dc-head-txt h3{font-size:1.05rem;}
+  .dc-head-txt span{font-size:0.78rem;color:var(--muted);}
+  .dc-nuevo{background:none;border:1px solid var(--line);color:var(--muted);border-radius:100px;padding:6px 12px;font:inherit;font-size:0.78rem;cursor:pointer;}
+  .dc-cerrar{background:none;border:none;color:var(--paper);font-size:1.7rem;line-height:1;width:36px;height:36px;cursor:pointer;}
+  .dc-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
+  .dc-msg{max-width:85%;padding:11px 14px;border-radius:16px;font-size:0.94rem;line-height:1.45;overflow-wrap:anywhere;}
+  .dc-msg a{color:inherit;text-decoration:underline;}
+  .dc-msg.dima{align-self:flex-start;background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .dc-msg.cliente{align-self:flex-end;background:var(--divanna);color:var(--ink);border-bottom-right-radius:4px;}
+  .dc-msg.error{align-self:center;background:none;color:#ff8a8a;font-size:0.85rem;text-align:center;}
+  .dc-fotos{align-self:flex-start;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-width:85%;}
+  .dc-fotos a{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
+  .dc-fotos img{display:block;width:100%;height:120px;object-fit:cover;}
+  .dc-escribiendo{align-self:flex-start;display:flex;gap:4px;padding:14px;}
+  .dc-escribiendo i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dcPunto 1s infinite ease-in-out;}
+  .dc-escribiendo i:nth-child(2){animation-delay:.15s;} .dc-escribiendo i:nth-child(3){animation-delay:.3s;}
+  @keyframes dcPunto{0%,80%,100%{opacity:.3;transform:translateY(0);}40%{opacity:1;transform:translateY(-3px);}}
+  @media (prefers-reduced-motion:reduce){.dc-escribiendo i{animation:none;}}
+  .dc-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));}
+  .dc-form textarea{flex:1;resize:none;max-height:120px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--ink);color:var(--paper);font:inherit;font-size:16px;outline:none;}
+  .dc-form textarea:focus{border-color:var(--divanna);}
+  .dc-form button{width:46px;flex:none;border:none;border-radius:14px;background:var(--maiz);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .dc-form button:disabled{opacity:.5;cursor:default;}
 
   footer{
     border-top:1px solid var(--line);padding:44px 0;
@@ -344,7 +384,7 @@
       <a href="#vasomaiz">Snacks</a>
       <a href="#experiencia">Experiencia</a>
       <a href="#cobertura">Cobertura</a>
-      <a href="#pedido" class="nav-cta">Cotizar</a>
+      <a href="#pedido" class="nav-cta" data-abrir-chat>Cotizar</a>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">☰</button>
   </nav>
@@ -369,7 +409,7 @@
       Dos marcas hermanas, un mismo estándar de confianza.
     </p>
     <div class="hero-ctas">
-      <a href="#pedido" class="btn btn-primary">Cotizar mi evento</a>
+      <a href="#pedido" class="btn btn-primary" data-abrir-chat>Haz aquí tu cotización</a>
       <a href="#divanna" class="btn btn-ghost">Ver mobiliario</a>
       <a href="#vasomaiz" class="btn btn-ghost">Ver snacks</a>
     </div>
@@ -444,7 +484,7 @@
         </div>
         <div class="combo-item">
           <span class="combo-mark">3</span>
-          <div><h4>Atención personalizada</h4><p>Un solo formulario para cotizar ambos servicios sin vueltas.</p></div>
+          <div><h4>Atención personalizada</h4><p>Cotiza ambos servicios en un solo chat, sin vueltas.</p></div>
         </div>
         <div class="combo-item">
           <span class="combo-mark">4</span>
@@ -471,7 +511,7 @@
     </div>
     <div class="benefits-grid">
       <div class="benefit"><span class="k">✓</span><h4>Experiencia comprobada</h4><p>Más de 3,000 eventos ya atendidos entre ambas marcas.</p></div>
-      <div class="benefit"><span class="k">⚡</span><h4>Cotización rápida</h4><p>Cuéntanos de tu evento en un formulario corto y te contactamos con tu cotización.</p></div>
+      <div class="benefit"><span class="k">⚡</span><h4>Cotización rápida</h4><p>Platica con DiMa, nuestra asistente, y en minutos tienes un estimado de tu evento.</p></div>
       <div class="benefit"><span class="k">🪑</span><h4>Renta confiable de mobiliario</h4><p>Equipo en buen estado, montado a tiempo.</p></div>
       <div class="benefit"><span class="k">🌽</span><h4>Snacks ideales para eventos</h4><p>Preparados el mismo día de tu celebración.</p></div>
       <div class="benefit"><span class="k">◎</span><h4>Servicio sin confusión</h4><p>Cada marca hace una cosa concreta — sabes qué esperar de cada una.</p></div>
@@ -486,7 +526,7 @@
       <div class="coverage-radius"><div class="center"></div></div>
       <div>
         <h3>Zona de cobertura</h3>
-        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde Culiacán</b>. Indica tu ubicación en el formulario y te confirmamos disponibilidad.</p>
+        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde Culiacán</b>. Cuéntale a DiMa dónde será tu evento y te confirmamos disponibilidad.</p>
       </div>
     </div>
   </div>
@@ -512,8 +552,12 @@
 <section class="closing" id="pedido">
   <div class="wrap">
     <h2>Tu evento merece experiencia, estilo y sabor</h2>
-    <p>Cotiza hoy con Divanna Eventos y El Vaso Maíz. Cuéntanos de tu evento y te contactamos con tu cotización.</p>
-    <form class="pedido-form" id="pedidoForm" novalidate>
+    <p>Cotiza hoy con Divanna Eventos y El Vaso Maíz. Platica con DiMa y en minutos tienes un estimado de tu evento.</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary" data-abrir-chat>Haz aquí tu cotización</button>
+    </div>
+    <button type="button" class="pf-alterno" id="mostrarFormBtn" aria-expanded="false" aria-controls="pedidoForm">¿Prefieres llenar un formulario?</button>
+    <form class="pedido-form" id="pedidoForm" novalidate hidden>
       <div class="pf-grid">
         <label>Nombre<input name="nombre" required maxlength="80" autocomplete="name"></label>
         <label>Teléfono (10 dígitos)<input name="telefono" type="tel" required maxlength="20" inputmode="tel" autocomplete="tel"></label>
@@ -538,6 +582,25 @@
   </div>
 </section>
 
+<div class="dima-chat" id="dimaChat" role="dialog" aria-modal="true" aria-labelledby="dimaChatTitulo" hidden>
+  <div class="dc-head">
+    <div class="dc-avatar" aria-hidden="true">D</div>
+    <div class="dc-head-txt">
+      <h3 id="dimaChatTitulo">DiMa</h3>
+      <span>Asistente de Divanna Eventos y El Vaso Maíz</span>
+    </div>
+    <button type="button" class="dc-nuevo" id="dimaNuevo">Nueva</button>
+    <button type="button" class="dc-cerrar" id="dimaCerrar" aria-label="Cerrar chat">×</button>
+  </div>
+  <div class="dc-msgs" id="dimaMsgs" aria-live="polite"></div>
+  <form class="dc-form" id="dimaForm">
+    <textarea id="dimaInput" rows="1" maxlength="1500" placeholder="Escribe tu mensaje…" aria-label="Mensaje para DiMa"></textarea>
+    <button type="submit" id="dimaEnviar" aria-label="Enviar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </form>
+</div>
+
 <footer>
   <div class="wrap footer-row">
     <div class="footer-brands">
@@ -551,6 +614,145 @@
 <script>
   document.getElementById('navToggle').addEventListener('click', function(){
     document.getElementById('navLinks').classList.toggle('open');
+  });
+
+  // ---------- Chat con DiMa ----------
+  // El historial vive en esta pestaña (sessionStorage) y se manda completo en
+  // cada mensaje: el servidor no guarda la conversación.
+  const CHAT_KEY = 'dima_chat';
+  const SALUDO = '¡Hola! Soy DiMa, de Divanna Eventos y El Vaso Maíz. Con gusto te ayudo a cotizar. ¿Qué evento estás organizando?';
+  const dimaChat = document.getElementById('dimaChat');
+  const dimaMsgs = document.getElementById('dimaMsgs');
+  const dimaForm = document.getElementById('dimaForm');
+  const dimaInput = document.getElementById('dimaInput');
+  const dimaEnviar = document.getElementById('dimaEnviar');
+  let chat = { historial: [], folio: null, vistas: [] };
+  try { chat = JSON.parse(sessionStorage.getItem(CHAT_KEY)) || chat; } catch(e){}
+  let ultimoFoco = null;
+
+  function guardarChat(){
+    try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(chat)); } catch(e){}
+  }
+
+  function escapar(t){
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  // Texto plano con links clickeables y saltos de línea.
+  function formatear(t){
+    return escapar(t)
+      .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g, url => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`)
+      .replace(/\n/g, '<br>');
+  }
+
+  function agregarBurbuja(clase, html){
+    const div = document.createElement('div');
+    div.className = `dc-msg ${clase}`;
+    div.innerHTML = html;
+    dimaMsgs.appendChild(div);
+    dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+    return div;
+  }
+
+  function agregarFotos(urls){
+    if(!urls || !urls.length) return;
+    const div = document.createElement('div');
+    div.className = 'dc-fotos';
+    div.innerHTML = urls.map(u => `<a href="${escapar(u)}" target="_blank" rel="noopener"><img src="${escapar(u)}" alt="Ejemplo de evento" loading="lazy"></a>`).join('');
+    dimaMsgs.appendChild(div);
+    dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+  }
+
+  function pintarChat(){
+    dimaMsgs.innerHTML = '';
+    agregarBurbuja('dima', formatear(SALUDO));
+    chat.historial.forEach((m, i) => {
+      agregarBurbuja(m.rol === 'cliente' ? 'cliente' : 'dima', formatear(m.texto));
+      if(m.fotos) agregarFotos(m.fotos);
+    });
+  }
+
+  function abrirChat(e){
+    if(e) e.preventDefault();
+    ultimoFoco = document.activeElement;
+    document.getElementById('navLinks').classList.remove('open');
+    dimaChat.hidden = false;
+    pintarChat();
+    dimaInput.focus();
+  }
+  function cerrarChat(){
+    dimaChat.hidden = true;
+    if(ultimoFoco) ultimoFoco.focus();
+  }
+
+  document.querySelectorAll('[data-abrir-chat]').forEach(el => el.addEventListener('click', abrirChat));
+  document.getElementById('dimaCerrar').addEventListener('click', cerrarChat);
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && !dimaChat.hidden) cerrarChat(); });
+  document.getElementById('dimaNuevo').addEventListener('click', () => {
+    chat = { historial: [], folio: null, vistas: [] };
+    guardarChat();
+    pintarChat();
+    dimaInput.focus();
+  });
+
+  dimaInput.addEventListener('input', () => {
+    dimaInput.style.height = 'auto';
+    dimaInput.style.height = Math.min(dimaInput.scrollHeight, 120) + 'px';
+  });
+  dimaInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); dimaForm.requestSubmit(); }
+  });
+
+  dimaForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const texto = dimaInput.value.trim();
+    if(!texto || dimaEnviar.disabled) return;
+    dimaInput.value = '';
+    dimaInput.style.height = 'auto';
+    chat.historial.push({ rol: 'cliente', texto });
+    agregarBurbuja('cliente', formatear(texto));
+    dimaEnviar.disabled = true;
+    const escribiendo = document.createElement('div');
+    escribiendo.className = 'dc-escribiendo';
+    escribiendo.setAttribute('aria-label', 'DiMa está escribiendo');
+    escribiendo.innerHTML = '<i></i><i></i><i></i>';
+    dimaMsgs.appendChild(escribiendo);
+    dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+    try {
+      const res = await fetch('/api/dima-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historial: chat.historial.map(({ rol, texto }) => ({ rol, texto })), folio: chat.folio }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'DiMa no está disponible en este momento. Intenta de nuevo.');
+      escribiendo.remove();
+      const fotos = (data.fotos || []).filter(u => !chat.vistas.includes(u));
+      chat.vistas.push(...fotos);
+      chat.historial.push({ rol: 'dima', texto: data.texto, fotos });
+      if(data.folio) chat.folio = data.folio;
+      guardarChat();
+      agregarBurbuja('dima', formatear(data.texto));
+      agregarFotos(fotos);
+    } catch(err){
+      escribiendo.remove();
+      // El mensaje no llegó: se saca del historial y se regresa a la caja de texto.
+      chat.historial.pop();
+      dimaMsgs.lastElementChild && dimaMsgs.lastElementChild.remove();
+      dimaInput.value = texto;
+      agregarBurbuja('error', escapar(err.message));
+    } finally {
+      dimaEnviar.disabled = false;
+      dimaInput.focus();
+    }
+  });
+
+  // Formulario de respaldo para quien no quiere usar el chat.
+  const mostrarFormBtn = document.getElementById('mostrarFormBtn');
+  mostrarFormBtn.addEventListener('click', () => {
+    const form = document.getElementById('pedidoForm');
+    form.hidden = !form.hidden;
+    mostrarFormBtn.setAttribute('aria-expanded', String(!form.hidden));
+    if(!form.hidden) form.nombre.focus();
   });
 
   // Formulario de pedido: crea el pedido en Airtable vía /api/pedido y Diana lo cotiza.
