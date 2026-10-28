@@ -251,6 +251,25 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await eventosApi({ method: 'GET', headers: auth(tokenEnc) }, res);
   ok(res.code === 200 && res.body.brigada === null && res.body.eventos[0].folio === 'EVT-9' && llamadas[1].url.includes('returnFieldsByFieldId=true'), 'encargada ve solo sus eventos asignados');
 
+  // Vista equipo del Admin: ve la app como una brigada concreta y recibe las opciones.
+  reset();
+  respuestas = [
+    ADMIN,
+    { id: 'recBRIGADA0000002', fields: { Nombre_Brigada: 'Norte', EVENTOS: ['recEVENTO00000005'] } },
+    { records: [] },
+    { records: [{ id: 'recEVENTO00000005', fields: { Folio_Evento: 'EVT-5' } }] },
+    { records: [{ id: 'recBRIGADA0000002', fields: { Nombre_Brigada: 'Norte' } }] },
+    { records: [{ id: ENCARG.id, fields: { Nombre: 'Ana' } }] },
+  ];
+  res = resMock();
+  await eventosApi({ method: 'GET', headers: auth(tokenAdmin), query: { brigada: 'recBRIGADA0000002' } }, res);
+  ok(res.code === 200 && res.body.brigada.nombre === 'Norte' && res.body.eventos[0].folio === 'EVT-5' && res.body.opciones.brigadas.length === 1 && res.body.opciones.encargadas[0].nombre === 'Ana', 'admin: vista equipo como una brigada, con opciones para elegir');
+  reset();
+  respuestas = [LIDER, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [] } }, { records: [] }];
+  res = resMock();
+  await eventosApi({ method: 'GET', headers: auth(tokenLider), query: { brigada: 'recBRIGADA0000002' } }, res);
+  ok(res.code === 200 && res.body.brigada.nombre === 'Edén' && !res.body.opciones, 'líder no puede ver otra brigada con ?brigada=');
+
   const eventoBrigada = { fields: { Folio_Evento: 'EVT-1', Brigada_Asignada: ['recBRIGADA0000001'] } };
   reset();
   respuestas = [

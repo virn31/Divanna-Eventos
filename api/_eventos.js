@@ -120,4 +120,17 @@ async function alertasEquipoDeHoy(eventoIdsPropios) {
   }
 }
 
-module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy };
+// Para la "vista equipo" de los Admin: brigadas y encargadas activas para
+// elegir a quién ver.
+async function opcionesVista() {
+  const [brigadas, encargadas] = await Promise.all([
+    airtableGet(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada&sort%5B0%5D%5Bfield%5D=Nombre_Brigada`),
+    airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(`AND({Activo}, {Rol} = "${ROLES.ENCARGADA}")`)}&fields%5B%5D=Nombre`),
+  ]);
+  return {
+    brigadas: brigadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre_Brigada || 'Sin nombre' })),
+    encargadas: encargadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre || 'Sin nombre' })),
+  };
+}
+
+module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista };
