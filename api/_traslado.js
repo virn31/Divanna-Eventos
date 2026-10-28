@@ -13,6 +13,9 @@
 const LIMITE_CIUDAD = require('./_culiacan-limite.json');
 
 const PRECIO_POR_KM = 10;
+// Límite de servicio: no se atienden eventos a más de 35 km de la salida de
+// Culiacán (decisión de Víctor, por seguridad y por costos).
+const LIMITE_KM = 35;
 const VIAJES = 4; // 2 viajes redondos
 const CENTRO_CULIACAN = [-107.3940, 24.8091]; // [lng, lat]
 // Rectángulo de Sinaloa para que la búsqueda no encuentre otro "San Pedro".
@@ -60,7 +63,7 @@ async function geocodificar(destino) {
   return r ? { punto: [Number(r.lon), Number(r.lat)], nombre: r.display_name.split(',').slice(0, 3).join(',').trim() } : null;
 }
 
-// Devuelve { ok: true, lugar, kmDesdeSalida, costo, dentroDeCiudad } o { ok: false, motivo }.
+// Devuelve { ok: true, lugar, kmDesdeSalida, costo, dentroDeCiudad, fueraDeCobertura } o { ok: false, motivo }.
 async function estimarTraslado(destino) {
   const texto = String(destino || '').trim().slice(0, 120);
   if (!texto) return { ok: false, motivo: 'Falta el lugar del evento.' };
@@ -68,7 +71,7 @@ async function estimarTraslado(destino) {
     const lugar = await geocodificar(texto);
     if (!lugar) return { ok: false, motivo: 'No encontré ese lugar en el mapa.' };
     if (dentroDeCiudad(lugar.punto)) {
-      return { ok: true, lugar: lugar.nombre, dentroDeCiudad: true, kmDesdeSalida: 0, costo: 0 };
+      return { ok: true, lugar: lugar.nombre, dentroDeCiudad: true, kmDesdeSalida: 0, costo: 0, fueraDeCobertura: false };
     }
 
     const coords = `${CENTRO_CULIACAN.join(',')};${lugar.punto.join(',')}`;
@@ -91,11 +94,11 @@ async function estimarTraslado(destino) {
     // Se escala a la distancia oficial de la ruta (la geometría es simplificada).
     const kmDesdeSalida = totalGeo > 0 ? Math.round(((r.distance * fueraGeo) / totalGeo) / 1000) : Math.round(r.distance / 1000);
     const costo = Math.round((kmDesdeSalida * PRECIO_POR_KM * VIAJES) / 10) * 10;
-    return { ok: true, lugar: lugar.nombre, dentroDeCiudad: false, kmDesdeSalida, costo };
+    return { ok: true, lugar: lugar.nombre, dentroDeCiudad: false, kmDesdeSalida, costo, fueraDeCobertura: kmDesdeSalida > LIMITE_KM };
   } catch (err) {
     console.error('Error estimando traslado:', err.message);
     return { ok: false, motivo: 'No pude consultar el mapa en este momento.' };
   }
 }
 
-module.exports = { estimarTraslado, dentroDeCiudad, PRECIO_POR_KM, VIAJES };
+module.exports = { estimarTraslado, dentroDeCiudad, PRECIO_POR_KM, VIAJES, LIMITE_KM };

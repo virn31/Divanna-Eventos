@@ -49,7 +49,8 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Diana deja "Mensaje para el cliente" en el dashboard; DiMa lo entrega en el chat (en vivo cada 30 s o cuando el cliente regresa con su folio). Campos `Preferencia_Contacto`, `Mensaje_Para_Cliente`, `Mensaje_Cliente_Entregado`.
 - Con el cliente DiMa ya no menciona a Diana: dice "el equipo de logística" o "la gerencia".
 - Aproximado de traslado (`api/_traslado.js`): km desde la salida de Culiacán x $10 x 4 con rutas de OpenStreetMap; DiMa lo da solo si el cliente lo pide. **Pendiente de Víctor:** comparar con Google (San Pedro dio 4 km desde la salida, puede ser bajo).
-- 94 pruebas pasan.
+- Límite duro de 35 km desde la salida de Culiacán (chat, formulario y página); más lejos no se registra el pedido.
+- 98 pruebas pasan.
 - Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**

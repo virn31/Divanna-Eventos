@@ -105,3 +105,8 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decisión:** herramienta `estimar_traslado` que DiMa usa solo cuando el cliente pregunta por el traslado. Geocodifica el destino y traza la ruta con OpenStreetMap (gratis, sin llave) y cuenta solo los km desde que la ruta sale del límite oficial de Culiacán Rosales. DiMa lo presenta como estimado y aclara que la cotización final la confirma el equipo de logística.
 **Pendiente:** Víctor compara algunos destinos con Google. Prueba inicial: San Pedro 4 km (el límite oficial llega casi a Aguaruto), Navolato 19, Imala 21, Costa Rica 25, Altata 47, Eldorado 54.
 **Descartado (por ahora):** Google Maps Distance Matrix (requiere llave y facturación; se puede cambiar después sin tocar el chat); que DiMa calcule distancias de memoria (poco confiable).
+
+## 2026-10-27 — Límite de servicio: 35 km desde la salida de Culiacán
+
+**Decisión (Víctor):** por ahora no se da servicio a más de 35 km, por seguridad del equipo y por costos. DiMa revisa la distancia en cuanto el evento es foráneo y, si pasa el límite, lo explica con amabilidad y no registra el pedido. El servidor lo vuelve a verificar al registrar (chat y formulario). La página lo dice en "Zona de cobertura".
+**Detalle:** si el mapa no responde, el pedido se registra y logística valida la distancia (no se pierde un cliente por una falla técnica).

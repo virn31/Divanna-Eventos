@@ -45,15 +45,21 @@ global.fetch = async (url, opts = {}) => {
   if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
     if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
     if (url.includes('nominatim')) {
-      const dentro = decodeURIComponent(url).includes('Las Quintas');
-      return { ok: true, status: 200, json: async () => [dentro
-        ? { lat: '24.7905', lon: '-107.3805', display_name: 'Las Quintas, Culiacán Rosales, Culiacán, Sinaloa' }
-        : { lat: '24.7734', lon: '-107.5504', display_name: 'San Pedro, Navolato, Sinaloa, México' }] };
+      const q = decodeURIComponent(url);
+      const lugar = q.includes('Las Quintas') ? { lat: '24.7905', lon: '-107.3805', display_name: 'Las Quintas, Culiacán Rosales, Culiacán, Sinaloa' }
+        : q.includes('Eldorado') ? { lat: '24.3236', lon: '-107.3642', display_name: 'Eldorado, Culiacán, Sinaloa' }
+        : { lat: '24.7734', lon: '-107.5504', display_name: 'San Pedro, Navolato, Sinaloa, México' };
+      return { ok: true, status: 200, json: async () => [lugar] };
     }
-    // Ruta en línea recta del centro (dentro de la ciudad) a San Pedro (fuera): 20 km.
-    const pasos = 40;
-    const coords = Array.from({ length: pasos + 1 }, (_, i) => [-107.3940 + (-107.5504 + 107.3940) * i / pasos, 24.8091 + (24.7734 - 24.8091) * i / pasos]);
-    return { ok: true, status: 200, json: async () => ({ routes: [{ distance: 20000, geometry: { coordinates: coords } }] }) };
+    // Ruta en línea recta del centro (dentro de la ciudad) al destino de la URL,
+    // con distancia por carretera = 1.3 x la distancia en línea recta.
+    const [, destino] = url.split('/driving/')[1].split('?')[0].split(';');
+    const [lngD, latD] = destino.split(',').map(Number);
+    const pasos = 60;
+    const coords = Array.from({ length: pasos + 1 }, (_, i) => [-107.3940 + (lngD + 107.3940) * i / pasos, 24.8091 + (latD - 24.8091) * i / pasos]);
+    const rad = Math.PI / 180;
+    const recta = 2 * 6371000 * Math.asin(Math.sqrt(Math.sin((latD - 24.8091) * rad / 2) ** 2 + Math.cos(24.8091 * rad) * Math.cos(latD * rad) * Math.sin((lngD + 107.3940) * rad / 2) ** 2));
+    return { ok: true, status: 200, json: async () => ({ routes: [{ distance: recta * 1.3, geometry: { coordinates: coords } }] }) };
   }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
@@ -653,4 +659,26 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: '¿y el traslado?' }] });
   ok(llamadasClaude[1].messages[llamadasClaude[1].messages.length - 1].content[0].content.startsWith('Sin resultado'), 'chat: si el mapa falla, DiMa no recibe un número inventado');
   ok(llamadasClaude[0].system.includes('APROXIMADO DE TRASLADO') && llamadasClaude[0].tools.some(t => t.name === 'estimar_traslado'), 'chat: DiMa tiene la regla y la herramienta de traslado');
+
+  // ---------- Límite de servicio: 35 km desde la salida de Culiacán ----------
+  reset();
+  const lejos = await estimarTraslado('Eldorado');
+  ok(lejos.ok && lejos.kmDesdeSalida > 35 && lejos.fueraDeCobertura === true && tr.fueraDeCobertura === false, 'límite: Eldorado queda fuera de los 35 km y San Pedro dentro');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', id: 'tu_3', name: 'registrar_pedido', input: { nombre: 'Leo', telefono: '6671112233', email: null, negocio: 'Divanna Eventos', tipo_evento: 'Boda', fecha: '2026-12-12', invitados: 150, ubicacion: 'Eldorado', servicios: 'Paquete boda', monto_estimado: 6500, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'llamada' } },
+  ] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'boda en Eldorado' }] });
+  ok(!llamadas.some(l => l.method === 'POST') && !res.body.folio && res.body.texto.includes('35 km') && res.body.texto.includes('seguridad'), 'límite: el chat no registra un evento a más de 35 km y explica por qué');
+
+  reset();
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Leo', telefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-12', ubicacion: 'Eldorado', enCiudad: 'no', servicios: 'Paquete boda' } }, res);
+  ok(res.code === 400 && res.body.error.includes('35 km') && !llamadas.some(l => l.method === 'POST'), 'límite: el formulario rechaza un evento a más de 35 km');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+  ok(llamadasClaude[0].system.includes('Más de 35 km NO se atiende') && !llamadasClaude[0].system.includes('caso por caso'), 'límite: DiMa tiene la regla de no atender a más de 35 km');
 })();

@@ -21,7 +21,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
-const { estimarTraslado } = require('./_traslado');
+const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -79,7 +79,7 @@ const TOOLS = [
   },
   {
     name: 'estimar_traslado',
-    description: 'Calcula un aproximado del costo de traslado para un evento fuera de la ciudad, con la distancia por carretera desde la salida de Culiacán. Úsala solo cuando el cliente pregunte cuánto sale el traslado o el total con traslado.',
+    description: 'Revisa un evento fuera de la ciudad: distancia por carretera desde la salida de Culiacán, si queda dentro del límite de servicio (35 km) y el aproximado del traslado. Úsala en cuanto sepas que el evento es foráneo.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -139,16 +139,18 @@ CÓMO HABLAS:
 - Este chat no tiene archivos adjuntos: si el cliente quiere enseñarte una imagen de referencia, pídele que la describa o que la mande por Instagram (${LINK_INSTAGRAM_DIVANNA}).
 
 COBERTURA (revísala en cuanto sepas dónde es el evento):
-- Dentro de la ciudad de Culiacán no se cobra traslado. Los eventos foráneos (sindicaturas, Navolato y alrededores, hasta unos 35 km de la salida de Culiacán) llevan costo de traslado y los valida el equipo de logística; más lejos se revisa caso por caso. Es lo mismo que dice la página en "Zona de cobertura".
+- Dentro de la ciudad de Culiacán no se cobra traslado. Los eventos foráneos (sindicaturas, Navolato y alrededores) se atienden hasta 35 km de la salida de Culiacán, llevan costo de traslado y los valida el equipo de logística. Más de 35 km NO se atiende, por seguridad y por costos. Es lo mismo que dice la página en "Zona de cobertura".
+- En cuanto sepas que el evento es foráneo, llama estimar_traslado para revisar la distancia (aunque el cliente no haya preguntado el costo).
 - Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
 - Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: el equipo de logística revisa que se pueda trasladar ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
 - Sigue armando la cotización normal. En el repaso final vuelve a mencionar, en una frase, que falta validar el traslado, y registra el pedido con fuera_de_ciudad = true.
-- APROXIMADO DE TRASLADO: si el cliente pregunta cuánto sale el traslado (o el total con traslado), llama estimar_traslado. Con el resultado dile los km desde la salida de Culiacán y el aproximado, y explícale que se cobra ida y vuelta dos veces (ir a dejar y regresar, ir a recoger y regresar). Aclara siempre que es un estimado y que la cotización final con traslado se la confirma el equipo de logística. Si la herramienta no da resultado, dile que logística le confirma el costo. No calcules el traslado por tu cuenta ni lo ofrezcas si no lo pidió.
+- SI QUEDA A MÁS DE 35 KM: dile con calidez que por ahora no damos servicio a más de 35 km de Culiacán, por seguridad de nuestro equipo y por costos, que lamentas no poder atenderlo y que si el evento cambia a un lugar más cerca con gusto lo cotizas. No registres el pedido ni des costo de traslado.
+- APROXIMADO DE TRASLADO: el costo solo dilo si el cliente pregunta cuánto sale el traslado (o el total con traslado). Con el resultado dile los km desde la salida de Culiacán y el aproximado, y explícale que se cobra ida y vuelta dos veces (ir a dejar y regresar, ir a recoger y regresar). Aclara siempre que es un estimado y que la cotización final con traslado se la confirma el equipo de logística. Si la herramienta no da resultado, dile que logística le confirma cobertura y costo. No calcules el traslado por tu cuenta.
 - En los foráneos, cuando pidas los datos de contacto pregúntale también: "Tu pedido es foráneo: ¿quieres esperar aquí la respuesta de la cotización, o prefieres que te contactemos por mensaje o por llamada?". Guarda su respuesta en preferencia_contacto (esperar_en_chat, mensaje o llamada). Si elige esperar, dile que puede dejar esta ventana abierta o regresar después con su número de pedido en "¿Ya tienes número de pedido?".
 
 MENSAJES DEL EQUIPO: a veces el sistema te pasa un mensaje que la gerencia o logística dejó para el cliente sobre su pedido (por ejemplo, la respuesta de un foráneo). Entrégaselo al inicio de tu respuesta, con sus palabras y sin cambiar montos, fechas ni condiciones, y después sigue la plática.
 - Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
-- Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y el equipo de logística revisa si se puede atender.
+- Si el lugar está claramente lejos (por ejemplo Mazatlán, Los Mochis, Guamúchil o Guasave), dile de una vez que está fuera de nuestro límite de 35 km y que por ahora no damos servicio ahí.
 
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
@@ -242,6 +244,17 @@ async function registrarPedido(input, historial, folioPrevio) {
   });
   if (error) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
+  }
+
+  // Límite de servicio: aunque DiMa no lo haya revisado, no se registran
+  // eventos a más de 35 km. Si el mapa no responde, se registra y logística valida.
+  if (datos.fueraDeCiudad && datos.ubicacion) {
+    const t = await estimarTraslado(datos.ubicacion);
+    if (t.ok && t.fueraDeCobertura) {
+      return {
+        texto: `Lo siento mucho: ${t.lugar} queda a unos ${t.kmDesdeSalida} km de Culiacán y por ahora no damos servicio a más de ${LIMITE_KM} km, por seguridad de nuestro equipo y por costos. Si el evento cambia a un lugar más cerca, con gusto te lo cotizo.`,
+      };
+    }
   }
 
   // Si ya hay pedido (registrado en esta conversación o abierto con folio y
@@ -421,9 +434,10 @@ module.exports = async (req, res) => {
         } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
           pidioTraslado = true;
           const t = await estimarTraslado(bloque.input.destino);
-          const contenido = !t.ok ? `Sin resultado: ${t.motivo}`
+          const contenido = !t.ok ? `Sin resultado: ${t.motivo} Logística confirma cobertura y costo.`
             : t.dentroDeCiudad ? `${t.lugar} está dentro de la ciudad de Culiacán: no lleva costo de traslado.`
-            : `${t.lugar}: ${t.kmDesdeSalida} km por carretera desde la salida de Culiacán. Traslado aproximado: $${t.costo.toLocaleString('es-MX')} (${t.kmDesdeSalida} km x $10 x 4 viajes: ir a dejar y regresar, ir a recoger y regresar).`;
+            : t.fueraDeCobertura ? `FUERA DE COBERTURA: ${t.lugar} queda a ${t.kmDesdeSalida} km de la salida de Culiacán, más del límite de ${LIMITE_KM} km. No damos servicio ahí: no registres el pedido.`
+            : `${t.lugar}: ${t.kmDesdeSalida} km por carretera desde la salida de Culiacán, dentro del límite de ${LIMITE_KM} km. Traslado aproximado: $${t.costo.toLocaleString('es-MX')} (${t.kmDesdeSalida} km x $10 x 4 viajes: ir a dejar y regresar, ir a recoger y regresar).`;
           resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: contenido });
         } else if (bloque.type === 'tool_use' && bloque.name === 'registrar_pedido') {
           // Nunca se registra dos veces en la misma respuesta.
