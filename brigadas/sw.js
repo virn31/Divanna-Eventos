@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dima-brigadas-v3';
+const CACHE_NAME = 'dima-brigadas-v4';
 const APP_SHELL = [
   '/brigadas/',
   '/brigadas/index.html',
@@ -50,7 +50,7 @@ self.addEventListener('push', (event) => {
       requireInteraction: true,
       renotify: true,
       tag: 'alerta-' + Date.now(),
-      data: { url: '/brigadas/' },
+      data: { url: datos.url || '/brigadas/' },
     })
   );
 });
@@ -60,6 +60,8 @@ self.addEventListener('notificationclick', (event) => {
   const url = (event.notification.data && event.notification.data.url) || '/brigadas/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ventanas) => {
+      // Un link externo (el mapa de la emergencia) se abre aparte; la app, en su ventana.
+      if (!url.startsWith('/')) return self.clients.openWindow(url);
       const abierta = ventanas.find((v) => v.url.includes('/brigadas/'));
       if (abierta) { abierta.navigate(url).catch(() => {}); return abierta.focus(); }
       return self.clients.openWindow(url);

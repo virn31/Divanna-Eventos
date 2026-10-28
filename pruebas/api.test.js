@@ -459,4 +459,45 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await pedido({ method: 'POST', body: { nombre: 'Rosa', telefono: '6679990000', negocio: 'El Vaso Maiz', fecha: '2026-12-20', servicios: 'Paquete 3' } }, res);
   const avisosPedido = telegram.filter(t => t.metodo === 'sendMessage');
   ok(res.code === 200 && avisosPedido.length === 1 && avisosPedido[0].body.chat_id === '111' && avisosPedido[0].body.text.includes('Pedido nuevo'), 'telegram: pedido nuevo solo a los Admin');
+
+  // ---------- Ubicación en tiempo real de las alertas ----------
+  const ubicLider = { lat: 24.7701234, lng: -107.6012345, precision: 15 };
+  const conTelegram = [
+    { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+    { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } },
+  ];
+  reset();
+  respuestas = [LIDER, eventoBrigada, {}, { records: conTelegram }, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: true, motivo: 'choque', ubicacion: ubicLider } }, res);
+  const patchUbic = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const mensajesTg = telegram.filter(t => t.metodo === 'sendMessage');
+  const pines = telegram.filter(t => t.metodo === 'sendLocation');
+  ok(res.code === 200 && patchUbic.Ubicacion_Alerta === '24.770123,-107.601234' && patchUbic.Ubicacion_Alerta_Hora, 'ubicación: la emergencia guarda el GPS de quien reporta');
+  ok(mensajesTg[0].body.chat_id === '111' && mensajesTg[0].body.text.includes('maps.google.com/?q=24.770123,-107.601234') && pines.length === 1 && pines[0].body.chat_id === '111' && pines[0].body.latitude === 24.770123, 'ubicación: Telegram lleva link al mapa y pin, solo al equipo');
+  ok(mensajesTg.length === 2 && mensajesTg[1].body.chat_id === '222' && mensajesTg[1].body.text.includes('Tu alerta se envió') && res.body.enviados.porTelegram === 1, 'ubicación: quien reporta recibe la confirmación en Telegram');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada, {}, { records: conTelegram }, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: true, motivo: 'choque' } }, res);
+  ok(telegram.find(t => t.metodo === 'sendMessage').body.text.includes('Sin ubicación GPS') && !telegram.some(t => t.metodo === 'sendLocation'), 'ubicación: sin GPS la alerta sale igual y lo dice');
+
+  reset();
+  respuestas = [ASIST, { fields: { ...eventoBrigada.fields, Emergencia: true } }, {}];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenAsist), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: { lat: 24.78, lng: -107.6 } } }, res);
+  ok(res.code === 200 && res.body.activa === true && llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Ubicacion_Alerta === '24.78,-107.6' && telegram.length === 0, 'ubicación: actualización cada minuto guarda la posición sin mandar avisos');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: ubicLider } }, res);
+  ok(res.code === 200 && res.body.activa === false && !llamadas.some(l => l.method === 'PATCH'), 'ubicación: sin alerta activa no se guarda (y la app deja de mandarla)');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: { lat: 'x', lng: 500 } } }, res);
+  ok(res.code === 400, 'ubicación: coordenadas inválidas se rechazan');
 })();

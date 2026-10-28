@@ -31,6 +31,15 @@ function fechaCorta(iso) {
   return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]}`;
 }
 
+function horaCorta(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mazatlan' });
+}
+
+function lineaUbicacion(e) {
+  return e.ubicacionAlerta ? `📍 https://maps.google.com/?q=${e.ubicacionAlerta}${e.ubicacionAlertaHora ? ' (' + horaCorta(e.ubicacionAlertaHora) + ')' : ''}` : null;
+}
+
 function textoEvento(ev) {
   const lineas = [
     `📅 ${fechaCorta(ev.fecha)} · ${ev.folio}${ev.negocio ? ' · ' + ev.negocio : ''}`,
@@ -43,6 +52,7 @@ function textoEvento(ev) {
   if (ev.retraso && ev.motivoRetraso) lineas.push(`🚦 Retraso: ${ev.motivoRetraso}`);
   if (ev.emergencia) lineas.push(`🆘 Emergencia: ${ev.motivoEmergencia || 'sin detalle'}`);
   if (ev.zonaAlertaSeguridad) lineas.push(`⚠️ Seguridad: ${ev.zonaAlertaSeguridad}`);
+  if ((ev.emergencia || ev.zonaAlertaSeguridad) && lineaUbicacion(ev)) lineas.push(lineaUbicacion(ev));
   return lineas.join('\n');
 }
 
@@ -79,6 +89,7 @@ async function listaAlertas() {
   return 'Alertas de hoy:\n\n' + alertas.map(a => [
     a.emergencia ? `🆘 ${a.folio} (${a.ubicacion || 'sin ubicación'}): ${a.motivoEmergencia || 'sin detalle'}` : null,
     a.zonaAlertaSeguridad ? `⚠️ ${a.folio}: zona ${a.zonaAlertaSeguridad}` : null,
+    lineaUbicacion(a),
   ].filter(Boolean).join('\n')).join('\n\n');
 }
 

@@ -75,3 +75,10 @@ Recomendación: (a), con una excepción: si solo hay una alerta pendiente no se 
 **Decisión:** DiMa distingue la ciudad de Culiacán de todo lo demás (sindicaturas, Navolato, playas, otros municipios). Fuera de la ciudad no confirma cobertura ni inventa costo de traslado: avisa al cliente que Diana lo confirma y marca el pedido `Fuera_De_Ciudad`, que se resalta en el dashboard, el correo y Telegram. El formulario pregunta si el evento es dentro de la ciudad.
 Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente indique (horario, acceso, referencias) y Diana agrega o corrige desde el dashboard; al guardar se avisa por push y Telegram solo al equipo asignado. La brigada lo ve en la app y en `/hoy`.
 **Descartado:** cálculo automático de distancia/costo de traslado (requiere mapas y tarifas que aún no existen; Diana lo decide caso por caso); chat libre entre Diana y la brigada (las instrucciones por evento cubren el caso sin otra herramienta).
+
+## 2026-10-27 — Ubicación GPS en las alertas y confirmación a quien reporta
+
+**Decisión:** emergencias y alertas de seguridad llevan el GPS del teléfono que reporta: link a Google Maps en Telegram, push y correo, y pin de ubicación en Telegram. Mientras la alerta siga activa y la app esté abierta, la ubicación se actualiza cada minuto (sin avisos nuevos) y el dashboard, la app y `/alertas` muestran la última. Quien reporta recibe en Telegram "✅ Tu alerta se envió" con a cuántos llegó.
+**Por qué:** Víctor probó una emergencia y no la vio en su Telegram (el sistema no le avisa a quien reporta); además pidió la ubicación en tiempo real para poder ir a ayudar.
+**Límite:** una app web no puede seguir mandando la ubicación con la pantalla apagada; el seguimiento continuo requiere la app abierta. La ubicación inicial siempre va si hay permiso.
+**Descartado:** "ubicación en tiempo real" nativa de Telegram (la comparte la persona desde su Telegram, no la app); app nativa con GPS en segundo plano (otro proyecto completo).

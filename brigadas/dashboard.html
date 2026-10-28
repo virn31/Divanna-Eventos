@@ -280,6 +280,9 @@
           </div>
           ${ev.retraso && ev.motivoRetraso ? `<div class="motivo">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo">🆘 ${esc(ev.motivoEmergencia)}</div>` : ''}
+          ${(ev.emergencia || ev.zonaAlertaSeguridad) && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(ev.ubicacionAlerta || '')
+            ? `<div class="motivo"><a href="https://maps.google.com/?q=${ev.ubicacionAlerta}" target="_blank" rel="noopener" style="color:var(--paper); font-weight:800;">📍 Ver ubicación en el mapa</a>${ev.ubicacionAlertaHora ? ' · actualizada ' + new Date(ev.ubicacionAlertaHora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : ''}</div>`
+            : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
           <details class="instr" ${ev.instrucciones ? 'open' : ''}>
             <summary>📌 Instrucciones para el equipo${ev.instrucciones ? '' : ' (agregar)'}</summary>

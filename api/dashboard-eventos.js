@@ -233,6 +233,8 @@ module.exports = async (req, res) => {
         autorizacionDiana: r.fields.Autorizacion_Diana || '',
         instrucciones: r.fields.Instrucciones_Equipo || '',
         fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
+        ubicacionAlerta: r.fields.Ubicacion_Alerta || '',
+        ubicacionAlertaHora: r.fields.Ubicacion_Alerta_Hora || '',
       };
     });
 
