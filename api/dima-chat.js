@@ -21,6 +21,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
+const { estimarTraslado } = require('./_traslado');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -77,6 +78,19 @@ const TOOLS = [
     },
   },
   {
+    name: 'estimar_traslado',
+    description: 'Calcula un aproximado del costo de traslado para un evento fuera de la ciudad, con la distancia por carretera desde la salida de Culiacán. Úsala solo cuando el cliente pregunte cuánto sale el traslado o el total con traslado.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        destino: { type: 'string', description: 'Lugar del evento como lo dijo el cliente, con municipio si lo sabes (ej. "San Pedro, Navolato").' },
+      },
+      required: ['destino'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'registrar_pedido',
     description: 'Registra el pedido para que la gerencia lo revise y confirme la cotización. Úsala solo cuando el cliente ya confirmó lo que quiere y ya te dio nombre, teléfono y fecha. Si ya registraste el pedido en esta conversación y el cliente pide cambios, vuelve a llamarla con los datos completos actualizados.',
     strict: true,
@@ -129,6 +143,7 @@ COBERTURA (revísala en cuanto sepas dónde es el evento):
 - Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
 - Si el evento es fuera de la ciudad, en ESE MISMO mensaje en que te enteras explícale al cliente, con calidez y sin cerrarle la puerta, que los eventos foráneos se validan antes de confirmarse, y por qué: el equipo de logística revisa que se pueda trasladar ese día, la distancia y el tiempo de montaje, y el costo de traslado, que se suma a la cotización. Dile que se lo confirman en cuanto lo revise. Nunca confirmes cobertura ni inventes un costo de traslado.
 - Sigue armando la cotización normal. En el repaso final vuelve a mencionar, en una frase, que falta validar el traslado, y registra el pedido con fuera_de_ciudad = true.
+- APROXIMADO DE TRASLADO: si el cliente pregunta cuánto sale el traslado (o el total con traslado), llama estimar_traslado. Con el resultado dile los km desde la salida de Culiacán y el aproximado, y explícale que se cobra ida y vuelta dos veces (ir a dejar y regresar, ir a recoger y regresar). Aclara siempre que es un estimado y que la cotización final con traslado se la confirma el equipo de logística. Si la herramienta no da resultado, dile que logística le confirma el costo. No calcules el traslado por tu cuenta ni lo ofrezcas si no lo pidió.
 - En los foráneos, cuando pidas los datos de contacto pregúntale también: "Tu pedido es foráneo: ¿quieres esperar aquí la respuesta de la cotización, o prefieres que te contactemos por mensaje o por llamada?". Guarda su respuesta en preferencia_contacto (esperar_en_chat, mensaje o llamada). Si elige esperar, dile que puede dejar esta ventana abierta o regresar después con su número de pedido en "¿Ya tienes número de pedido?".
 
 MENSAJES DEL EQUIPO: a veces el sistema te pasa un mensaje que la gerencia o logística dejó para el cliente sobre su pedido (por ejemplo, la respuesta de un foráneo). Entrégaselo al inicio de tu respuesta, con sus palabras y sin cambiar montos, fechas ni condiciones, y después sigue la plática.
@@ -360,45 +375,76 @@ module.exports = async (req, res) => {
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
-    const respuesta = await client.beta.messages.create({
-      model: MODELO,
-      max_tokens: 4000,
-      // Chat de ventas: respuestas cortas, no requiere razonamiento profundo.
-      output_config: { effort: 'low' },
-      // Si un clasificador de seguridad rechaza la petición, la API la reintenta
-      // en el modelo de respaldo recomendado en vez de devolver el rechazo.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      // El catálogo es largo y no cambia en el día: se cachea entre mensajes.
-      cache_control: { type: 'ephemeral' },
-      system: systemPrompt(),
-      tools: TOOLS,
-      tool_choice: { type: 'auto' },
-      messages: mensajes,
-    });
-
-    if (respuesta.stop_reason === 'refusal') {
-      res.status(200).json({ texto: 'Perdona, con eso no te puedo ayudar. ¿Te ayudo a cotizar tu evento?', fotos: [] });
-      return;
-    }
-
+    const sistema = systemPrompt();
+    const conversacion = [...mensajes];
     const partes = [];
     let fotos = [];
     let folioNuevo = folioPrevio;
-    for (const bloque of respuesta.content) {
-      if (bloque.type === 'text' && bloque.text.trim()) {
-        partes.push(bloque.text.trim());
-      } else if (bloque.type === 'tool_use' && bloque.name === 'mostrar_fotos') {
-        fotos = fotos.concat(urlsDeFotos(bloque.input.ids));
-      } else if (bloque.type === 'tool_use' && bloque.name === 'registrar_pedido') {
-        const resultado = await registrarPedido(bloque.input, historial, folioNuevo);
-        partes.push(resultado.texto);
-        if (resultado.folio) {
-          folioNuevo = resultado.folio;
-          // En un cambio, registrarPedido ya explicó que Diana lo revisa.
-          if (!folioPrevio) partes.push(`El equipo revisa la disponibilidad y la gerencia te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
+    let registrado = false;
+
+    // Normalmente es una sola llamada. Solo si DiMa pide el aproximado de
+    // traslado se le devuelve el resultado y responde con él (máx. 3 vueltas).
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      const respuesta = await client.beta.messages.create({
+        model: MODELO,
+        max_tokens: 4000,
+        // Chat de ventas: respuestas cortas, no requiere razonamiento profundo.
+        output_config: { effort: 'low' },
+        // Si un clasificador de seguridad rechaza la petición, la API la reintenta
+        // en el modelo de respaldo recomendado en vez de devolver el rechazo.
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        // El catálogo es largo y no cambia en el día: se cachea entre mensajes.
+        cache_control: { type: 'ephemeral' },
+        system: sistema,
+        tools: TOOLS,
+        tool_choice: { type: 'auto' },
+        messages: conversacion,
+      });
+
+      if (respuesta.stop_reason === 'refusal') {
+        if (!partes.length) {
+          res.status(200).json({ texto: 'Perdona, con eso no te puedo ayudar. ¿Te ayudo a cotizar tu evento?', fotos: [] });
+          return;
+        }
+        break;
+      }
+
+      const resultados = [];
+      let pidioTraslado = false;
+      for (const bloque of respuesta.content) {
+        if (bloque.type === 'text' && bloque.text.trim()) {
+          partes.push(bloque.text.trim());
+        } else if (bloque.type === 'tool_use' && bloque.name === 'mostrar_fotos') {
+          fotos = fotos.concat(urlsDeFotos(bloque.input.ids));
+          resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: 'Fotos mostradas al cliente.' });
+        } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
+          pidioTraslado = true;
+          const t = await estimarTraslado(bloque.input.destino);
+          const contenido = !t.ok ? `Sin resultado: ${t.motivo}`
+            : t.dentroDeCiudad ? `${t.lugar} está dentro de la ciudad de Culiacán: no lleva costo de traslado.`
+            : `${t.lugar}: ${t.kmDesdeSalida} km por carretera desde la salida de Culiacán. Traslado aproximado: $${t.costo.toLocaleString('es-MX')} (${t.kmDesdeSalida} km x $10 x 4 viajes: ir a dejar y regresar, ir a recoger y regresar).`;
+          resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: contenido });
+        } else if (bloque.type === 'tool_use' && bloque.name === 'registrar_pedido') {
+          // Nunca se registra dos veces en la misma respuesta.
+          const resultado = registrado
+            ? { texto: '' }
+            : await registrarPedido(bloque.input, historial, folioNuevo);
+          registrado = registrado || !!resultado.folio;
+          if (resultado.texto) partes.push(resultado.texto);
+          if (resultado.folio && !folioNuevo) {
+            folioNuevo = resultado.folio;
+            partes.push(`El equipo revisa la disponibilidad y la gerencia te confirma la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
+          } else if (resultado.folio) {
+            folioNuevo = resultado.folio;
+          }
+          resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: resultado.texto || 'Pedido ya registrado.' });
         }
       }
+
+      if (!pidioTraslado || respuesta.stop_reason !== 'tool_use') break;
+      conversacion.push({ role: 'assistant', content: respuesta.content });
+      conversacion.push({ role: 'user', content: resultados });
     }
 
     // Diana ya quedó atendida: no se le vuelve a entregar el mismo mensaje.

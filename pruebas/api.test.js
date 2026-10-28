@@ -40,7 +40,21 @@ Module._load = function (req, parent, ...rest) {
 const llamadas = [];
 let respuestas = [];
 const telegram = [];
+let mapaCaido = false;
 global.fetch = async (url, opts = {}) => {
+  if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
+    if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+    if (url.includes('nominatim')) {
+      const dentro = decodeURIComponent(url).includes('Las Quintas');
+      return { ok: true, status: 200, json: async () => [dentro
+        ? { lat: '24.7905', lon: '-107.3805', display_name: 'Las Quintas, Culiacán Rosales, Culiacán, Sinaloa' }
+        : { lat: '24.7734', lon: '-107.5504', display_name: 'San Pedro, Navolato, Sinaloa, México' }] };
+    }
+    // Ruta en línea recta del centro (dentro de la ciudad) a San Pedro (fuera): 20 km.
+    const pasos = 40;
+    const coords = Array.from({ length: pasos + 1 }, (_, i) => [-107.3940 + (-107.5504 + 107.3940) * i / pasos, 24.8091 + (24.7734 - 24.8091) * i / pasos]);
+    return { ok: true, status: 200, json: async () => ({ routes: [{ distance: 20000, geometry: { coordinates: coords } }] }) };
+  }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
     telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
@@ -68,7 +82,7 @@ process.env.VAPID_PRIVATE_KEY = 'privada';
 process.env.VAPID_SUBJECT = 'mailto:prueba@example.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { mapaCaido = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -610,4 +624,33 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'alerta_seguridad', valor: false } }, res);
   const patchSeg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && patchSeg.Zona_Alerta_Seguridad === '' && patchSeg.Estatus_Logistico === 'En camino' && telegram.some(t => t.body.text && t.body.text.includes('Se levantó la alerta de seguridad')), 'resolver: la alerta de seguridad se levanta y el estatus regresa a En camino');
+
+  // ---------- Aproximado de traslado (km desde la salida x $10 x 4) ----------
+  const { estimarTraslado, dentroDeCiudad } = require(path.join(repo, 'api/_traslado.js'));
+  ok(dentroDeCiudad([-107.3940, 24.8091]) && !dentroDeCiudad([-107.5504, 24.7734]), 'traslado: el centro está dentro de la ciudad y San Pedro fuera');
+  const tr = await estimarTraslado('San Pedro, Navolato');
+  ok(tr.ok && !tr.dentroDeCiudad && tr.kmDesdeSalida > 0 && tr.kmDesdeSalida < 20 && tr.costo === Math.round(tr.kmDesdeSalida * 40 / 10) * 10, 'traslado: solo cuenta los km fuera de la ciudad y cobra km x $10 x 4');
+  const trCiudad = await estimarTraslado('Las Quintas');
+  ok(trCiudad.ok && trCiudad.dentroDeCiudad && trCiudad.costo === 0, 'traslado: dentro de la ciudad no hay costo');
+
+  reset();
+  respuestasClaude = [
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_1', name: 'estimar_traslado', input: { destino: 'San Pedro, Navolato' } }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: `Aproximado: ${tr.kmDesdeSalida} km, traslado $${tr.costo}. Es un estimado; la cotización final te la confirma el equipo de logística.` }] },
+  ];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿Cuánto me cobran de traslado a San Pedro?' }] });
+  const segunda = llamadasClaude[1];
+  const resultadoTool = segunda && segunda.messages[segunda.messages.length - 1].content[0];
+  ok(llamadasClaude.length === 2 && resultadoTool.type === 'tool_result' && resultadoTool.tool_use_id === 'tu_1' && resultadoTool.content.includes('x $10 x 4'), 'chat: DiMa pide el aproximado y recibe km y costo para responder');
+  ok(res.body.texto.includes('equipo de logística') && !llamadas.length, 'chat: la respuesta del aproximado aclara que logística confirma, sin crear pedido');
+
+  reset();
+  mapaCaido = true;
+  respuestasClaude = [
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_2', name: 'estimar_traslado', input: { destino: 'San Pedro' } }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'El equipo de logística te confirma el costo.' }] },
+  ];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿y el traslado?' }] });
+  ok(llamadasClaude[1].messages[llamadasClaude[1].messages.length - 1].content[0].content.startsWith('Sin resultado'), 'chat: si el mapa falla, DiMa no recibe un número inventado');
+  ok(llamadasClaude[0].system.includes('APROXIMADO DE TRASLADO') && llamadasClaude[0].tools.some(t => t.name === 'estimar_traslado'), 'chat: DiMa tiene la regla y la herramienta de traslado');
 })();

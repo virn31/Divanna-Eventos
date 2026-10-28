@@ -98,3 +98,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decisión:** en los foráneos DiMa pregunta si el cliente quiere esperar la respuesta en el chat o prefiere mensaje o llamada (`Preferencia_Contacto`, visible en dashboard, correo y Telegram). Diana escribe en el dashboard un "Mensaje para el cliente"; DiMa se lo entrega tal cual: si el cliente sigue con el chat abierto aparece solo (revisión cada 30 s sin costo de IA) y si regresa después con su número de pedido, DiMa se lo da al inicio. Se marca como entregado para no repetirlo.
 **Por qué:** pedido de Víctor tras probar un foráneo: el cliente se quedaba sin saber si esperar, y Diana no tenía cómo contestarle por el mismo canal.
 **Descartado:** mandar el mensaje al cliente por SMS o WhatsApp (se quitó WhatsApp y SMS cuesta y requiere proveedor; si el cliente prefiere mensaje o llamada, Diana lo contacta directo con el teléfono del pedido).
+
+## 2026-10-27 — Aproximado de traslado para eventos foráneos
+
+**Regla de Víctor:** se mide desde la salida de Culiacán; ~$10 por km, ida y vuelta, en dos ocasiones (llevar y regresar, recoger y regresar) => km x $10 x 4.
+**Decisión:** herramienta `estimar_traslado` que DiMa usa solo cuando el cliente pregunta por el traslado. Geocodifica el destino y traza la ruta con OpenStreetMap (gratis, sin llave) y cuenta solo los km desde que la ruta sale del límite oficial de Culiacán Rosales. DiMa lo presenta como estimado y aclara que la cotización final la confirma el equipo de logística.
+**Pendiente:** Víctor compara algunos destinos con Google. Prueba inicial: San Pedro 4 km (el límite oficial llega casi a Aguaruto), Navolato 19, Imala 21, Costa Rica 25, Altata 47, Eldorado 54.
+**Descartado (por ahora):** Google Maps Distance Matrix (requiere llave y facturación; se puede cambiar después sin tocar el chat); que DiMa calcule distancias de memoria (poco confiable).
