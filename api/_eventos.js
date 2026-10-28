@@ -56,6 +56,10 @@ function formatearEvento(r) {
     etaConfirmado: r.fields.ETA_Confirmado_Brigada || '',
     estatusPago: r.fields.Estatus_Pago || '',
     montoAdeudado: r.fields.Monto_Adeudado || null,
+    instrucciones: r.fields.Instrucciones_Equipo || '',
+    fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
+    ubicacionAlerta: r.fields.Ubicacion_Alerta || '',
+    ubicacionAlertaHora: r.fields.Ubicacion_Alerta_Hora || '',
   };
 }
 
@@ -113,6 +117,8 @@ async function alertasEquipoDeHoy(eventoIdsPropios) {
         emergencia: !!r.fields.Emergencia,
         motivoEmergencia: r.fields.Motivo_Emergencia || '',
         zonaAlertaSeguridad: r.fields.Zona_Alerta_Seguridad || '',
+        ubicacionAlerta: r.fields.Ubicacion_Alerta || '',
+        ubicacionAlertaHora: r.fields.Ubicacion_Alerta_Hora || '',
       }));
   } catch (err) {
     console.error('No se pudieron obtener las alertas del equipo:', err);

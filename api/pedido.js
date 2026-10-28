@@ -14,7 +14,8 @@ module.exports = async (req, res) => {
     if (body.sitio_web) { res.status(200).json({ success: true }); return; }
 
     // El formulario no manda estimado: ese solo lo calcula DiMa en el chat.
-    const { error, datos } = validarPedido({ ...body, montoEstimado: null });
+    // Si el cliente no dijo que es dentro de la ciudad, Diana revisa cobertura.
+    const { error, datos } = validarPedido({ ...body, montoEstimado: null, fueraDeCiudad: body.enCiudad !== 'si' });
     if (error) { res.status(400).json({ error }); return; }
 
     const { folio } = await crearPedido(datos, { origen: 'formulario' });

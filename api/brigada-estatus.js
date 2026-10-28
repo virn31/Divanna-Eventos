@@ -4,6 +4,9 @@
 // En emergencias y alertas de seguridad manda una notificación push con sonido
 // y vibración a los teléfonos de todo el equipo (api/_push.js) y un correo a
 // Diana y Víctor -- DiMa nunca decide ni reasigna sola, solo alerta.
+// Si el teléfono manda su GPS, la alerta lleva la ubicación (link al mapa y
+// pin en Telegram), y con tipo "ubicacion" la app la actualiza cada minuto
+// mientras la emergencia siga activa. Quien reporta recibe confirmación en Telegram.
 //
 // Requiere sesión. El asistente solo marca la carga y lanza alertas; el resto
 // de cambios son del líder, la encargada del evento o un admin.
@@ -18,7 +21,24 @@ const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
 };
 
-const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad'];
+const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad', 'ubicacion'];
+
+// { lat, lng, precision } del GPS del teléfono, o null si no viene o no es válido.
+function leerUbicacion(u) {
+  if (!u || typeof u !== 'object') return null;
+  const lat = Number(u.lat), lng = Number(u.lng), precision = Number(u.precision);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, precision: Number.isFinite(precision) ? Math.round(precision) : null };
+}
+
+function linkMapa({ lat, lng }) {
+  return `https://maps.google.com/?q=${lat},${lng}`;
+}
+
+function textoUbicacion(ubic) {
+  if (!ubic) return '📍 Sin ubicación GPS (el teléfono no dio permiso o no tenía señal).';
+  return `📍 Ubicación de quien reporta: ${linkMapa(ubic)}${ubic.precision ? ` (±${ubic.precision} m)` : ''}`;
+}
 
 const MENSAJE_ALERTA_SEGURIDAD_CLIENTE =
   'Hay una situación de inseguridad en la ciudad que nos está retrasando, ' +
@@ -47,13 +67,21 @@ async function airtablePatch(tableId, recordId, fields) {
 
 // Push y Telegram a todo el equipo (menos quien reporta) y correo a Diana y
 // Víctor, en paralelo. Si un canal falla, los demás y el aviso en la app quedan.
-async function notificarEquipo({ asunto, mensaje, reportaId }) {
-  const [enviado] = await Promise.all([
+// Después le confirma a quien reportó, por Telegram, a cuántos les llegó.
+async function notificarEquipo({ asunto, mensaje, reportaId, ubic }) {
+  const [enviado, porPush, porTelegram] = await Promise.all([
     enviarCorreoEquipo({ asunto, texto: mensaje }),
-    enviarPushEquipo({ titulo: asunto, cuerpo: mensaje, excluirColaboradorId: reportaId }),
-    enviarTelegramEquipo({ texto: mensaje, excluirColaboradorId: reportaId }),
+    enviarPushEquipo({ titulo: asunto, cuerpo: mensaje, excluirColaboradorId: reportaId, url: ubic ? linkMapa(ubic) : null }),
+    enviarTelegramEquipo({ texto: mensaje, excluirColaboradorId: reportaId, ubicacion: ubic }),
   ]);
   if (!enviado) console.error('No se pudo enviar por correo la alerta:', asunto);
+  await enviarTelegramEquipo({
+    soloColaboradores: [reportaId],
+    texto: `✅ Tu alerta se envió.\n${asunto}\nLes llegó a ${porTelegram} por Telegram y a ${porPush} teléfonos por la app` +
+      `${enviado ? ', y el correo a Diana y Víctor' : ''}.` +
+      (ubic ? '\nTu ubicación va con la alerta; deja la app abierta para que se siga actualizando.' : '\nNo se pudo mandar tu ubicación: activa la ubicación del teléfono para la app.'),
+  });
+  return { porPush, porTelegram, correo: !!enviado };
 }
 
 module.exports = async (req, res) => {
@@ -64,6 +92,7 @@ module.exports = async (req, res) => {
     if (!colaborador) return;
 
     const { eventoId, tipo, valor, motivo } = req.body || {};
+    const ubic = leerUbicacion((req.body || {}).ubicacion);
 
     if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !tipo) {
       res.status(400).json({ error: 'Parámetros inválidos' });
@@ -87,6 +116,7 @@ module.exports = async (req, res) => {
     let fieldsToUpdate = {};
     let alertaMensaje = null;
     let alertaAsunto = '';
+    let resueltaMensaje = null;
 
     switch (tipo) {
       case 'checklist_item': {
@@ -146,18 +176,34 @@ module.exports = async (req, res) => {
 
       case 'emergencia':
         fieldsToUpdate.Emergencia = !!valor;
-        fieldsToUpdate.Motivo_Emergencia = motivo || '';
+        fieldsToUpdate.Motivo_Emergencia = valor ? (motivo || '') : (eventoData.fields.Motivo_Emergencia || '');
+        if (!valor && eventoData.fields.Emergencia) {
+          resueltaMensaje = `✅ Se resolvió la emergencia de ${folio} (${ubicacion}). Marcada por ${reporta}. Ya no hace falta acudir.`;
+        }
         if (valor) {
           alertaAsunto = `🆘 EMERGENCIA - Evento ${folio}`;
           alertaMensaje =
             `🆘 EMERGENCIA - Evento ${folio} (${ubicacion})\n` +
             `Reporta: ${reporta}\n` +
             `Motivo: ${motivo || 'sin especificar'}\n` +
+            `${textoUbicacion(ubic)}\n` +
             `Si estás cerca, por favor acude a ayudar. Coordinemos por teléfono.`;
         }
         break;
 
       case 'alerta_seguridad':
+        if (!valor) {
+          // Quitar la alerta: se borra la zona y, si el estatus seguía en
+          // "Retraso - seguridad", regresa a "En camino" (la brigada lo ajusta).
+          fieldsToUpdate.Zona_Alerta_Seguridad = '';
+          if (eventoData.fields.Estatus_Logistico === 'Retraso - situación de seguridad en la ciudad') {
+            fieldsToUpdate.Estatus_Logistico = 'En camino';
+          }
+          if (eventoData.fields.Zona_Alerta_Seguridad) {
+            resueltaMensaje = `✅ Se levantó la alerta de seguridad de ${folio} (zona: ${eventoData.fields.Zona_Alerta_Seguridad}). Marcada por ${reporta}.`;
+          }
+          break;
+        }
         fieldsToUpdate.Estatus_Logistico = 'Retraso - situación de seguridad en la ciudad';
         fieldsToUpdate.Zona_Alerta_Seguridad = motivo || '';
         if (valor) {
@@ -166,7 +212,18 @@ module.exports = async (req, res) => {
             `⚠️ ALERTA DE SEGURIDAD - reportada por ${reporta}\n` +
             `Zona: ${motivo || 'sin especificar'}\n` +
             `Evento afectado: ${folio} (${ubicacion})\n` +
+            `${textoUbicacion(ubic)}\n` +
             `Eviten la zona si es posible.`;
+        }
+        break;
+
+      case 'ubicacion':
+        // Actualización periódica desde la app mientras la emergencia o la
+        // alerta de seguridad siguen activas. No manda avisos.
+        if (!ubic) { res.status(400).json({ error: 'Ubicación inválida' }); return; }
+        if (!eventoData.fields.Emergencia && !eventoData.fields.Zona_Alerta_Seguridad) {
+          res.status(200).json({ success: true, activa: false });
+          return;
         }
         break;
 
@@ -179,19 +236,37 @@ module.exports = async (req, res) => {
         return;
     }
 
+    if (ubic && ['emergencia', 'alerta_seguridad', 'ubicacion'].includes(tipo) && (valor || tipo === 'ubicacion')) {
+      fieldsToUpdate.Ubicacion_Alerta = `${ubic.lat},${ubic.lng}`;
+      fieldsToUpdate.Ubicacion_Alerta_Hora = new Date().toISOString();
+    }
+
     await airtablePatch(TABLES.EVENTOS, eventoId, fieldsToUpdate);
 
     // Se espera el envío antes de responder: en Vercel la función se congela al
     // responder y un correo pendiente nunca saldría.
+    // Al resolver una alerta se avisa por Telegram (sin sirena de push) para
+    // que nadie siga yendo; también a quien la marcó, como confirmación.
+    if (resueltaMensaje) {
+      await enviarTelegramEquipo({ texto: resueltaMensaje }).catch(err => console.error('Error avisando resolución:', err));
+    }
+
+    let enviados = null;
     if (alertaMensaje) {
-      await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje, reportaId: colaborador.id }).catch(err =>
-        console.error('Error notificando al equipo:', err)
-      );
+      enviados = await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje, reportaId: colaborador.id, ubic }).catch(err => {
+        console.error('Error notificando al equipo:', err);
+        return null;
+      });
     }
 
     // En alerta de seguridad, la app le muestra a la brigada el mensaje acordado
     // para que se lo comunique al cliente por teléfono.
-    res.status(200).json({ success: true, mensajeCliente: tipo === 'alerta_seguridad' ? MENSAJE_ALERTA_SEGURIDAD_CLIENTE : null });
+    res.status(200).json({
+      success: true,
+      activa: tipo === 'ubicacion' ? true : undefined,
+      enviados,
+      mensajeCliente: tipo === 'alerta_seguridad' ? MENSAJE_ALERTA_SEGURIDAD_CLIENTE : null,
+    });
   } catch (err) {
     console.error('Error en brigada-estatus:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

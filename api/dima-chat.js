@@ -91,9 +91,11 @@ const TOOLS = [
         invitados: { type: ['integer', 'null'] },
         ubicacion: { type: 'string', description: 'Colonia, salón o dirección del evento.' },
         servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). Diana usa estas líneas como checklist de carga.' },
-        monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo, o null si no se pudo calcular.' },
+        monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
+        fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
+        indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'invitados', 'ubicacion', 'servicios', 'monto_estimado'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'invitados', 'ubicacion', 'servicios', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones'],
       additionalProperties: false,
     },
   },
@@ -118,6 +120,15 @@ CÓMO HABLAS:
 - No repitas el desglose completo de un paquete que ya presentaste; refiérete a él ("el paquete que ya vimos").
 - Una idea por mensaje: no apiles repaso + anticipo + visita + venta cruzada en un solo mensaje.
 - Este chat no tiene archivos adjuntos: si el cliente quiere enseñarte una imagen de referencia, pídele que la describa o que la mande por Instagram (${LINK_INSTAGRAM_DIVANNA}).
+
+COBERTURA (revísala en cuanto sepas dónde es el evento):
+- El servicio normal es dentro de la ciudad de Culiacán. La cobertura máxima es un radio de 35 km desde Culiacán, y todo lo que está fuera de la ciudad se confirma caso por caso.
+- Fuera de la ciudad es cualquier sindicatura o pueblo aunque sea del municipio (Costa Rica, Eldorado, Quilá, Tepuche, Imala, Jesús María, Culiacancito, El Salado, etc.), todo Navolato (incluido San Pedro), las playas (Altata, Ponce, El Tambor) y otros municipios.
+- Si el evento es fuera de la ciudad: díselo al cliente con naturalidad, sin cerrarle la puerta. Explícale que Diana revisa si llegan hasta allá y el costo de traslado, que se suma a la cotización. Nunca confirmes cobertura ni inventes un costo de traslado. Sigue armando la cotización normal y registra el pedido con fuera_de_ciudad = true.
+- Si no sabes si un lugar está dentro de la ciudad, pregunta la colonia o la sindicatura. Si sigues con la duda, trátalo como fuera de la ciudad.
+- Si el lugar está claramente lejos (más de 35 km, por ejemplo Mazatlán, Los Mochis o Guamúchil), sé honesta: está fuera de la zona habitual y Diana revisa si se puede atender.
+
+INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
 FLUJO DE LA COTIZACIÓN:
 1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, invitados, ubicación y qué necesita.
@@ -172,6 +183,8 @@ async function registrarPedido(input, historial, folioPrevio) {
     ubicacion: input.ubicacion,
     servicios: input.servicios,
     montoEstimado: input.monto_estimado,
+    fueraDeCiudad: input.fuera_de_ciudad,
+    indicaciones: input.indicaciones,
   });
   if (error) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
@@ -182,12 +195,9 @@ async function registrarPedido(input, historial, folioPrevio) {
   if (folioPrevio) {
     await enviarTelegramEquipo({
       roles: [ROLES.ADMIN],
-      texto: `✏️ Cambio en el pedido ${folioPrevio} (${datos.nombre}). Así queda:
-
-${datos.servicios}` +
-        (datos.montoEstimado > 0 ? `
-
-Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}` : ''),
+      texto: `✏️ Cambio en el pedido ${folioPrevio} (${datos.nombre}). Así queda:\n\n${datos.servicios}` +
+        (datos.montoEstimado > 0 ? `\n\nNuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}` : '') +
+        (datos.indicaciones ? `\n\n📌 ${datos.indicaciones}` : ''),
     });
     await enviarCorreoEquipo({
       asunto: `✏️ Cambio en el pedido ${folioPrevio} - ${datos.nombre}`,
@@ -202,7 +212,8 @@ Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}` : ''),
     origen: 'chat',
     notasExtra: `\nConversación con DiMa:\n${transcripcion(historial)}`,
   });
-  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.`, folio };
+  const aviso = datos.fueraDeCiudad ? ' Como es fuera de la ciudad, Diana te confirma la cobertura y el costo de traslado.' : '';
+  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${aviso}`, folio };
 }
 
 module.exports = async (req, res) => {

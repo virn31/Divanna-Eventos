@@ -574,9 +574,17 @@
         <label>Tipo de evento<input name="tipoEvento" maxlength="60" placeholder="Boda, XV años, cumpleaños…"></label>
         <label>Fecha del evento<input name="fecha" type="date" required></label>
         <label>Invitados<input name="invitados" type="number" min="1" max="5000" inputmode="numeric"></label>
-        <label>Ubicación<input name="ubicacion" maxlength="150" placeholder="Colonia o salón, Culiacán"></label>
+        <label>Ubicación<input name="ubicacion" maxlength="150" placeholder="Colonia o salón"></label>
+        <label>¿Es dentro de la ciudad de Culiacán?
+          <select name="enCiudad">
+            <option value="si">Sí, en la ciudad</option>
+            <option value="no">No, fuera de la ciudad (sindicatura, Navolato, playa…)</option>
+            <option value="nose">No estoy seguro</option>
+          </select>
+        </label>
       </div>
       <label class="pf-full">¿Qué necesitas?<textarea name="servicios" required maxlength="1500" placeholder="Ej. 10 mesas redondas, 100 sillas Tiffany, decoración en tonos dorados"></textarea></label>
+      <label class="pf-full">Indicaciones para el equipo <span>(opcional)</span><textarea name="indicaciones" maxlength="800" placeholder="Horario de montaje, cómo llegar, a quién buscar…"></textarea></label>
       <label class="pf-trampa" aria-hidden="true">Sitio web<input name="sitio_web" tabindex="-1" autocomplete="off"></label>
       <button type="submit" class="btn btn-primary" id="pedidoBtn">Enviar pedido</button>
       <p class="pf-msg" id="pedidoMsg" role="status"></p>

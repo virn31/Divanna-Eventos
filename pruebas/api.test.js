@@ -322,6 +322,48 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await checklist({ method: 'POST', headers: auth(tokenEnc), body: { eventoId: 'recEVENTO00000008', etapa: 'montaje', valor: true } }, res);
   ok(res.code === 403, 'encargada no toca eventos de otra encargada');
 
+  // ---------- Cobertura e instrucciones ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Luz', telefono: '6672223344', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Cumpleaños', fecha: '2026-11-20', invitados: 60, ubicacion: 'San Pedro, Navolato', servicios: 'Paquete 3', monto_estimado: 2700, fuera_de_ciudad: true, indicaciones: 'Montar a las 5 pm, casa con portón verde' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000004', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial });
+  const evFuera = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(evFuera.Fuera_De_Ciudad === true && evFuera.Instrucciones_Equipo === 'Del cliente: Montar a las 5 pm, casa con portón verde', 'chat: fuera de la ciudad e indicaciones del cliente quedan en el evento');
+  ok(res.body.texto.includes('fuera de la ciudad') && correos[0].subject.includes('fuera de la ciudad') && correos[0].text.includes('FUERA DE LA CIUDAD'), 'chat: cliente y Diana reciben el aviso de cobertura');
+  ok(llamadasClaude[0].system.includes('COBERTURA') && llamadasClaude[0].system.includes('San Pedro') && llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema.required.includes('fuera_de_ciudad'), 'chat: DiMa tiene las reglas de cobertura y el campo para marcarlo');
+
+  reset();
+  respuestas = [
+    ADMIN,
+    { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-11-20', Brigada_Asignada: ['recBRIGADA0000001'], Instrucciones_Equipo: '' } },
+    {},
+    { records: [LIDER, ASIST, ADMIN] },
+    { records: [LIDER, ASIST, ADMIN] },
+    { records: [
+      { id: 'recSUB00000000010', fields: { Endpoint: 'https://push.example/lider', Colaborador: [LIDER.id], Claves: '{"p256dh":"a","auth":"b"}' } },
+      { id: 'recSUB00000000011', fields: { Endpoint: 'https://push.example/admin', Colaborador: [ADMIN.id], Claves: '{"p256dh":"a","auth":"b"}' } },
+    ] },
+  ];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'Llevar extensión de 20 m' } }, res);
+  const patchInstr = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchInstr.Instrucciones_Equipo === 'Llevar extensión de 20 m' && res.body.avisados === 2, 'dashboard: guarda instrucciones y avisa a los 2 de la brigada');
+  ok(pushes.length === 1 && pushes[0].endpoint.endsWith('/lider') && pushes[0].payload.cuerpo.includes('extensión'), 'instrucciones: push solo al equipo asignado, no a Admin');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Instrucciones_Equipo: 'Igual' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'Igual' } }, res);
+  ok(res.code === 200 && res.body.avisados === 0 && pushes.length === 0, 'instrucciones sin cambios: no se vuelve a avisar');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'x' } }, res);
+  ok(res.code === 403, 'instrucciones: solo Admin las puede escribir');
+
   // ---------- Suscripción push ----------
   reset();
   res = resMock();
@@ -417,4 +459,62 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await pedido({ method: 'POST', body: { nombre: 'Rosa', telefono: '6679990000', negocio: 'El Vaso Maiz', fecha: '2026-12-20', servicios: 'Paquete 3' } }, res);
   const avisosPedido = telegram.filter(t => t.metodo === 'sendMessage');
   ok(res.code === 200 && avisosPedido.length === 1 && avisosPedido[0].body.chat_id === '111' && avisosPedido[0].body.text.includes('Pedido nuevo'), 'telegram: pedido nuevo solo a los Admin');
+
+  // ---------- Ubicación en tiempo real de las alertas ----------
+  const ubicLider = { lat: 24.7701234, lng: -107.6012345, precision: 15 };
+  const conTelegram = [
+    { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+    { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } },
+  ];
+  reset();
+  respuestas = [LIDER, eventoBrigada, {}, { records: conTelegram }, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: true, motivo: 'choque', ubicacion: ubicLider } }, res);
+  const patchUbic = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const mensajesTg = telegram.filter(t => t.metodo === 'sendMessage');
+  const pines = telegram.filter(t => t.metodo === 'sendLocation');
+  ok(res.code === 200 && patchUbic.Ubicacion_Alerta === '24.770123,-107.601234' && patchUbic.Ubicacion_Alerta_Hora, 'ubicación: la emergencia guarda el GPS de quien reporta');
+  ok(mensajesTg[0].body.chat_id === '111' && mensajesTg[0].body.text.includes('maps.google.com/?q=24.770123,-107.601234') && pines.length === 1 && pines[0].body.chat_id === '111' && pines[0].body.latitude === 24.770123, 'ubicación: Telegram lleva link al mapa y pin, solo al equipo');
+  ok(mensajesTg.length === 2 && mensajesTg[1].body.chat_id === '222' && mensajesTg[1].body.text.includes('Tu alerta se envió') && res.body.enviados.porTelegram === 1, 'ubicación: quien reporta recibe la confirmación en Telegram');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada, {}, { records: conTelegram }, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: true, motivo: 'choque' } }, res);
+  ok(telegram.find(t => t.metodo === 'sendMessage').body.text.includes('Sin ubicación GPS') && !telegram.some(t => t.metodo === 'sendLocation'), 'ubicación: sin GPS la alerta sale igual y lo dice');
+
+  reset();
+  respuestas = [ASIST, { fields: { ...eventoBrigada.fields, Emergencia: true } }, {}];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenAsist), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: { lat: 24.78, lng: -107.6 } } }, res);
+  ok(res.code === 200 && res.body.activa === true && llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Ubicacion_Alerta === '24.78,-107.6' && telegram.length === 0, 'ubicación: actualización cada minuto guarda la posición sin mandar avisos');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: ubicLider } }, res);
+  ok(res.code === 200 && res.body.activa === false && !llamadas.some(l => l.method === 'PATCH'), 'ubicación: sin alerta activa no se guarda (y la app deja de mandarla)');
+
+  reset();
+  respuestas = [LIDER, eventoBrigada];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: { lat: 'x', lng: 500 } } }, res);
+  ok(res.code === 400, 'ubicación: coordenadas inválidas se rechazan');
+
+  // ---------- Resolver alertas ----------
+  reset();
+  respuestas = [ADMIN, { fields: { ...eventoBrigada.fields, Emergencia: true, Motivo_Emergencia: 'choque', Ubicacion: 'Centro' } }, {}, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: false } }, res);
+  const patchRes = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisosRes = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && patchRes.Emergencia === false && patchRes.Motivo_Emergencia === 'choque', 'resolver: Admin apaga la emergencia y se conserva el motivo como historial');
+  ok(avisosRes.length === 2 && avisosRes.every(t => t.body.text.includes('Se resolvió la emergencia')) && pushes.length === 0, 'resolver: aviso de cierre por Telegram a todos, sin push');
+
+  reset();
+  respuestas = [LIDER, { fields: { ...eventoBrigada.fields, Zona_Alerta_Seguridad: 'Obregón', Estatus_Logistico: 'Retraso - situación de seguridad en la ciudad' } }, {}, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'alerta_seguridad', valor: false } }, res);
+  const patchSeg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchSeg.Zona_Alerta_Seguridad === '' && patchSeg.Estatus_Logistico === 'En camino' && telegram.some(t => t.body.text && t.body.text.includes('Se levantó la alerta de seguridad')), 'resolver: la alerta de seguridad se levanta y el estatus regresa a En camino');
 })();

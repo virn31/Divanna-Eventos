@@ -79,19 +79,26 @@ async function guardarChat(colaboradorId, chatId) {
 }
 
 // Manda un aviso a los colaboradores activos con Telegram vinculado.
-// roles: lista de roles que lo reciben (null = todos). Nunca lanza error.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null }) {
+// roles: lista de roles que lo reciben (null = todos); soloColaboradores: lista
+// de IDs para mandarlo solo a esas personas; ubicacion: { lat, lng } para
+// mandar además el pin del mapa. Devuelve a cuántos les llegó. Nunca lanza error.
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null }) {
   if (!telegramConfigurado()) return 0;
   try {
     const formula = encodeURIComponent('AND({Activo}, {Telegram_Chat_ID} != "")');
     const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
     const destinos = data.records.map(aColaborador)
-      .filter(c => c.id !== excluirColaboradorId && (!roles || roles.includes(c.rol)));
+      .filter(c => c.id !== excluirColaboradorId && (!roles || roles.includes(c.rol))
+        && (!soloColaboradores || soloColaboradores.includes(c.id)));
 
     let enviados = 0;
     await Promise.all(destinos.map(async (c) => {
       const r = await enviarTelegram(c.chatId, texto);
-      if (r.ok) { enviados++; return; }
+      if (r.ok) {
+        enviados++;
+        if (ubicacion) await telegramApi('sendLocation', { chat_id: c.chatId, latitude: ubicacion.lat, longitude: ubicacion.lng }).catch(() => {});
+        return;
+      }
       // 403: la persona bloqueó o borró el bot; se desvincula para no seguir intentando.
       if (r.status === 403) await guardarChat(c.id, '').catch(() => {});
       else console.error('Error enviando Telegram:', r.status, r.data && r.data.description);

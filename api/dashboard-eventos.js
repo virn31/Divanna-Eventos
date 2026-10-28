@@ -7,9 +7,13 @@
 // POST: Diana autoriza o rechaza la cotización de un pedido (antes respondía
 // SI / NO por WhatsApp). Al autorizar se genera el checklist de carga y se
 // agenda en Calendar, se registra en Sheets y se manda correo al cliente.
+// POST accion "instrucciones": Diana guarda instrucciones extra de un evento
+// (Instrucciones_Equipo); se avisa por push y Telegram solo al equipo asignado.
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
-const { ROLES, requerirSesion } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
+const { enviarPushEquipo } = require('./_push');
+const { enviarTelegramEquipo } = require('./_telegram');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -71,15 +75,53 @@ function itemsDeTexto(texto) {
   return (texto || '').split('\n').map(s => s.trim()).filter(Boolean);
 }
 
+// Colaboradores que trabajan el evento: los de la brigada asignada y la
+// encargada (El Vaso Maíz). Si el evento aún no tiene a nadie, lista vacía.
+async function asignadosDe(eventoFields) {
+  const brigadas = eventoFields.Brigada_Asignada || [];
+  const ids = new Set(eventoFields.Encargada || []);
+  if (brigadas.length) {
+    const data = await airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
+    data.records.forEach(c => {
+      if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
+    });
+  }
+  return [...ids];
+}
+
+async function avisarInstrucciones(eventoFields, texto) {
+  const asignados = await asignadosDe(eventoFields);
+  if (!asignados.length) return 0;
+  const titulo = `📌 Instrucciones para ${eventoFields.Folio_Evento || 'tu evento'}`;
+  const cuerpo = `${eventoFields.Ubicacion ? eventoFields.Ubicacion + ' · ' : ''}${eventoFields.Fecha_Evento || ''}\n${texto}`;
+  await Promise.all([
+    enviarPushEquipo({ titulo, cuerpo, soloColaboradores: asignados }),
+    enviarTelegramEquipo({ texto: `${titulo}\n${cuerpo}`, soloColaboradores: asignados }),
+  ]);
+  return asignados.length;
+}
+
 async function resolverPedido(req, res) {
   const { eventoId, accion, monto, items } = req.body || {};
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar'].includes(accion)) {
+  const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
 
   const evento = await airtableGet(`${TABLES.EVENTOS}/${eventoId}`);
   const f = evento.fields;
+
+  if (accion === 'instrucciones') {
+    if (instrucciones === null) { res.status(400).json({ error: 'Faltan las instrucciones' }); return; }
+    await airtablePatch(TABLES.EVENTOS, eventoId, { Instrucciones_Equipo: instrucciones });
+    // Solo se avisa si hay algo escrito y cambió.
+    const avisados = instrucciones && instrucciones !== (f.Instrucciones_Equipo || '').trim()
+      ? await avisarInstrucciones(f, instrucciones)
+      : 0;
+    res.status(200).json({ success: true, avisados });
+    return;
+  }
 
   if (accion === 'rechazar') {
     await airtablePatch(TABLES.EVENTOS, eventoId, { Autorizacion_Diana: 'NO' });
@@ -100,6 +142,7 @@ async function resolverPedido(req, res) {
     Items_Detallados_Cotizacion: listaItems.join('\n'),
     Checklist_Items: listaItems.join('\n'),
     Checklist_Items_Marcados: '[]',
+    ...(instrucciones !== null ? { Instrucciones_Equipo: instrucciones } : {}),
   });
 
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
@@ -188,6 +231,10 @@ module.exports = async (req, res) => {
         estatusPago: r.fields.Estatus_Pago || '',
         montoAdeudado: r.fields.Monto_Adeudado || null,
         autorizacionDiana: r.fields.Autorizacion_Diana || '',
+        instrucciones: r.fields.Instrucciones_Equipo || '',
+        fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
+        ubicacionAlerta: r.fields.Ubicacion_Alerta || '',
+        ubicacionAlertaHora: r.fields.Ubicacion_Alerta_Hora || '',
       };
     });
 
@@ -205,6 +252,8 @@ module.exports = async (req, res) => {
         invitados: r.fields.Invitados || null,
         servicios: r.fields.Servicios_Solicitados || '',
         montoEstimado: r.fields.Monto_Estimado_IA || null,
+        instrucciones: r.fields.Instrucciones_Equipo || '',
+        fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
         notas: r.fields.Notas || '',
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',

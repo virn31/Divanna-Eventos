@@ -23,6 +23,11 @@ y se actualiza sola con cada deploy (no hay que reinstalar el APK por cambios de
 Manda el `.apk` a cada colaborador (Drive, correo o cable). Al abrirlo, Android pide permitir
 "instalar apps de fuentes desconocidas" para esa app; se acepta una vez.
 Después cada quien entra con su usuario y PIN (tabla COLABORADORES en Airtable) y toca **Activar alertas**.
+Para que la emergencia lleve la ubicación, la primera vez que se lance una alerta el teléfono pide
+permiso de ubicación: hay que **Permitir** (mejor "Mientras se usa la app"). Si se negó por error:
+Ajustes > Apps > DiMa Equipo > Permisos > Ubicación. Si al regenerar el APK PWABuilder ofrece
+**Location delegation**, actívalo.
+
 Para que las emergencias se oigan: el teléfono no debe estar en "No molestar" para esta app, y en
 Ajustes > Apps > DiMa Equipo > Notificaciones deben estar permitidas con sonido.
 
