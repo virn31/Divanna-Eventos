@@ -50,7 +50,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Con el cliente DiMa ya no menciona a Diana: dice "el equipo de logística" o "la gerencia".
 - Aproximado de traslado (`api/_traslado.js`): km desde la salida de Culiacán x $10 x 4 con rutas de OpenStreetMap; DiMa lo da solo si el cliente lo pide. **Pendiente de Víctor:** comparar con Google (San Pedro dio 4 km desde la salida, puede ser bajo).
 - Límite duro de 35 km desde la salida de Culiacán (chat, formulario y página); más lejos no se registra el pedido.
-- 98 pruebas pasan.
+- Precios: regla de "paquetes primero" (100 personas Antonella = 2 x $5,400 = $10,800 + extras).
+- **Pregunta abierta para Víctor:** el catálogo dice que los paquetes son fijos "excepto diciembre": ¿cómo cotiza DiMa en diciembre?
+- 99 pruebas pasan.
 - Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**

@@ -110,3 +110,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 
 **Decisión (Víctor):** por ahora no se da servicio a más de 35 km, por seguridad del equipo y por costos. DiMa revisa la distancia en cuanto el evento es foráneo y, si pasa el límite, lo explica con amabilidad y no registra el pedido. El servidor lo vuelve a verificar al registrar (chat y formulario). La página lo dice en "Zona de cobertura".
 **Detalle:** si el mapa no responde, el pedido se registra y logística valida la distancia (no se pierde un cliente por una falla técnica).
+
+## 2026-10-28 — Precios: paquetes primero
+
+**Contexto (prueba de Víctor):** para 100 personas con sillas Antonella, mantelería y cristalería DiMa sumó piezas sueltas ($5,700 de mesas/sillas + cristalería aparte) en lugar de usar el paquete de 50 personas Antonella ($5,400, que ya incluye mantel, plato, copa, servilletas, cubiertos y personalizados).
+**Decisión:** cuando lo pedido coincide con un paquete, DiMa cotiza con paquetes completos y los combina (50 + 20) para llegar a los invitados; solo suma piezas sueltas para lo que el paquete no trae. Ejemplo en el prompt: 100 personas Antonella = 2 x $5,400 = $10,800 + extras.
+**Abierto:** el catálogo dice que los paquetes son fijos "excepto diciembre"; falta que Víctor diga cómo se cotiza en diciembre.

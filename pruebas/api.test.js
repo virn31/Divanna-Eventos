@@ -680,5 +680,6 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   reset();
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
   res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+  ok(llamadasClaude[0].system.includes('PAQUETES PRIMERO') && llamadasClaude[0].system.includes('2 x paquete de 50 personas Antonella ($5,400) = $10,800'), 'precios: DiMa cotiza con paquetes completos antes que piezas sueltas');
   ok(llamadasClaude[0].system.includes('Más de 35 km NO se atiende') && !llamadasClaude[0].system.includes('caso por caso'), 'límite: DiMa tiene la regla de no atender a más de 35 km');
 })();
