@@ -6,7 +6,7 @@
 
 const TEMPORADA_ALTA = {
   desde: { mes: 12, dia: 18 }, // una semana antes de Navidad
-  hasta: { mes: 1, dia: 1 },   // "hasta entrando el año" (ajustar aquí si se extiende)
+  hasta: { mes: 1, dia: 1 },   // hasta el 1 de enero inclusive (confirmado por Víctor)
   aumento: 0.70,
 };
 
