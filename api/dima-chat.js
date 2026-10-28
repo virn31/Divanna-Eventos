@@ -19,11 +19,12 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
-const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
+const { correccionesParaPrompt, correccionesActivas, textoCorrecciones, guardarCorreccion, desactivarCorreccion } = require('./_correcciones');
+const { ROLES, requerirSesion } = require('./_sesion');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -136,7 +137,8 @@ const TOOLS = [
   },
 ];
 
-function systemPrompt() {
+// correcciones: reglas activas de la gerencia ("Entrenar a DiMa"), al final y con prioridad.
+function systemPrompt(correcciones = []) {
   const hoy = new Date();
   const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(hoy);
   const hoyTexto = hoy.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mazatlan' });
@@ -193,7 +195,7 @@ FLUJO DE LA COTIZACIÓN:
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
-${CATALOGO}`;
+${CATALOGO}${correcciones.length ? '\n\n' + textoCorrecciones(correcciones) : ''}`;
 }
 
 // Convierte el historial del navegador en mensajes de la API, validando tamaños.
@@ -330,8 +332,107 @@ async function registrarPedido(input, historial, folioPrevio) {
   return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${aviso}`, folio };
 }
 
+// ---------- Entrenar a DiMa (solo Admin, desde el dashboard) ----------
+// Diana o Víctor platican con DiMa: le escriben como cliente para probarla y
+// la corrigen; cada corrección se guarda (CORRECCIONES_DIMA) y aplica de
+// inmediato en el chat de la página. Aquí DiMa no registra pedidos.
+
+const TOOL_CORRECCION = {
+  name: 'guardar_correccion',
+  description: 'Guarda una corrección o regla de la gerencia para aplicarla desde ahora con todos los clientes. Úsala cuando la gerencia te corrija o te dé una instrucción nueva. Una regla por llamada.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    properties: {
+      instruccion: { type: 'string', description: 'La regla redactada clara, en imperativo y completa por sí sola (sin "eso", "lo anterior" ni "como te dije"), con precios y datos exactos. Ej.: "El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700."' },
+    },
+    required: ['instruccion'],
+    additionalProperties: false,
+  },
+};
+
+const PROMPT_GERENCIA = `MODO ENTRENAMIENTO: en esta conversación NO hablas con un cliente. Hablas con la gerencia de Divanna Eventos y El Vaso Maíz (Diana o Víctor), que te está probando y corrigiendo desde su panel.
+- Si te escriben como si fueran un cliente, o te piden "contesta como a un cliente", responde exactamente como lo harías en el chat de la página (mismo tono, mismas reglas). Aquí no se registran pedidos: si llegaras a ese paso, di qué datos registrarías.
+- Si te corrigen (un precio, una regla, un dato, algo que dijiste mal, el tono, algo que no debes ofrecer), primero confirma en una frase lo que entendiste y llama guardar_correccion con la regla redactada clara y completa por sí sola. Si es más de una corrección, una llamada por cada una.
+- Si la corrección no queda clara, pregunta antes de guardar.
+- Si te preguntan qué reglas o correcciones tienes, resúmelas.
+- Con la gerencia sí puedes mencionar a Diana o a Víctor por su nombre.`;
+
+async function chatGerencia(req, res) {
+  const colaborador = await requerirSesion(req, res, [ROLES.ADMIN]);
+  if (!colaborador) return;
+  const { accion, id, historial } = req.body || {};
+
+  if (accion === 'correcciones') {
+    res.status(200).json({ correcciones: await correccionesActivas({ sinCache: true }) });
+    return;
+  }
+  if (accion === 'desactivar') {
+    const ok = await desactivarCorreccion(id);
+    res.status(ok ? 200 : 400).json(ok ? { success: true } : { error: 'Corrección no válida' });
+    return;
+  }
+
+  const mensajes = construirMensajes(historial);
+  if (!mensajes) { res.status(400).json({ error: 'La conversación es demasiado larga. Toca "Nueva conversación".' }); return; }
+
+  const correcciones = await correccionesParaPrompt();
+  const sistema = `${PROMPT_GERENCIA}\n\n---\nESTAS SON TUS INSTRUCCIONES CON LOS CLIENTES:\n\n${systemPrompt(correcciones)}`;
+  const herramientas = [...TOOLS.filter(t => t.name !== 'registrar_pedido'), TOOL_CORRECCION];
+  const conversacion = [...mensajes];
+  const partes = [];
+  const guardadas = [];
+  let fotos = [];
+
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    const respuesta = await client.beta.messages.create({
+      model: MODELO,
+      max_tokens: 4000,
+      output_config: { effort: 'low' },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: sistema,
+      tools: herramientas,
+      tool_choice: { type: 'auto' },
+      messages: conversacion,
+    });
+    const resultados = [];
+    for (const bloque of respuesta.content) {
+      if (bloque.type === 'text' && bloque.text.trim()) {
+        partes.push(bloque.text.trim());
+      } else if (bloque.type === 'tool_use' && bloque.name === 'guardar_correccion') {
+        const g = await guardarCorreccion(bloque.input.instruccion, colaborador.nombre);
+        if (g) guardadas.push(g);
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: g ? 'Guardada. Ya aplica con los clientes.' : 'No se guardó: la regla quedó vacía.' });
+      } else if (bloque.type === 'tool_use' && bloque.name === 'mostrar_fotos') {
+        fotos = fotos.concat(urlsDeFotos(bloque.input.ids));
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: 'Fotos mostradas.' });
+      } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
+        const t = await estimarTraslado(bloque.input.destino);
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: t.ok ? `${t.lugar}: ${t.dentroDeCiudad ? 'dentro de la ciudad' : t.kmDesdeSalida + ' km desde la salida de Culiacán, aproximado $' + t.costo}` : `Sin resultado: ${t.motivo}` });
+      }
+    }
+    // Solo se da otra vuelta si DiMa pidió el traslado (necesita el dato para contestar).
+    if (respuesta.stop_reason !== 'tool_use' || !respuesta.content.some(b => b.type === 'tool_use' && b.name === 'estimar_traslado')) break;
+    conversacion.push({ role: 'assistant', content: respuesta.content });
+    conversacion.push({ role: 'user', content: resultados });
+  }
+
+  res.status(200).json({ texto: partes.join('\n\n') || (guardadas.length ? 'Listo.' : 'No entendí, ¿me lo explicas de otra forma?'), fotos, guardadas });
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  if ((req.body || {}).modo === 'gerencia') {
+    try {
+      await chatGerencia(req, res);
+    } catch (err) {
+      console.error('Error en Entrenar a DiMa:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'DiMa no pudo responder. Intenta de nuevo.' });
+    }
+    return;
+  }
 
   const { historial, folio, folioFirma, pedidoExistente, accion } = req.body || {};
   let folioPrevio = folioFirmado(folio, folioFirma);
@@ -431,7 +532,7 @@ module.exports = async (req, res) => {
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
-    const sistema = systemPrompt();
+    const sistema = systemPrompt(await correccionesParaPrompt());
     const conversacion = [...mensajes];
     const partes = [];
     let fotos = [];

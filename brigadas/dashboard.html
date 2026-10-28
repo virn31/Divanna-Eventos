@@ -128,6 +128,25 @@
   .pedido-actions button:disabled{opacity:0.5; cursor:default;}
   .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
   .pedido-contacto a{color:var(--divanna);}
+  /* Entrenar a DiMa */
+  .entrenar{background:var(--ink-2); border:1px solid var(--divanna); border-radius:18px; padding:14px 18px; margin-bottom:16px;}
+  .entrenar > summary{cursor:pointer; font-weight:800; font-size:1.05rem;}
+  .entrenar-ayuda{font-size:0.82rem; color:var(--muted); margin:10px 0;}
+  .entrenar-chat{max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin:8px 0;}
+  .entrenar-chat .burbuja{padding:10px 12px; border-radius:14px; font-size:0.88rem; white-space:pre-wrap; max-width:88%;}
+  .entrenar-chat .yo{align-self:flex-end; background:var(--divanna); color:var(--ink);}
+  .entrenar-chat .dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
+  .entrenar-chat .guardada{align-self:flex-start; background:rgba(57,233,145,0.12); border:1px solid var(--good); font-size:0.82rem;}
+  .entrenar-fila{display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;}
+  .entrenar-fila textarea{flex:1; min-width:200px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-size:0.9rem; resize:vertical;}
+  .entrenar-fila button{border:none; border-radius:10px; padding:10px 16px; background:var(--divanna); color:var(--ink); font-weight:800; cursor:pointer;}
+  .entrenar-fila button:disabled{opacity:.5;}
+  .entrenar-fila .entrenar-sec{background:transparent; color:var(--muted); border:1.5px solid var(--line);}
+  .entrenar-reglas{margin-top:12px; font-size:0.85rem;}
+  .entrenar-reglas summary{cursor:pointer; font-weight:700; color:var(--divanna);}
+  .regla{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--line);}
+  .regla span{flex:1;}
+  .regla button{border:1.5px solid var(--bad); background:transparent; color:var(--bad); border-radius:8px; padding:4px 10px; cursor:pointer; font-weight:700;}
   /* Semáforo de agenda (verde / amarillo / rojo) */
   .semaforo{margin-top:12px; padding:12px 14px; border-radius:14px; border:1.5px solid var(--line); font-size:0.86rem;}
   .semaforo .sem-titulo{font-weight:800; font-size:1rem;}
@@ -191,6 +210,23 @@
   </header>
   <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main>
+    <details class="entrenar" id="entrenar">
+      <summary>🧠 Entrenar a DiMa</summary>
+      <p class="entrenar-ayuda">Escríbele como si fueras cliente para probarla. Si contesta algo mal, corrígela aquí mismo (ej. "Eso está mal: el Paquete 3 cuesta $2,800"). Cada corrección se guarda y aplica de inmediato con los clientes.</p>
+      <div class="entrenar-chat" id="entrenarChat"></div>
+      <div class="entrenar-fila">
+        <textarea id="entrenarTexto" rows="2" maxlength="1500" placeholder="Escríbele a DiMa…"></textarea>
+        <button id="entrenarEnviar">Enviar</button>
+      </div>
+      <div class="entrenar-fila">
+        <button id="entrenarNueva" class="entrenar-sec">Nueva conversación</button>
+        <span id="entrenarMsg" class="instr-msg"></span>
+      </div>
+      <details class="entrenar-reglas" id="entrenarReglas">
+        <summary>📋 Correcciones guardadas (<span id="entrenarConteo">…</span>)</summary>
+        <div id="entrenarLista"></div>
+      </details>
+    </details>
     <div id="pedidosContent"></div>
     <div id="balanceContent"></div>
     <div id="mainContent">
@@ -743,6 +779,74 @@
       mainContent.innerHTML = `<div class="empty-state">📡<br>No se pudo cargar. Revisa tu señal y toca actualizar.</div>`;
     }
   }
+
+  // ---------- Entrenar a DiMa ----------
+  // La conversación vive solo en esta pantalla; las correcciones quedan en Airtable.
+  let entrenarHistorial = [];
+  const entrenarChat = $('entrenarChat');
+
+  function burbuja(clase, texto){
+    entrenarChat.insertAdjacentHTML('beforeend', `<div class="burbuja ${clase}">${esc(texto)}</div>`);
+    entrenarChat.scrollTop = entrenarChat.scrollHeight;
+  }
+
+  async function cargarCorrecciones(){
+    try {
+      const data = await api('/api/dima-chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'gerencia', accion: 'correcciones' }),
+      });
+      const lista = data.correcciones || [];
+      $('entrenarConteo').textContent = lista.length;
+      $('entrenarLista').innerHTML = lista.length
+        ? lista.map(c => `<div class="regla"><span>${esc(c.instruccion)}${c.autor ? ` <em style="color:var(--muted)">· ${esc(c.autor)}</em>` : ''}</span><button data-id="${esc(c.id)}">Quitar</button></div>`).join('')
+        : '<p class="entrenar-ayuda">Aún no hay correcciones.</p>';
+      $('entrenarLista').querySelectorAll('button').forEach(b => b.addEventListener('click', async () => {
+        if(!confirm('¿Quitar esta corrección? DiMa dejará de aplicarla.')) return;
+        b.disabled = true;
+        try {
+          await api('/api/dima-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo: 'gerencia', accion: 'desactivar', id: b.dataset.id }) });
+          cargarCorrecciones();
+        } catch(e){ b.disabled = false; }
+      }));
+    } catch(e){
+      if(e.message !== 'sesion') $('entrenarConteo').textContent = '?';
+    }
+  }
+
+  async function enviarEntrenamiento(){
+    const caja = $('entrenarTexto');
+    const texto = caja.value.trim();
+    if(!texto) return;
+    const boton = $('entrenarEnviar');
+    boton.disabled = true;
+    $('entrenarMsg').textContent = 'DiMa está escribiendo…';
+    entrenarHistorial.push({ rol: 'cliente', texto });
+    burbuja('yo', texto);
+    caja.value = '';
+    try {
+      const data = await api('/api/dima-chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'gerencia', historial: entrenarHistorial }),
+      });
+      entrenarHistorial.push({ rol: 'dima', texto: data.texto });
+      burbuja('dima', data.texto);
+      (data.guardadas || []).forEach(g => burbuja('guardada', `🧠 Corrección guardada: ${g.instruccion}`));
+      if((data.guardadas || []).length) cargarCorrecciones();
+      $('entrenarMsg').textContent = '';
+    } catch(e){
+      if(e.message === 'sesion') return;
+      entrenarHistorial.pop();
+      $('entrenarMsg').textContent = e.message || 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  $('entrenarEnviar').addEventListener('click', enviarEntrenamiento);
+  $('entrenarTexto').addEventListener('keydown', (e) => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviarEntrenamiento(); } });
+  $('entrenarNueva').addEventListener('click', () => { entrenarHistorial = []; entrenarChat.innerHTML = ''; $('entrenarMsg').textContent = ''; });
+  $('entrenar').addEventListener('toggle', () => { if($('entrenar').open) cargarCorrecciones(); });
 
   refreshBtn.addEventListener('click', loadDashboard);
   $('logoutBtn').addEventListener('click', salir);

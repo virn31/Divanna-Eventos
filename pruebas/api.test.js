@@ -39,6 +39,8 @@ Module._load = function (req, parent, ...rest) {
 
 const llamadas = [];
 let respuestas = [];
+const llamadasCorrecciones = [];
+let correccionesPrueba = [];
 const telegram = [];
 let mapaCaido = false;
 global.fetch = async (url, opts = {}) => {
@@ -65,6 +67,14 @@ global.fetch = async (url, opts = {}) => {
   if (url.startsWith('https://api.telegram.org/')) {
     telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
     return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
+  }
+  // Correcciones de DiMa (CORRECCIONES_DIMA): aparte, para no consumir las respuestas de cada prueba.
+  if (url.includes('tbl9D2BnUFIu8PPIe')) {
+    const llamada = { url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null };
+    llamadasCorrecciones.push(llamada);
+    const r = llamada.method === 'POST' ? { records: [{ id: 'recCORRECCION0001', fields: llamada.body.records[0].fields }] }
+      : llamada.method === 'PATCH' ? { records: llamada.body.records } : { records: correccionesPrueba };
+    return { ok: true, status: 200, json: async () => r, text: async () => '' };
   }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
   const r = respuestas.shift() || { records: [] };
@@ -310,6 +320,47 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const r1 = resMock(); await chatApi({ method: 'POST', body: { historial }, headers: mismaIp }, r1);
   const r2 = resMock(); await chatApi({ method: 'POST', body: { historial }, headers: mismaIp }, r2);
   ok(r1.code === 200 && r2.code === 429 && llamadasClaude.length === 1, 'chat: dos mensajes seguidos de la misma IP, el segundo espera (429)');
+
+  // ---------- Entrenar a DiMa (modo gerencia, solo Admin) ----------
+  const gerencia = (body, headers) => { const r = resMock(); return chatApi({ method: 'POST', body: { modo: 'gerencia', ...body }, headers: headers || {} }, r).then(() => r); };
+  reset();
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+  ok(res.code === 401 && llamadasClaude.length === 0, 'entrenar: sin sesión no se puede entrenar a DiMa');
+  reset();
+  respuestas = [LIDER];
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: 'hola' }] }, auth(tokenLider));
+  ok(res.code === 403 && llamadasClaude.length === 0, 'entrenar: solo Diana y Víctor (Admin)');
+
+  reset();
+  llamadasCorrecciones.length = 0;
+  respuestas = [ADMIN];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'text', text: 'Entendido: el Paquete 3 cuesta $2,800.' },
+    { type: 'tool_use', id: 'tu_c1', name: 'guardar_correccion', input: { instruccion: 'El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700.' } },
+  ] }];
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: '¿Cuánto cuesta el paquete 3?' }, { rol: 'dima', texto: 'Cuesta $2,700.' }, { rol: 'cliente', texto: 'Eso está mal, cuesta 2800' }] }, auth(tokenAdmin));
+  const pGer = llamadasClaude[0];
+  const altaCorr = llamadasCorrecciones.find(l => l.method === 'POST');
+  ok(res.code === 200 && res.body.texto.includes('Entendido') && res.body.guardadas.length === 1 && altaCorr && altaCorr.body.records[0].fields.Instruccion.includes('$2,800') && altaCorr.body.records[0].fields.Activa === true && altaCorr.body.records[0].fields.Autor === 'Diana', 'entrenar: la corrección se guarda activa y con quién la dio');
+  ok(pGer.system.startsWith('MODO ENTRENAMIENTO') && pGer.system.includes('CATÁLOGO REAL') && !pGer.tools.some(t => t.name === 'registrar_pedido') && pGer.tools.some(t => t.name === 'guardar_correccion'), 'entrenar: DiMa sabe que habla con la gerencia, conserva su catálogo y no registra pedidos');
+
+  reset();
+  correccionesPrueba = [{ id: 'recCORRECCION0001', createdTime: '2026-10-28T22:00:00.000Z', fields: { Instruccion: 'El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700.', Activa: true, Autor: 'Diana' } }];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'El Paquete 3 cuesta $2,800.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿Cuánto cuesta el paquete 3?' }] });
+  const pCliente = llamadasClaude[0];
+  ok(pCliente.system.includes('CORRECCIONES Y REGLAS DE LA GERENCIA') && pCliente.system.includes('cuesta $2,800, no $2,700') && pCliente.system.indexOf('CORRECCIONES Y REGLAS') > pCliente.system.indexOf('CATÁLOGO REAL'), 'entrenar: la corrección aplica de inmediato en el chat de clientes, después del catálogo');
+
+  reset();
+  respuestas = [ADMIN];
+  res = await gerencia({ accion: 'correcciones' }, auth(tokenAdmin));
+  ok(res.code === 200 && res.body.correcciones.length === 1 && res.body.correcciones[0].autor === 'Diana', 'entrenar: el dashboard lista las correcciones activas');
+  reset();
+  llamadasCorrecciones.length = 0;
+  respuestas = [ADMIN];
+  res = await gerencia({ accion: 'desactivar', id: 'recCORRECCION0001' }, auth(tokenAdmin));
+  ok(res.code === 200 && llamadasCorrecciones.some(l => l.method === 'PATCH' && l.body.records[0].fields.Activa === false), 'entrenar: quitar una corrección la desactiva');
+  correccionesPrueba = [];
 
   // ---------- Dashboard (solo Admin) ----------
   reset();

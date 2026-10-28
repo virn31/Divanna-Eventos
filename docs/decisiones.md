@@ -149,3 +149,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decidido sin respuesta explícita (recomendación aceptada al pedir "vamos a hacerlo"):** cupo base 12 personas; solo los autorizados apartan (los pendientes se avisan como competencia); en rojo DiMa registra igual y Diana decide.
 **Descartado:** que DiMa vea el semáforo y le diga algo distinto al cliente (puede equivocarse con datos incompletos y el cliente ya tiene una respuesta clara: 12 h); que los pendientes aparten inventario (un pedido que nunca se paga bloquearía fechas).
 **Límite actual:** mientras falten conteos en INVENTARIO (cubiertos, servilletas, decoración), los paquetes salen en amarillo "sin conteo". Los eventos autorizados sin productos registrados también piden revisión a mano.
+
+## 2026-10-28 — Entrenar a DiMa desde el dashboard
+
+**Pedido de Víctor:** poder chatear con DiMa desde el dashboard para corregirla rápido, porque está dando información incorrecta.
+**Cómo quedó:** panel "🧠 Entrenar a DiMa" (solo Admin). Diana o Víctor le escriben como cliente para probarla y la corrigen en el mismo chat; DiMa confirma lo que entendió y guarda la regla (`guardar_correccion`) en CORRECCIONES_DIMA. Las activas se agregan al final de sus instrucciones con prioridad sobre el catálogo y aplican de inmediato en el chat de la página. Lista de correcciones guardadas con botón "Quitar" (se desactivan, no se borran).
+**Por qué así:** corregir sin esperar un cambio de código; queda registro de quién enseñó qué.
+**Riesgo y cuidado:** muchas reglas acumuladas pueden contradecirse; las que sean permanentes (precios) conviene pasarlas a `_dima-catalogo.js` y quitarlas de la lista.
+**Descartado:** que DiMa aprenda sola de las conversaciones con clientes (podría aprender errores del cliente); editar el prompt desde el dashboard en texto libre (fácil de romper).
