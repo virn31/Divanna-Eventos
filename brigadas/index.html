@@ -427,12 +427,15 @@
             </div>
           </div>
           <div class="event-meta">
+            ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
+            ${ev.personalRequerido ? `<span>🧑‍🍳 ${ev.personalRequerido} personas</span>` : ''}
             <span>👥 ${ev.invitados ? ev.invitados + ' invitados' : 'Invitados por confirmar'}</span>
             <span>📍 ${esc(ev.estado)}</span>
           </div>
           ${ev.fueraDeCiudad ? `<div class="motivo-tag">🛣️ Fuera de la ciudad</div>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
+          ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
 
           ${ev.checklistItems && ev.checklistItems.length ? `
             <div class="carga-box">

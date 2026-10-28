@@ -23,6 +23,7 @@ const { ROLES } = require('./_sesion');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
+const { CLAVES, PRODUCTOS } = require('./_productos');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -106,13 +107,30 @@ const TOOLS = [
         fecha: { type: 'string', description: 'Fecha del evento en formato YYYY-MM-DD.' },
         invitados: { type: ['integer', 'null'] },
         ubicacion: { type: 'string', description: 'Colonia, salón o dirección del evento.' },
+        hora_inicio: { type: ['string', 'null'], description: 'Hora en que empieza el evento, formato 24 h "HH:MM" (ej. "18:00" para las 6 pm). null si el cliente no la sabe todavía.' },
+        horas_servicio: { type: ['number', 'null'], description: 'Horas de servicio de El Vaso Maíz (los paquetes incluyen 2; si el cliente pide más tiempo, ese número). null si no lleva El Vaso Maíz.' },
         servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). El equipo usa estas líneas como checklist de carga.' },
+        productos: {
+          type: 'array',
+          description: 'Lo mismo que "servicios" pero con las claves del catálogo, para revisar inventario y personal. Un renglón por producto con su cantidad (paquetes como unidades: 100 personas Antonella = dv_paq50_antonella x 2; piezas sueltas por pieza: 20 sillas Tiffany = dv_silla_tiffany x 20). Si el paquete deja la silla a elección, agrega también las sillas elegidas como renglón aparte (solo apartan inventario, no las cobres de nuevo). Usa la nota para color, sabor o variante; en copas, manteles y platos base anota el modelo y el color que eligió el cliente (la gerencia asigna las piezas exactas de bodega). Lo que no esté en el catálogo va como "otro" con su descripción en la nota.\nCLAVES:\n' +
+            CLAVES.map(c => `${c}: ${PRODUCTOS[c].nombre}`).join('\n'),
+          items: {
+            type: 'object',
+            properties: {
+              clave: { type: 'string', enum: CLAVES },
+              cantidad: { type: 'integer' },
+              nota: { type: ['string', 'null'] },
+            },
+            required: ['clave', 'cantidad', 'nota'],
+            additionalProperties: false,
+          },
+        },
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
         preferencia_contacto: { type: 'string', enum: ['esperar_en_chat', 'mensaje', 'llamada', 'no_preguntado'], description: 'Cómo quiere el cliente recibir la respuesta de la cotización: esperar aquí en el chat, por mensaje o por llamada. "no_preguntado" si no aplica.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'invitados', 'ubicacion', 'servicios', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'preferencia_contacto'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'preferencia_contacto'],
       additionalProperties: false,
     },
   },
@@ -163,7 +181,7 @@ TEMPORADA ALTA DE FIN DE AÑO (${textoTemporada()}): cuenta la fecha del EVENTO,
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
 FLUJO DE LA COTIZACIÓN:
-1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, invitados, ubicación y qué necesita.
+1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas.
 2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
 3. VENTA CRUZADA, una vez y antes de pedir datos de contacto: si el cliente solo ha hablado de un negocio, ofrécele el otro en una o dos frases, ligadas a su evento.
    - Si pidió snacks de El Vaso Maíz, ofrece el mobiliario (mesas, sillas, mantelería) y la decoración de Divanna (aro, mampara, arcos de cerezos).
@@ -256,6 +274,9 @@ async function registrarPedido(input, historial, folioPrevio) {
     fueraDeCiudad: input.fuera_de_ciudad,
     indicaciones: input.indicaciones,
     preferenciaContacto: input.preferencia_contacto,
+    horaInicio: input.hora_inicio,
+    horasServicio: input.horas_servicio,
+    productos: input.productos,
   });
   if (error) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
@@ -282,6 +303,9 @@ async function registrarPedido(input, historial, folioPrevio) {
       montoEstimado: datos.montoEstimado,
       transcripcion: transcripcion(historial),
       preferenciaContacto: datos.preferenciaContacto,
+      horaInicio: datos.horaInicio,
+      horasServicio: datos.horasServicio,
+      productos: datos.productos,
     }).catch(err => console.error('No se pudo guardar el cambio en el evento:', err.message));
     await enviarTelegramEquipo({
       roles: [ROLES.ADMIN],
@@ -370,7 +394,7 @@ module.exports = async (req, res) => {
     }
     avisos.push(
       `El cliente ya tiene el pedido ${pedido.folio} registrado a nombre de ${pedido.nombre || 'el cliente'}` +
-      ` (${pedido.negocio || 'negocio sin especificar'}, ${pedido.fecha}, ${pedido.ubicacion || 'ubicación sin especificar'}` +
+      ` (${pedido.negocio || 'negocio sin especificar'}, ${pedido.fecha}${pedido.horaInicio ? ' a las ' + pedido.horaInicio : ''}, ${pedido.ubicacion || 'ubicación sin especificar'}` +
       `${pedido.invitados ? ', ' + pedido.invitados + ' invitados' : ''}${pedido.fueraDeCiudad ? ', fuera de la ciudad' : ''}).\n` +
       `Lo que lleva:\n${pedido.servicios}\n` +
       (pedido.instrucciones ? `Indicaciones ya guardadas:\n${pedido.instrucciones}\n` : '') +

@@ -171,6 +171,49 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && /^EVT-\d{6}$/.test(res.body.folio) && res.body.texto.includes(res.body.folio), 'chat: registrar_pedido crea el pedido y devuelve folio');
   ok(evChat.Monto_Estimado_IA === 6000 && evChat.Negocio === 'Divanna Eventos' && evChat.Notas.includes('Conversación con DiMa') && evChat.Notas.includes('Cliente: Ana, 6671234567'), 'chat: guarda estimado y la conversación en Notas');
 
+  // ---------- Agenda: hora y productos estructurados ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990001', email: null, negocio: 'Ambos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '18:00', horas_servicio: 2, invitados: 100, ubicacion: 'Las Quintas', servicios: 'Paquete 5\n2 paquetes 50 Antonella', productos: [{ clave: 'vm_paquete_5', cantidad: 1, nota: null }, { clave: 'dv_paq50_antonella', cantidad: 2, nota: 'manteles rosa' }, { clave: 'inventada', cantidad: 3, nota: null }], monto_estimado: 14200, fuera_de_ciudad: false, indicaciones: null, preferencia_contacto: 'no_preguntado' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial });
+  const evAgenda = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  const esquema = llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema;
+  ok(esquema.required.includes('hora_inicio') && esquema.required.includes('productos') && esquema.properties.productos.items.properties.clave.enum.includes('dv_paq50_antonella'), 'agenda: DiMa debe mandar hora y productos con claves del catálogo');
+  ok(llamadasClaude[0].system.includes('a qué hora empieza'), 'agenda: DiMa pregunta la hora del evento');
+  ok(evAgenda.Hora_Inicio === '18:00' && evAgenda.Horas_Servicio === 2 && JSON.parse(evAgenda.Productos).length === 2, 'agenda: guarda hora y productos (descarta claves desconocidas)');
+  ok(evAgenda.Piezas_Vaso_Maiz === 120 && evAgenda.Personal_Requerido === 4 && evAgenda.Resumen_Capacidad.includes('10 Mesa') && evAgenda.Resumen_Capacidad.includes('100 Silla Antonella'), 'agenda: 120 piezas en 2 h = 4 personas; 2 paquetes de 50 = 10 mesas y 100 sillas');
+  ok(correos.some(c => c.text.includes('a las 18:00') && c.text.includes('3 a 4 personas')), 'agenda: el correo a Diana trae la hora y el personal');
+
+  // ---------- Capacidad (api/_productos.js) ----------
+  const prod = require(path.join(repo, 'api/_productos.js'));
+  ok(prod.personalVasoMaiz(120, 2).personas === 4 && prod.personalVasoMaiz(120, 2).personasMin === 3 && prod.personalVasoMaiz(120, 3).personas === 3, 'capacidad: 120 piezas = 3 a 4 personas en 2 h, 3 en 3 h');
+  ok(prod.personalVasoMaiz(55, 2).personas === 2 && prod.personalVasoMaiz(0, 2) === null, 'capacidad: nunca menos de un equipo de 2; sin piezas no aplica');
+  const unEquipo = prod.personalVasoMaiz(120, 2).horasUnEquipo;
+  ok(unEquipo.min === 3 && unEquipo.max === 4, 'capacidad: un equipo de 2 tarda de 3 a 4 h con 120 piezas');
+  ok(JSON.stringify(prod.normalizarProductos([{ clave: 'dv_silla_tiffany', cantidad: 10 }, { clave: 'dv_silla_tiffany', cantidad: 5 }, { clave: 'x', cantidad: 1 }, { clave: 'dv_aro', cantidad: -1 }])) === '[{"clave":"dv_silla_tiffany","cantidad":15}]', 'productos: junta repetidos y descarta claves o cantidades inválidas');
+  const iso = (v) => [new Date(v.desde).toISOString(), new Date(v.hasta).toISOString()].join(' ');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Silla Tiffany')) === '2026-11-14T07:00:00.000Z 2026-11-15T20:00:00.000Z', 'ocupación: mobiliario todo el día del evento (ruta de logística) hasta la 1 pm del día siguiente');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Mantel')).endsWith('2026-11-17T20:00:00.000Z'), 'ocupación: manteles 48 h de lavado después de regresar a bodega');
+  ok(iso(prod.ventanaPersonalVasoMaiz({ fecha: '2026-11-14', horaInicio: '18:00', horasServicio: 2 })) === '2026-11-15T00:30:00.000Z 2026-11-15T03:00:00.000Z', 'ocupación: el equipo de El Vaso Maíz sale 30 min antes y termina con el servicio');
+  const inv = [
+    { id: 'recINVCOPA0000001', nombre: 'Copa Globo - Roja', categoria: 'Copa globo', total: 109 },
+    { id: 'recINVCOPA0000002', nombre: 'Copa Francesa - Dorada', categoria: 'Copa francesa', total: 56 },
+    { id: 'recINVMANT0000001', nombre: 'Mantel - Rojo', categoria: 'Mantel', total: 20 },
+    { id: 'recINVMANT0000002', nombre: 'Mantel - Negro', categoria: 'Mantel', total: 27 },
+    { id: 'recINVSILL0000001', nombre: 'Silla Antonella grande', categoria: 'Silla Antonella', total: 113 },
+    { id: 'recINVSILL0000002', nombre: 'Silla Antonella chica', categoria: 'Silla Antonella', total: 78 },
+  ];
+  const arts = prod.normalizarArticulos([{ id: 'recINVCOPA0000001', cantidad: 50 }, { id: 'recINVCOPA0000001', cantidad: 10 }, { id: 'recFALSO000000001', cantidad: 5 }, { id: 'recINVMANT0000001', cantidad: 10 }], inv);
+  ok(arts.length === 2 && arts[0].cantidad === 60 && arts[0].nombre === 'Copa Globo - Roja', 'artículos: solo de INVENTARIO, con nombre exacto, repetidos se juntan');
+  const req2 = prod.inventarioRequerido([{ clave: 'dv_paq50_antonella', cantidad: 2 }]);
+  ok(prod.textoPorAsignar(prod.coberturaArticulos(req2, [], inv)) === '10 Mantel, 100 Copa', 'cobertura: el paquete pide modelo y color de copas y manteles; Antonella grande/chica no');
+  ok(prod.textoPorAsignar(prod.coberturaArticulos(req2, arts, inv)) === '100 Copa (60 asignadas)', 'cobertura: manteles cubiertos y copas a medias');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Casa Isabella')) === '2026-11-15T00:00:00.000Z 2026-11-15T07:00:00.000Z', 'ocupación: Casa Isabella solo las horas del evento');
+  ok(prod.capacidadEvento([{ clave: 'dv_paq50_tiffany_jardin', cantidad: 1 }]).resumen.includes('Falta indicar la silla'), 'capacidad: avisa si el paquete deja la silla a elección y no se indicó');
+  ok(prod.CLAVES.every(c => Object.keys(prod.PRODUCTOS[c].componentes || {}).every(cat => prod.CATEGORIAS[cat])), 'catálogo: todos los componentes usan categorías conocidas');
+
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV\n9 mesas', monto_estimado: 6400 } },
@@ -247,6 +290,26 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patch = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && res.body.googleOk && patch.Autorizacion_Diana === 'SI' && patch.Monto_Estimado_IA === 4500 && patch.Checklist_Items === '10 mesas\n80 sillas', 'admin autoriza: SI, monto y checklist');
   ok(correos.length === 1 && correos[0].to === 'ana@x.com', 'admin autoriza: correo de cotización al cliente');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Servicios_Solicitados: 'Paquete 3' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'autorizar', monto: '3000', items: 'Paquete 3', horaInicio: '17:30', horasServicio: '3', productos: [{ clave: 'vm_paquete_3', cantidad: 1, nota: null }] } }, res);
+  const patchAgenda = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchAgenda.Hora_Inicio === '17:30' && patchAgenda.Horas_Servicio === 3 && patchAgenda.Piezas_Vaso_Maiz === 90 && patchAgenda.Personal_Requerido === 2, 'admin autoriza con hora y productos: 90 piezas en 3 h = 2 personas');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'agenda', horaInicio: '', productos: [] } }, res);
+  const patchBorra = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchBorra.Hora_Inicio === '' && patchBorra.Productos === '' && patchBorra.Personal_Requerido === 0, 'admin: guardar agenda vacía borra hora y productos');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } },
+    { records: [{ id: 'recINVCOPA0000001', fields: { Item: 'Copa Globo - Roja', Categoria: 'Copa globo', Cantidad_Total: 109 } }] }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'agenda', articulos: [{ id: 'recINVCOPA0000001', cantidad: 50 }, { id: 'recINVENTADO00001', cantidad: 9 }] } }, res);
+  const patchArt = JSON.parse(llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Articulos);
+  ok(res.code === 200 && patchArt.length === 1 && patchArt[0].nombre === 'Copa Globo - Roja' && patchArt[0].cantidad === 50 && llamadas.some(l => l.url.includes('tblG7pqvkyGTzBxx0')), 'admin: asigna modelo y color exactos desde INVENTARIO (ignora artículos que no existen)');
 
   reset();
   respuestas = [
