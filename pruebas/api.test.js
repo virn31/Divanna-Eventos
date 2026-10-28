@@ -40,7 +40,27 @@ Module._load = function (req, parent, ...rest) {
 const llamadas = [];
 let respuestas = [];
 const telegram = [];
+let mapaCaido = false;
 global.fetch = async (url, opts = {}) => {
+  if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
+    if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+    if (url.includes('nominatim')) {
+      const q = decodeURIComponent(url);
+      const lugar = q.includes('Las Quintas') ? { lat: '24.7905', lon: '-107.3805', display_name: 'Las Quintas, Culiacán Rosales, Culiacán, Sinaloa' }
+        : q.includes('Eldorado') ? { lat: '24.3236', lon: '-107.3642', display_name: 'Eldorado, Culiacán, Sinaloa' }
+        : { lat: '24.7734', lon: '-107.5504', display_name: 'San Pedro, Navolato, Sinaloa, México' };
+      return { ok: true, status: 200, json: async () => [lugar] };
+    }
+    // Ruta en línea recta del centro (dentro de la ciudad) al destino de la URL,
+    // con distancia por carretera = 1.3 x la distancia en línea recta.
+    const [, destino] = url.split('/driving/')[1].split('?')[0].split(';');
+    const [lngD, latD] = destino.split(',').map(Number);
+    const pasos = 60;
+    const coords = Array.from({ length: pasos + 1 }, (_, i) => [-107.3940 + (lngD + 107.3940) * i / pasos, 24.8091 + (latD - 24.8091) * i / pasos]);
+    const rad = Math.PI / 180;
+    const recta = 2 * 6371000 * Math.asin(Math.sqrt(Math.sin((latD - 24.8091) * rad / 2) ** 2 + Math.cos(24.8091 * rad) * Math.cos(latD * rad) * Math.sin((lngD + 107.3940) * rad / 2) ** 2));
+    return { ok: true, status: 200, json: async () => ({ routes: [{ distance: recta * 1.3, geometry: { coordinates: coords } }] }) };
+  }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
     telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
@@ -68,7 +88,7 @@ process.env.VAPID_PRIVATE_KEY = 'privada';
 process.env.VAPID_SUBJECT = 'mailto:prueba@example.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { mapaCaido = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -155,7 +175,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV\n9 mesas', monto_estimado: 6400 } },
   ] }];
-  res = await chat({ historial, folio: 'EVT-123456' });
+  const firmar = (f) => require('crypto').createHmac('sha256', process.env.SESSION_SECRET).update(`folio:${f}`).digest('base64url').slice(0, 32);
+  respuestas = [{ records: [] }]; // sin mensaje pendiente de Diana
+  res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
   ok(res.body.folio === 'EVT-123456' && !llamadas.some(l => l.method === 'POST') && correos.length === 1 && correos[0].subject.includes('Cambio en el pedido EVT-123456'), 'chat: cambios después de registrar no duplican el evento');
 
   reset();
@@ -321,6 +343,97 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await checklist({ method: 'POST', headers: auth(tokenEnc), body: { eventoId: 'recEVENTO00000008', etapa: 'montaje', valor: true } }, res);
   ok(res.code === 403, 'encargada no toca eventos de otra encargada');
+
+  // ---------- Pedido existente (folio + teléfono) y folio firmado ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 80, ubicacion: 'Centro', servicios: 'Paquete XV\n10 mesas', monto_estimado: 6200, fuera_de_ciudad: false, indicaciones: null } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000010', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial, folio: 'EVT-654321', folioFirma: 'firma-inventada-aaaaaaaaaaaaaaaa' });
+  ok(llamadas.some(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')) && !correos.some(c => c.subject.includes('Cambio en el pedido EVT-654321')), 'chat: un folio sin firma válida no permite tocar ese pedido');
+
+  reset();
+  respuestas = [{ records: [] }];
+  res = await chat({ historial, pedidoExistente: { folio: 'EVT-111111', telefono: '6670000000' } });
+  ok(res.code === 400 && llamadasClaude.length === 0, 'chat: folio y teléfono que no coinciden se rechazan');
+
+  reset();
+  respuestas = [
+    { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Cliente: ['recCLIENTE0000009'], Fecha_Evento: '2026-12-01', Servicios_Solicitados: 'Paquete 3', Autorizacion_Diana: 'SI' } }] },
+    { id: 'recCLIENTE0000009', fields: { Nombre: 'Rosa', Telefono_WhatsApp: '+526679990000' } },
+  ];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Claro, ¿qué le agregamos?' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'quiero agregar sillas' }], pedidoExistente: { folio: 'evt-777777', telefono: '667 999 0000' } });
+  const avisoPedido = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(res.code === 200 && res.body.folio === 'EVT-777777' && res.body.folioFirma === firmar('EVT-777777') && avisoPedido.role === 'system' && avisoPedido.content.includes('Paquete 3') && avisoPedido.content.includes('ya confirmó'), 'chat: pedido existente verificado, DiMa recibe su contenido y el folio queda firmado');
+
+  reset();
+  respuestas = [{ records: [] }, { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Notas: 'previas', Instrucciones_Equipo: '' } }] }, {}];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990000', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Fiesta', fecha: '2026-12-01', invitados: 90, ubicacion: 'Centro', servicios: 'Paquete 3\n20 sillas', monto_estimado: 3000, fuera_de_ciudad: false, indicaciones: 'Tocar el timbre de la casa azul' } },
+  ] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'agrega 20 sillas' }], folio: 'EVT-777777', folioFirma: firmar('EVT-777777') });
+  const patchCambio = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(patchCambio.Notas.startsWith('previas') && patchCambio.Notas.includes('20 sillas') && patchCambio.Instrucciones_Equipo === 'Del cliente: Tocar el timbre de la casa azul' && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')), 'chat: el cambio se guarda en el evento existente, sin crear otro');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es una boda en San Pedro, Navolato' }] });
+  const avisoForaneo = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(avisoForaneo.role === 'system' && avisoForaneo.content.includes('se validan'), 'chat: al mencionar San Pedro, DiMa recibe el recordatorio de explicar la validación');
+  ok(llamadasClaude[0].system.includes('VENTA CRUZADA') && llamadasClaude[0].system.includes('mobiliario'), 'chat: DiMa tiene la regla de venta cruzada');
+
+  // ---------- Preferencia de contacto y mensajes de Diana al cliente ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Luz', telefono: '6672223344', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Cumpleaños', fecha: '2026-11-20', invitados: 60, ubicacion: 'San Pedro, Navolato', servicios: 'Paquete 3', monto_estimado: 2700, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'llamada' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000011', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial });
+  const evPref = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(evPref.Preferencia_Contacto === 'Llamada' && correos[0].text.includes('Cómo quiere la respuesta: Llamada'), 'chat: la preferencia de contacto del cliente queda en el pedido y le llega a Diana');
+  ok(llamadasClaude[0].system.includes('¿quieres esperar aquí la respuesta de la cotización') && llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema.required.includes('preferencia_contacto'), 'chat: DiMa pregunta en foráneos si espera en el chat o lo contactan');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'mensaje_cliente', mensaje: 'Sí llegamos, traslado $500' } }, res);
+  const patchMsg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchMsg.Mensaje_Para_Cliente === 'Sí llegamos, traslado $500' && patchMsg.Mensaje_Cliente_Entregado === false, 'dashboard: Diana deja un mensaje para el cliente');
+
+  reset();
+  respuestas = [{ records: [{ id: 'recEVENTO00000001', fields: { Mensaje_Para_Cliente: 'Sí llegamos, traslado $500' } }] }, {}];
+  res = await chat({ accion: 'revisar', folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
+  const marcado = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && res.body.mensaje === 'Sí llegamos, traslado $500' && marcado.body.records[0].fields.Mensaje_Cliente_Entregado === true && llamadasClaude.length === 0, 'chat: el cliente que espera recibe el mensaje de Diana y se marca entregado (sin llamar a Claude)');
+  reset();
+  res = await chat({ accion: 'revisar', folio: 'EVT-123456', folioFirma: 'inventada' });
+  ok(res.code === 400 && llamadas.length === 0, 'chat: revisar sin folio firmado se rechaza');
+
+  reset();
+  respuestas = [
+    { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Cliente: ['recCLIENTE0000009'], Fecha_Evento: '2026-12-01', Servicios_Solicitados: 'Paquete 3', Mensaje_Para_Cliente: 'El traslado a San Pedro son $500' } }] },
+    { id: 'recCLIENTE0000009', fields: { Nombre: 'Rosa', Telefono_WhatsApp: '+526679990000' } },
+    {},
+  ];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Diana te manda decir que el traslado son $500.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'hola, ¿ya hay respuesta?' }], pedidoExistente: { folio: 'EVT-777777', telefono: '6679990000' } });
+  const ultimoAviso = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(ultimoAviso.content.includes('El traslado a San Pedro son $500') && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Mensaje_Cliente_Entregado === true), 'chat: el cliente que regresa con su folio recibe el mensaje pendiente de Diana');
+
+  // ---------- DiMa nunca menciona a Diana con el cliente ----------
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Eva', telefono: '6675556677', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'Fiesta', fecha: '2026-12-05', invitados: 40, ubicacion: 'Navolato', servicios: 'Paquete 1', monto_estimado: 1500, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'esperar_en_chat' } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000012', fields: {} }] }, { records: [{}] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es en Navolato' }] });
+  const promptCompleto = llamadasClaude[0].system + JSON.stringify(llamadasClaude[0].messages) + JSON.stringify(llamadasClaude[0].tools);
+  ok(!/Diana/.test(res.body.texto), 'chat: el texto que ve el cliente al registrar no menciona a Diana');
+  ok((promptCompleto.match(/Diana/g) || []).length === 1 && promptCompleto.includes('nunca menciones a nadie del equipo por su nombre'), 'chat: lo único sobre Diana en el prompt es la regla de no nombrarla');
+  res = await chat({ historial: Array.from({ length: 41 }, (_, i) => ({ rol: i % 2 ? 'dima' : 'cliente', texto: 'x' })) });
+  ok(!/Diana/.test(res.body.texto), 'chat: la despedida por límite no menciona a Diana');
 
   // ---------- Cobertura e instrucciones ----------
   reset();
@@ -517,4 +630,80 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'alerta_seguridad', valor: false } }, res);
   const patchSeg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && patchSeg.Zona_Alerta_Seguridad === '' && patchSeg.Estatus_Logistico === 'En camino' && telegram.some(t => t.body.text && t.body.text.includes('Se levantó la alerta de seguridad')), 'resolver: la alerta de seguridad se levanta y el estatus regresa a En camino');
+
+  // ---------- Aproximado de traslado (km desde la salida x $10 x 4) ----------
+  const { estimarTraslado, dentroDeCiudad } = require(path.join(repo, 'api/_traslado.js'));
+  ok(dentroDeCiudad([-107.3940, 24.8091]) && !dentroDeCiudad([-107.5504, 24.7734]), 'traslado: el centro está dentro de la ciudad y San Pedro fuera');
+  const tr = await estimarTraslado('San Pedro, Navolato');
+  ok(tr.ok && !tr.dentroDeCiudad && tr.kmDesdeSalida > 0 && tr.kmDesdeSalida < 20 && tr.costo === Math.round(tr.kmDesdeSalida * 40 / 10) * 10, 'traslado: solo cuenta los km fuera de la ciudad y cobra km x $10 x 4');
+  const trCiudad = await estimarTraslado('Las Quintas');
+  ok(trCiudad.ok && trCiudad.dentroDeCiudad && trCiudad.costo === 0, 'traslado: dentro de la ciudad no hay costo');
+
+  reset();
+  respuestasClaude = [
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_1', name: 'estimar_traslado', input: { destino: 'San Pedro, Navolato' } }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: `Aproximado: ${tr.kmDesdeSalida} km, traslado $${tr.costo}. Es un estimado; la cotización final te la confirma el equipo de logística.` }] },
+  ];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿Cuánto me cobran de traslado a San Pedro?' }] });
+  const segunda = llamadasClaude[1];
+  const resultadoTool = segunda && segunda.messages[segunda.messages.length - 1].content[0];
+  ok(llamadasClaude.length === 2 && resultadoTool.type === 'tool_result' && resultadoTool.tool_use_id === 'tu_1' && resultadoTool.content.includes('x $10 x 4'), 'chat: DiMa pide el aproximado y recibe km y costo para responder');
+  ok(res.body.texto.includes('equipo de logística') && !llamadas.length, 'chat: la respuesta del aproximado aclara que logística confirma, sin crear pedido');
+
+  reset();
+  mapaCaido = true;
+  respuestasClaude = [
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_2', name: 'estimar_traslado', input: { destino: 'San Pedro' } }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'El equipo de logística te confirma el costo.' }] },
+  ];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿y el traslado?' }] });
+  ok(llamadasClaude[1].messages[llamadasClaude[1].messages.length - 1].content[0].content.startsWith('Sin resultado'), 'chat: si el mapa falla, DiMa no recibe un número inventado');
+  ok(llamadasClaude[0].system.includes('APROXIMADO DE TRASLADO') && llamadasClaude[0].tools.some(t => t.name === 'estimar_traslado'), 'chat: DiMa tiene la regla y la herramienta de traslado');
+
+  // ---------- Límite de servicio: 35 km desde la salida de Culiacán ----------
+  reset();
+  const lejos = await estimarTraslado('Eldorado');
+  ok(lejos.ok && lejos.kmDesdeSalida > 35 && lejos.fueraDeCobertura === true && tr.fueraDeCobertura === false, 'límite: Eldorado queda fuera de los 35 km y San Pedro dentro');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', id: 'tu_3', name: 'registrar_pedido', input: { nombre: 'Leo', telefono: '6671112233', email: null, negocio: 'Divanna Eventos', tipo_evento: 'Boda', fecha: '2026-12-12', invitados: 150, ubicacion: 'Eldorado', servicios: 'Paquete boda', monto_estimado: 6500, fuera_de_ciudad: true, indicaciones: null, preferencia_contacto: 'llamada' } },
+  ] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'boda en Eldorado' }] });
+  ok(!llamadas.some(l => l.method === 'POST') && !res.body.folio && res.body.texto.includes('35 km') && res.body.texto.includes('seguridad'), 'límite: el chat no registra un evento a más de 35 km y explica por qué');
+
+  reset();
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Leo', telefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-12', ubicacion: 'Eldorado', enCiudad: 'no', servicios: 'Paquete boda' } }, res);
+  ok(res.code === 400 && res.body.error.includes('35 km') && !llamadas.some(l => l.method === 'POST'), 'límite: el formulario rechaza un evento a más de 35 km');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+  ok(llamadasClaude[0].system.includes('PAQUETES PRIMERO') && llamadasClaude[0].system.includes('2 x paquete de 50 personas Antonella ($5,400) = $10,800'), 'precios: DiMa cotiza con paquetes completos antes que piezas sueltas');
+  ok(llamadasClaude[0].system.includes('Más de 35 km NO se atiende') && !llamadasClaude[0].system.includes('caso por caso'), 'límite: DiMa tiene la regla de no atender a más de 35 km');
+
+  // ---------- Temporada alta de fin de año (18 dic - 1 ene, +70%, sin paquetes) ----------
+  const { enTemporadaAlta } = require(path.join(repo, 'api/_temporada.js'));
+  ok(!enTemporadaAlta('2026-12-17') && enTemporadaAlta('2026-12-18') && enTemporadaAlta('2027-01-01') && !enTemporadaAlta('2027-01-02'), 'temporada: del 18 de diciembre al 1 de enero');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Para esas fechas manejamos tarifa de temporada.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es para el 20 de diciembre' }] });
+  const avisoTemp = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(llamadasClaude[0].system.includes('TEMPORADA ALTA DE FIN DE AÑO') && llamadasClaude[0].system.includes('multiplica por 1.7') && avisoTemp.role === 'system' && avisoTemp.content.includes('+70%'), 'temporada: DiMa tiene la regla y recibe el recordatorio al oír "20 de diciembre"');
+  ok(llamadasClaude[0].system.includes('El costo de traslado NO sube en temporada') && avisoTemp.content.includes('el traslado no sube'), 'temporada: el traslado se mantiene igual');
+  ok(llamadasClaude[0].system.includes('NO aplican en TEMPORADA ALTA'), 'temporada: el catálogo aclara que los paquetes no aplican en temporada alta');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'Es para el 10 de diciembre' }] });
+  ok(llamadasClaude[0].messages.every(m => m.role !== 'system'), 'temporada: el 10 de diciembre no dispara el recordatorio');
+
+  reset();
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000013', fields: {} }] }, { records: [{}] }];
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Sol', telefono: '6674445566', negocio: 'Divanna Eventos', fecha: '2026-12-24', enCiudad: 'si', servicios: 'Mesas para 50' } }, res);
+  const evTemp = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(res.code === 200 && evTemp.Notas.includes('Temporada alta') && correos[0].text.includes('TEMPORADA ALTA'), 'temporada: el pedido del 24 de diciembre llega marcado a Diana');
 })();

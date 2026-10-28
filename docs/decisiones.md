@@ -82,3 +82,43 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor probó una emergencia y no la vio en su Telegram (el sistema no le avisa a quien reporta); además pidió la ubicación en tiempo real para poder ir a ayudar.
 **Límite:** una app web no puede seguir mandando la ubicación con la pantalla apagada; el seguimiento continuo requiere la app abierta. La ubicación inicial siempre va si hay permiso.
 **Descartado:** "ubicación en tiempo real" nativa de Telegram (la comparte la persona desde su Telegram, no la app); app nativa con GPS en segundo plano (otro proyecto completo).
+
+## 2026-10-27 — DiMa: explicar eventos foráneos, venta cruzada y agregar a un pedido existente
+
+**Contexto (prueba de Víctor):** DiMa no le explicó al cliente que un evento foráneo se valida, no ofreció mobiliario y decoración, y el cliente no tenía cómo agregar cosas a su pedido después.
+**Decisión:**
+- Foráneos: DiMa debe explicar, en el mismo mensaje en que se entera, que se validan (traslado del equipo ese día, distancia, costo de traslado) y repetirlo en el repaso. Además el servidor detecta nombres de lugares fuera de la ciudad en lo que escribe el cliente y le recuerda a DiMa explicarlo.
+- Venta cruzada obligatoria, una vez y antes de pedir datos: Vaso Maíz ↔ mobiliario y decoración de Divanna.
+- Cuadro "¿Ya tienes número de pedido?" en la landing: folio + teléfono abren el chat sobre ese pedido. Los cambios se guardan en el evento (Notas e Instrucciones_Equipo) y se avisa a Diana.
+- Seguridad: el chat solo acepta cambios con folio firmado por el servidor (HMAC), o verificado con el teléfono del cliente; un folio inventado se ignora.
+**Descartado:** reescribir el pedido automáticamente (servicios/monto) con lo que pide el cliente: Diana sigue confirmando cualquier cambio de cotización.
+
+## 2026-10-27 — Diana responde al cliente a través de DiMa; preferencia de contacto
+
+**Decisión:** en los foráneos DiMa pregunta si el cliente quiere esperar la respuesta en el chat o prefiere mensaje o llamada (`Preferencia_Contacto`, visible en dashboard, correo y Telegram). Diana escribe en el dashboard un "Mensaje para el cliente"; DiMa se lo entrega tal cual: si el cliente sigue con el chat abierto aparece solo (revisión cada 30 s sin costo de IA) y si regresa después con su número de pedido, DiMa se lo da al inicio. Se marca como entregado para no repetirlo.
+**Por qué:** pedido de Víctor tras probar un foráneo: el cliente se quedaba sin saber si esperar, y Diana no tenía cómo contestarle por el mismo canal.
+**Descartado:** mandar el mensaje al cliente por SMS o WhatsApp (se quitó WhatsApp y SMS cuesta y requiere proveedor; si el cliente prefiere mensaje o llamada, Diana lo contacta directo con el teléfono del pedido).
+
+## 2026-10-27 — Aproximado de traslado para eventos foráneos
+
+**Regla de Víctor:** se mide desde la salida de Culiacán; ~$10 por km, ida y vuelta, en dos ocasiones (llevar y regresar, recoger y regresar) => km x $10 x 4.
+**Decisión:** herramienta `estimar_traslado` que DiMa usa solo cuando el cliente pregunta por el traslado. Geocodifica el destino y traza la ruta con OpenStreetMap (gratis, sin llave) y cuenta solo los km desde que la ruta sale del límite oficial de Culiacán Rosales. DiMa lo presenta como estimado y aclara que la cotización final la confirma el equipo de logística.
+**Pendiente:** Víctor compara algunos destinos con Google. Prueba inicial: San Pedro 4 km (el límite oficial llega casi a Aguaruto), Navolato 19, Imala 21, Costa Rica 25, Altata 47, Eldorado 54.
+**Descartado (por ahora):** Google Maps Distance Matrix (requiere llave y facturación; se puede cambiar después sin tocar el chat); que DiMa calcule distancias de memoria (poco confiable).
+
+## 2026-10-27 — Límite de servicio: 35 km desde la salida de Culiacán
+
+**Decisión (Víctor):** por ahora no se da servicio a más de 35 km, por seguridad del equipo y por costos. DiMa revisa la distancia en cuanto el evento es foráneo y, si pasa el límite, lo explica con amabilidad y no registra el pedido. El servidor lo vuelve a verificar al registrar (chat y formulario). La página lo dice en "Zona de cobertura".
+**Detalle:** si el mapa no responde, el pedido se registra y logística valida la distancia (no se pierde un cliente por una falla técnica).
+
+## 2026-10-28 — Precios: paquetes primero
+
+**Contexto (prueba de Víctor):** para 100 personas con sillas Antonella, mantelería y cristalería DiMa sumó piezas sueltas ($5,700 de mesas/sillas + cristalería aparte) en lugar de usar el paquete de 50 personas Antonella ($5,400, que ya incluye mantel, plato, copa, servilletas, cubiertos y personalizados).
+**Decisión:** cuando lo pedido coincide con un paquete, DiMa cotiza con paquetes completos y los combina (50 + 20) para llegar a los invitados; solo suma piezas sueltas para lo que el paquete no trae. Ejemplo en el prompt: 100 personas Antonella = 2 x $5,400 = $10,800 + extras.
+**Abierto:** el catálogo dice que los paquetes son fijos "excepto diciembre"; falta que Víctor diga cómo se cotiza en diciembre.
+
+## 2026-10-28 — Temporada alta de fin de año
+
+**Decisión (Víctor):** una semana antes de Navidad y hasta entrando el año los precios suben 70% y no se manejan paquetes regulares; el aumento se justifica con sutileza por la demanda de trabajo.
+**Cómo quedó:** del 18 de diciembre al 1 de enero según la fecha del evento (`api/_temporada.js`); aplica a Divanna y a El Vaso Maíz. DiMa cotiza por pieza x 1.7 y lo explica como "tarifa de temporada". Recordatorio automático si el cliente menciona fechas de temporada; pedidos marcados en Notas, correo, Telegram y dashboard.
+**Confirmado:** sube todo, Divanna y El Vaso Maíz. Termina el 1 de enero inclusive. El traslado no sube: se mantiene km x $10 x 4. Las promociones de diciembre llegan en carpetas aparte.

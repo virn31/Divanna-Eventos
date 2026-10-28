@@ -39,15 +39,22 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Airtable limpio para pruebas: EVENTOS y COTIZACIONES vacías (se borraron 2 eventos falsos). CLIENTES conserva "Dr Victor Ivan" (prueba).
 - COLABORADORES: `victor` (Admin, con PIN, Telegram vinculado) y `diana` (Admin, **falta que Víctor le ponga PIN**).
 
-**En la rama `vista-equipo-admin` (falta publicar):**
-- "Vista equipo" para Admin: botón en el dashboard que abre la app como la ve cada brigada o encargada, con "Como asistente".
-- Cobertura: DiMa reconoce eventos fuera de la ciudad (caso de prueba: San Pedro, Navolato), no los confirma y los marca `Fuera_De_Ciudad`. El formulario pregunta si es dentro de la ciudad.
-- Instrucciones para el equipo (`Instrucciones_Equipo`): DiMa guarda las del cliente, Diana las edita en el dashboard y se avisa al equipo asignado (push + Telegram).
-- Ubicación GPS en emergencias/seguridad (link + pin en Telegram, push abre el mapa), seguimiento cada minuto con la app abierta, y confirmación "✅ Tu alerta se envió" a quien reporta.
-- Campos nuevos en Airtable (EVENTOS): `Instrucciones_Equipo`, `Fuera_De_Ciudad`, `Ubicacion_Alerta`, `Ubicacion_Alerta_Hora`. 69 pruebas pasan.
-- Desactivar alertas: Seguridad ahora se apaga tocando otra vez el botón (como Emergencia); en el dashboard, botones "✅ Marcar emergencia resuelta" / "✅ Levantar alerta de seguridad"; al resolver se avisa por Telegram (sin push). 72 pruebas.
-- Nota: en producción ya está la "Vista equipo" (Víctor publicó d864445); falta publicar desde c9adf89 en adelante.
-- EVT-922972 (San Pedro) quedó con una emergencia de prueba activa; quitarla.
+**Publicado (PR #3, `vista-equipo-admin`):** vista equipo para Admin, cobertura fuera de la ciudad, instrucciones para el equipo, ubicación GPS en alertas, desactivar alertas y "Marcar resuelta".
+
+**En la rama `dima-pedido-existente` (falta publicar):**
+- DiMa explica la validación de eventos foráneos (prompt + recordatorio automático al detectar lugares como San Pedro/Navolato).
+- Venta cruzada obligatoria antes de pedir datos.
+- Cuadro "¿Ya tienes número de pedido?" en la landing (folio + teléfono) para agregar cosas o indicaciones; se guardan en el evento y avisan a Diana. Folio firmado para que nadie toque pedidos ajenos.
+- DiMa pregunta en foráneos si el cliente espera en el chat o prefiere mensaje/llamada (`Preferencia_Contacto`).
+- Diana deja "Mensaje para el cliente" en el dashboard; DiMa lo entrega en el chat (en vivo cada 30 s o cuando el cliente regresa con su folio). Campos `Preferencia_Contacto`, `Mensaje_Para_Cliente`, `Mensaje_Cliente_Entregado`.
+- Con el cliente DiMa ya no menciona a Diana: dice "el equipo de logística" o "la gerencia".
+- Aproximado de traslado (`api/_traslado.js`): km desde la salida de Culiacán x $10 x 4 con rutas de OpenStreetMap; DiMa lo da solo si el cliente lo pide. **Pendiente de Víctor:** comparar con Google (San Pedro dio 4 km desde la salida, puede ser bajo).
+- Límite duro de 35 km desde la salida de Culiacán (chat, formulario y página); más lejos no se registra el pedido.
+- Precios: regla de "paquetes primero" (100 personas Antonella = 2 x $5,400 = $10,800 + extras).
+- Temporada alta (18 dic - 1 ene, fecha del evento): +70%, sin paquetes regulares, explicado con sutileza. Confirmado por Víctor: aplica a todos los servicios (Divanna y El Vaso Maíz). Termina el 1 de enero (confirmado). El traslado NO sube (confirmado).
+- **Mañana Víctor sube carpetas con las promociones de diciembre**: agregarlas a DiMa (como `referencias/`: fotos + textos y precios) y que DiMa las ofrezca en temporada.
+- 104 pruebas pasan.
+- Airtable: EVENTOS vacía para pruebas nuevas (se borraron los eventos de prueba).
 
 **Pendiente de Víctor:**
 1. PIN de Diana en Airtable; pasarle el APK; que se vincule en @dimaclnbot.

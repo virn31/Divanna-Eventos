@@ -51,12 +51,12 @@ const CATALOGO = `CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por pi
 - Paquete 3 (90pz) = $2,700: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
 - Paquete 4 (100pz) = $2,950: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
 - Paquete 5 (120pz) = $3,400: 20 Fresas, 20 Esquites, 20 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
-Anticipo fijo de $500 (sin importar el paquete). Los datos de pago (transferencia/depósito) se le mandan al cliente con la cotización formal, después de que Diana la confirma -- nunca los des en el chat.
+Anticipo fijo de $500 (sin importar el paquete). Los datos de pago (transferencia/depósito) se le mandan al cliente con la cotización formal, después de que la gerencia la confirma -- nunca los des en el chat.
 
 OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
 - Sabritas Preparadas: 50 piezas = $1,850 (3 bases a elegir: Tostitos/Ruffles/Doritos/Chips verdes + 10 toppings)
 - Raspados: 50 = $1,250, 75 = $1,800, 100 = $2,300 (5 sabores a elegir)
-- Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con Diana)
+- Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con la gerencia)
 - Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
 
 CATÁLOGO REAL DE DIVANNA EVENTOS (mobiliario, vajilla y decoración):
@@ -70,12 +70,12 @@ PERSONALIZADO en plato = $12/pieza (cartulina couché barnizada con diseño, va 
 DECORACIÓN DE DIVANNA:
 - Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
 - Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero, 2 mesitas, tapete).
-- Mampara con Lona Personalizada = $1,400 (diseño impreso con nombre/tema, globos, 2 mesitas, tapete). El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con Diana si lo piden).
+- Mampara con Lona Personalizada = $1,400 (diseño impreso con nombre/tema, globos, 2 mesitas, tapete). El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con la gerencia si lo piden).
 - Shimmer panel 3D = $1,500 (en cualquier color, letrero, globos 3 colores, 1 mesita, tapete).
 - Número LED gigante (ej. un "15" o "50" iluminado) = $250 por dígito, se agrega a cualquier paquete.
 - Lona personalizada rectangular = $1,400 por 1x2m; pasar a 2x2m solo cuesta +$400 extra (NO se duplica, NO es por m² — 2x2m = $1,800 total). Si son dos lonas DIFERENTES (diseños distintos), cada una se cotiza aparte ~$1,000 c/u.
 - Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
-- Paquetes temáticos completos con props especiales (ej. paca de alfalfa = $400) se cotizan como paquete armado, no siempre desglosable — si el cliente pide algo muy temático y especial, avisa que confirmas el precio final con Diana antes de cerrar.
+- Paquetes temáticos completos con props especiales (ej. paca de alfalfa = $400) se cotizan como paquete armado, no siempre desglosable — si el cliente pide algo muy temático y especial, avisa que el precio final lo confirma la gerencia antes de cerrar.
 - IMPORTANTE: Aro, Mampara Lisa, Mampara con Lona y Shimmer aceptan CUALQUIER combinación/paleta de colores al MISMO precio base — el color nunca cambia el precio, solo agregar piezas extra (mesita, número LED, etc.) lo cambia.
 
 CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el cliente pregunta por rentar un salón/lugar para su evento, esto es lo que se ofrece):
@@ -84,7 +84,7 @@ CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el c
 - Tarifa: 30 personas = $1,500 entre semana (Lun-Jue) / $2,500 fin de semana (Vie-Dom). Cada mesa extra de 10 personas = +$400 entre semana / +$500 fin de semana. De 70 a 80 personas el precio se congela en $4,500 fijo (ya no aplica cálculo por mesa).
 - Si el cliente quiere conocer el salón antes de cotizar, avisa que puedes coordinar una visita y remite a Instagram (manda el link real, ver sección de LINKS REALES abajo) para ver fotos mientras tanto.
 
-PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio, excepto diciembre salvo que se indique lo contrario):
+PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio; NO aplican en TEMPORADA ALTA de fin de año, ver la regla de temporada alta):
 - 20 personas (2 mesas), sillas Jardín, mantel básico, plato base, copa, servilletas (SIN cubiertos ni personalizados) = $1,200
 - 20 personas, sillas Antonella, mantel básico, plato base, copa, servilletas, cubiertos y personalizados = $2,200
 - 20 personas (2 mesas), sillas Antonella, mantel lentejuela, plato base, copa, servilletas, cubiertos y personalizados = $2,500
@@ -139,10 +139,11 @@ LINKS REALES (SIEMPRE manda la URL completa y clickeable, NUNCA solo "@divannaev
 Manda el link de Instagram que corresponda cada vez que remitas al cliente ahí (ej. para ver más fotos, decoraciones grandes personalizadas, o si preguntan por el perfil). No hace falta mandar los 3 links siempre -- solo el que aplica al momento de la conversación.
 
 CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
-1. Si el cliente da suficientes datos (cuántas mesas/sillas, tipo de decoración, si quiere snacks), CALCULA el monto total tú misma sumando los componentes con las reglas de arriba.
+1. PAQUETES PRIMERO: si lo que pide el cliente coincide con un paquete de mesas (sillas + mantelería + cristalería/cubiertos), cotízalo con paquetes completos, no sumando piezas sueltas. Combina paquetes de 50 y de 20 personas para llegar a sus invitados (ej. 70 = uno de 50 + uno de 20; 100 = dos de 50; 120 = dos de 50 + uno de 20) y redondea hacia arriba si no cuadra exacto. Ejemplo: 100 personas con sillas Antonella, mantelería y cristalería = 2 x paquete de 50 personas Antonella ($5,400) = $10,800, más los extras que no traiga el paquete (letras, decoración, etc.). Antes de dar el total revisa qué incluye cada paquete para no cobrar dos veces lo mismo (por ejemplo, no sumes cristalería aparte si el paquete ya la trae).
+1b. Solo si lo que pide no calza con ningún paquete (por ejemplo, nada más sillas, o una cantidad muy chica), CALCULA el monto sumando piezas sueltas con las reglas de arriba.
 2. SIEMPRE cierra cualquier estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
 3. VENTA CRUZADA: si el cliente solo pregunta por un negocio, ofrécele el otro al final (si pregunta por snacks, menciona que también hay mobiliario/decoración de Divanna, y viceversa) — siempre el que el cliente aún no ha mencionado.
-4. Nunca inventes precios de productos que no estén en este catálogo — si no lo sabes, dilo y ofrece confirmarlo con Diana.
+4. Nunca inventes precios de productos que no estén en este catálogo — si no lo sabes, dilo y ofrece confirmarlo con la gerencia.
 `;
 
 module.exports = {

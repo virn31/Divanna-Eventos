@@ -97,6 +97,16 @@
   .instr-guardar{border:none; border-radius:10px; padding:9px 14px; background:var(--divanna); color:var(--ink); font-weight:800; cursor:pointer;}
   .instr-guardar:disabled{opacity:.5;}
   .instr-msg{font-size:0.8rem; color:var(--muted);}
+  .msgcli{margin-top:12px; font-size:0.85rem;}
+  .msgcli summary{cursor:pointer; font-weight:700; color:var(--maiz);}
+  .msgcli textarea{
+    width:100%; min-height:70px; margin-top:8px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font:inherit; font-size:0.9rem; resize:vertical; outline:none;
+  }
+  .msgcli textarea:focus{border-color:var(--maiz);}
+  .msgcli-enviar{border:none; border-radius:10px; padding:9px 14px; background:var(--maiz); color:var(--ink); font-weight:800; cursor:pointer;}
+  .msgcli-enviar:disabled{opacity:.5;}
+  .badge-pref{background:rgba(185,139,255,0.18); color:var(--divanna);}
   .resolver-btn{border:none; border-radius:10px; padding:10px 14px; background:var(--good); color:var(--ink); font-weight:800; cursor:pointer;}
   .resolver-btn:disabled{opacity:.5;}
 
@@ -238,9 +248,57 @@
     `;
   }
 
+  const PREF_TEXTO = { 'Esperar en el chat': 'Espera respuesta en el chat', 'Mensaje': 'Prefiere mensaje', 'Llamada': 'Prefiere llamada' };
+
+  // "Mensaje para el cliente": Diana lo escribe y DiMa se lo entrega en el chat.
+  function bloqueMensajeCliente(item){
+    const estado = !item.mensajeParaCliente ? ''
+      : item.mensajeEntregado ? '✔ DiMa ya se lo entregó.' : '⏳ DiMa se lo entrega cuando el cliente esté en el chat o regrese con su número de pedido.';
+    const pref = item.preferenciaContacto === 'Mensaje' || item.preferenciaContacto === 'Llamada'
+      ? `<div class="evento-sub">El cliente ${item.preferenciaContacto === 'Llamada' ? 'prefiere que le llamen' : 'prefiere que le escriban'}: contáctalo también por fuera del chat.</div>` : '';
+    return `
+      <details class="msgcli" ${item.mensajeParaCliente && !item.mensajeEntregado ? 'open' : ''}>
+        <summary>💬 Mensaje para el cliente${item.mensajeParaCliente ? '' : ' (DiMa se lo entrega)'}</summary>
+        ${pref}
+        <textarea class="msgcli-texto" maxlength="1500" placeholder="Ej. Sí llegamos a San Pedro; el traslado son $500 y el total queda en $3,200. ¿Lo confirmas?">${esc(item.mensajeParaCliente)}</textarea>
+        <div class="instr-fila">
+          <button class="msgcli-enviar" data-id="${esc(item.id)}">Enviar al cliente</button>
+          <span class="instr-msg">${estado}</span>
+        </div>
+      </details>`;
+  }
+
+  async function enviarMensajeCliente(btn){
+    const caja = btn.closest('.msgcli');
+    const texto = caja.querySelector('.msgcli-texto');
+    const msg = caja.querySelector('.instr-msg');
+    if(!texto.value.trim()){ msg.textContent = 'Escribe el mensaje primero.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Enviando…';
+    try {
+      await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'mensaje_cliente', mensaje: texto.value }),
+      });
+      delete texto.dataset.sucio;
+      msg.textContent = '⏳ Listo. DiMa se lo entrega cuando el cliente esté en el chat o regrese con su número de pedido.';
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function conectarMensajeCliente(contenedor){
+    contenedor.querySelectorAll('.msgcli-texto').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
+    contenedor.querySelectorAll('.msgcli-enviar').forEach(b => b.addEventListener('click', () => enviarMensajeCliente(b)));
+  }
+
   function renderEventos(eventos){
     // El polling cada 30s no debe borrar instrucciones a medio escribir.
-    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio]')) return;
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio]')) return;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
       return;
@@ -273,6 +331,8 @@
               ${ev.emergencia ? `<span class="badge badge-emergencia">🆘 Emergencia</span>` : ''}
               ${ev.zonaAlertaSeguridad ? `<span class="badge badge-seguridad">⚠️ Seguridad</span>` : ''}
               ${ev.fueraDeCiudad ? `<span class="badge badge-fuera">🛣️ Fuera de la ciudad</span>` : ''}
+              ${ev.temporadaAlta ? `<span class="badge badge-fuera">🎄 Temporada alta</span>` : ''}
+              ${ev.preferenciaContacto ? `<span class="badge badge-pref">📞 ${PREF_TEXTO[ev.preferenciaContacto] || esc(ev.preferenciaContacto)}</span>` : ''}
             </div>
           </div>
           <div class="meta-line">
@@ -291,6 +351,7 @@
               ${ev.emergencia ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="emergencia">✅ Marcar emergencia resuelta</button>` : ''}
               ${ev.zonaAlertaSeguridad ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="alerta_seguridad">✅ Levantar alerta de seguridad</button>` : ''}
             </div>` : ''}
+          ${bloqueMensajeCliente(ev)}
           <details class="instr" ${ev.instrucciones ? 'open' : ''}>
             <summary>📌 Instrucciones para el equipo${ev.instrucciones ? '' : ' (agregar)'}</summary>
             <textarea class="instr-texto" data-id="${esc(ev.id)}" maxlength="2000" placeholder="Ej. Llegar a las 4 pm, entrar por la puerta de atrás, preguntar por Sra. López">${esc(ev.instrucciones)}</textarea>
@@ -311,6 +372,7 @@
     mainContent.querySelectorAll('.instr-guardar').forEach(b => {
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
+    conectarMensajeCliente(mainContent);
     mainContent.querySelectorAll('.resolver-btn').forEach(b => {
       b.addEventListener('click', () => resolverAlerta(b));
     });
@@ -365,8 +427,9 @@
   function renderPedidos(pedidos){
     // El polling cada 30s no debe borrar lo que Diana está escribiendo:
     // solo se vuelve a pintar si cambió la lista de pedidos.
-    const firma = pedidos.map(p => p.id).join(',');
+    const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}`).join(',');
     if(firma === pedidosFirma) return;
+    if(pedidosContent.querySelector('input:focus, textarea:focus, .msgcli-texto[data-sucio]')) return;
     pedidosFirma = firma;
 
     if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
@@ -386,6 +449,9 @@
             ${p.ubicacion ? `<span>📍 ${esc(p.ubicacion)}</span>` : ''}
           </div>
           ${p.fueraDeCiudad ? `<div class="motivo aviso-fuera">🛣️ Fuera de la ciudad: confirma cobertura y suma el costo de traslado al monto.</div>` : ''}
+          ${p.temporadaAlta ? `<div class="motivo aviso-fuera">🎄 Temporada alta: sin paquetes regulares; precios de temporada (+70%).</div>` : ''}
+          ${p.preferenciaContacto ? `<div class="motivo">📞 ${PREF_TEXTO[p.preferenciaContacto] || esc(p.preferenciaContacto)}</div>` : ''}
+          ${bloqueMensajeCliente(p)}
           ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
           <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
@@ -403,6 +469,7 @@
         </div>
       `).join('');
 
+    conectarMensajeCliente(pedidosContent);
     pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
       btn.addEventListener('click', () => resolverPedido(btn));
     });
