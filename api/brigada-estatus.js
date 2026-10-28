@@ -116,6 +116,7 @@ module.exports = async (req, res) => {
     let fieldsToUpdate = {};
     let alertaMensaje = null;
     let alertaAsunto = '';
+    let resueltaMensaje = null;
 
     switch (tipo) {
       case 'checklist_item': {
@@ -175,7 +176,10 @@ module.exports = async (req, res) => {
 
       case 'emergencia':
         fieldsToUpdate.Emergencia = !!valor;
-        fieldsToUpdate.Motivo_Emergencia = motivo || '';
+        fieldsToUpdate.Motivo_Emergencia = valor ? (motivo || '') : (eventoData.fields.Motivo_Emergencia || '');
+        if (!valor && eventoData.fields.Emergencia) {
+          resueltaMensaje = `✅ Se resolvió la emergencia de ${folio} (${ubicacion}). Marcada por ${reporta}. Ya no hace falta acudir.`;
+        }
         if (valor) {
           alertaAsunto = `🆘 EMERGENCIA - Evento ${folio}`;
           alertaMensaje =
@@ -188,6 +192,18 @@ module.exports = async (req, res) => {
         break;
 
       case 'alerta_seguridad':
+        if (!valor) {
+          // Quitar la alerta: se borra la zona y, si el estatus seguía en
+          // "Retraso - seguridad", regresa a "En camino" (la brigada lo ajusta).
+          fieldsToUpdate.Zona_Alerta_Seguridad = '';
+          if (eventoData.fields.Estatus_Logistico === 'Retraso - situación de seguridad en la ciudad') {
+            fieldsToUpdate.Estatus_Logistico = 'En camino';
+          }
+          if (eventoData.fields.Zona_Alerta_Seguridad) {
+            resueltaMensaje = `✅ Se levantó la alerta de seguridad de ${folio} (zona: ${eventoData.fields.Zona_Alerta_Seguridad}). Marcada por ${reporta}.`;
+          }
+          break;
+        }
         fieldsToUpdate.Estatus_Logistico = 'Retraso - situación de seguridad en la ciudad';
         fieldsToUpdate.Zona_Alerta_Seguridad = motivo || '';
         if (valor) {
@@ -229,6 +245,12 @@ module.exports = async (req, res) => {
 
     // Se espera el envío antes de responder: en Vercel la función se congela al
     // responder y un correo pendiente nunca saldría.
+    // Al resolver una alerta se avisa por Telegram (sin sirena de push) para
+    // que nadie siga yendo; también a quien la marcó, como confirmación.
+    if (resueltaMensaje) {
+      await enviarTelegramEquipo({ texto: resueltaMensaje }).catch(err => console.error('Error avisando resolución:', err));
+    }
+
     let enviados = null;
     if (alertaMensaje) {
       enviados = await notificarEquipo({ asunto: alertaAsunto, mensaje: alertaMensaje, reportaId: colaborador.id, ubic }).catch(err => {

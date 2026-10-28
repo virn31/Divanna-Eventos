@@ -500,4 +500,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'ubicacion', ubicacion: { lat: 'x', lng: 500 } } }, res);
   ok(res.code === 400, 'ubicación: coordenadas inválidas se rechazan');
+
+  // ---------- Resolver alertas ----------
+  reset();
+  respuestas = [ADMIN, { fields: { ...eventoBrigada.fields, Emergencia: true, Motivo_Emergencia: 'choque', Ubicacion: 'Centro' } }, {}, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', tipo: 'emergencia', valor: false } }, res);
+  const patchRes = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisosRes = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && patchRes.Emergencia === false && patchRes.Motivo_Emergencia === 'choque', 'resolver: Admin apaga la emergencia y se conserva el motivo como historial');
+  ok(avisosRes.length === 2 && avisosRes.every(t => t.body.text.includes('Se resolvió la emergencia')) && pushes.length === 0, 'resolver: aviso de cierre por Telegram a todos, sin push');
+
+  reset();
+  respuestas = [LIDER, { fields: { ...eventoBrigada.fields, Zona_Alerta_Seguridad: 'Obregón', Estatus_Logistico: 'Retraso - situación de seguridad en la ciudad' } }, {}, { records: conTelegram }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', tipo: 'alerta_seguridad', valor: false } }, res);
+  const patchSeg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchSeg.Zona_Alerta_Seguridad === '' && patchSeg.Estatus_Logistico === 'En camino' && telegram.some(t => t.body.text && t.body.text.includes('Se levantó la alerta de seguridad')), 'resolver: la alerta de seguridad se levanta y el estatus regresa a En camino');
 })();

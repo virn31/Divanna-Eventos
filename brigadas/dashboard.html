@@ -97,6 +97,8 @@
   .instr-guardar{border:none; border-radius:10px; padding:9px 14px; background:var(--divanna); color:var(--ink); font-weight:800; cursor:pointer;}
   .instr-guardar:disabled{opacity:.5;}
   .instr-msg{font-size:0.8rem; color:var(--muted);}
+  .resolver-btn{border:none; border-radius:10px; padding:10px 14px; background:var(--good); color:var(--ink); font-weight:800; cursor:pointer;}
+  .resolver-btn:disabled{opacity:.5;}
 
   /* Pedidos de la landing por cotizar (antes Diana respondía SI/NO por WhatsApp) */
   .section-title{font-size:1.15rem; margin:4px 0 12px;}
@@ -284,6 +286,11 @@
             ? `<div class="motivo"><a href="https://maps.google.com/?q=${ev.ubicacionAlerta}" target="_blank" rel="noopener" style="color:var(--paper); font-weight:800;">📍 Ver ubicación en el mapa</a>${ev.ubicacionAlertaHora ? ' · actualizada ' + new Date(ev.ubicacionAlertaHora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : ''}</div>`
             : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo">⚠️ Zona: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
+          ${ev.emergencia || ev.zonaAlertaSeguridad ? `
+            <div class="instr-fila">
+              ${ev.emergencia ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="emergencia">✅ Marcar emergencia resuelta</button>` : ''}
+              ${ev.zonaAlertaSeguridad ? `<button class="resolver-btn" data-id="${esc(ev.id)}" data-tipo="alerta_seguridad">✅ Levantar alerta de seguridad</button>` : ''}
+            </div>` : ''}
           <details class="instr" ${ev.instrucciones ? 'open' : ''}>
             <summary>📌 Instrucciones para el equipo${ev.instrucciones ? '' : ' (agregar)'}</summary>
             <textarea class="instr-texto" data-id="${esc(ev.id)}" maxlength="2000" placeholder="Ej. Llegar a las 4 pm, entrar por la puerta de atrás, preguntar por Sra. López">${esc(ev.instrucciones)}</textarea>
@@ -304,6 +311,27 @@
     mainContent.querySelectorAll('.instr-guardar').forEach(b => {
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
+    mainContent.querySelectorAll('.resolver-btn').forEach(b => {
+      b.addEventListener('click', () => resolverAlerta(b));
+    });
+  }
+
+  async function resolverAlerta(btn){
+    const tipo = btn.dataset.tipo;
+    if(!confirm(tipo === 'emergencia' ? '¿Marcar la emergencia como resuelta? Se avisa al equipo por Telegram.' : '¿Levantar la alerta de seguridad? Se avisa al equipo por Telegram.')) return;
+    btn.disabled = true;
+    try {
+      await api('/api/brigada-estatus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, tipo, valor: false }),
+      });
+      loadDashboard();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      btn.disabled = false;
+      alert(e.message || 'No se pudo marcar como resuelta, intenta de nuevo.');
+    }
   }
 
   async function guardarInstrucciones(btn){

@@ -457,7 +457,7 @@
           <div class="alert-actions">
             <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">🚦 Retraso</div>
             <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
-            <div class="alert-btn seguridad" data-evento="${ev.id}" data-accion="alerta_seguridad">⚠️ Seguridad</div>
+            <div class="alert-btn seguridad ${ev.zonaAlertaSeguridad ? 'active' : ''}" data-evento="${ev.id}" data-accion="alerta_seguridad">⚠️ Seguridad</div>
           </div>
           ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
@@ -587,11 +587,25 @@
         const ubicacion = await ubicacionPendiente;
         const data = await enviarEstatus({ eventoId, tipo: accion, valor: activando, motivo, ubicacion });
         btn.classList.toggle('active', activando);
-        showToast(accion === 'emergencia' && activando ? textoEnviados(data, '🆘 Alerta enviada') : 'Actualizado');
+        showToast(accion === 'emergencia' && activando ? textoEnviados(data, '🆘 Alerta enviada')
+          : accion === 'emergencia' ? '✅ Emergencia resuelta' : 'Actualizado');
         loadEventos();
       } catch(e){
         showToast('No se pudo enviar, intenta de nuevo');
       }
+    }
+
+    if(accion === 'alerta_seguridad' && btn.classList.contains('active')){
+      // Ya hay alerta de seguridad: tocar otra vez la levanta.
+      if(!confirm('¿Ya pasó la situación de seguridad? Se quitará la alerta para todo el equipo.')) return;
+      try {
+        await enviarEstatus({ eventoId, tipo: 'alerta_seguridad', valor: false });
+        showToast('✅ Alerta de seguridad levantada');
+        loadEventos();
+      } catch(e){
+        showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo quitar, intenta de nuevo');
+      }
+      return;
     }
 
     if(accion === 'alerta_seguridad'){

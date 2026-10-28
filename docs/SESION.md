@@ -45,6 +45,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Instrucciones para el equipo (`Instrucciones_Equipo`): DiMa guarda las del cliente, Diana las edita en el dashboard y se avisa al equipo asignado (push + Telegram).
 - Ubicación GPS en emergencias/seguridad (link + pin en Telegram, push abre el mapa), seguimiento cada minuto con la app abierta, y confirmación "✅ Tu alerta se envió" a quien reporta.
 - Campos nuevos en Airtable (EVENTOS): `Instrucciones_Equipo`, `Fuera_De_Ciudad`, `Ubicacion_Alerta`, `Ubicacion_Alerta_Hora`. 69 pruebas pasan.
+- Desactivar alertas: Seguridad ahora se apaga tocando otra vez el botón (como Emergencia); en el dashboard, botones "✅ Marcar emergencia resuelta" / "✅ Levantar alerta de seguridad"; al resolver se avisa por Telegram (sin push). 72 pruebas.
 - Nota: en producción ya está la "Vista equipo" (Víctor publicó d864445); falta publicar desde c9adf89 en adelante.
 - EVT-922972 (San Pedro) quedó con una emergencia de prueba activa; quitarla.
 
