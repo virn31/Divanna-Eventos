@@ -83,6 +83,7 @@ function aColaborador(r) {
     rol: r.fields.Rol || '',
     brigadaId: (r.fields.Brigada || [])[0] || null,
     chatId: r.fields.Telegram_Chat_ID || '',
+    coordinaStaff: !!r.fields.Coordina_Staff,
   };
 }
 

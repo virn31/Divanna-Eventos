@@ -86,8 +86,8 @@ function ayuda(colaborador) {
     '/hoy — tus eventos de hoy',
     '/eventos — tus próximos eventos',
     '/alertas — emergencias y alertas de seguridad de hoy',
-    '/staff — invitar a tu staff de El Vaso Maíz a un evento',
   ];
+  if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/configurar — activar botones y comandos del bot');
   comandos.push('/salir — desvincular este Telegram');
   return `${colaborador.nombre} (${ROL_TEXTO[colaborador.rol] || colaborador.rol})\n\n${comandos.join('\n')}\n\n` +
@@ -197,7 +197,7 @@ async function atenderBoton(cb) {
   }
 
   if (tipo === 'st') {
-    if (!(await puedeCoordinar(colaborador))) return responderBoton(cb.id, 'Esta opción es para quien coordina staff.', true);
+    if (!(await puedeCoordinar(colaborador))) return responderBoton(cb.id, 'Esta opción es solo para Ángela, Diana y Víctor.', true);
     if (accion === 'x') {
       const avisos = { c: 'Ya confirmó.', i: 'Ya está invitada; esperando respuesta.', o: 'Ya confirmó otro evento a esa hora.', t: 'No ha vinculado su Telegram: pídele que entre a @dimaclnbot.' };
       return responderBoton(cb.id, avisos[id] || '', true);
@@ -230,7 +230,7 @@ async function responder(mensaje) {
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
     case '/staff':
       return (await puedeCoordinar(colaborador)) ? menuEventos()
-        : 'Esta opción es para quien coordina staff de El Vaso Maíz. Pídele a Víctor que te asigne tus chicas (campo Coordinadora en COLABORADORES).';
+        : 'Esta opción es solo para Ángela, Diana y Víctor.';
     case '/configurar':
       return colaborador.rol === ROLES.ADMIN ? configurarBot() : 'Esa opción es solo para Diana y Víctor.';
     case '/pedidos':

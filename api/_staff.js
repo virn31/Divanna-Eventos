@@ -110,10 +110,10 @@ async function eventosConfirmadosDe(colaboradorId) {
   return registros.map(aInvitacion).filter(i => i.colaboradorId === colaboradorId).map(i => i.eventoId);
 }
 
-// ¿Quien coordina puede usar /staff? Admin siempre; los demás si dirigen a alguien.
+// /staff es solo para Diana y Víctor (Admin) y para quien tenga marcado
+// Coordina_Staff en COLABORADORES (Ángela). Decisión de Víctor 2026-10-28.
 async function puedeCoordinar(colaborador) {
-  if (colaborador.rol === ROLES.ADMIN) return true;
-  return (await staffDe(colaborador)).length > 0;
+  return colaborador.rol === ROLES.ADMIN || !!colaborador.coordinaStaff;
 }
 
 // ---------- Textos ----------
@@ -153,7 +153,7 @@ function textoInvitacion(ev, nombre, quienInvita) {
     `📍 ${ev.ubicacion || 'Ubicación por confirmar'}`,
     ev.instrucciones ? `📌 ${ev.instrucciones}` : null,
     '',
-    '¿Puedes acudir? Porfa confírmame.',
+    `Porfa confírmame si puedes acudir, para que llegues antes (salida ${ev.horaInicio ? salidaTexto(ev.horaInicio) : 'según te indique'}) y prepares todo para el evento.`,
   ].filter(l => l !== null).join('\n');
 }
 
