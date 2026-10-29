@@ -177,6 +177,11 @@
   .alert-btn.active.retraso{color:var(--ink); background:var(--warn);}
   .alert-btn.active.emergencia{color:var(--ink); background:#ff6b6b;}
   .alert-btn.active.seguridad{color:var(--ink); background:#ff9f4a;}
+  .enterado-btn{
+    width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1.5px solid var(--good);
+    background:var(--good); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;
+  }
+  .enterado-ok{margin-top:12px; font-size:0.82rem; font-weight:700; color:var(--good);}
   .motivo-tag{
     font-size:0.8rem; color:var(--muted); margin-top:8px; padding:8px 10px;
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
@@ -433,6 +438,9 @@
             <span>📍 ${esc(ev.estado)}</span>
           </div>
           ${ev.fueraDeCiudad ? `<div class="motivo-tag">🛣️ Fuera de la ciudad</div>` : ''}
+          ${ev.enteradoPor
+            ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
+            : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
           ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
@@ -496,6 +504,22 @@
     document.querySelectorAll('.alert-btn').forEach(btn => {
       btn.addEventListener('click', () => manejarAlerta(btn));
     });
+
+    document.querySelectorAll('.enterado-btn').forEach(btn => {
+      btn.addEventListener('click', () => marcarEnterado(btn));
+    });
+  }
+
+  async function marcarEnterado(btn){
+    btn.disabled = true;
+    try {
+      await enviarEstatus({ eventoId: btn.dataset.evento, tipo: 'enterado' });
+      showToast('Listo, Diana y Víctor ya saben que lo viste');
+      loadEventos();
+    } catch(e){
+      btn.disabled = false;
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo confirmar, intenta de nuevo');
+    }
   }
 
   function enviarEstatus(payload){

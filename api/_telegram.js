@@ -107,8 +107,12 @@ async function guardarChat(colaboradorId, chatId) {
 // roles: lista de roles que lo reciben (null = todos); soloColaboradores: lista
 // de IDs para mandarlo solo a esas personas; ubicacion: { lat, lng } para
 // mandar además el pin del mapa. Devuelve a cuántos les llegó. Nunca lanza error.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null }) {
-  if (!telegramConfigurado()) return 0;
+// Si se pasa una lista de errores, ahí quedan los motivos de lo que no se entregó.
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null }) {
+  if (!telegramConfigurado()) {
+    if (errores) errores.push('Telegram sin configurar (falta TELEGRAM_BOT_TOKEN)');
+    return 0;
+  }
   try {
     const formula = encodeURIComponent('AND({Activo}, {Telegram_Chat_ID} != "")');
     const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
@@ -127,10 +131,12 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
       // 403: la persona bloqueó o borró el bot; se desvincula para no seguir intentando.
       if (r.status === 403) await guardarChat(c.id, '').catch(() => {});
       else console.error('Error enviando Telegram:', r.status, r.data && r.data.description);
+      if (errores) errores.push(`Telegram a ${c.nombre || 'alguien'}: ${r.status === 403 ? 'bloqueó el bot, quedó desvinculado' : (r.data && r.data.description) || 'error ' + r.status}`);
     }));
     return enviados;
   } catch (err) {
     console.error('Error en enviarTelegramEquipo:', err.message);
+    if (errores) errores.push(`Telegram: ${err.message}`);
     return 0;
   }
 }

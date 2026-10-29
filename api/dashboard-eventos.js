@@ -12,6 +12,10 @@
 // POST accion "mensaje_cliente": Diana deja un mensaje para el cliente
 // (Mensaje_Para_Cliente); DiMa se lo entrega en el chat si está esperando o
 // cuando regrese con su número de pedido.
+// POST accion "asignar": Diana asigna la brigada y la encargada (El Vaso Maíz)
+// de un evento; se avisa por push y Telegram solo a quien se acaba de sumar y
+// se responde cuántos avisos se entregaron de verdad. Si cambia el equipo, se
+// borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
 const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
@@ -101,16 +105,23 @@ function itemsDeTexto(texto) {
 
 // Colaboradores que trabajan el evento: los de la brigada asignada y la
 // encargada (El Vaso Maíz). Si el evento aún no tiene a nadie, lista vacía.
-async function asignadosDe(eventoFields) {
+function equipoDe(eventoFields, colaboradores) {
   const brigadas = eventoFields.Brigada_Asignada || [];
   const ids = new Set(eventoFields.Encargada || []);
-  if (brigadas.length) {
-    const data = await airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
-    data.records.forEach(c => {
-      if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
-    });
-  }
+  colaboradores.forEach(c => {
+    if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
+  });
   return [...ids];
+}
+
+async function colaboradoresActivos() {
+  const data = await airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
+  return data.records;
+}
+
+async function asignadosDe(eventoFields) {
+  if (!(eventoFields.Brigada_Asignada || []).length) return [...new Set(eventoFields.Encargada || [])];
+  return equipoDe(eventoFields, await colaboradoresActivos());
 }
 
 async function avisarInstrucciones(eventoFields, texto) {
@@ -151,7 +162,7 @@ function agendaDesdeDashboard(body, inventario) {
 async function resolverPedido(req, res) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
@@ -177,6 +188,47 @@ async function resolverPedido(req, res) {
       ? await avisarInstrucciones(f, instrucciones)
       : 0;
     res.status(200).json({ success: true, avisados });
+    return;
+  }
+
+  if (accion === 'asignar') {
+    const b = req.body || {};
+    const brigadaId = typeof b.brigadaId === 'string' ? b.brigadaId : '';
+    if ((brigadaId && !/^rec[A-Za-z0-9]{14}$/.test(brigadaId)) || !Array.isArray(b.encargadaIds)) {
+      res.status(400).json({ error: 'Parámetros inválidos' });
+      return;
+    }
+    const colaboradores = await colaboradoresActivos();
+    // Solo se aceptan encargadas activas con ese rol.
+    const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
+    const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
+    const antes = equipoDe(f, colaboradores);
+    const despues = equipoDe({ ...f, ...campos }, colaboradores);
+    const nuevos = despues.filter(id => !antes.includes(id));
+    if (nuevos.length || antes.length !== despues.length) Object.assign(campos, { Enterado_Por: '', Enterado_Hora: null });
+    await airtablePatch(TABLES.EVENTOS, eventoId, campos);
+    let porTelegram = 0, porPush = 0;
+    const erroresAvisos = [];
+    if (nuevos.length) {
+      const titulo = `🗓️ Te asignaron ${f.Folio_Evento || 'un evento'}`;
+      const cuerpo = `${f.Ubicacion ? f.Ubicacion + ' · ' : ''}${f.Fecha_Evento || ''}${f.Hora_Inicio ? ' · ' + f.Hora_Inicio : ''}
+Ábrelo en la app y toca "Enterado".`;
+      [porPush, porTelegram] = await Promise.all([
+        enviarPushEquipo({ titulo, cuerpo, soloColaboradores: nuevos }),
+        enviarTelegramEquipo({ texto: `${titulo}
+${cuerpo}`, soloColaboradores: nuevos, errores: erroresAvisos }),
+      ]);
+    }
+    const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
+    res.status(200).json({
+      success: true,
+      avisados: nuevos.length,
+      porTelegram,
+      porPush,
+      conTelegram: nuevosColab.filter(c => c.fields.Telegram_Chat_ID).length,
+      sinTelegram: nuevosColab.filter(c => !c.fields.Telegram_Chat_ID).map(c => c.fields.Nombre || ''),
+      erroresAvisos,
+    });
     return;
   }
 
@@ -214,6 +266,7 @@ async function resolverPedido(req, res) {
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
   // fallan no se deshace la autorización, solo se reporta.
   let googleOk = true;
+  const erroresGoogle = [];
   try {
     let clienteNombre = '', clienteTelefono = '', clienteEmail = '';
     if (f.Cliente && f.Cliente[0]) {
@@ -232,17 +285,18 @@ async function resolverPedido(req, res) {
       monto: montoNum,
     };
     const resultados = await Promise.all([
-      crearEventoCalendar(datosEvento),
-      agregarFilaCotizacion({ ...datosEvento, clienteNombre, clienteTelefono }),
-      clienteEmail ? enviarCotizacionPorCorreo({ ...datosEvento, emailCliente: clienteEmail }) : Promise.resolve(true),
+      crearEventoCalendar(datosEvento, erroresGoogle),
+      agregarFilaCotizacion({ ...datosEvento, clienteNombre, clienteTelefono }, erroresGoogle),
+      clienteEmail ? enviarCotizacionPorCorreo({ ...datosEvento, emailCliente: clienteEmail }, erroresGoogle) : Promise.resolve(true),
     ]);
     googleOk = resultados.every(Boolean);
   } catch (err) {
     console.error('Error en integraciones de Google al autorizar:', err.message);
+    erroresGoogle.push(err.message);
     googleOk = false;
   }
 
-  res.status(200).json({ success: true, googleOk });
+  res.status(200).json({ success: true, googleOk, erroresGoogle });
 }
 
 module.exports = async (req, res) => {
@@ -285,6 +339,10 @@ module.exports = async (req, res) => {
         fecha: r.fields.Fecha_Evento || '',
         ubicacion: r.fields.Ubicacion || '',
         invitados: r.fields.Invitados || null,
+        brigadaId: brigadaIds[0] || '',
+        encargadaIds: r.fields.Encargada || [],
+        enteradoPor: r.fields.Enterado_Por || '',
+        enteradoHora: r.fields.Enterado_Hora || '',
         brigadaNombre: brigadaInfo ? brigadaInfo.Nombre_Brigada : 'Sin asignar',
         brigadaLider: brigadaInfo ? brigadaInfo.Lider : '',
         estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',
@@ -353,7 +411,12 @@ module.exports = async (req, res) => {
       const ev = porId.get(item.id);
       item.disponibilidad = ev ? evaluarDisponibilidad(ev, { otros: paraAgenda, inventario, personalPorFecha }) : null;
     });
-    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ });
+    // Opciones para asignar: todas las brigadas y las encargadas activas.
+    const brigadas = brigadasData.records.map(b => ({ id: b.id, nombre: b.fields.Nombre_Brigada || 'Brigada', lider: b.fields.Lider || '' }));
+    const encargadas = await colaboradoresActivos()
+      .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA).map(c => ({ id: c.id, nombre: c.fields.Nombre || '' })))
+      .catch(err => { console.error('No se pudo leer COLABORADORES:', err.message); return []; });
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

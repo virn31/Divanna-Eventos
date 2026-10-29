@@ -7,7 +7,8 @@
 // Requiere estas variables de entorno en Vercel:
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL  -> dima-calendar-sheets@dima-os.iam.gserviceaccount.com
 //   GOOGLE_PRIVATE_KEY            -> la private_key del JSON (con \n literales)
-//   GOOGLE_CALENDAR_ID            -> ID del calendario compartido
+//   GOOGLE_CALENDAR_ID            -> ID del calendario de divannaeventos@gmail.com, compartido
+//                                    con la cuenta de servicio ("Hacer cambios en eventos")
 //   GOOGLE_SHEET_ID               -> ID de la hoja de cálculo (de la URL)
 //   GMAIL_USER                    -> dima.divanna@gmail.com
 //   GMAIL_APP_PASSWORD            -> contraseña de aplicación de Gmail (16 caracteres)
@@ -45,9 +46,12 @@ function getAuth(scopes) {
   );
 }
 
+// Si se pasa una lista de errores, cada función que falla agrega ahí el motivo
+// (lo muestra el dashboard para saber qué revisar).
+
 // ---------- GOOGLE CALENDAR ----------
 // Crea un evento en el calendario compartido cuando Diana autoriza una cotización.
-async function crearEventoCalendar({ folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto }) {
+async function crearEventoCalendar({ folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto }, errores = []) {
   try {
     const auth = getAuth(['https://www.googleapis.com/auth/calendar']);
     const calendar = google.calendar({ version: 'v3', auth });
@@ -79,13 +83,14 @@ async function crearEventoCalendar({ folio, negocio, fechaEvento, ubicacion, inv
     return res.data.htmlLink || null;
   } catch (err) {
     console.error('Error creando evento en Calendar:', err.message);
+    errores.push(`Calendar: ${err.message}`);
     return null;
   }
 }
 
 // ---------- GOOGLE SHEETS ----------
 // Agrega una fila con la cotización confirmada a la hoja de cotizaciones/recibos.
-async function agregarFilaCotizacion({ folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto, clienteNombre, clienteTelefono }) {
+async function agregarFilaCotizacion({ folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto, clienteNombre, clienteTelefono }, errores = []) {
   try {
     const auth = getAuth(['https://www.googleapis.com/auth/spreadsheets']);
     const sheets = google.sheets({ version: 'v4', auth });
@@ -115,12 +120,13 @@ async function agregarFilaCotizacion({ folio, negocio, fechaEvento, ubicacion, i
     return true;
   } catch (err) {
     console.error('Error agregando fila a Sheets:', err.message);
+    errores.push(`Sheets: ${err.message}`);
     return false;
   }
 }
 
 // ---------- ENVÍO DE CORREO (opcional, solo si el cliente dio su email) ----------
-async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto }) {
+async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto }, errores = []) {
   if (!emailCliente) return false;
 
   try {
@@ -155,6 +161,7 @@ async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEv
     return true;
   } catch (err) {
     console.error('Error enviando correo:', err.message);
+    errores.push(`Correo al cliente: ${err.message}`);
     return false;
   }
 }

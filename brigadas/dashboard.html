@@ -153,6 +153,8 @@
     background:var(--ink); color:var(--paper); font-size:0.9rem; font-family:inherit; outline:none; min-width:0;
   }
   .agenda select:focus, .agenda input:focus{border-color:var(--divanna);}
+  .agenda .asig-check{display:flex; align-items:center; gap:8px; margin-top:6px;}
+  .agenda .asig-check input{width:auto;}
   .prod-fila{display:grid; grid-template-columns:minmax(0,1fr) 76px 40px; gap:6px; margin-top:8px; padding-bottom:8px; border-bottom:1px solid var(--line);}
   .prod-fila .prod-nota{grid-column:1 / -1;}
   .prod-quitar{border:1.5px solid var(--bad); background:transparent; color:var(--bad); border-radius:10px; cursor:pointer; font-weight:800;}
@@ -237,6 +239,9 @@
   let catalogo = [];
   // Artículos de INVENTARIO (modelo y color) para asignar a cada evento.
   let inventario = [];
+  // Opciones para asignar eventos: brigadas y encargadas (El Vaso Maíz).
+  let brigadas = [];
+  let encargadas = [];
 
   // Varios campos vienen del formulario público de la landing: siempre escapar.
   function esc(valor){
@@ -548,6 +553,7 @@
           ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
           ${bloqueStaff(ev)}
           ${bloqueMensajeCliente(ev)}
+          ${bloqueAsignar(ev)}
           <details class="agenda">
             <summary>🗓️ Hora y productos${ev.horaInicio && ev.productos.length ? '' : ' (completar)'}</summary>
             ${camposAgenda(ev)}
@@ -573,14 +579,76 @@
     mainContent.querySelectorAll('.instr-texto').forEach(t => {
       t.addEventListener('input', () => { t.dataset.sucio = '1'; });
     });
-    mainContent.querySelectorAll('.instr-guardar').forEach(b => {
+    mainContent.querySelectorAll('.instr .instr-guardar').forEach(b => {
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
     conectarMensajeCliente(mainContent);
     conectarAgenda(mainContent);
+    mainContent.querySelectorAll('.asig-guardar').forEach(b => b.addEventListener('click', () => guardarAsignacion(b)));
     mainContent.querySelectorAll('.resolver-btn').forEach(b => {
       b.addEventListener('click', () => resolverAlerta(b));
     });
+  }
+
+  function bloqueAsignar(ev){
+    const sinNadie = !ev.brigadaId && !ev.encargadaIds.length;
+    const enterado = sinNadie ? ''
+      : ev.enteradoPor ? ` · 👍 Enterado: ${esc(ev.enteradoPor)}${ev.enteradoHora ? ' (' + new Date(ev.enteradoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`
+      : ' · ⏳ Sin confirmar';
+    return `
+      <details class="agenda asignar" ${sinNadie ? 'open' : ''}>
+        <summary>👷 Asignar brigada y encargada${sinNadie ? ' (sin asignar)' : enterado}</summary>
+        <label class="ag-label">Brigada</label>
+        <select class="asig-brigada">
+          <option value="">Sin brigada</option>
+          ${brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}${b.lider ? ' (' + esc(b.lider) + ')' : ''}</option>`).join('')}
+        </select>
+        <label class="ag-label">Encargada de evento (El Vaso Maíz)</label>
+        ${encargadas.length
+          ? encargadas.map(c => `<label class="asig-check"><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${ev.encargadaIds.includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')
+          : '<div class="ag-label">No hay encargadas activas en COLABORADORES.</div>'}
+        <div class="instr-fila">
+          <button class="instr-guardar asig-guardar" data-id="${esc(ev.id)}">Guardar y avisar</button>
+          <span class="instr-msg asig-msg"></span>
+        </div>
+      </details>`;
+  }
+
+  // Lo que de verdad se entregó al asignar, para saber si a alguien no le llegó.
+  function textoAvisosAsignacion(d){
+    if(!d.avisados) return 'Guardado. No hay nadie nuevo a quien avisar.';
+    let t = `Guardado. Avisos a ${d.avisados} persona${d.avisados === 1 ? '' : 's'}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculado${d.conTelegram === 1 ? '' : 's'}, app ${d.porPush}.`;
+    if((d.sinTelegram || []).length) t += ` Sin Telegram vinculado: ${d.sinTelegram.join(', ')}.`;
+    if((d.erroresAvisos || []).length) t += ` ⚠️ ${d.erroresAvisos.join(' · ')}`;
+    return t;
+  }
+
+  async function guardarAsignacion(btn){
+    const caja = btn.closest('.asignar');
+    const msg = caja.querySelector('.asig-msg');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const data = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.id,
+          accion: 'asignar',
+          brigadaId: caja.querySelector('.asig-brigada').value,
+          encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+        }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = textoAvisosAsignacion(data);
+      // Si algo no se entregó, el mensaje se queda a la vista (no se repinta).
+      if(!(data.erroresAvisos || []).length && !(data.sinTelegram || []).length) setTimeout(loadDashboard, 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function resolverAlerta(btn){
@@ -713,7 +781,7 @@
       msg.style.color = 'var(--good)';
       msg.textContent = accion === 'rechazar' ? 'Pedido rechazado.'
         : data.googleOk ? 'Autorizado. Checklist listo para la brigada.'
-        : 'Autorizado, pero falló Calendar, Sheets o el correo al cliente. Revísalo a mano.';
+        : 'Autorizado, pero falló: ' + ((data.erroresGoogle || []).join(' · ') || 'Calendar, Sheets o el correo al cliente') + '. Revísalo a mano.';
       pedidosFirma = null;
       setTimeout(loadDashboard, 1500);
     } catch(e){
@@ -740,6 +808,8 @@
       const data = await api('/api/dashboard-eventos');
       catalogo = data.catalogo || [];
       inventario = data.inventario || [];
+      brigadas = data.brigadas || [];
+      encargadas = data.encargadas || [];
       // Suena y vibra si apareció una emergencia o alerta de seguridad nueva.
       DimaAlertas.revisar((data.eventos || []).flatMap(ev => [
         ev.emergencia ? `${ev.id}|E|${ev.motivoEmergencia}` : null,

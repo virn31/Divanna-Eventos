@@ -42,12 +42,12 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `api/_staff.js` | Staff de El Vaso Maíz por Telegram: `/staff` (solo Admin o `Coordina_Staff`: Ángela, Diana y Víctor) tiene **Agregar personal** (nombre + teléfono; el bot da un enlace `t.me/dimaclnbot?start=s_<id>_<firma>` y la chica solo toca "Iniciar", sin usuario ni PIN) y **Asignar a evento**: lista eventos autorizados de El Vaso Maíz, se eligen chicas con botones y se les manda la invitación con "Sí puedo / No puedo"; las respuestas le llegan a quien invitó. Tabla STAFF_EVENTO `tblvTVcC3NMt5ddjr`. La selección viaja en el `callback_data` (máscara de bits). |
 | `api/sesion.js` + `api/_sesion.js` | Login (usuario + PIN de 6 dígitos), token de 7 días y permisos por rol. Cada llamada revisa en Airtable que el colaborador siga `Activo`. |
 | `api/brigada-eventos.js` | GET eventos según el rol (líder/asistente: su brigada; encargada: los de `EVENTOS.Encargada`) + alertas de otras brigadas del día. |
-| `api/brigada-estatus.js` | POST carga, estatus logístico, retraso, emergencia, alerta de seguridad. El asistente solo carga y alertas. Emergencia/seguridad: push a todo el equipo + correo. |
+| `api/brigada-estatus.js` | POST carga, estatus logístico, retraso, emergencia, alerta de seguridad. `enterado`: quien tiene el evento confirma que lo vio (`Enterado_Por`, `Enterado_Hora`) y se avisa a los Admin por Telegram. El asistente solo carga, alertas y enterado. Emergencia/seguridad: push a todo el equipo + correo. |
 | `api/telegram.js` + `api/_telegram.js` | Webhook del bot del equipo (`/entrar usuario PIN`, `/hoy`, `/eventos`, `/alertas`, `/pedidos`, `/salir`) y envío de avisos. Vincula el chat en `COLABORADORES.Telegram_Chat_ID`. Valida `TELEGRAM_WEBHOOK_SECRET`. |
 | `api/_eventos.js` | Qué eventos ve cada rol y alertas del día; lo usan la app y el bot. |
 | `api/push.js` + `api/_push.js` | Suscripción del teléfono a las alertas (tabla PUSH_SUSCRIPCIONES `tblSyRGsMwcSnkcAR`) y envío. Solo a colaboradores activos, nunca a quien reporta. |
 | `api/brigada-checklist.js` | POST etapas del evento (líder, encargada, admin). |
-| `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. |
+| `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance, brigadas y encargadas. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. POST `asignar`: brigada y encargada del evento (avisa solo a quien se suma, responde cuántos avisos se entregaron de verdad por Telegram/push y por qué falló alguno; si cambia el equipo borra `Enterado_Por`/`Enterado_Hora`). |
 | `api/balance-semanal.js` | Cron de balance semanal, enviado por correo. |
 | `brigadas/index.html` | **App del equipo** (PWA/APK, scope `/brigadas/`): login y vista según rol. Admin pasa a `dashboard.html`. |
 | `brigadas/dashboard.html` | Dashboard de Diana/Víctor (misma sesión, solo Admin). Aquí se cotizan y autorizan los pedidos. |
@@ -74,7 +74,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 2. Los campos de Airtable deben existir con el nombre exacto. Ya hubo un bug por `Monto_Cotizacion` (el real es `Monto_Estimado_IA`). Verifica el esquema antes de escribir un campo nuevo.
 3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 10 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal (los archivos con `_` no cuentan).
 4. La PWA ya está instalada con scope `/brigadas/` y el APK apunta ahí. **No cambies el scope ni el `start_url`** sin plan de migración.
-5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v5`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
+5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v6`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.
 14. **Temporada alta** (`api/_temporada.js`): del 18 de diciembre al 1 de enero (fecha del EVENTO), precios por pieza +70% y sin paquetes regulares (Divanna y El Vaso Maíz). DiMa lo explica con sutileza (temporada de más demanda). El traslado no sube. Los pedidos llegan marcados "🎄 Temporada alta". Para cambiar fechas o porcentaje se edita solo `TEMPORADA_ALTA`.
 13. **Aproximado de traslado** (`api/_traslado.js`): km por carretera desde la salida de Culiacán x $10 x 4 (ir a dejar y regresar, ir a recoger y regresar). Ruta con OpenStreetMap (Nominatim + OSRM, gratis, sin llave); la "salida" es donde la ruta deja el límite oficial de Culiacán Rosales (`api/_culiacan-limite.json`). DiMa solo lo da si el cliente lo pide, siempre como estimado que confirma logística. Si crece el volumen o se quiere la distancia exacta de Google, cambiar a Google Maps Distance Matrix (requiere llave y cuenta de facturación).
@@ -99,7 +99,6 @@ Corregidos el 2026-10-27: endpoints de brigada sin validación, inyección en `f
 ## Siguientes fases
 
 - **Alertas nuevas:** botón "Situación con cliente" (solo a Diana/Víctor), `Estatus_Semaforo` con alerta al pasar a Rojo, instrucción de Diana a la brigada desde el dashboard.
-- Asignar `Encargada` y brigada a un evento desde el dashboard (hoy se hace en Airtable).
 
 ## Pendientes de contexto
 
