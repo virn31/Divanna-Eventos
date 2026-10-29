@@ -507,7 +507,7 @@ async function marcarReembolsado(colaborador, body) {
 // evento por evento (pedido de Víctor 2026-10-29):
 // 1. Estatus de pago "Pagado - …" o "Liquidado 100%" -> 0.
 // 2. Si se capturó Monto_Adeudado -> ese.
-// 3. Si no -> monto contratado menos los cobros de reportes aprobados de ese evento.
+// 3. Si no -> contratado menos cobros (de reportes aprobados o declarados por Diana) menos descuento.
 // Los anticipos que se pagan directo a Diana no están registrados como cobro:
 // en esos eventos sale de más hasta que se marque pagado o se capture lo adeudado.
 const PAGADO = (estatus) => /^Pagado\b/.test(estatus || '') || estatus === 'Liquidado 100%';
@@ -516,7 +516,8 @@ function calcularPorCobrar(eventos, cobros, aprobados) {
   const cobradoPorEvento = new Map();
   for (const c of cobros) {
     const f = c.fields || {};
-    if (!aprobados.has((f.Reporte || [])[0])) continue;
+    // Cuentan los cobros de reportes aprobados y lo que Diana declaró que le pagaron.
+    if (!aprobados.has((f.Reporte || [])[0]) && f.Recibido_Por !== 'Diana') continue;
     const ev = (f.Evento || [])[0];
     if (ev) cobradoPorEvento.set(ev, (cobradoPorEvento.get(ev) || 0) + (Number(f.Monto) || 0));
   }
@@ -527,7 +528,7 @@ function calcularPorCobrar(eventos, cobros, aprobados) {
     let debe;
     if (PAGADO(f.Estatus_Pago)) debe = 0;
     else if (typeof f.Monto_Adeudado === 'number') debe = f.Monto_Adeudado;
-    else debe = Math.max(0, (Number(f.Monto_Estimado_IA) || 0) - (cobradoPorEvento.get(e.id) || 0));
+    else debe = Math.max(0, (Number(f.Monto_Estimado_IA) || 0) - (cobradoPorEvento.get(e.id) || 0) - (Number(f.Descuento) || 0));
     if (debe > 0) { total += debe; conSaldo++; }
   }
   return { total: Math.round(total * 100) / 100, eventos: conSaldo };
