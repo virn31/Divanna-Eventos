@@ -2,6 +2,7 @@
 // Reporte financiero del día (lógica en api/_finanzas.js).
 // GET ?fecha=YYYY-MM-DD: el reporte propio de ese día (líder / encargada) y,
 //   para Admin y la gerente de El Vaso Maíz, los reportes por revisar.
+// GET ?vista=historial: historial mensual por empresa (solo Admin).
 // POST accion: gasto | cobro | quitar | datos | enviar (quien reporta);
 //   aprobar | aclaracion | reembolsado (Diana y Víctor).
 
@@ -19,6 +20,12 @@ module.exports = async (req, res) => {
     if (!colaborador) return;
 
     if (req.method === 'GET') {
+      // Historial mensual por empresa (gráfica del dashboard): solo Diana y Víctor.
+      if ((req.query || {}).vista === 'historial') {
+        if (colaborador.rol !== ROLES.ADMIN) { res.status(403).json({ error: 'Solo Diana y Víctor ven el historial.' }); return; }
+        res.status(200).json(await F.historialMensual());
+        return;
+      }
       const fecha = /^\d{4}-\d{2}-\d{2}$/.test((req.query || {}).fecha || '') ? req.query.fecha : F.hoyCuliacan();
       res.status(200).json(await F.vista(colaborador, fecha));
       return;

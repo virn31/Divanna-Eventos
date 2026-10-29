@@ -13,6 +13,7 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 const { ROLES } = require('./_sesion');
 const { alcanceDe, leerEventos } = require('./_eventos');
 const { manualTexto } = require('./_instrucciones');
+const { historialMensual, historialParaDima } = require('./_finanzas');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES = 20;
@@ -72,6 +73,17 @@ async function sistemaPara(colaborador, coordina) {
     console.error('DiMa equipo: no se pudieron leer los eventos:', err.message);
   }
   const puesto = colaborador.gerente ? 'gerente de El Vaso Maíz' : colaborador.rol === ROLES.ADMIN ? 'dueño(a) del negocio (Admin)' : colaborador.rol;
+  const esAdmin = colaborador.rol === ROLES.ADMIN;
+  // Solo a Diana y Víctor: historial de dinero por mes y por empresa.
+  let finanzas = '';
+  if (esAdmin) {
+    try {
+      finanzas = historialParaDima(await historialMensual());
+    } catch (err) {
+      console.error('DiMa equipo: no se pudo leer el historial:', err.message);
+      finanzas = 'NO SE PUDO LEER el historial de dinero en este momento: si te piden un balance, di que no pudiste leerlo y que lo intenten en un rato. No des cifras.';
+    }
+  }
   return [
     'Eres DiMa, la asistente interna del equipo de Divanna Eventos y El Vaso Maíz (Culiacán). ' +
     `Hablas con ${colaborador.nombre || 'alguien del equipo'}, ${puesto}. Tu trabajo es que domine la plataforma: ` +
@@ -80,10 +92,13 @@ async function sistemaPara(colaborador, coordina) {
     '- Contesta en español, cálido y directo, en pocas líneas. Texto simple, sin markdown (sin asteriscos ni #); puedes usar viñetas con "•".\n' +
     '- Usa solo el manual y los eventos de abajo. Si algo no está ahí, dilo y sugiere escribirles a Diana y Víctor con /mensaje. No inventes botones ni funciones.\n' +
     '- No puedes hacer cambios (asignar, confirmar, invitar): explica dónde y cómo se hacen.\n' +
-    '- No hablas de precios, pagos ni montos de los pedidos; eso lo llevan Diana y Víctor.\n' +
+    (esAdmin
+      ? '- Con esta persona SÍ puedes hablar de dinero, usando solo el HISTORIAL POR MES de abajo. Si te pide un balance o las mejores temporadas, compara las dos empresas mes por mes y di cuáles son sus mejores meses (por ingresos y por número de eventos). Di siempre cuántos meses de datos hay: con menos de 12 meses no afirmes que es una temporada que se repite cada año, di que es lo que se ve hasta ahora. Aclara que "ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado. No inventes cifras ni meses que no estén abajo.\n'
+      : '- No hablas de precios, pagos ni montos de los pedidos; eso lo llevan Diana y Víctor.\n') +
     '- Cuando ayude, propón el siguiente paso concreto o una práctica corta para que aprenda haciéndolo.',
     `MANUAL DE LA PLATAFORMA (lo que le toca a esta persona):\n${manualTexto(colaborador, coordina)}`,
     `SUS PRÓXIMOS EVENTOS (lo que ve en la app hoy):\n${resumenEventos(eventos)}`,
+    ...(esAdmin ? [`HISTORIAL POR MES DE LAS DOS EMPRESAS:\n${finanzas}`] : []),
   ].join('\n\n');
 }
 
