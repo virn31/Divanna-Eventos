@@ -74,10 +74,11 @@ function aEvento(r) {
   };
 }
 
-// Eventos autorizados de El Vaso Maíz de hoy en adelante.
-async function eventosVasoMaiz() {
+// Eventos autorizados de El Vaso Maíz de hoy en adelante (el menú de Telegram
+// muestra 10; la app pide más).
+async function eventosVasoMaiz(limite = MAX_EVENTOS_MENU) {
   const formula = `AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${hoyCuliacan()}"))), OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0))`;
-  const data = await airtable(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc&maxRecords=${MAX_EVENTOS_MENU}`);
+  const data = await airtable(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc&maxRecords=${limite}`);
   return data.records.map(aEvento);
 }
 
@@ -176,6 +177,51 @@ function choqueDe(colaboradorId, ev, invitaciones, eventosPorId) {
     if (v && v.desde < ventana.hasta && ventana.desde < v.hasta) return otro;
   }
   return null;
+}
+
+// Cómo está cada chica respecto a un evento (lo usan /staff y la app):
+// confirmo · invitada · sin_telegram · choque (ya confirmó otro a esa hora) ·
+// no_puede · libre. Solo no_puede y libre se pueden invitar.
+function estadosChicas(ev, chicas, invitaciones, eventosPorId) {
+  const deEsteEvento = new Map(invitaciones.filter(i => i.eventoId === ev.id).map(i => [i.colaboradorId, i.estado]));
+  return chicas.map(c => {
+    const estado = deEsteEvento.get(c.id);
+    if (estado === ESTADOS.CONFIRMO) return { ...c, estado: 'confirmo' };
+    if (estado === ESTADOS.INVITADA) return { ...c, estado: 'invitada' };
+    if (!c.chatId) return { ...c, estado: 'sin_telegram' };
+    const choque = choqueDe(c.id, ev, invitaciones, eventosPorId);
+    if (choque) return { ...c, estado: 'choque', choqueFolio: choque.folio };
+    return { ...c, estado: estado === ESTADOS.NO_PUEDE ? 'no_puede' : 'libre' };
+  });
+}
+const sePuedeInvitar = (c) => c.estado === 'libre' || c.estado === 'no_puede';
+
+// Crea (o reabre) la invitación de cada chica elegida y le manda el Telegram.
+// Se salta a quien ya confirmó, ya está invitada, no activó Telegram o choca.
+async function invitarChicas(colaborador, ev, elegidas, invitaciones, eventosPorId) {
+  const enviadas = [], fallidas = [];
+  for (const c of estadosChicas(ev, elegidas, invitaciones, eventosPorId)) {
+    if (!sePuedeInvitar(c)) continue;
+    const previa = invitaciones.find(inv => inv.eventoId === ev.id && inv.colaboradorId === c.id);
+    const campos = { Estado: ESTADOS.INVITADA, Invito: [colaborador.id], Fecha_Evento: ev.fecha || null, Respondio: null };
+    let invitacionId;
+    if (previa) {
+      await airtable(TABLES.STAFF_EVENTO, { method: 'PATCH', body: JSON.stringify({ records: [{ id: previa.id, fields: campos }] }) });
+      invitacionId = previa.id;
+    } else {
+      const creado = await airtable(TABLES.STAFF_EVENTO, {
+        method: 'POST',
+        body: JSON.stringify({ records: [{ fields: { ...campos, Nombre: `${ev.folio} · ${c.nombre}`, Evento: [ev.id], Colaborador: [c.id] } }] }),
+      });
+      invitacionId = creado.records[0].id;
+    }
+    const r = await enviarTelegram(c.chatId, textoInvitacion(ev, c.nombre, colaborador.nombre), [[
+      { texto: '✅ Sí puedo', dato: `inv:s:${invitacionId}` },
+      { texto: '❌ No puedo', dato: `inv:n:${invitacionId}` },
+    ]]);
+    (r.ok ? enviadas : fallidas).push(c.nombre);
+  }
+  return { enviadas, fallidas };
 }
 
 // ---------- Alta de personal y enlace de activación ----------
@@ -304,20 +350,18 @@ async function menuEvento(colaborador, eventoId, textoSel) {
   if (!ev) return { texto: 'No encontré ese evento.', botones: [[{ texto: '⬅️ Eventos', dato: 'st:l' }]] };
   const eventosPorId = new Map(eventos.map(e => [e.id, e]));
   const sel = mascara(textoSel);
-  const deEsteEvento = new Map(invitaciones.filter(i => i.eventoId === ev.id).map(i => [i.colaboradorId, i.estado]));
-  const confirmadas = [...deEsteEvento.values()].filter(e => e === ESTADOS.CONFIRMO).length;
-  const invitadas = [...deEsteEvento.values()].filter(e => e === ESTADOS.INVITADA).length;
+  const deEsteEvento = invitaciones.filter(i => i.eventoId === ev.id).map(i => i.estado);
+  const confirmadas = deEsteEvento.filter(e => e === ESTADOS.CONFIRMO).length;
+  const invitadas = deEsteEvento.filter(e => e === ESTADOS.INVITADA).length;
 
   let elegidas = 0;
-  const celdas = chicas.map((c, i) => {
-    const estado = deEsteEvento.get(c.id);
-    if (estado === ESTADOS.CONFIRMO) return { texto: `✅ ${c.nombre}`, dato: 'st:x:c' };
-    if (estado === ESTADOS.INVITADA) return { texto: `⏳ ${c.nombre}`, dato: 'st:x:i' };
-    if (!c.chatId) return { texto: `📵 ${c.nombre}`, dato: `st:k:${c.id}` };
-    const choque = choqueDe(c.id, ev, invitaciones, eventosPorId);
-    if (choque) return { texto: `⛔ ${c.nombre} (${choque.folio})`, dato: 'st:x:o' };
+  const celdas = estadosChicas(ev, chicas, invitaciones, eventosPorId).map((c, i) => {
+    if (c.estado === 'confirmo') return { texto: `✅ ${c.nombre}`, dato: 'st:x:c' };
+    if (c.estado === 'invitada') return { texto: `⏳ ${c.nombre}`, dato: 'st:x:i' };
+    if (c.estado === 'sin_telegram') return { texto: `📵 ${c.nombre}`, dato: `st:k:${c.id}` };
+    if (c.estado === 'choque') return { texto: `⛔ ${c.nombre} (${c.choqueFolio})`, dato: 'st:x:o' };
     if (elegida(sel, i)) elegidas++;
-    const marca = elegida(sel, i) ? '☑️' : (estado === ESTADOS.NO_PUEDE ? '❌' : '⬜');
+    const marca = elegida(sel, i) ? '☑️' : (c.estado === 'no_puede' ? '❌' : '⬜');
     return { texto: `${marca} ${c.nombre}`, dato: `st:e:${ev.id}:${textoMascara(alternar(sel, i))}` };
   });
   const botones = [];
@@ -342,32 +386,7 @@ async function invitar(colaborador, eventoId, textoSel) {
   if (!ev) return { texto: 'No encontré ese evento.', botones: [[{ texto: '⬅️ Eventos', dato: 'st:l' }]] };
   const eventosPorId = new Map(eventos.map(e => [e.id, e]));
   const sel = mascara(textoSel);
-  const enviadas = [], fallidas = [];
-
-  for (const [i, c] of chicas.entries()) {
-    if (!elegida(sel, i)) continue;
-    const previa = invitaciones.find(inv => inv.eventoId === ev.id && inv.colaboradorId === c.id);
-    if (previa && (previa.estado === ESTADOS.CONFIRMO || previa.estado === ESTADOS.INVITADA)) continue;
-    if (!c.chatId || choqueDe(c.id, ev, invitaciones, eventosPorId)) continue;
-
-    const campos = { Estado: ESTADOS.INVITADA, Invito: [colaborador.id], Fecha_Evento: ev.fecha || null, Respondio: null };
-    let invitacionId;
-    if (previa) {
-      await airtable(TABLES.STAFF_EVENTO, { method: 'PATCH', body: JSON.stringify({ records: [{ id: previa.id, fields: campos }] }) });
-      invitacionId = previa.id;
-    } else {
-      const creado = await airtable(TABLES.STAFF_EVENTO, {
-        method: 'POST',
-        body: JSON.stringify({ records: [{ fields: { ...campos, Nombre: `${ev.folio} · ${c.nombre}`, Evento: [ev.id], Colaborador: [c.id] } }] }),
-      });
-      invitacionId = creado.records[0].id;
-    }
-    const r = await enviarTelegram(c.chatId, textoInvitacion(ev, c.nombre, colaborador.nombre), [[
-      { texto: '✅ Sí puedo', dato: `inv:s:${invitacionId}` },
-      { texto: '❌ No puedo', dato: `inv:n:${invitacionId}` },
-    ]]);
-    (r.ok ? enviadas : fallidas).push(c.nombre);
-  }
+  const { enviadas, fallidas } = await invitarChicas(colaborador, ev, chicas.filter((c, i) => elegida(sel, i)), invitaciones, eventosPorId);
 
   const texto = [
     `🌽 ${ev.folio} · ${cuandoTexto(ev)}`,
@@ -422,6 +441,36 @@ async function responderInvitacion(colaborador, invitacionId, si) {
   };
 }
 
+// ---------- Staff desde la app (gerente de El Vaso Maíz) ----------
+
+const MAX_EVENTOS_APP = 100;
+
+// { eventoId: { necesita, chicas: [{ id, nombre, estado, choqueFolio }] } } para
+// los eventos autorizados de El Vaso Maíz de hoy en adelante.
+async function staffParaApp(colaborador) {
+  const [eventos, chicas, invitaciones] = await Promise.all([eventosVasoMaiz(MAX_EVENTOS_APP), staffDe(colaborador), invitacionesProximas()]);
+  const eventosPorId = new Map(eventos.map(e => [e.id, e]));
+  const resultado = {};
+  for (const ev of eventos) {
+    resultado[ev.id] = {
+      necesita: ev.personal || 0,
+      chicas: estadosChicas(ev, chicas, invitaciones, eventosPorId)
+        .map(c => ({ id: c.id, nombre: c.nombre, estado: c.estado, choqueFolio: c.choqueFolio || '' })),
+    };
+  }
+  return resultado;
+}
+
+// Invita desde la app. Solo eventos autorizados de El Vaso Maíz próximos y solo
+// chicas de quien invita (Admin: todas). Devuelve null si el evento no aplica.
+async function invitarDesdeApp(colaborador, eventoId, colaboradorIds) {
+  const [eventos, chicas, invitaciones] = await Promise.all([eventosVasoMaiz(MAX_EVENTOS_APP), staffDe(colaborador), invitacionesProximas()]);
+  const ev = eventos.find(e => e.id === eventoId);
+  if (!ev) return null;
+  const eventosPorId = new Map(eventos.map(e => [e.id, e]));
+  return invitarChicas(colaborador, ev, chicas.filter(c => colaboradorIds.includes(c.id)), invitaciones, eventosPorId);
+}
+
 // Resumen por evento para el dashboard: { eventoId: [{ nombre, estado }] }.
 async function staffPorEvento() {
   const [invitaciones, staff] = await Promise.all([
@@ -452,6 +501,8 @@ module.exports = {
   responderInvitacion,
   eventosConfirmadosDe,
   staffPorEvento,
+  staffParaApp,
+  invitarDesdeApp,
   textoInvitacion,
   horaTexto,
   salidaTexto,

@@ -8,10 +8,12 @@
 // Admin ("vista equipo"): ve todos los eventos, o los de una brigada
 // (?brigada=rec...) o de una encargada (?encargada=rec...), tal como los ve
 // esa persona, y recibe la lista de brigadas y encargadas para elegir.
-// La gerente de El Vaso Maíz recibe esa misma lista para asignar sus eventos.
+// La gerente de El Vaso Maíz recibe esa misma lista para asignar sus eventos,
+// y el estado de su staff en cada evento (staffEventos) para invitarlas.
 
 const { ROLES, requerirSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
+const { staffParaApp } = require('./_staff');
 
 const ID_REGISTRO = /^rec[A-Za-z0-9]{14}$/;
 
@@ -37,6 +39,12 @@ module.exports = async (req, res) => {
     const { brigada, eventoIds } = await alcanceDe(alcanceSolicitado(colaborador, req.query || {}));
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
     const eventos = await leerEventos(eventoIds);
+    // La gerente también ve e invita al staff de sus eventos. Si no se puede
+    // leer, se dice (staffError) en vez de mostrar la lista vacía.
+    let staffEventos = null, staffError = false;
+    if (colaborador.gerente && colaborador.rol !== ROLES.ADMIN) {
+      staffEventos = await staffParaApp(colaborador).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; });
+    }
 
     res.status(200).json({
       colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente },
@@ -45,7 +53,7 @@ module.exports = async (req, res) => {
       alertasEquipo,
       ...(colaborador.rol === ROLES.ADMIN ? { opciones: await opcionesVista() } : {}),
       // La gerente asigna brigada y encargada a los eventos de El Vaso Maíz.
-      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: await opcionesVista() } : {}),
+      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: await opcionesVista(), staffEventos, staffError } : {}),
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

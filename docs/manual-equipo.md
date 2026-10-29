@@ -70,6 +70,9 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - En la app ve **todos** los eventos autorizados de El Vaso Maíz, aunque no se los asignen.
 - En cada uno tiene **👷 Asignar**: elige brigada y encargada y toca **Guardar y avisar**. A ellas les llega el
   aviso con **Confirmar** y a Diana y Víctor se les avisa qué asignó.
+- Debajo tiene **🧑‍🍳 Staff**: ve a sus chicas con su marca, elige a las que quiere y toca **Invitar por
+  Telegram**. Es lo mismo que `/staff`; las respuestas le llegan por Telegram. Dar de alta a una chica nueva
+  sigue siendo `/staff` → **Agregar personal**.
 - No ve precios ni pagos de los pedidos.
 
 ## DiMa, curso y mensajes

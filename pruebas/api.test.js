@@ -897,6 +897,12 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const ADMIN_T = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
   const ADMIN2_T = { id: 'recCOLAB000000009', fields: { Nombre: 'Víctor', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '112' } };
   const BRIGADA_VM = { id: 'recBRIGADA0000003', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz', EVENTOS: ['recEVENTO0000VM01'] } };
+  const EV_STAFF = { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Fecha_Evento: '2026-11-21', Hora_Inicio: '18:00', Horas_Servicio: 2, Ubicacion: 'Las Quintas', Piezas_Vaso_Maiz: 100, Personal_Requerido: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI' } };
+  const EV_STAFF_CHOCA = { id: 'recEVENTO0000VM09', fields: { Folio_Evento: 'EVT-VM9', Fecha_Evento: '2026-11-21', Hora_Inicio: '18:30', Horas_Servicio: 2, Ubicacion: 'Chapultepec', Piezas_Vaso_Maiz: 80, Personal_Requerido: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI' } };
+  const CHICA_G = { id: 'recCOLABCHICA0001', fields: { Nombre: 'Lucía', Rol: 'Staff', Activo: true, Coordinadora: [GERENTE.id], Telegram_Chat_ID: '555' } };
+  const CHICA_SIN_TG = { id: 'recCOLABCHICA0002', fields: { Nombre: 'Mariana', Rol: 'Staff', Activo: true, Coordinadora: [GERENTE.id] } };
+  const CHICA_OCUPADA = { id: 'recCOLABCHICA0003', fields: { Nombre: 'Paola', Rol: 'Staff', Activo: true, Coordinadora: [GERENTE.id], Telegram_Chat_ID: '556' } };
+  const ZOE_OTRA = { id: 'recCOLABCHICA0004', fields: { Nombre: 'Zoe', Rol: 'Staff', Activo: true, Coordinadora: ['recCOLABOTRA00001'], Telegram_Chat_ID: '557' } };
   const tokenGer = (await login(GERENTE)).body.token;
 
   reset();
@@ -905,6 +911,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { records: [{ id: 'recEVENTO0000VM01' }, { id: 'recEVENTO0000VM02' }] },
     { records: [] },
     { records: [{ id: 'recEVENTO0000VM02', fields: { Folio_Evento: 'EVT-VM2', Negocio: 'El Vaso Maiz', Encargada: [ENCARG.id] } }] },
+    // Staff de la gerente: eventos de El Vaso Maíz, sus chicas y las invitaciones.
+    { records: [EV_STAFF, EV_STAFF_CHOCA] },
+    { records: [CHICA_G, CHICA_SIN_TG, CHICA_OCUPADA, ZOE_OTRA] },
+    { records: [{ id: 'recINVITA00000020', fields: { Evento: [EV_STAFF_CHOCA.id], Colaborador: [CHICA_OCUPADA.id], Estado: 'Confirmó', Fecha_Evento: '2026-11-21' } }] },
     { records: [{ id: 'recBRIGADA0000003', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz' } }] },
     { records: [ENCARG] },
   ];
@@ -913,6 +923,53 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const consultaEventos = llamadas.find(l => l.url.includes('RECORD_ID()="recEVENTO0000VM02"'));
   ok(res.code === 200 && res.body.colaborador.gerente && consultaEventos && consultaEventos.url.includes('RECORD_ID()="recEVENTO0000VM01"'), 'gerente: ve los eventos de su brigada y todos los de El Vaso Maíz');
   ok(res.body.eventos[0].vasoMaiz && res.body.eventos[0].encargadaIds[0] === ENCARG.id && res.body.opcionesAsignar.encargadas.length === 1, 'gerente: recibe las opciones para asignar');
+  const staffApp = res.body.staffEventos && res.body.staffEventos[EV_STAFF.id];
+  const estadoDe = (id) => staffApp.chicas.find(c => c.id === id) || {};
+  ok(staffApp && staffApp.necesita === 2 && estadoDe(CHICA_G.id).estado === 'libre' && estadoDe(CHICA_SIN_TG.id).estado === 'sin_telegram'
+    && estadoDe(CHICA_OCUPADA.id).estado === 'choque' && estadoDe(CHICA_OCUPADA.id).choqueFolio === 'EVT-VM9' && !estadoDe(ZOE_OTRA.id).estado && res.body.staffError === false,
+    'gerente: la app recibe su staff por evento (libre, sin Telegram, ocupada a esa hora; no las de otra coordinadora)');
+
+  reset();
+  respuestas = [GERENTE, BRIGADA_VM];
+  // STAFF_EVENTO no responde.
+  const fetchOriginal = global.fetch;
+  global.fetch = async (url, opts) => (String(url).includes('tblvTVcC3NMt5ddjr') ? { ok: false, status: 500, text: async () => 'caída', json: async () => ({}) } : fetchOriginal(url, opts));
+  res = resMock();
+  await eventosApi({ method: 'GET', headers: auth(tokenGer), query: {} }, res);
+  global.fetch = fetchOriginal;
+  ok(res.code === 200 && res.body.staffError === true && res.body.staffEventos === null, 'gerente: si no se puede leer el staff la app lo dice, no muestra la lista vacía');
+
+  // Invitar staff desde la app (lo mismo que /staff en Telegram).
+  reset();
+  respuestas = [
+    GERENTE,
+    EV_STAFF,
+    { records: [EV_STAFF, EV_STAFF_CHOCA] },
+    { records: [CHICA_G, CHICA_SIN_TG, CHICA_OCUPADA, ZOE_OTRA] },
+    { records: [{ id: 'recINVITA00000020', fields: { Evento: [EV_STAFF_CHOCA.id], Colaborador: [CHICA_OCUPADA.id], Estado: 'Confirmó', Fecha_Evento: '2026-11-21' } }] },
+    { records: [{ id: 'recINVITA00000021' }] },
+  ];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_STAFF.id, accion: 'invitar_staff', colaboradorIds: [CHICA_G.id, CHICA_SIN_TG.id, CHICA_OCUPADA.id, ZOE_OTRA.id] } }, res);
+  const altasApp = llamadas.filter(l => l.method === 'POST' && l.url.includes('tblvTVcC3NMt5ddjr'));
+  const invApp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555');
+  ok(res.code === 200 && JSON.stringify(res.body.enviadas) === JSON.stringify(['Lucía']) && altasApp.length === 1
+    && altasApp[0].body.records[0].fields.Colaborador[0] === CHICA_G.id && altasApp[0].body.records[0].fields.Invito[0] === GERENTE.id,
+    'gerente: desde la app invita solo a quien se puede (no sin Telegram, no ocupada, no de otra coordinadora)');
+  ok(invApp && invApp.body.text.startsWith('Hola Lucía 👋 Ángela G te programó un evento') && invApp.body.reply_markup.inline_keyboard[0].map(b => b.callback_data).join(',') === 'inv:s:recINVITA00000021,inv:n:recINVITA00000021',
+    'gerente: a la chica le llega la misma invitación de Telegram con Sí puedo / No puedo');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000DV01', fields: { Folio_Evento: 'EVT-DV1', Negocio: 'Divanna Eventos' } }, { records: [EV_STAFF] }, { records: [CHICA_G] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000DV01', accion: 'invitar_staff', colaboradorIds: [CHICA_G.id] } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'POST') && !telegram.some(t => t.metodo === 'sendMessage'), 'gerente: no invita staff a eventos que no son de El Vaso Maíz autorizados');
+
+  reset();
+  respuestas = [GERENTE, EV_STAFF];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_STAFF.id, accion: 'invitar_staff', colaboradorIds: [] } }, res);
+  ok(res.code === 400 && !telegram.length, 'gerente: invitar sin elegir a nadie no manda nada');
 
   reset();
   respuestas = [

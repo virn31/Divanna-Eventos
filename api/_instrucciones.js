@@ -67,7 +67,7 @@ const TEMAS = {
       '⭐ Gerente de El Vaso Maíz\n\n' +
       '• En la app ves TODOS los eventos autorizados de El Vaso Maíz, aunque no te los asignen a ti.\n' +
       '• En cada evento de El Vaso Maíz tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
-      '• Con /staff invitas a las chicas y ves quién confirmó.\n' +
+      '• Debajo tienes "🧑‍🍳 Staff": ves a tus chicas con su marca, eliges a las que quieres y tocas "📨 Invitar por Telegram". Es lo mismo que /staff; las respuestas te llegan aquí. Para dar de alta a una chica nueva sigue siendo /staff → "➕ Agregar personal".\n' +
       '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',
   },
   mensajes: {

@@ -18,6 +18,9 @@
 // borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
 // La gerente de El Vaso Maíz también puede asignar, solo en eventos de El Vaso
 // Maíz; en ese caso se avisa a Diana y Víctor por Telegram.
+// POST accion "invitar_staff": la gerente (o un Admin) invita a sus chicas a un
+// evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
+// Telegram y les llega la invitación con "Sí puedo / No puedo".
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
@@ -27,7 +30,7 @@ const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
-const { staffPorEvento } = require('./_staff');
+const { staffPorEvento, invitarDesdeApp } = require('./_staff');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -165,7 +168,7 @@ function agendaDesdeDashboard(body, inventario) {
 async function resolverPedido(req, res, colaborador) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
@@ -246,6 +249,18 @@ async function resolverPedido(req, res, colaborador) {
     return;
   }
 
+  if (accion === 'invitar_staff') {
+    const ids = (req.body || {}).colaboradorIds;
+    if (!Array.isArray(ids) || !ids.length || ids.length > 60 || !ids.every(id => /^rec[A-Za-z0-9]{14}$/.test(id))) {
+      res.status(400).json({ error: 'Elige al menos a una persona.' });
+      return;
+    }
+    const r = await invitarDesdeApp(colaborador, eventoId, ids);
+    if (!r) { res.status(403).json({ error: 'Solo se invita staff a eventos autorizados de El Vaso Maíz de hoy en adelante.' }); return; }
+    res.status(200).json({ success: true, enviadas: r.enviadas, fallidas: r.fallidas });
+    return;
+  }
+
   if (accion === 'agenda') {
     const campos = agendaDesdeDashboard(req.body, inventario);
     if (!Object.keys(campos).length) { res.status(400).json({ error: 'Nada que guardar' }); return; }
@@ -320,8 +335,8 @@ module.exports = async (req, res) => {
     try {
       const colaborador = await requerirSesion(req, res, [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA]);
       if (!colaborador) return;
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar.
-      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && (req.body || {}).accion === 'asignar')) {
+      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar o invitar staff.
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
       }

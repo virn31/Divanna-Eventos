@@ -395,7 +395,7 @@
   function bloqueAsignar(ev){
     if(!opcionesAsignar || !ev.vasoMaiz) return '';
     return `
-      <details class="asignar-box">
+      <details class="asignar-box" data-caja="asig-${esc(ev.id)}">
         <summary>👷 Asignar brigada y encargada</summary>
         <select class="asig-brigada">
           <option value="">Sin brigada</option>
@@ -405,6 +405,64 @@
         <button class="asig-guardar" data-evento="${esc(ev.id)}">Guardar y avisar</button>
         <div class="asig-msg"></div>
       </details>`;
+  }
+
+  // Staff de El Vaso Maíz por evento (solo la gerente): lo mismo que /staff en Telegram.
+  let staffEventos = null;
+  let staffError = false;
+  const STAFF_ESTADO = {
+    confirmo: '✅ confirmó',
+    invitada: '⏳ invitada, esperando respuesta',
+    no_puede: '❌ dijo que no podía',
+    sin_telegram: '📵 no ha activado sus mensajes (pide su enlace en /staff)',
+    choque: '⛔ ya tiene otro evento a esa hora',
+  };
+
+  function bloqueStaff(ev){
+    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(staffError) return `<div class="asignar-box">🧑‍🍳 Staff: no se pudo leer la lista. Toca actualizar o usa /staff en Telegram.</div>`;
+    const s = staffEventos && staffEventos[ev.id];
+    if(!s) return '';
+    const confirmadas = s.chicas.filter(c => c.estado === 'confirmo').length;
+    const lista = s.chicas.length
+      ? s.chicas.map(c => {
+          const invitable = c.estado === 'libre' || c.estado === 'no_puede';
+          const nota = c.estado === 'choque' ? `${STAFF_ESTADO.choque} (${esc(c.choqueFolio)})` : (STAFF_ESTADO[c.estado] || '');
+          return `<label><input type="checkbox" class="staff-chica" value="${esc(c.id)}" ${invitable ? '' : 'disabled'}> ${esc(c.nombre)}${nota ? ` <span class="asig-msg">${nota}</span>` : ''}</label>`;
+        }).join('')
+      : '<div class="asig-msg">Aún no tienes personal agregado: usa "➕ Agregar personal" en /staff de Telegram.</div>';
+    return `
+      <details class="asignar-box" data-caja="staff-${esc(ev.id)}">
+        <summary>🧑‍🍳 Staff · ${confirmadas} de ${s.necesita || '?'} confirmadas</summary>
+        ${lista}
+        ${s.chicas.length ? `<button class="asig-guardar staff-invitar" data-evento="${esc(ev.id)}">📨 Invitar por Telegram</button>` : ''}
+        <div class="asig-msg staff-msg"></div>
+      </details>`;
+  }
+
+  async function invitarStaff(btn){
+    const caja = btn.closest('.asignar-box');
+    const msg = caja.querySelector('.staff-msg');
+    const ids = [...caja.querySelectorAll('.staff-chica:checked')].map(c => c.value);
+    if(!ids.length){ msg.textContent = 'Marca a quién quieres invitar.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Enviando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.evento, accion: 'invitar_staff', colaboradorIds: ids }),
+      });
+      msg.textContent = (d.enviadas.length ? `📨 Invitación enviada a ${d.enviadas.join(', ')}. Te avisa Telegram cuando respondan.` : 'No se envió ninguna invitación nueva.')
+        + (d.fallidas.length ? ` ⚠️ No les llegó a: ${d.fallidas.join(', ')}. Avísales por otro medio.` : '');
+      // Se repinta para ver los ⏳; si a alguien no le llegó, el aviso se queda a la vista.
+      if(!d.fallidas.length){ ultimaFoto = null; setTimeout(() => loadEventos(true), 4000); }
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function guardarAsignacion(btn){
@@ -525,6 +583,7 @@
             : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${bloqueAsignar(ev)}
+          ${bloqueStaff(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
           ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
 
@@ -569,7 +628,10 @@
         </div>
       `;
     });
+    // Al repintar (revisión automática) se respetan las cajas que estaban abiertas.
+    const abiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
+    abiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
 
     document.querySelectorAll('.check-item').forEach(item => {
       item.addEventListener('click', () => toggleChecklist(item));
@@ -594,6 +656,10 @@
 
     document.querySelectorAll('.enterado-btn').forEach(btn => {
       btn.addEventListener('click', () => marcarEnterado(btn));
+    });
+
+    document.querySelectorAll('.staff-invitar').forEach(btn => {
+      btn.addEventListener('click', () => invitarStaff(btn));
     });
   }
 
@@ -864,11 +930,13 @@
       pintarOpcionesVista(data.opciones);
       DimaAlertas.revisar(clavesDeAlertas(data));
       actualizarSeguimiento(data.eventos);
-      const foto = JSON.stringify([data.eventos, data.alertasEquipo]);
+      const foto = JSON.stringify([data.eventos, data.alertasEquipo, data.staffEventos || null]);
       if(silencioso && foto === ultimaFoto) return;
       ultimaFoto = foto;
       const rolTexto = data.colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
       opcionesAsignar = data.opcionesAsignar || null;
+      staffEventos = data.staffEventos || null;
+      staffError = !!data.staffError;
       $('dimaFab').hidden = !data.colaborador.gerente || !$('dimaPanel').hidden;
       if(data.colaborador.rol === 'Admin'){
         const sel = $('vistaComo');
@@ -876,7 +944,7 @@
         $('brigadaDetalle').textContent = `${data.colaborador.nombre} · viendo: ${sel.options[sel.selectedIndex].text}`;
       } else if(data.brigada){
         $('brigadaNombre').textContent = data.brigada.nombre;
-        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · ' + data.brigada.vehiculo : ''}`;
+        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · 🚗 ' + data.brigada.vehiculo : ''}`;
       } else {
         $('brigadaNombre').textContent = data.colaborador.nombre;
         $('brigadaDetalle').textContent = rolTexto;
