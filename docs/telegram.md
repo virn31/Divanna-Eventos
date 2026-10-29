@@ -58,6 +58,15 @@ Las dos respuestas deben decir `ok : True`. Si cambias el token o el secreto, re
 3. Listo. Para desvincular: `/salir`. Si alguien deja el equipo, basta con desmarcar `Activo` en
    COLABORADORES: deja de recibir avisos y el bot ya no le responde.
 
+## Botón "Confirmar" en los avisos de un evento
+
+Cuando a una brigada o encargada se le asigna un evento desde el dashboard, o se le mandan
+instrucciones, el Telegram trae el botón **✅ Confirmar**. Al tocarlo queda "Enterado" en el
+evento (lo mismo que el botón de la app), el mensaje se marca "✅ Confirmado por …" y a Diana y
+Víctor les llega el aviso. Solo funciona si el bot acepta botones: después de publicar, un Admin
+escribe `/configurar` una vez. Las chicas de El Vaso Maíz confirman con "Sí puedo / No puedo"
+en su invitación de `/staff`.
+
 ## Staff de El Vaso Maíz (`/staff`)
 
 Las chicas de El Vaso Maíz no usan la app: todo les llega por Telegram.

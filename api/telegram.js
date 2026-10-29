@@ -14,7 +14,7 @@
 // manda en cada llamada; así nadie más puede hacerse pasar por Telegram).
 
 const { ROLES, iniciarSesion } = require('./_sesion');
-const { alcanceDe, leerEventos, alertasEquipoDeHoy } = require('./_eventos');
+const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
 const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat } = require('./_telegram');
 const {
   puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
@@ -181,7 +181,8 @@ async function configurarBot() {
     : `⚠️ No se pudo configurar todo (webhook: ${webhook.ok ? 'ok' : webhook.status}, comandos: ${comandos.ok ? 'ok' : comandos.status}).`;
 }
 
-// Toques de botones: menú de /staff (st:...) y respuestas a invitaciones (inv:...).
+// Toques de botones: menú de /staff (st:...), respuestas a invitaciones (inv:...)
+// y "Confirmar" de los avisos de un evento (cf:eventoId).
 async function atenderBoton(cb) {
   const chatId = cb.message && cb.message.chat && cb.message.chat.id;
   const mensajeId = cb.message && cb.message.message_id;
@@ -196,6 +197,15 @@ async function atenderBoton(cb) {
     const r = await responderInvitacion(colaborador, id, accion === 's');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
     if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    return;
+  }
+
+  if (tipo === 'cf') {
+    if (!/^rec[A-Za-z0-9]{14}$/.test(accion || '')) return responderBoton(cb.id);
+    const r = await confirmarEvento(colaborador, accion);
+    if (!r) return responderBoton(cb.id, 'Este evento ya no está asignado a ti.', true);
+    await responderBoton(cb.id, 'Listo, quedó confirmado');
+    await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n✅ Confirmado por ${colaborador.nombre || 'ti'}`);
     return;
   }
 

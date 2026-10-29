@@ -856,6 +856,34 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/staff') }, res);
   ok(respuestaTg().includes('solo para Ángela, Diana y Víctor') && llamadas.length === 1, 'staff: /staff solo para Ángela (Coordina_Staff), Diana y Víctor');
 
+  // ---------- Botón "Confirmar" de los avisos de un evento ----------
+  reset();
+  respuestas = [
+    { records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] },
+    { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Ubicacion: 'Las Quintas', Fecha_Evento: '2026-11-20', Brigada_Asignada: ['recBRIGADA0000001'] } },
+    {},
+    { records: [{ ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } }] },
+  ];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('cf:recEVENTO00000001', 222) }, res);
+  const patchCf = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisoCf = telegram.find(t => t.metodo === 'sendMessage');
+  const editCf = telegram.find(t => t.metodo === 'editMessageText');
+  const respCf = telegram.find(t => t.metodo === 'answerCallbackQuery');
+  ok(res.code === 200 && patchCf.Enterado_Por === 'Juan' && !!patchCf.Enterado_Hora, 'confirmar: el botón de Telegram guarda el Enterado');
+  ok(avisoCf && avisoCf.body.chat_id === '111' && avisoCf.body.text.includes('Juan está enterado de EVT-1'), 'confirmar: avisa a los Admin');
+  ok(editCf && editCf.body.text.includes('✅ Confirmado por Juan') && editCf.body.reply_markup.inline_keyboard.length === 0 && respCf.body.text.includes('confirmado'), 'confirmar: el mensaje queda marcado y sin botón');
+
+  reset();
+  respuestas = [
+    { records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] },
+    { id: 'recEVENTO00000009', fields: { Folio_Evento: 'EVT-9', Brigada_Asignada: ['recBRIGADA0000002'] } },
+  ];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('cf:recEVENTO00000009', 222) }, res);
+  const respNo = telegram.find(t => t.metodo === 'answerCallbackQuery');
+  ok(!llamadas.some(l => l.method === 'PATCH') && respNo.body.show_alert && respNo.body.text.includes('ya no está asignado'), 'confirmar: no se puede en un evento de otra brigada');
+
   // ---------- Avisos de asignación por Telegram y "Enterado" ----------
   const LIDER_TG = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
   const ADMIN_TG = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
@@ -866,6 +894,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: 'recBRIGADA0000001', encargadaIds: [] } }, res);
   const tgAsig = telegram.filter(t => t.metodo === 'sendMessage');
   ok(res.code === 200 && res.body.porTelegram === 1 && res.body.conTelegram === 1 && tgAsig.length === 1 && tgAsig[0].body.chat_id === '222' && tgAsig[0].body.text.includes('Enterado'), 'asignar: Telegram entregado al líder y contado');
+  ok(JSON.stringify(tgAsig[0].body.reply_markup) === JSON.stringify({ inline_keyboard: [[{ text: '✅ Confirmar', callback_data: 'cf:recEVENTO00000001' }]] }), 'asignar: el Telegram lleva el botón Confirmar del evento');
 
   reset();
   telegramFalla = true;

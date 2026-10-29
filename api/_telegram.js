@@ -108,7 +108,7 @@ async function guardarChat(colaboradorId, chatId) {
 // de IDs para mandarlo solo a esas personas; ubicacion: { lat, lng } para
 // mandar además el pin del mapa. Devuelve a cuántos les llegó. Nunca lanza error.
 // Si se pasa una lista de errores, ahí quedan los motivos de lo que no se entregó.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null }) {
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null, botones = null }) {
   if (!telegramConfigurado()) {
     if (errores) errores.push('Telegram sin configurar (falta TELEGRAM_BOT_TOKEN)');
     return 0;
@@ -122,7 +122,7 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
 
     let enviados = 0;
     await Promise.all(destinos.map(async (c) => {
-      const r = await enviarTelegram(c.chatId, texto);
+      const r = await enviarTelegram(c.chatId, texto, botones);
       if (r.ok) {
         enviados++;
         if (ubicacion) await telegramApi('sendLocation', { chat_id: c.chatId, latitude: ubicacion.lat, longitude: ubicacion.lng }).catch(() => {});

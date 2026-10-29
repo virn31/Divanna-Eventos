@@ -19,6 +19,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
+const { textoEnterado } = require('./_eventos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -235,7 +236,7 @@ module.exports = async (req, res) => {
       case 'enterado':
         fieldsToUpdate.Enterado_Por = reporta;
         fieldsToUpdate.Enterado_Hora = new Date().toISOString();
-        enteradoMensaje = `👍 ${reporta} está enterado de ${folio} (${ubicacion}${eventoData.fields.Fecha_Evento ? ' · ' + eventoData.fields.Fecha_Evento : ''}).`;
+        enteradoMensaje = textoEnterado(reporta, eventoData.fields);
         break;
 
       case 'eta_confirmado':
