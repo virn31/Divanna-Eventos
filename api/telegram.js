@@ -6,6 +6,10 @@
 //   /alertas  emergencias y seguridad  /pedidos  pedidos por cotizar (Admin)
 //   /salir    desvincular Telegram     /ayuda    lista de comandos
 //   /instrucciones  manual del equipo por temas, con botones (api/_instrucciones.js)
+//   /curso    capacitación por lecciones (api/_curso.js); Admin ve el avance del equipo
+//   /mensaje  mensaje directo a Diana y Víctor, con respuesta por el bot (api/_mensajes.js)
+// La gerente de El Vaso Maíz y los Admin platican con DiMa escribiendo sin comando
+// (api/_dima-equipo.js).
 //   /staff    coordinadora (o Admin): invitar a las chicas de El Vaso Maíz a un evento
 //   /configurar (Admin) activa los botones del bot y la lista de comandos
 // El staff (Rol "Staff") solo usa Telegram: recibe invitaciones con botones
@@ -22,6 +26,9 @@ const {
   pedirAlta, esRespuestaAlta, agregarStaff, activarStaff, enlaceActivacion,
 } = require('./_staff');
 const { instrucciones, tema } = require('./_instrucciones');
+const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_curso');
+const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
+const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -94,8 +101,13 @@ function ayuda(colaborador) {
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/configurar — activar botones y comandos del bot');
-  comandos.push('/instrucciones — cómo funciona todo', '/salir — desvincular este Telegram');
-  return `${colaborador.nombre} (${ROL_TEXTO[colaborador.rol] || colaborador.rol})\n\n${comandos.join('\n')}\n\n` +
+  comandos.push('/instrucciones — cómo funciona todo');
+  comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
+  if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
+  comandos.push('/salir — desvincular este Telegram');
+  const puesto = colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
+  return `${colaborador.nombre} (${puesto})\n\n${comandos.join('\n')}\n\n` +
+    (puedeUsarDima(colaborador) ? '💬 Para preguntarle a DiMa, escríbele aquí sin comando.\n' : '') +
     `Aquí te llegan las emergencias${colaborador.rol === ROLES.ADMIN ? ', los pedidos nuevos y el balance semanal' : ''}.\n` +
     `Para marcar checklist o cambiar estatus usa la app: ${URL_APP}`;
 }
@@ -175,6 +187,8 @@ async function configurarBot() {
       { command: 'alertas', description: 'Emergencias y alertas de hoy' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
+      { command: 'curso', description: 'Capacitación por lecciones' },
+      { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
       { command: 'ayuda', description: 'Qué puedo hacer' },
       { command: 'salir', description: 'Desvincular este Telegram' },
     ],
@@ -185,7 +199,8 @@ async function configurarBot() {
 }
 
 // Toques de botones: menú de /staff (st:...), respuestas a invitaciones (inv:...)
-// "Confirmar" de los avisos de un evento (cf:eventoId) y temas de /instrucciones (in:tema).
+// "Confirmar" de los avisos de un evento (cf:eventoId), temas de /instrucciones (in:tema),
+// respuestas del curso (cu:...) y "Responder" de los mensajes directos (rs:...).
 async function atenderBoton(cb) {
   const chatId = cb.message && cb.message.chat && cb.message.chat.id;
   const mensajeId = cb.message && cb.message.message_id;
@@ -200,6 +215,30 @@ async function atenderBoton(cb) {
     const r = await responderInvitacion(colaborador, id, accion === 's');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
     if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    return;
+  }
+
+  if (tipo === 'cu') {
+    if (accion === 'inv') {
+      if (colaborador.rol !== ROLES.ADMIN || !/^rec[A-Za-z0-9]{14}$/.test(id || '')) return responderBoton(cb.id);
+      await responderBoton(cb.id);
+      await enviarTelegram(chatId, await invitarAlCurso(id, colaborador));
+      return;
+    }
+    if (accion !== 'r' || colaborador.rol === ROLES.STAFF) return responderBoton(cb.id);
+    const r = await responderCurso(colaborador, await puedeCoordinar(colaborador), Number(id), Number(sel));
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.siguiente) {
+      await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.aviso}`);
+      await enviarTelegram(chatId, r.siguiente.texto, r.siguiente.botones);
+    }
+    return;
+  }
+
+  if (tipo === 'rs') {
+    await responderBoton(cb.id);
+    const r = await botonResponder(chatId, colaborador, accion);
+    if (r) await enviarTelegram(chatId, r);
     return;
   }
 
@@ -273,8 +312,15 @@ async function responder(mensaje) {
     return (await puedeCoordinar(colaborador)) ? agregarStaff(colaborador, texto) : 'Esta opción es solo para Ángela, Diana y Víctor.';
   }
 
+  // Respuesta encima de una pregunta de /mensaje o de "↩️ Responder".
+  if (esRespuestaMensaje(mensaje)) return atenderRespuesta(mensaje, colaborador);
+
   switch (comando) {
     case '/hoy': return listaEventos(colaborador, true);
+    case '/curso':
+      if (colaborador.rol === ROLES.STAFF) return ayuda(colaborador);
+      return colaborador.rol === ROLES.ADMIN ? avanceEquipo() : cursoDe(colaborador, await puedeCoordinar(colaborador));
+    case '/mensaje': return comandoMensaje(chatId, colaborador, argumentos.join(' '));
     case '/eventos': return listaEventos(colaborador, false);
     case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
@@ -289,8 +335,23 @@ async function responder(mensaje) {
       await guardarChat(colaborador.id, '');
       return 'Listo, desvinculé este Telegram. Ya no te llegarán avisos aquí. Para volver: /entrar tuusuario tuPIN';
     default:
+      // Sin comando: la gerente y los Admin platican con DiMa.
+      if (!texto.startsWith('/') && puedeUsarDima(colaborador)) return platicarConDima(chatId, mensaje, colaborador);
       return ayuda(colaborador);
   }
+}
+
+// DiMa en Telegram no guarda la plática: si contestas encima de un mensaje del
+// bot, ese mensaje va como contexto.
+async function platicarConDima(chatId, mensaje, colaborador) {
+  await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+  const previo = mensaje.reply_to_message;
+  const historial = [
+    ...(previo && previo.from && previo.from.is_bot && previo.text ? [{ rol: 'yo', texto: '(Contesto a tu mensaje anterior)' }, { rol: 'dima', texto: previo.text }] : []),
+    { rol: 'yo', texto: mensaje.text },
+  ];
+  const r = await preguntarDima(colaborador, historial, { coordina: await puedeCoordinar(colaborador) });
+  return r.texto || 'No te entendí bien, ¿me lo dices de otra forma?';
 }
 
 module.exports = async (req, res) => {
@@ -330,7 +391,7 @@ module.exports = async (req, res) => {
     } else {
       const respuesta = await responder(mensaje);
       if (respuesta && typeof respuesta === 'object') await enviarTelegram(mensaje.chat.id, respuesta.texto, respuesta.botones);
-      else await enviarTelegram(mensaje.chat.id, respuesta);
+      else if (respuesta) await enviarTelegram(mensaje.chat.id, respuesta);
     }
   } catch (err) {
     console.error('Error en telegram:', err);

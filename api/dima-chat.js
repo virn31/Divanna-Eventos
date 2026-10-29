@@ -12,6 +12,9 @@
 //   cliente que Diana lo contacte o usar el formulario;
 // - límite de envíos por IP (ver limiteDeEnvios).
 //
+// Con modo "equipo" (y sesión de la app) es el canal interno de DiMa para la
+// gerente de El Vaso Maíz y los Admin: ver api/_dima-equipo.js.
+//
 // Requiere ANTHROPIC_API_KEY en Vercel.
 
 const crypto = require('crypto');
@@ -19,7 +22,8 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
-const { ROLES } = require('./_sesion');
+const { ROLES, requerirSesion } = require('./_sesion');
+const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
@@ -330,8 +334,24 @@ async function registrarPedido(input, historial, folioPrevio) {
   return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${aviso}`, folio };
 }
 
+// Canal interno: la app manda { modo: 'equipo', historial: [{ rol: 'yo' | 'dima', texto }] }.
+async function chatEquipo(req, res) {
+  try {
+    const colaborador = await requerirSesion(req, res, [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA, ROLES.ASISTENTE]);
+    if (!colaborador) return;
+    if (!puedeUsarDima(colaborador)) { res.status(403).json({ error: 'Este canal es solo para la gerencia.' }); return; }
+    const r = await preguntarDima(colaborador, (req.body || {}).historial, { coordina: true });
+    if (r.error) { res.status(400).json({ error: 'La conversación es demasiado larga o no es válida. Empieza una nueva.' }); return; }
+    res.status(200).json({ texto: r.texto });
+  } catch (err) {
+    console.error('Error en DiMa equipo:', err);
+    res.status(500).json({ error: 'DiMa no pudo contestar, intenta de nuevo en un momento.' });
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if ((req.body || {}).modo === 'equipo') return chatEquipo(req, res);
 
   const { historial, folio, folioFirma, pedidoExistente, accion } = req.body || {};
   let folioPrevio = folioFirmado(folio, folioFirma);

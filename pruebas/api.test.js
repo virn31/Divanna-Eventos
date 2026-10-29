@@ -863,7 +863,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 777) }, res);
   let tgIn = telegram.find(t => t.metodo === 'sendMessage');
-  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:staff,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff');
+  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff');
 
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
@@ -891,6 +891,143 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('in:staff', 888) }, res);
   ok(!telegram.some(t => t.metodo === 'sendMessage') && telegram.some(t => t.metodo === 'answerCallbackQuery'), 'instrucciones: un tema que no le toca no se manda');
+
+  // ---------- Gerente de El Vaso Maíz ----------
+  const GERENTE = { id: 'recCOLAB000000008', fields: { Nombre: 'Ángela G', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000003'], Coordina_Staff: true, Gerente_Vaso_Maiz: true, Telegram_Chat_ID: '444' } };
+  const ADMIN_T = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
+  const ADMIN2_T = { id: 'recCOLAB000000009', fields: { Nombre: 'Víctor', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '112' } };
+  const BRIGADA_VM = { id: 'recBRIGADA0000003', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz', EVENTOS: ['recEVENTO0000VM01'] } };
+  const tokenGer = (await login(GERENTE)).body.token;
+
+  reset();
+  respuestas = [
+    GERENTE, BRIGADA_VM,
+    { records: [{ id: 'recEVENTO0000VM01' }, { id: 'recEVENTO0000VM02' }] },
+    { records: [] },
+    { records: [{ id: 'recEVENTO0000VM02', fields: { Folio_Evento: 'EVT-VM2', Negocio: 'El Vaso Maiz', Encargada: [ENCARG.id] } }] },
+    { records: [{ id: 'recBRIGADA0000003', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz' } }] },
+    { records: [ENCARG] },
+  ];
+  res = resMock();
+  await eventosApi({ method: 'GET', headers: auth(tokenGer), query: {} }, res);
+  const consultaEventos = llamadas.find(l => l.url.includes('RECORD_ID()="recEVENTO0000VM02"'));
+  ok(res.code === 200 && res.body.colaborador.gerente && consultaEventos && consultaEventos.url.includes('RECORD_ID()="recEVENTO0000VM01"'), 'gerente: ve los eventos de su brigada y todos los de El Vaso Maíz');
+  ok(res.body.eventos[0].vasoMaiz && res.body.eventos[0].encargadaIds[0] === ENCARG.id && res.body.opcionesAsignar.encargadas.length === 1, 'gerente: recibe las opciones para asignar');
+
+  reset();
+  respuestas = [
+    GERENTE,
+    { id: 'recEVENTO0000VM02', fields: { Folio_Evento: 'EVT-VM2', Negocio: 'El Vaso Maiz' } },
+    { records: [GERENTE, ENCARG] },
+    {},
+    { records: [] },
+    { records: [ADMIN_T] },
+  ];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM02', accion: 'asignar', brigadaId: '', encargadaIds: [ENCARG.id] } }, res);
+  const patchGer = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisoGer = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
+  ok(res.code === 200 && JSON.stringify(patchGer.Encargada) === JSON.stringify([ENCARG.id]) && avisoGer && avisoGer.body.text.includes('Ángela G asignó EVT-VM2'), 'gerente: asigna un evento de El Vaso Maíz y se avisa a los Admin');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000DV01', fields: { Folio_Evento: 'EVT-DV1', Negocio: 'Divanna Eventos' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000DV01', accion: 'asignar', brigadaId: '', encargadaIds: [] } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'gerente: no puede asignar eventos de Divanna');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM02', accion: 'autorizar', monto: 100, items: 'x' } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'gerente: no autoriza pedidos ni ve el dashboard');
+
+  // ---------- DiMa para el equipo (app y Telegram) ----------
+  reset();
+  respuestas = [GERENTE, { ...BRIGADA_VM, fields: { ...BRIGADA_VM.fields, EVENTOS: [] } }, { records: [] }];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Con /staff tocas Asignar a evento.' }] }];
+  res = resMock();
+  await chatApi({ method: 'POST', headers: auth(tokenGer), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: '¿Cómo invito a las chicas?' }] } }, res);
+  ok(res.code === 200 && res.body.texto === 'Con /staff tocas Asignar a evento.', 'DiMa equipo: la gerente pregunta desde la app');
+  ok(llamadasClaude[0].system.includes('gerente de El Vaso Maíz') && llamadasClaude[0].system.includes('Agregar personal') && llamadasClaude[0].messages.slice(-1)[0].role === 'user' && !llamadasClaude[0].tools, 'DiMa equipo: sabe el manual de su rol y no tiene herramientas');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await chatApi({ method: 'POST', headers: auth(tokenLider), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'hola' }] } }, res);
+  ok(res.code === 403 && llamadasClaude.length === 0, 'DiMa equipo: canal exclusivo de la gerencia');
+
+  reset();
+  respuestas = [{ records: [GERENTE] }, { ...BRIGADA_VM, fields: { ...BRIGADA_VM.fields, EVENTOS: [] } }, { records: [] }];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Usa el botón Emergencia.' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('¿Qué hago si hay un choque?', 444) }, res);
+  ok(llamadasClaude.length === 1 && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 444 && t.body.text === 'Usa el botón Emergencia.'), 'DiMa equipo: la gerente le escribe en Telegram sin comando');
+
+  reset();
+  respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('hola', 222) }, res);
+  ok(llamadasClaude.length === 0 && telegram.find(t => t.metodo === 'sendMessage').body.text.includes('/curso'), 'DiMa equipo: un líder sin gerencia recibe la ayuda, no a DiMa');
+
+  // ---------- Curso por Telegram ----------
+  reset();
+  respuestas = [{ records: [GERENTE] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/curso', 444) }, res);
+  let tgCu = telegram.find(t => t.metodo === 'sendMessage');
+  ok(tgCu.body.text.includes('Lección 1 de 6') && botonesDe(tgCu).join() === 'cu:r:0:0,cu:r:0:1,cu:r:0:2', 'curso: la gerente empieza con la lección 1 de 6');
+
+  reset();
+  respuestas = [{ records: [GERENTE] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('cu:r:0:1', 444) }, res);
+  const respMal = telegram.find(t => t.metodo === 'answerCallbackQuery');
+  ok(respMal.body.show_alert && respMal.body.text.includes('Intenta otra vez') && !llamadas.some(l => l.method === 'PATCH'), 'curso: respuesta equivocada explica y no avanza');
+
+  reset();
+  respuestas = [{ records: [GERENTE] }, {}, { records: [ADMIN_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('cu:r:0:0', 444) }, res);
+  const patchCu = llamadas.find(l => l.method === 'PATCH').body.records[0];
+  ok(patchCu.id === GERENTE.id && patchCu.fields.Curso_Avance === 1, 'curso: al acertar se guarda el avance');
+  ok(telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '111' && t.body.text.includes('pasó la lección 1 de 6')) && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 444 && t.body.text.includes('Lección 2 de 6')), 'curso: avisa a los Admin y manda la siguiente lección');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { records: [GERENTE, LIDER] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/curso', 111) }, res);
+  tgCu = telegram.find(t => t.metodo === 'sendMessage');
+  ok(tgCu.body.text.includes('Ángela G: 0 de 6') && tgCu.body.text.includes('Juan: 0 de 4 (sin Telegram)') && botonesDe(tgCu).join() === `cu:inv:${GERENTE.id}`, 'curso: el Admin ve el avance del equipo');
+
+  // ---------- Mensajes directos ----------
+  reset();
+  respuestas = [{ records: [GERENTE] }, { records: [ADMIN_T, ADMIN2_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/mensaje Mañana llego tarde', 444) }, res);
+  const aAdmins = telegram.filter(t => t.metodo === 'sendMessage' && ['111', '112'].includes(t.body.chat_id));
+  ok(aAdmins.length === 2 && aAdmins[0].body.text.includes('Mensaje de Ángela G (Gerente de El Vaso Maíz)') && aAdmins[0].body.text.includes('Mañana llego tarde') && botonesDe(aAdmins[0]).join() === `rs:${GERENTE.id}`, 'mensaje: le llega a Diana y Víctor con Responder');
+  ok(telegram.some(t => t.body.chat_id === 444 && t.body.text.includes('Se lo mandé a Diana y Víctor')), 'mensaje: quien escribe recibe confirmación');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, GERENTE];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton(`rs:${GERENTE.id}`, 111) }, res);
+  const pregunta = telegram.find(t => t.metodo === 'sendMessage');
+  ok(pregunta.body.text === `↩️ Respuesta para Ángela G (${GERENTE.id}):` && pregunta.body.reply_markup.force_reply, 'mensaje: Responder pide el texto encima');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, GERENTE, { records: [ADMIN_T, ADMIN2_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 10, chat: { id: 111, type: 'private' }, text: 'Sí, sin problema', reply_to_message: { from: { is_bot: true }, text: pregunta.body.text } } } }, res);
+  const aElla = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '444');
+  ok(aElla && aElla.body.text.includes('Diana te respondió') && aElla.body.text.includes('Sí, sin problema') && botonesDe(aElla).join() === 'rs:eq', 'mensaje: la respuesta del Admin le llega a ella con Responder');
+  ok(telegram.some(t => t.body.chat_id === '112' && t.body.text.includes('Diana le respondió a Ángela G')) && !telegram.some(t => t.body.chat_id === '111' && t.body.text.includes('le respondió')), 'mensaje: el otro Admin recibe copia');
+
+  reset();
+  respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 11, chat: { id: 222, type: 'private' }, text: 'hola', reply_to_message: { from: { is_bot: true }, text: pregunta.body.text } } } }, res);
+  ok(!telegram.some(t => t.body.chat_id === '444') && telegram.find(t => t.metodo === 'sendMessage').body.text.includes('Solo Diana y Víctor'), 'mensaje: nadie más puede contestar como Admin');
 
   // ---------- Botón "Confirmar" de los avisos de un evento ----------
   reset();

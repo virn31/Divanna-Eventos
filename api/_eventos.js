@@ -3,7 +3,7 @@
 // día. Lo usan la app (api/brigada-eventos.js) y el bot de Telegram (api/telegram.js).
 // También la confirmación "Enterado" de un evento asignado (app y botón de Telegram).
 
-const { ROLES, COLABORADORES_TABLE, puedeOperarEvento } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz } = require('./_sesion');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
@@ -49,6 +49,9 @@ function formatearEvento(r) {
     id: r.id,
     folio: r.fields.Folio_Evento || '',
     negocio: r.fields.Negocio || '',
+    vasoMaiz: esVasoMaiz(r.fields),
+    brigadaId: (r.fields.Brigada_Asignada || [])[0] || '',
+    encargadaIds: r.fields.Encargada || [],
     fecha: r.fields.Fecha_Evento || '',
     horaInicio: r.fields.Hora_Inicio || '',
     personalRequerido: r.fields.Personal_Requerido || 0,
@@ -88,7 +91,17 @@ function formatearEvento(r) {
 // Se usa el campo de vínculo directo (array de IDs) en vez de una fórmula
 // ARRAYJOIN, porque Airtable resuelve ARRAYJOIN sobre un vínculo devolviendo
 // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
+// La gerente de El Vaso Maíz ve, además de lo suyo, todos los eventos
+// autorizados y no cerrados de El Vaso Maíz.
 async function alcanceDe(colaborador) {
+  const alcance = await alcanceBase(colaborador);
+  if (!colaborador.gerente || alcance.eventoIds === null) return alcance;
+  const formula = encodeURIComponent('AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0))');
+  const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formula}&fields%5B%5D=Folio_Evento&pageSize=100`);
+  return { ...alcance, eventoIds: [...new Set([...alcance.eventoIds, ...data.records.map(r => r.id)])] };
+}
+
+async function alcanceBase(colaborador) {
   if (colaborador.rol === ROLES.ADMIN) return { brigada: null, eventoIds: null };
   // Staff de El Vaso Maíz: los eventos que confirmó por Telegram.
   if (colaborador.rol === ROLES.STAFF) return { brigada: null, eventoIds: await eventosConfirmadosDe(colaborador.id) };

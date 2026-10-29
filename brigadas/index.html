@@ -187,6 +187,36 @@
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
   }
 
+  /* ---------- GERENTE: asignar eventos de El Vaso Maíz ---------- */
+  .asignar-box{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.85rem;}
+  .asignar-box summary{cursor:pointer; font-weight:800; color:var(--maiz);}
+  .asignar-box select{width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;}
+  .asignar-box label{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .asignar-box .asig-guardar{width:100%; margin-top:10px; padding:11px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .asignar-box .asig-msg{margin-top:8px; color:var(--muted); font-size:0.8rem;}
+
+  /* ---------- CANAL CON DiMa (gerente) ---------- */
+  .dima-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); left:20px; z-index:40;
+    padding:0 18px; height:54px; border-radius:27px; border:none; background:var(--divanna); color:var(--ink);
+    font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+  }
+  .dima-fab[hidden], .dima-panel[hidden]{display:none;}
+  .dima-panel{
+    position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
+    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
+    padding:14px 14px calc(14px + var(--safe-bottom));
+  }
+  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:800; margin-bottom:8px;}
+  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .dima-msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:120px;}
+  .dima-msg{max-width:85%; padding:10px 12px; border-radius:14px; font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
+  .dima-msg.yo{align-self:flex-end; background:var(--maiz); color:var(--ink);}
+  .dima-msg.dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
+  .dima-form{display:flex; gap:8px; margin-top:10px;}
+  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+  .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+
   /* ---------- INSTRUCCIONES DE DIANA / DEL CLIENTE ---------- */
   .instr-box{
     margin:12px 0; padding:12px 14px; border-radius:12px; font-size:0.88rem; line-height:1.45; white-space:pre-wrap;
@@ -311,6 +341,12 @@
   <button class="refresh-fab" id="refreshBtn" aria-label="Actualizar">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
   </button>
+  <button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
+  <div class="dima-panel" id="dimaPanel" hidden>
+    <div class="dima-top"><span>💬 DiMa, tu asistente</span><span><button id="dimaNueva">Nueva plática</button><button id="dimaCerrar">✕</button></span></div>
+    <div class="dima-msgs" id="dimaMsgs"></div>
+    <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de tus eventos"></textarea><button type="submit">Enviar</button></form>
+  </div>
   <div class="toast" id="toast"></div>
 </div>
 
@@ -351,6 +387,52 @@
     }
     if(!res.ok) throw new Error(data.error || 'fail');
     return data;
+  }
+
+  // Brigadas y encargadas para la gerente de El Vaso Maíz (null para los demás).
+  let opcionesAsignar = null;
+
+  function bloqueAsignar(ev){
+    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    return `
+      <details class="asignar-box">
+        <summary>👷 Asignar brigada y encargada</summary>
+        <select class="asig-brigada">
+          <option value="">Sin brigada</option>
+          ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
+        </select>
+        ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
+        <button class="asig-guardar" data-evento="${esc(ev.id)}">Guardar y avisar</button>
+        <div class="asig-msg"></div>
+      </details>`;
+  }
+
+  async function guardarAsignacion(btn){
+    const caja = btn.closest('.asignar-box');
+    const msg = caja.querySelector('.asig-msg');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.evento,
+          accion: 'asignar',
+          brigadaId: caja.querySelector('.asig-brigada').value,
+          encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+        }),
+      });
+      msg.textContent = !d.avisados ? 'Guardado. No hay nadie nuevo a quien avisar.'
+        : `Guardado. Avisos a ${d.avisados}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculados, app ${d.porPush}.`
+          + ((d.sinTelegram || []).length ? ` Sin Telegram: ${d.sinTelegram.join(', ')}.` : '')
+          + ((d.erroresAvisos || []).length ? ` ⚠️ ${d.erroresAvisos.join(' · ')}` : '');
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   const ESTATUS_LOGISTICO_OPCIONES = [
@@ -442,6 +524,7 @@
             ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
             : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
+          ${bloqueAsignar(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
           ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
 
@@ -503,6 +586,10 @@
 
     document.querySelectorAll('.alert-btn').forEach(btn => {
       btn.addEventListener('click', () => manejarAlerta(btn));
+    });
+
+    document.querySelectorAll('.asig-guardar').forEach(btn => {
+      btn.addEventListener('click', () => guardarAsignacion(btn));
     });
 
     document.querySelectorAll('.enterado-btn').forEach(btn => {
@@ -720,7 +807,10 @@
   }
 
   function cerrarSesion(mensaje){
-    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    try { localStorage.removeItem(SESION_KEY); sessionStorage.removeItem('dima_equipo'); } catch(e){}
+    dimaHistorial = [];
+    $('dimaPanel').hidden = true;
+    $('dimaFab').hidden = true;
     sesion = null;
     if(revisionTimer) clearInterval(revisionTimer);
     revisionTimer = null;
@@ -777,7 +867,9 @@
       const foto = JSON.stringify([data.eventos, data.alertasEquipo]);
       if(silencioso && foto === ultimaFoto) return;
       ultimaFoto = foto;
-      const rolTexto = ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol;
+      const rolTexto = data.colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      opcionesAsignar = data.opcionesAsignar || null;
+      $('dimaFab').hidden = !data.colaborador.gerente || !$('dimaPanel').hidden;
       if(data.colaborador.rol === 'Admin'){
         const sel = $('vistaComo');
         $('brigadaNombre').textContent = 'Vista equipo';
@@ -825,6 +917,48 @@
 
   pinInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
   usuarioInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pinInput.focus(); });
+
+  // ---------- Canal con DiMa (solo la gerente) ----------
+  // La plática vive en el navegador (sessionStorage) y se manda completa.
+  const DIMA_KEY = 'dima_equipo';
+  var dimaHistorial = [];
+  try { dimaHistorial = JSON.parse(sessionStorage.getItem(DIMA_KEY) || '[]'); } catch(e){ dimaHistorial = []; }
+
+  function pintarDima(){
+    const saludo = [{ rol: 'dima', texto: 'Hola 👋 Soy DiMa. Pregúntame lo que necesites de la app, Telegram, el staff o tus eventos.' }];
+    $('dimaMsgs').innerHTML = [...saludo, ...dimaHistorial].map(m => `<div class="dima-msg ${m.rol}">${esc(m.texto)}</div>`).join('');
+    $('dimaMsgs').scrollTop = $('dimaMsgs').scrollHeight;
+  }
+
+  async function enviarDima(e){
+    e.preventDefault();
+    const texto = $('dimaTexto').value.trim();
+    if(!texto) return;
+    $('dimaTexto').value = '';
+    dimaHistorial.push({ rol: 'yo', texto });
+    pintarDima();
+    $('dimaMsgs').insertAdjacentHTML('beforeend', '<div class="dima-msg dima" id="dimaEscribiendo">Escribiendo…</div>');
+    try {
+      const d = await api('/api/dima-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'equipo', historial: dimaHistorial.slice(-20) }),
+      });
+      dimaHistorial.push({ rol: 'dima', texto: d.texto });
+    } catch(err){
+      if(err.message === 'sesion') return;
+      dimaHistorial.pop();
+      $('dimaTexto').value = texto;
+      showToast(err.message && err.message !== 'fail' ? err.message : 'DiMa no pudo contestar, intenta de nuevo');
+    }
+    sessionStorage.setItem(DIMA_KEY, JSON.stringify(dimaHistorial.slice(-20)));
+    pintarDima();
+  }
+
+  $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });
+  $('dimaCerrar').addEventListener('click', () => { $('dimaPanel').hidden = true; $('dimaFab').hidden = false; });
+  $('dimaNueva').addEventListener('click', () => { dimaHistorial = []; sessionStorage.removeItem(DIMA_KEY); pintarDima(); });
+  $('dimaForm').addEventListener('submit', enviarDima);
 
   refreshBtn.addEventListener('click', () => {
     if(!sesion) return;

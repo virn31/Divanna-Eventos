@@ -65,6 +65,20 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 | ⛔ | Ya confirmó otro evento a esa hora |
 | 📵 | No ha activado su Telegram: tocarla da su enlace otra vez |
 
+## Gerente de El Vaso Maíz
+
+- En la app ve **todos** los eventos autorizados de El Vaso Maíz, aunque no se los asignen.
+- En cada uno tiene **👷 Asignar**: elige brigada y encargada y toca **Guardar y avisar**. A ellas les llega el
+  aviso con **Confirmar** y a Diana y Víctor se les avisa qué asignó.
+- No ve precios ni pagos de los pedidos.
+
+## DiMa, curso y mensajes
+
+- **DiMa** (gerente y Admin): en la app con **💬 Pregúntale a DiMa**, o en Telegram escribiendo sin comando.
+  Contesta dudas de la plataforma y de sus eventos; no hace cambios.
+- **/curso**: capacitación por lecciones con práctica y pregunta. Diana y Víctor ven el avance con `/curso`.
+- **/mensaje** y el texto: les llega a Diana y Víctor con **Responder**; su respuesta llega por el bot.
+
 ## Comandos y si algo falla
 
 | Comando | Qué hace |
@@ -72,6 +86,8 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 | `/hoy` | Eventos de hoy |
 | `/eventos` | Próximos eventos |
 | `/instrucciones` | Este manual por temas |
+| `/curso` | Capacitación por lecciones (Admin: avance del equipo) |
+| `/mensaje` | Mensaje directo a Diana y Víctor |
 | `/staff` | Dar de alta e invitar a las chicas (coordinadora, Admin) |
 | `/alertas` | Emergencias y alertas de seguridad de hoy |
 | `/ayuda` | Lo que puede hacer cada quien |
