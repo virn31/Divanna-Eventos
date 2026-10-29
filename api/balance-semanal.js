@@ -15,6 +15,7 @@
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
+const { calcularPorCobrar } = require('./_finanzas');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -119,8 +120,10 @@ module.exports = async (req, res) => {
     // Cobros reales que reportaron las brigadas (reportes aprobados).
     let cobrosTotales = 0;
     const cobrosPorForma = {};
+    let cobrosRegistros = [];
     try {
       const cobrosData = await airtableGet(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(rango('Fecha'))}`);
+      cobrosRegistros = cobrosData.records;
       cobrosData.records.forEach(r => {
         if (!aprobados.has((r.fields.Reporte || [])[0])) return;
         const monto = r.fields.Monto || 0;
@@ -138,9 +141,12 @@ module.exports = async (req, res) => {
     let ingresosTotales = 0;
     let ingresosPorNegocio = {};
     let numEventos = 0;
+    let porCobrar = null; // null = no se pudo calcular (se dice en el texto)
     try {
       const eventosData = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formulaEventos}`);
       numEventos = eventosData.records.length;
+      // Lo que todavía deben los clientes de los eventos de la semana.
+      porCobrar = calcularPorCobrar(eventosData.records, cobrosRegistros, aprobados);
       eventosData.records.forEach(r => {
         const monto = r.fields.Monto_Estimado_IA || 0;
         ingresosTotales += monto;
@@ -149,6 +155,7 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       console.error('Error calculando ingresos de la semana:', e.message);
+      avisosLectura.push('No se pudieron leer los eventos: los ingresos y lo por cobrar NO son reales.');
     }
 
     const utilidad = ingresosTotales - gastosTotales;
@@ -165,6 +172,7 @@ module.exports = async (req, res) => {
       `Total gastos: $${gastosTotales.toLocaleString('es-MX')}\n\n` +
       `💵 Cobrado por las brigadas (reportes aprobados):\n${desglose(cobrosPorForma)}\n` +
       `Total cobrado: $${cobrosTotales.toLocaleString('es-MX')} · efectivo entregado a Diana: $${efectivoEntregado.toLocaleString('es-MX')}\n\n` +
+      (porCobrar ? `🫒 Por cobrar a clientes (eventos de la semana): $${porCobrar.total.toLocaleString('es-MX')}${porCobrar.eventos ? ` en ${porCobrar.eventos} evento${porCobrar.eventos === 1 ? '' : 's'}` : ''}\n\n` : '') +
       (reembolsosPendientes ? `🔁 Reembolsos pendientes (gastos con dinero propio): $${reembolsosPendientes.toLocaleString('es-MX')}\n\n` : '') +
       (sinAprobar ? `⏳ ${sinAprobar} gasto${sinAprobar === 1 ? '' : 's'} ($${montoSinAprobar.toLocaleString('es-MX')}) en reportes sin aprobar: no cuentan todavía.\n\n` : '') +
       (avisosLectura.length ? `⚠️ ${avisosLectura.join(' ')}\n\n` : '') +
@@ -184,6 +192,7 @@ module.exports = async (req, res) => {
       Fecha_Fin: fin,
       Ingresos_Totales: ingresosTotales,
       Gastos_Totales: gastosTotales,
+      ...(porCobrar ? { Por_Cobrar: porCobrar.total } : {}),
       Detalle_Completo: detalleCompleto,
       Detalle_Enviado: correoEnviado,
     });

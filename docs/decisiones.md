@@ -213,3 +213,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Cómo quedó:** calendario mensual propio en la app y el dashboard (no un Google embebido: obligaría a hacer público el calendario o a dar cuenta de Google a cada brigada). Google es espejo de un solo sentido: lo crea/actualiza/borra la plataforma; lo que se edite en Google no regresa. Cancelar no borra el expediente. Días bloqueados respetados por DiMa y por el servidor (pedidos nuevos).
 **Google:** la llave que estaba en Vercel no correspondía a la cuenta de servicio (invalid_grant: account not found) y el calendario no estaba compartido con ella. Se carga la del JSON `dima-os-513103-eb75c647cb3d.json` y `GOOGLE_CALENDAR_ID=divannaeventos@gmail.com`.
 **Descartado:** sincronización de dos sentidos con Google (requiere webhooks y otra función de Vercel; ya son 12 de 12).
+
+## 2026-10-29 — "Por cobrar" en el balance
+
+**Decisión (Víctor):** el balance de la semana debe mostrar lo por cobrar, en verde oliva, antes del saldo a favor.
+**Cálculo (evento por evento, eventos autorizados de la semana):** Pagado o Liquidado 100% = 0; si hay `Monto_Adeudado`, ese; si no, contratado menos cobros de reportes aprobados. Cancelados no cuentan. Se guarda en `BALANCES.Por_Cobrar` el lunes y el dashboard lo recalcula en vivo (si no puede, muestra el del lunes y lo dice).
+**Límite conocido:** los anticipos pagados directo a Diana no están registrados como cobro; en esos eventos sale de más hasta marcarlo pagado o capturar el monto adeudado.

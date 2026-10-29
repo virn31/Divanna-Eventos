@@ -730,6 +730,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(bal.Gastos_Totales === 800 && bal.Detalle_Completo.includes('Total cobrado: $1,000') && bal.Detalle_Completo.includes('efectivo entregado a Diana: $1,500')
     && bal.Detalle_Completo.includes('Reembolsos pendientes (gastos con dinero propio): $300') && bal.Detalle_Completo.includes('1 gasto ($200) en reportes sin aprobar'),
     'balance: solo cuentan los gastos y cobros de reportes aprobados (más los capturados a mano) y avisa lo pendiente');
+  ok(bal.Por_Cobrar === 2000 && bal.Detalle_Completo.includes('Por cobrar a clientes (eventos de la semana): $2,000 en 1 evento'), 'balance: incluye lo por cobrar a clientes y lo guarda');
+
+  // Por cobrar evento por evento.
+  const { calcularPorCobrar } = require(path.join(repo, 'api/_finanzas.js'));
+  const pc = calcularPorCobrar([
+    { id: 'recPCEVENTO00001', fields: { Monto_Estimado_IA: 5000, Estatus_Pago: 'Liquidado 100%' } },
+    { id: 'recPCEVENTO00002', fields: { Monto_Estimado_IA: 5000, Estatus_Pago: 'Pagado - Transferencia' } },
+    { id: 'recPCEVENTO00003', fields: { Monto_Estimado_IA: 5000, Monto_Adeudado: 1200, Estatus_Pago: 'Pendiente - Efectivo' } },
+    { id: 'recPCEVENTO00004', fields: { Monto_Estimado_IA: 3000 } },
+    { id: 'recPCEVENTO00005', fields: { Monto_Estimado_IA: 2000, Cancelado: true } },
+  ], [
+    { fields: { Evento: ['recPCEVENTO00004'], Monto: 1000, Reporte: ['recREPAPROBADO01'] } },
+    { fields: { Evento: ['recPCEVENTO00004'], Monto: 500, Reporte: ['recREPPENDIENTE1'] } },
+  ], new Set(['recREPAPROBADO01']));
+  ok(pc.total === 3200 && pc.eventos === 2, 'por cobrar: pagado y liquidado en 0, usa el monto adeudado si existe, resta solo cobros aprobados y no cuenta cancelados');
 
   // ---------- Bot de Telegram del equipo ----------
   process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';

@@ -41,6 +41,7 @@ const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { confirmarCambio, descartarCambio } = require('./_cambios');
 const { leerCambio } = require('./_pedidos');
+const { porCobrarPeriodo } = require('./_finanzas');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -87,10 +88,20 @@ async function ultimoBalance() {
     const data = await airtableGet(`${TABLES.BALANCES}?maxRecords=1&sort%5B0%5D%5Bfield%5D=Fecha_Fin&sort%5B0%5D%5Bdirection%5D=desc`);
     const b = data.records[0];
     if (!b) return null;
+    // Por cobrar se recalcula en vivo (si un cliente paga después del lunes, baja).
+    // Si no se puede, se usa lo guardado ese lunes y se dice; si tampoco hay, null.
+    let porCobrar = null, porCobrarGuardado = false;
+    if (b.fields.Fecha_Inicio && b.fields.Fecha_Fin) {
+      porCobrar = await porCobrarPeriodo(b.fields.Fecha_Inicio, b.fields.Fecha_Fin).then(r => r.total)
+        .catch(err => { console.error('No se pudo calcular por cobrar:', err.message); return null; });
+    }
+    if (porCobrar === null && typeof b.fields.Por_Cobrar === 'number') { porCobrar = b.fields.Por_Cobrar; porCobrarGuardado = true; }
     return {
       periodo: b.fields.Nombre_Periodo || '',
       ingresos: b.fields.Ingresos_Totales || 0,
       gastos: b.fields.Gastos_Totales || 0,
+      porCobrar,
+      porCobrarGuardado,
       detalle: b.fields.Detalle_Completo || '',
     };
   } catch (err) {

@@ -165,14 +165,14 @@
 
   /* ---------- Más claro para Diana (2026-10-29): letra más grande y montos en color ---------- */
   html{font-size:112.5%;}
-  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --serie-dv:#3987e5; --serie-vm:#d95926; }
+  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --cobrar:#a9b843; --serie-dv:#3987e5; --serie-vm:#d95926; }
   .dinero-gasto{color:var(--gasto); font-weight:800; font-size:1.12em;}
   .dinero-favor{color:var(--favor); font-weight:800; font-size:1.12em;}
   .cifras{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px;}
   .cifra{background:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
   .cifra .etq{font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
   .cifra .val{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:700; margin-top:4px;}
-  .cifra .val.gasto{color:var(--gasto);} .cifra .val.favor{color:var(--favor);}
+  .cifra .val.gasto{color:var(--gasto);} .cifra .val.favor{color:var(--favor);} .cifra .val.cobrar{color:var(--cobrar);}
   .hist-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 18px; margin-bottom:20px;}
   .hist-filtros{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px;}
   .hist-filtros button{border:1.5px solid var(--line); background:var(--ink); color:var(--paper); border-radius:100px; padding:8px 14px; font:inherit; font-size:0.85rem; font-weight:700; cursor:pointer;}
@@ -1072,6 +1072,7 @@
         <div class="cifras">
           <div class="cifra"><div class="etq">Ingresos contratados</div><div class="val favor">${fmt(balance.ingresos)}</div></div>
           <div class="cifra"><div class="etq">Gastos</div><div class="val gasto">${fmt(balance.gastos)}</div></div>
+          <div class="cifra"><div class="etq">Por cobrar</div><div class="val cobrar">${balance.porCobrar === null || balance.porCobrar === undefined ? '<span style="font-size:1rem;">⚠️ no se pudo calcular</span>' : fmt(balance.porCobrar)}</div>${balance.porCobrarGuardado ? '<div class="evento-sub">del lunes (no se pudo actualizar)</div>' : ''}</div>
           <div class="cifra"><div class="etq">${utilidad >= 0 ? 'Saldo a favor' : 'Saldo en contra'}</div><div class="val ${utilidad >= 0 ? 'favor' : 'gasto'}">${fmt(utilidad)}</div></div>
         </div>
         <details ${abierto} style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver el detalle completo</summary><pre>${esc(balance.detalle)}</pre></details>
