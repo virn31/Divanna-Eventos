@@ -82,6 +82,17 @@ const TEMAS = {
       'Para escribirles directo a Diana y Víctor: /mensaje y tu texto (por ejemplo: /mensaje Mañana llego tarde). Les llega con un botón para contestarte y su respuesta te llega aquí.\n\n' +
       '/curso te da la capacitación por lecciones, a tu ritmo.',
   },
+  reporte: {
+    boton: '💰 Reporte del día',
+    texto: () =>
+      '💰 Reporte del día (al terminar tu día)\n\n' +
+      'En la app toca 💰 (arriba, junto a salir):\n' +
+      '1. Gastos: qué compraste, cuánto, la categoría y si fue con dinero del negocio o con tu dinero (ese te lo reembolsan). Toma foto del ticket.\n' +
+      '2. Cobros: de qué evento, cuánto y si fue efectivo, transferencia o depósito (foto del comprobante).\n' +
+      '3. Cierre: el efectivo que le entregaste a Diana y los insumos que se usaron o sobraron.\n' +
+      '4. Toca "📨 Enviar a Diana". Ella lo aprueba o te pide una aclaración (te llega aquí); si pide aclaración, corrígelo y vuelve a enviarlo.\n\n' +
+      'Puedes hacer el de hoy o el de ayer. Ya aprobado no se puede cambiar.',
+  },
   invitaciones: {
     boton: '📨 Mis invitaciones',
     texto: () =>
@@ -110,7 +121,8 @@ const TEMAS = {
 // Temas que le tocan a cada quien, en orden.
 function temasDe(colaborador, coordina) {
   if (colaborador.rol === ROLES.STAFF) return ['invitaciones', 'problemas'];
-  return ['app', 'eventos', 'alertas', ...(colaborador.gerente ? ['gerente'] : []), ...(coordina ? ['staff'] : []), 'mensajes', 'problemas'];
+  const reporta = colaborador.rol === ROLES.LIDER || colaborador.rol === ROLES.ENCARGADA;
+  return ['app', 'eventos', 'alertas', ...(reporta ? ['reporte'] : []), ...(colaborador.gerente ? ['gerente'] : []), ...(coordina ? ['staff'] : []), 'mensajes', 'problemas'];
 }
 
 function menu(temas, actual = null) {

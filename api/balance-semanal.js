@@ -21,6 +21,8 @@ const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
   GASTOS: 'tblfuEW0oiX4xTw7T',
   BALANCES: 'tblRJYJHhHzyKcaWH',
+  REPORTES: 'tbllUK2N9ZDv2Bpdt',
+  COBROS: 'tblb8ADFukpm6nRZV',
 };
 
 async function airtableGet(path) {
@@ -78,20 +80,57 @@ module.exports = async (req, res) => {
 
     const { inicio, fin, finExclusivo, inicioExclusivo } = semanaAnterior();
 
-    // Gastos de la semana (todas las categorías/negocios juntos)
-    const formulaGastos = encodeURIComponent(`AND(IS_AFTER({Fecha}, '${inicioExclusivo}T00:00:00.000Z'), IS_BEFORE({Fecha}, '${finExclusivo}T00:00:00.000Z'))`);
+    // Reportes del día aprobados por Diana en la semana (fase 3): solo sus
+    // gastos y cobros cuentan; lo que sigue sin aprobar se avisa aparte.
+    const rango = (campo) => `AND(IS_AFTER({${campo}}, '${inicioExclusivo}T00:00:00.000Z'), IS_BEFORE({${campo}}, '${finExclusivo}T00:00:00.000Z'))`;
+    const avisosLectura = [];
+    let aprobados = new Set();
+    let efectivoEntregado = 0;
+    try {
+      const reportes = await airtableGet(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`AND({Estado} = 'Aprobado', ${rango('Fecha')})`)}`);
+      aprobados = new Set(reportes.records.map(r => r.id));
+      reportes.records.forEach(r => { efectivoEntregado += r.fields.Efectivo_Entregado || 0; });
+    } catch (e) {
+      console.error('Error leyendo reportes del día:', e.message);
+      avisosLectura.push('No se pudieron leer los reportes del día: los gastos de las brigadas no están incluidos.');
+    }
+
+    // Gastos de la semana (todas las categorías/negocios juntos). Los capturados
+    // a mano (sin reporte) cuentan siempre; los de un reporte, solo si está aprobado.
     let gastosTotales = 0;
     let gastosPorNegocio = {};
+    let sinAprobar = 0, montoSinAprobar = 0, reembolsosPendientes = 0;
     try {
-      const gastosData = await airtableGet(`${TABLES.GASTOS}?filterByFormula=${formulaGastos}`);
+      const gastosData = await airtableGet(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(rango('Fecha'))}`);
       gastosData.records.forEach(r => {
         const monto = r.fields.Monto || 0;
+        const reporte = (r.fields.Reporte || [])[0];
+        if (reporte && !aprobados.has(reporte)) { sinAprobar++; montoSinAprobar += monto; return; }
         gastosTotales += monto;
         const negocio = r.fields.Negocio || 'Sin especificar';
         gastosPorNegocio[negocio] = (gastosPorNegocio[negocio] || 0) + monto;
+        if (r.fields.Pagado_Con === 'Dinero propio' && !r.fields.Reembolsado) reembolsosPendientes += monto;
       });
     } catch (e) {
       console.error('Error calculando gastos de la semana:', e.message);
+      avisosLectura.push('No se pudieron leer los gastos: el total de gastos NO es real.');
+    }
+
+    // Cobros reales que reportaron las brigadas (reportes aprobados).
+    let cobrosTotales = 0;
+    const cobrosPorForma = {};
+    try {
+      const cobrosData = await airtableGet(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(rango('Fecha'))}`);
+      cobrosData.records.forEach(r => {
+        if (!aprobados.has((r.fields.Reporte || [])[0])) return;
+        const monto = r.fields.Monto || 0;
+        cobrosTotales += monto;
+        const forma = r.fields.Forma || 'Sin especificar';
+        cobrosPorForma[forma] = (cobrosPorForma[forma] || 0) + monto;
+      });
+    } catch (e) {
+      console.error('Error leyendo cobros de la semana:', e.message);
+      avisosLectura.push('No se pudieron leer los cobros de las brigadas.');
     }
 
     // Ingresos aproximados: eventos autorizados por Diana con fecha en la semana
@@ -124,6 +163,11 @@ module.exports = async (req, res) => {
       `Total ingresos: $${ingresosTotales.toLocaleString('es-MX')}\n\n` +
       `💸 Gastos registrados:\n${desglose(gastosPorNegocio)}\n` +
       `Total gastos: $${gastosTotales.toLocaleString('es-MX')}\n\n` +
+      `💵 Cobrado por las brigadas (reportes aprobados):\n${desglose(cobrosPorForma)}\n` +
+      `Total cobrado: $${cobrosTotales.toLocaleString('es-MX')} · efectivo entregado a Diana: $${efectivoEntregado.toLocaleString('es-MX')}\n\n` +
+      (reembolsosPendientes ? `🔁 Reembolsos pendientes (gastos con dinero propio): $${reembolsosPendientes.toLocaleString('es-MX')}\n\n` : '') +
+      (sinAprobar ? `⏳ ${sinAprobar} gasto${sinAprobar === 1 ? '' : 's'} ($${montoSinAprobar.toLocaleString('es-MX')}) en reportes sin aprobar: no cuentan todavía.\n\n` : '') +
+      (avisosLectura.length ? `⚠️ ${avisosLectura.join(' ')}\n\n` : '') +
       `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
       `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS. ¡Que tengas excelente semana! 💜`;
 

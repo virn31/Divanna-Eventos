@@ -215,6 +215,7 @@
   <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main>
     <div id="pedidosContent"></div>
+    <div id="finContent"></div>
     <div id="balanceContent"></div>
     <div id="mainContent">
       <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
@@ -947,6 +948,90 @@
     }
   }
 
+  // ---------- Reportes financieros del día (api/finanzas.js) ----------
+  // Diana aprueba o pide aclaración; solo lo aprobado cuenta en el balance.
+  const finContent = $('finContent');
+  let finFirma = '';
+  const pesosFin = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const fotoFin = (f, falta) => f ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--maiz);">📷 ver</a>` : (falta ? `<span class="evento-sub">${falta}</span>` : '');
+
+  async function cargarFinanzas(){
+    try {
+      renderFinanzas((await api('/api/finanzas')).revision);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      finContent.innerHTML = `<div class="motivo aviso-fuera">💰 No se pudieron leer los reportes del día (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  function renderFinanzas(rev){
+    if(!rev){ finContent.innerHTML = ''; return; }
+    // No repintar mientras Diana escribe una aclaración.
+    if(finContent.querySelector('textarea:focus, textarea[data-sucio]')) return;
+    const firma = JSON.stringify([rev.pendientes.map(r => r.id + r.estado + r.enviadoHora), rev.reembolsos.map(g => g.id)]);
+    if(firma === finFirma) return;
+    finFirma = firma;
+    const tarjeta = (r) => `
+      <div class="pedido-card fin-rep" data-id="${esc(r.id)}">
+        <h3>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.negocio)}</h3>
+        <div class="evento-sub">${r.estado === 'Aclaración' ? '✏️ Pediste aclaración; esperando corrección' : '⏳ Enviado para revisión'}${r.enviadoHora ? ' · ' + new Date(r.enviadoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+        <div class="meta-line"><span>💸 Gastos ${pesosFin(r.totalGastos)}</span><span>💵 Cobros ${pesosFin(r.totalCobros)}</span><span>🧾 Efectivo entregado ${pesosFin(r.efectivoEntregado)}</span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero ${pesosFin(r.reembolsoPendiente)}</span>` : ''}</div>
+        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <b>${pesosFin(g.monto)}</b> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
+        ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <b>${pesosFin(c.monto)}</b> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
+        ${r.insumos ? `<div class="motivo">🌽 Insumos: ${esc(r.insumos)}</div>` : ''}
+        ${r.notas ? `<div class="motivo">📝 ${esc(r.notas)}</div>` : ''}
+        ${r.revision ? `<div class="evento-sub">${esc(r.revision.trim().split('\n').pop())}</div>` : ''}
+        ${r.estado === 'Enviado' && rev.puedeAprobar ? `
+          <textarea class="msgcli-texto fin-coment" maxlength="1000" placeholder="Comentario (obligatorio si pides aclaración)"></textarea>
+          <div class="instr-fila">
+            <button class="msgcli-enviar fin-accion" data-accion="aprobar" data-id="${esc(r.id)}">✅ Aprobar</button>
+            <button class="msgcli-enviar fin-accion" style="background:var(--line); color:var(--paper);" data-accion="aclaracion" data-id="${esc(r.id)}">✏️ Pedir aclaración</button>
+            <span class="instr-msg fin-msg"></span>
+          </div>` : ''}
+      </div>`;
+    const reembolsos = rev.reembolsos.length ? `
+      <h2 class="section-title">🔁 Reembolsos pendientes (${rev.reembolsos.length} · ${pesosFin(rev.reembolsos.reduce((t, g) => t + g.monto, 0))})</h2>
+      ${rev.reembolsos.map(g => `<div class="motivo">${esc(g.quien)} · ${esc(g.fechaReporte)} · ${esc(g.concepto)} · <b>${pesosFin(g.monto)}</b> ${fotoFin(g.foto, '')}
+        <button class="msgcli-enviar fin-reemb" data-id="${esc(g.id)}" style="margin-left:8px;">Marcar reembolsado</button></div>`).join('')}` : '';
+    finContent.innerHTML = (rev.pendientes.length ? `<h2 class="section-title">💰 Reportes del día por revisar (${rev.pendientes.length})</h2>${rev.pendientes.map(tarjeta).join('')}` : '') + reembolsos;
+    finContent.querySelectorAll('.fin-coment').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
+    finContent.querySelectorAll('.fin-accion').forEach(b => b.addEventListener('click', () => revisarReporte(b)));
+    finContent.querySelectorAll('.fin-reemb').forEach(b => b.addEventListener('click', () => marcarReembolso(b)));
+  }
+
+  async function revisarReporte(btn){
+    const caja = btn.closest('.fin-rep');
+    const msg = caja.querySelector('.fin-msg');
+    const comentario = caja.querySelector('.fin-coment').value;
+    caja.querySelectorAll('.fin-accion').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: btn.dataset.accion, reporteId: btn.dataset.id, comentario }) });
+      msg.textContent = (btn.dataset.accion === 'aprobar' ? '✅ Aprobado.' : '✏️ Aclaración enviada.') + (d.avisado ? ' Se le avisó por Telegram.' : ' ⚠️ No tiene Telegram vinculado: avísale tú.');
+      delete caja.querySelector('.fin-coment').dataset.sucio;
+      finFirma = '';
+      setTimeout(cargarFinanzas, 3000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+      caja.querySelectorAll('.fin-accion').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  async function marcarReembolso(btn){
+    btn.disabled = true;
+    try {
+      await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'reembolsado', gastoId: btn.dataset.id }) });
+      btn.textContent = '✔ Reembolsado';
+      finFirma = '';
+      setTimeout(cargarFinanzas, 2000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      btn.disabled = false;
+      btn.textContent = e.message && e.message !== 'fail' ? e.message : 'Error, reintenta';
+    }
+  }
+
   function renderBalance(balance){
     if(!balance){ balanceContent.innerHTML = ''; return; }
     const abierto = balanceContent.querySelector('details')?.open ? 'open' : '';
@@ -977,6 +1062,7 @@
       renderPedidos(data.pedidos || []);
       renderBalance(data.balance);
       renderEventos(data.eventos);
+      cargarFinanzas();
     } catch(e){
       if(e.message === 'sesion') return;
       mainContent.innerHTML = `<div class="empty-state">📡<br>No se pudo cargar. Revisa tu señal y toca actualizar.</div>`;
