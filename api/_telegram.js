@@ -84,6 +84,8 @@ function aColaborador(r) {
     brigadaId: (r.fields.Brigada || [])[0] || null,
     chatId: r.fields.Telegram_Chat_ID || '',
     coordinaStaff: !!r.fields.Coordina_Staff,
+    gerente: !!r.fields.Gerente_Vaso_Maiz,
+    cursoAvance: Number(r.fields.Curso_Avance) || 0,
   };
 }
 

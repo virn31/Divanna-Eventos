@@ -16,9 +16,11 @@
 // de un evento; se avisa por push y Telegram solo a quien se acaba de sumar y
 // se responde cuántos avisos se entregaron de verdad. Si cambia el equipo, se
 // borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
+// La gerente de El Vaso Maíz también puede asignar, solo en eventos de El Vaso
+// Maíz; en ese caso se avisa a Diana y Víctor por Telegram.
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
-const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -160,7 +162,7 @@ function agendaDesdeDashboard(body, inventario) {
   return campos;
 }
 
-async function resolverPedido(req, res) {
+async function resolverPedido(req, res, colaborador) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
   if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar'].includes(accion)) {
@@ -193,6 +195,11 @@ async function resolverPedido(req, res) {
   }
 
   if (accion === 'asignar') {
+    const esAdmin = colaborador.rol === ROLES.ADMIN;
+    if (!esAdmin && !esVasoMaiz(f)) {
+      res.status(403).json({ error: 'Solo puedes asignar eventos de El Vaso Maíz.' });
+      return;
+    }
     const b = req.body || {};
     const brigadaId = typeof b.brigadaId === 'string' ? b.brigadaId : '';
     if ((brigadaId && !/^rec[A-Za-z0-9]{14}$/.test(brigadaId)) || !Array.isArray(b.encargadaIds)) {
@@ -217,6 +224,14 @@ async function resolverPedido(req, res) {
         enviarPushEquipo({ titulo, cuerpo, soloColaboradores: nuevos }),
         enviarTelegramEquipo({ texto: `${titulo}\n${cuerpo}`, soloColaboradores: nuevos, errores: erroresAvisos, botones: botonConfirmar(eventoId) }),
       ]);
+    }
+    if (!esAdmin) {
+      const brigada = brigadaId ? (await airtableGet(`${TABLES.BRIGADAS}/${brigadaId}`)).fields.Nombre_Brigada : 'sin brigada';
+      const nombres = colaboradores.filter(c => encargadas.includes(c.id)).map(c => c.fields.Nombre).join(', ');
+      await enviarTelegramEquipo({
+        roles: [ROLES.ADMIN],
+        texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}.`,
+      }).catch(err => console.error('Error avisando asignación de la gerente:', err));
     }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
     res.status(200).json({
@@ -303,8 +318,14 @@ module.exports = async (req, res) => {
 
   if (req.method === 'POST') {
     try {
-      if (!(await requerirSesion(req, res, [ROLES.ADMIN]))) return;
-      await resolverPedido(req, res);
+      const colaborador = await requerirSesion(req, res, [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA]);
+      if (!colaborador) return;
+      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar.
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && (req.body || {}).accion === 'asignar')) {
+        res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
+        return;
+      }
+      await resolverPedido(req, res, colaborador);
     } catch (err) {
       console.error('Error resolviendo pedido:', err);
       res.status(500).json({ error: 'Error interno, intenta de nuevo' });

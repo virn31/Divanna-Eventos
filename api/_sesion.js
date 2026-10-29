@@ -67,6 +67,7 @@ function aColaborador(record) {
     nombre: f.Nombre || '',
     rol: f.Rol || '',
     brigadaId: (f.Brigada || [])[0] || null,
+    gerente: !!f.Gerente_Vaso_Maiz,
   };
 }
 
@@ -109,12 +110,19 @@ async function requerirSesion(req, res, rolesPermitidos) {
   return colaborador;
 }
 
-// ¿Puede este colaborador operar este evento? Admin todos; líder y asistente
-// los de su brigada; encargada los que tiene asignados en el campo Encargada.
+// Evento con parte de El Vaso Maíz (el negocio o piezas de El Vaso Maíz).
+function esVasoMaiz(eventoFields) {
+  return eventoFields.Negocio === 'El Vaso Maiz' || Number(eventoFields.Piezas_Vaso_Maiz) > 0;
+}
+
+// ¿Puede este colaborador operar este evento? Admin todos; la gerente de El
+// Vaso Maíz (COLABORADORES.Gerente_Vaso_Maiz) todos los de El Vaso Maíz; líder
+// y asistente los de su brigada; encargada los que tiene asignados en Encargada.
 function puedeOperarEvento(colaborador, eventoFields) {
   if (colaborador.rol === ROLES.ADMIN) return true;
+  if (colaborador.gerente && esVasoMaiz(eventoFields)) return true;
   if (colaborador.rol === ROLES.ENCARGADA) return (eventoFields.Encargada || []).includes(colaborador.id);
   return !!colaborador.brigadaId && (eventoFields.Brigada_Asignada || []).includes(colaborador.brigadaId);
 }
 
-module.exports = { ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento };
+module.exports = { ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento, esVasoMaiz };

@@ -114,7 +114,7 @@ async function eventosConfirmadosDe(colaboradorId) {
 // /staff es solo para Diana y Víctor (Admin) y para quien tenga marcado
 // Coordina_Staff en COLABORADORES (Ángela). Decisión de Víctor 2026-10-28.
 async function puedeCoordinar(colaborador) {
-  return colaborador.rol === ROLES.ADMIN || !!colaborador.coordinaStaff;
+  return colaborador.rol === ROLES.ADMIN || !!colaborador.coordinaStaff || !!colaborador.gerente;
 }
 
 // ---------- Textos ----------

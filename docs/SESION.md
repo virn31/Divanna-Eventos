@@ -28,31 +28,28 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-28 (noche) · **Rama:** `staff-telegram` (sin merge) · **Producción:** `main` en ed74908 = fase 1 de agenda + semáforo (merges locales, sin PR).
+**Actualizado:** 2026-10-28 (cierre de la noche) · **Rama de trabajo:** `main` (todo publicado; ramas de hoy ya unidas) · **Producción:** `main` con el merge de `gerente-vaso-maiz` (merges locales, sin PR). Rama aparte sin publicar: `entrenar-dima` (Entrenar a DiMa desde el dashboard).
 
-**En producción:** todo lo de los PR #1 a #4 (sin WhatsApp, chat de DiMa, app con roles y PIN, push, Telegram, vista equipo, GPS, pedido existente, mensaje de Diana al cliente, traslado, 35 km, paquetes primero, temporada alta) y la fase 1 de agenda. Verificado: chat de DiMa responde con la API real.
+**Publicado hoy (en orden):**
+- Asignar brigada y encargada desde el dashboard (`asignar`), con conteo real de avisos entregados por Telegram/push y el motivo si falla.
+- Al autorizar, el mensaje dice qué falló de Google (Calendar, Sheets, correo) y por qué.
+- Botón "👍 Enterado" en la app y "✅ Confirmar" en los avisos de Telegram (`EVENTOS.Enterado_Por`/`Enterado_Hora`); se avisa a los Admin.
+- `/staff` (rama `staff-telegram`): staff de El Vaso Maíz por Telegram, invitaciones "Sí puedo / No puedo".
+- `/instrucciones`: manual por temas con botones (`api/_instrucciones.js` = `docs/manual-equipo.md`).
+- Gerente de El Vaso Maíz (`COLABORADORES.Gerente_Vaso_Maiz`, Ángela): ve y asigna todos los eventos de El Vaso Maíz desde su app; DiMa interna (app "💬 Pregúntale a DiMa" y Telegram sin comando); `/curso` (6 lecciones, `Curso_Avance`); `/mensaje` con "↩️ Responder".
+- `CACHE_NAME` = `dima-brigadas-v7`. 210 pruebas pasan.
 
-**En la rama `staff-telegram` (falta publicar):** staff de El Vaso Maíz por Telegram: Rol "Staff", `COLABORADORES.Coordinadora`, tabla STAFF_EVENTO, `/staff` con botones, invitaciones "Sí puedo / No puedo", avisos a la coordinadora, `/configurar` (Admin) para activar los botones. 157 pruebas pasan. Después de publicar: Diana o Víctor escriben `/configurar`; alta de Ángela y las chicas en COLABORADORES.
+**Airtable hoy:** campos nuevos `EVENTOS.Enterado_Por`, `EVENTOS.Enterado_Hora`, `COLABORADORES.Gerente_Vaso_Maiz`, `COLABORADORES.Curso_Avance`. Alta de Ángel (Brigada Ángel), Eden ligado a Brigada Edén, Ángela (usuario `angela`, Lider de Brigada El Vaso Maíz, `Coordina_Staff` y `Gerente_Vaso_Maiz`). Se borraron los 3 eventos de prueba y sus clientes.
 
-**Fase 2 (semáforo, ya en producción):**
-- `api/_agenda.js`: semáforo 🟢/🟡/🔴 contra eventos autorizados que se traslapan (inventario por categoría y artículo exacto, Casa Isabella, entregas por día, personal y equipos de El Vaso Maíz). Tabla nueva `PERSONAL_DIA` (cupo por día; 12 si no hay renglón).
-- Al registrar se guarda en `EVENTOS.Disponibilidad`/`Disponibilidad_Detalle` y va en Telegram y correo con la hora límite (12 h). Dashboard: semáforo en vivo en pedidos y eventos, conteo por color y plazo de 12 h (avisa si se venció).
-- DiMa y el formulario: "ya tenemos todos los datos… en un lapso no mayor a 12 horas te confirmamos". El cliente nunca ve el semáforo.
-- 143 pruebas pasan.
-
-**Fase 1 (ya en producción):**
-- `api/_productos.js`: catálogo con claves, piezas de El Vaso Maíz (3 a 4 min por pieza, equipos de 2), mobiliario por categoría y ventanas de ocupación (mobiliario todo el día del evento hasta la 1 pm del día siguiente; manteles +48 h; Casa Isabella solo las horas; Vaso Maíz sale 30 min antes).
-- DiMa pregunta la hora y registra `productos` con clave; EVENTOS guarda `Hora_Inicio`, `Horas_Servicio`, `Productos`, `Piezas_Vaso_Maiz`, `Personal_Requerido`, `Resumen_Capacidad`.
-- Modelo, color y cantidad exactos: `EVENTOS.Articulos` (artículos de INVENTARIO). Dashboard: editor de hora, productos y artículos, aviso "🎨 Falta asignar modelo y color". App: "🕒 Empieza", personas y "📦 Cargar exacto". `CACHE_NAME` = `dima-brigadas-v5`.
-- Airtable (base de producción, solo campos y datos nuevos): 7 campos en EVENTOS, `INVENTARIO.Categoria` con 87 artículos de Divanna clasificados (copas en "Copa globo" y "Copa francesa"), Casa Isabella como 1 unidad.
-
-**Pendiente de Víctor:**
-1. Conteos que faltan en INVENTARIO (por la tarde): aros, mamparas, shimmer, mesitas, tapetes, arcos, túneles, letras/números LED, mesa de honor, cubiertos, vasos, platos trinche/grueso, servilletas, manteles de lentejuela y corrugado, centros de mesa. Un renglón por modelo y color, con su `Categoria`.
-2. Lista de proveedores aliados (precio = ~10% menos que el nuestro, pedir con 48 h mínimo, ideal una semana).
-3. Rutas de Divanna: cuántos pedidos caben por ruta y por brigada (hoy 2 o 3).
-4. Lo anterior de PIN de Diana, variables `VAPID_*`, alta de brigadas, `assetlinks.json` y limpieza de Twilio (ver decisiones y CLAUDE.md).
+**Pendiente de Víctor (siguiente sesión):**
+1. Escribir `/configurar` al bot (activa los botones y agrega `/instrucciones`, `/curso`, `/mensaje` a la lista). Sin esto los botones de Telegram no responden.
+2. `/curso` → "📨 Angela Samano" para mandarle su primera lección.
+3. Conectar Google Calendar/Sheets: cuenta de servicio, compartir el calendario de divannaeventos@gmail.com y la hoja, variables `GOOGLE_*` en Vercel y redeploy (pasos en la conversación y en `api/_google-integrations.js`). Hoy al autorizar falla Calendar/Sheets.
+4. Alta de las chicas de El Vaso Maíz (Ángela con `/staff` → Agregar personal) y de José (asistente de Brigada Edén) si va a usar la app.
+5. Teléfono de Ángel (ZTE con "Security Lock"): instalar la app desde Chrome, no el APK.
+6. Lo anterior: conteos de INVENTARIO, proveedores aliados, rutas de Divanna, PIN de Diana, `VAPID_*`, `assetlinks.json`, limpieza de Twilio.
 
 **Siguientes pasos:**
-- Publicar `agenda-semaforo` con permiso de Víctor y probar: pedido de prueba por el chat, semáforo en Telegram/correo y en el dashboard, plazo de 12 h; autorizar con artículos exactos y ver "Cargar exacto" en la app.
-- Afinar el semáforo con los conteos completos de INVENTARIO y los datos de rutas.
-- Fase 3: gastos y entradas por brigada (`MOVIMIENTOS`, origen del dinero, reembolsos). Fase 4: proveedores y compras de insumos. Fase 5: recordatorios de checklist por Telegram (7, 3 y 1 día antes).
+- Prueba completa con un pedido nuevo: chat de DiMa → autorizar → asignar a una brigada → Confirmar en Telegram → ver "Enterado" en el dashboard.
+- Decidir si se publica `entrenar-dima`.
+- Fase 3: gastos y entradas por brigada. Fase 4: proveedores y compras. Fase 5: recordatorios de checklist por Telegram.

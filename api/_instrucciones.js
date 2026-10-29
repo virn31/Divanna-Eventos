@@ -2,7 +2,8 @@
 // Manual del equipo por Telegram: /instrucciones contesta con un menú de temas
 // en botones (in:<tema>) y cada botón manda ese tema con el menú otra vez, como
 // una plática. Los temas dependen del rol: el staff de El Vaso Maíz solo ve lo
-// suyo y /staff solo aparece a quien coordina. Es el mismo contenido que
+// suyo, /staff solo aparece a quien coordina y "Gerente" solo a la gerente de
+// El Vaso Maíz. manualTexto() junta todo para que DiMa lo use al contestar. Es el mismo contenido que
 // docs/manual-equipo.md; si cambia uno, actualiza el otro.
 // Texto plano (el bot no usa parse_mode).
 
@@ -60,6 +61,25 @@ const TEMAS = {
       '4. Cada respuesta te llega a ti ("✅ Isabella confirmó … 3 de 4") y al completarse, "🎉 Equipo completo".\n\n' +
       'Marcas en la lista: ✅ confirmó · ⏳ invitada · ❌ no puede · ⛔ ya tiene otro evento a esa hora · 📵 no ha activado su Telegram (tócala y te doy su enlace otra vez).',
   },
+  gerente: {
+    boton: '⭐ Soy gerente',
+    texto: () =>
+      '⭐ Gerente de El Vaso Maíz\n\n' +
+      '• En la app ves TODOS los eventos autorizados de El Vaso Maíz, aunque no te los asignen a ti.\n' +
+      '• En cada evento de El Vaso Maíz tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
+      '• Con /staff invitas a las chicas y ves quién confirmó.\n' +
+      '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',
+  },
+  mensajes: {
+    boton: '💬 DiMa y mensajes',
+    texto: (rol, gerente) =>
+      '💬 DiMa y mensajes\n\n' +
+      (gerente || rol === ROLES.ADMIN
+        ? 'DiMa es tu asistente: pregúntale lo que sea de la plataforma o de tus eventos. Escríbele aquí mismo, sin comando, o en la app con "💬 Pregúntale a DiMa". Si no sabe algo, te lo dice.\n\n'
+        : '') +
+      'Para escribirles directo a Diana y Víctor: /mensaje y tu texto (por ejemplo: /mensaje Mañana llego tarde). Les llega con un botón para contestarte y su respuesta te llega aquí.\n\n' +
+      '/curso te da la capacitación por lecciones, a tu ritmo.',
+  },
   invitaciones: {
     boton: '📨 Mis invitaciones',
     texto: () =>
@@ -88,7 +108,7 @@ const TEMAS = {
 // Temas que le tocan a cada quien, en orden.
 function temasDe(colaborador, coordina) {
   if (colaborador.rol === ROLES.STAFF) return ['invitaciones', 'problemas'];
-  return ['app', 'eventos', 'alertas', ...(coordina ? ['staff'] : []), 'problemas'];
+  return ['app', 'eventos', 'alertas', ...(colaborador.gerente ? ['gerente'] : []), ...(coordina ? ['staff'] : []), 'mensajes', 'problemas'];
 }
 
 function menu(temas, actual = null) {
@@ -111,7 +131,12 @@ function instrucciones(colaborador, coordina) {
 function tema(colaborador, coordina, clave) {
   const temas = temasDe(colaborador, coordina);
   if (!temas.includes(clave)) return null;
-  return { texto: `${TEMAS[clave].texto(colaborador.rol)}\n\n¿Algo más?`, botones: menu(temas, clave) };
+  return { texto: `${TEMAS[clave].texto(colaborador.rol, colaborador.gerente)}\n\n¿Algo más?`, botones: menu(temas, clave) };
 }
 
-module.exports = { instrucciones, tema };
+// Todo el manual que le toca a este colaborador, en un solo texto (para DiMa).
+function manualTexto(colaborador, coordina) {
+  return temasDe(colaborador, coordina).map(t => TEMAS[t].texto(colaborador.rol, colaborador.gerente)).join('\n\n');
+}
+
+module.exports = { instrucciones, tema, manualTexto };

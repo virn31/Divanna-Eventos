@@ -8,6 +8,7 @@
 // Admin ("vista equipo"): ve todos los eventos, o los de una brigada
 // (?brigada=rec...) o de una encargada (?encargada=rec...), tal como los ve
 // esa persona, y recibe la lista de brigadas y encargadas para elegir.
+// La gerente de El Vaso Maíz recibe esa misma lista para asignar sus eventos.
 
 const { ROLES, requerirSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
@@ -38,11 +39,13 @@ module.exports = async (req, res) => {
     const eventos = await leerEventos(eventoIds);
 
     res.status(200).json({
-      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol },
+      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente },
       brigada,
       eventos,
       alertasEquipo,
       ...(colaborador.rol === ROLES.ADMIN ? { opciones: await opcionesVista() } : {}),
+      // La gerente asigna brigada y encargada a los eventos de El Vaso Maíz.
+      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: await opcionesVista() } : {}),
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

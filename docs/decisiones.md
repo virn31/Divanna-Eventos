@@ -159,3 +159,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Permiso (Víctor):** `/staff` solo para Ángela, Diana y Víctor: Admin o la casilla `COLABORADORES.Coordina_Staff` (solo Ángela). La invitación pide confirmar para llegar antes (con la hora de salida) y preparar todo para el evento.
 **Alta simplificada (Víctor):** `/staff` tiene dos botones: **Agregar** (nombre y teléfono) y **Asignar** (lista del personal agregado). Las chicas no llevan usuario, PIN ni código: el bot da un enlace personal firmado (HMAC con `SESSION_SECRET`) y con un toque en "Iniciar" queda vinculado su Telegram. Límite de Telegram: un bot no puede escribirle primero a nadie ni buscarlo por teléfono.
 **Pendiente:** el reparto equitativo automático (sugerir a quién invitar según su carga) y la disponibilidad que cada chica marque por día, de la propuesta de logística.
+
+## 2026-10-28 — Gerente de El Vaso Maíz, DiMa para el equipo, curso y mensajes directos
+
+**Decisión (Víctor):** Ángela es la gerente de El Vaso Maíz; hay que darle su lugar, capacitarla por Telegram hasta que domine la plataforma, darle un canal exclusivo con DiMa desde su app y que pueda mandarles mensajes directos a Diana y Víctor.
+**Cómo quedó (las cuatro opciones recomendadas):**
+- Casilla `COLABORADORES.Gerente_Vaso_Maiz` (no un rol nuevo, para no tocar las listas de permisos de cada endpoint): ve y opera todos los eventos autorizados de El Vaso Maíz (negocio o piezas de El Vaso Maíz) aunque no se los asignen, y desde su app asigna brigada y encargada solo en esos eventos (se avisa a los Admin). Sin dashboard, precios ni pagos.
+- DiMa interna (`api/_dima-equipo.js`): en la app ("💬 Pregúntale a DiMa", `POST /api/dima-chat` con `modo: "equipo"`, sin función nueva) y en Telegram (mensaje sin comando). Solo gerente y Admin. Conoce el manual de su rol y sus próximos eventos, sin montos; no hace cambios. Límite de 60 preguntas al día por persona (en memoria).
+- `/curso`: 6 lecciones para la gerente (4 a 6 según el rol), cada una con práctica y pregunta de opción múltiple; avance en `COLABORADORES.Curso_Avance` y aviso a los Admin por lección. Admin ve el avance y le manda a cada quien su lección.
+- `/mensaje`: ida y vuelta por el bot con "↩️ Responder"; el otro Admin recibe copia. El staff no lo usa (habla con su coordinadora).
+**Descartado:** rol "Gerente" nuevo (había que agregarlo en cada `requerirSesion`); que la gerente entre al dashboard (tiene precios, pagos y datos de clientes); guardar la plática de DiMa en Airtable (costo y datos; en Telegram el contexto es el mensaje al que se contesta).
