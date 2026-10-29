@@ -856,6 +856,42 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/staff') }, res);
   ok(respuestaTg().includes('solo para Ángela, Diana y Víctor') && llamadas.length === 1, 'staff: /staff solo para Ángela (Coordina_Staff), Diana y Víctor');
 
+  // ---------- /instrucciones: manual por temas con botones ----------
+  const botonesDe = (t) => (t.body.reply_markup ? t.body.reply_markup.inline_keyboard.flat().map(b => b.callback_data) : []);
+  reset();
+  respuestas = [{ records: [ANGELA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 777) }, res);
+  let tgIn = telegram.find(t => t.metodo === 'sendMessage');
+  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:staff,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff');
+
+  reset();
+  respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 222) }, res);
+  tgIn = telegram.find(t => t.metodo === 'sendMessage');
+  ok(!botonesDe(tgIn).includes('in:staff') && botonesDe(tgIn).includes('in:eventos'), 'instrucciones: un líder sin Coordina_Staff no ve /staff');
+
+  reset();
+  respuestas = [{ records: [ISA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 888) }, res);
+  tgIn = telegram.find(t => t.metodo === 'sendMessage');
+  ok(botonesDe(tgIn).join() === 'in:invitaciones,in:problemas', 'instrucciones: las chicas del staff solo ven sus temas');
+
+  reset();
+  respuestas = [{ records: [ANGELA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('in:staff', 777) }, res);
+  tgIn = telegram.find(t => t.metodo === 'sendMessage');
+  ok(tgIn.body.text.includes('Agregar personal') && !botonesDe(tgIn).includes('in:staff') && botonesDe(tgIn).includes('in:app'), 'instrucciones: el botón manda el tema y el menú de los demás');
+
+  reset();
+  respuestas = [{ records: [ISA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: boton('in:staff', 888) }, res);
+  ok(!telegram.some(t => t.metodo === 'sendMessage') && telegram.some(t => t.metodo === 'answerCallbackQuery'), 'instrucciones: un tema que no le toca no se manda');
+
   // ---------- Botón "Confirmar" de los avisos de un evento ----------
   reset();
   respuestas = [

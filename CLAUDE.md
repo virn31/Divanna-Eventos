@@ -45,6 +45,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `api/brigada-estatus.js` | POST carga, estatus logístico, retraso, emergencia, alerta de seguridad. `enterado`: quien tiene el evento confirma que lo vio (`Enterado_Por`, `Enterado_Hora`) y se avisa a los Admin por Telegram. El asistente solo carga, alertas y enterado. Emergencia/seguridad: push a todo el equipo + correo. |
 | `api/telegram.js` + `api/_telegram.js` | Webhook del bot del equipo (`/entrar usuario PIN`, `/hoy`, `/eventos`, `/alertas`, `/pedidos`, `/salir`) y envío de avisos. Los avisos de asignación e instrucciones llevan el botón **✅ Confirmar** (`cf:eventoId`): marca `Enterado_Por`/`Enterado_Hora` y avisa a los Admin (`confirmarEvento` en `api/_eventos.js`). Vincula el chat en `COLABORADORES.Telegram_Chat_ID`. Valida `TELEGRAM_WEBHOOK_SECRET`. |
 | `api/_eventos.js` | Qué eventos ve cada rol y alertas del día; lo usan la app y el bot. |
+| `api/_instrucciones.js` | `/instrucciones` del bot: manual del equipo por temas con botones (`in:tema`), según el rol (el staff solo ve lo suyo; `/staff` solo a quien coordina). Mismo contenido que `docs/manual-equipo.md`: si cambia uno, actualizar el otro. |
 | `api/push.js` + `api/_push.js` | Suscripción del teléfono a las alertas (tabla PUSH_SUSCRIPCIONES `tblSyRGsMwcSnkcAR`) y envío. Solo a colaboradores activos, nunca a quien reporta. |
 | `api/brigada-checklist.js` | POST etapas del evento (líder, encargada, admin). |
 | `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance, brigadas y encargadas. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. POST `asignar`: brigada y encargada del evento (avisa solo a quien se suma, responde cuántos avisos se entregaron de verdad por Telegram/push y por qué falló alguno; si cambia el equipo borra `Enterado_Por`/`Enterado_Hora`). |
@@ -57,6 +58,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `docs/SESION.md` | Protocolo "cerrar"/"continuar" y estado del trabajo en curso. |
 | `referencias/`, `paquetes/` | Fotos que DiMa muestra en el chat. |
 | `docs/apk.md` | Cómo generar el APK de Android a partir de la PWA. |
+| `docs/manual-equipo.md` | Manual del equipo (app + Telegram + `/staff`); el bot lo da con `/instrucciones`. |
 
 ## Roles (campo `Rol` en COLABORADORES)
 

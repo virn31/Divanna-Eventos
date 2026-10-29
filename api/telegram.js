@@ -5,6 +5,7 @@
 //   /hoy      eventos de hoy           /eventos  próximos eventos
 //   /alertas  emergencias y seguridad  /pedidos  pedidos por cotizar (Admin)
 //   /salir    desvincular Telegram     /ayuda    lista de comandos
+//   /instrucciones  manual del equipo por temas, con botones (api/_instrucciones.js)
 //   /staff    coordinadora (o Admin): invitar a las chicas de El Vaso Maíz a un evento
 //   /configurar (Admin) activa los botones del bot y la lista de comandos
 // El staff (Rol "Staff") solo usa Telegram: recibe invitaciones con botones
@@ -20,6 +21,7 @@ const {
   puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
   pedirAlta, esRespuestaAlta, agregarStaff, activarStaff, enlaceActivacion,
 } = require('./_staff');
+const { instrucciones, tema } = require('./_instrucciones');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -82,7 +84,7 @@ function ayuda(colaborador) {
   }
   if (colaborador.rol === ROLES.STAFF) {
     return `${colaborador.nombre} (${ROL_TEXTO[ROLES.STAFF]})\n\n` +
-      '/hoy — tus eventos confirmados de hoy\n/eventos — tus próximos eventos confirmados\n/salir — desvincular este Telegram\n\n' +
+      '/hoy — tus eventos confirmados de hoy\n/eventos — tus próximos eventos confirmados\n/instrucciones — cómo funciona todo\n/salir — desvincular este Telegram\n\n' +
       'Aquí te llegan las invitaciones a eventos: contesta con los botones "Sí puedo" o "No puedo".';
   }
   const comandos = [
@@ -92,7 +94,7 @@ function ayuda(colaborador) {
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/configurar — activar botones y comandos del bot');
-  comandos.push('/salir — desvincular este Telegram');
+  comandos.push('/instrucciones — cómo funciona todo', '/salir — desvincular este Telegram');
   return `${colaborador.nombre} (${ROL_TEXTO[colaborador.rol] || colaborador.rol})\n\n${comandos.join('\n')}\n\n` +
     `Aquí te llegan las emergencias${colaborador.rol === ROLES.ADMIN ? ', los pedidos nuevos y el balance semanal' : ''}.\n` +
     `Para marcar checklist o cambiar estatus usa la app: ${URL_APP}`;
@@ -172,6 +174,7 @@ async function configurarBot() {
       { command: 'staff', description: 'Invitar staff de El Vaso Maíz a un evento' },
       { command: 'alertas', description: 'Emergencias y alertas de hoy' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
+      { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'ayuda', description: 'Qué puedo hacer' },
       { command: 'salir', description: 'Desvincular este Telegram' },
     ],
@@ -182,7 +185,7 @@ async function configurarBot() {
 }
 
 // Toques de botones: menú de /staff (st:...), respuestas a invitaciones (inv:...)
-// y "Confirmar" de los avisos de un evento (cf:eventoId).
+// "Confirmar" de los avisos de un evento (cf:eventoId) y temas de /instrucciones (in:tema).
 async function atenderBoton(cb) {
   const chatId = cb.message && cb.message.chat && cb.message.chat.id;
   const mensajeId = cb.message && cb.message.message_id;
@@ -197,6 +200,13 @@ async function atenderBoton(cb) {
     const r = await responderInvitacion(colaborador, id, accion === 's');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
     if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    return;
+  }
+
+  if (tipo === 'in') {
+    const r = tema(colaborador, await puedeCoordinar(colaborador), accion);
+    await responderBoton(cb.id);
+    if (r) await enviarTelegram(chatId, r.texto, r.botones);
     return;
   }
 
@@ -266,6 +276,7 @@ async function responder(mensaje) {
   switch (comando) {
     case '/hoy': return listaEventos(colaborador, true);
     case '/eventos': return listaEventos(colaborador, false);
+    case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
     case '/staff':
       return (await puedeCoordinar(colaborador)) ? menuInicio()
