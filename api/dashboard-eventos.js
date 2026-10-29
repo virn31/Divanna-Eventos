@@ -35,7 +35,7 @@ const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
-const { staffPorEvento, invitarDesdeApp } = require('./_staff');
+const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { confirmarCambio, descartarCambio } = require('./_cambios');
 const { leerCambio } = require('./_pedidos');
@@ -392,7 +392,8 @@ module.exports = async (req, res) => {
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    if (!(await requerirSesion(req, res, [ROLES.ADMIN]))) return;
+    const admin = await requerirSesion(req, res, [ROLES.ADMIN]);
+    if (!admin) return;
 
     // Traemos todas las brigadas (para el nombre/vehículo/líder de cada una)
     const brigadasData = await airtableGet(`${TABLES.BRIGADAS}`);
@@ -418,6 +419,10 @@ module.exports = async (req, res) => {
         invitados: r.fields.Invitados || null,
         brigadaId: brigadaIds[0] || '',
         encargadaIds: r.fields.Encargada || [],
+        vasoMaiz: esVasoMaiz(r.fields),
+        // Encargado de producción de El Vaso Maíz y su última respuesta.
+        produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
+        produccionRespuesta: (r.fields.Produccion_Respuesta || '').trim().split('\n').pop() || '',
         enteradoPor: r.fields.Enterado_Por || '',
         enteradoHora: r.fields.Enterado_Hora || '',
         brigadaNombre: brigadaInfo ? brigadaInfo.Nombre_Brigada : 'Sin asignar',
@@ -495,7 +500,14 @@ module.exports = async (req, res) => {
     const encargadas = await colaboradoresActivos()
       .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA).map(c => ({ id: c.id, nombre: c.fields.Nombre || '' })))
       .catch(err => { console.error('No se pudo leer COLABORADORES:', err.message); return []; });
-    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas });
+    // Lo mismo que tiene la gerente en su app (Diana es la jefa de todo, 2026-10-29):
+    // invitar staff por evento y elegir al encargado de producción. Si falla, se dice.
+    let staffError = false;
+    const [staffEventos, produccion] = await Promise.all([
+      staffParaApp(admin).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; }),
+      opcionesProduccion(admin).catch(err => { console.error('No se pudo leer quién hace producción:', err.message); return null; }),
+    ]);
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

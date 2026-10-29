@@ -1170,6 +1170,22 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
   ok(res.code === 403 && llamadas.length === 1, 'cambio: solo Diana y Víctor confirman cambios');
 
+  // Diana es la jefa de todo: invita a cualquier chica y elige producción desde el dashboard.
+  reset();
+  respuestas = [ADMIN, EV_STAFF, { records: [EV_STAFF] }, { records: [ZOE_OTRA] }, { records: [] }, { records: [{ id: 'recINVITA00000030' }] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_STAFF.id, accion: 'invitar_staff', colaboradorIds: [ZOE_OTRA.id] } }, res);
+  ok(res.code === 200 && JSON.stringify(res.body.enviadas) === JSON.stringify(['Zoe']) && telegram.some(t => t.body.chat_id === '557' && t.body.text.startsWith('Hola Zoe 👋 Diana te programó')),
+    'Diana: invita desde el dashboard a cualquier chica del staff (también las de otra coordinadora)');
+
+  reset();
+  respuestas = [ADMIN, EV_LEJOS, { records: [ZOE_OTRA, ENCARG] }, { records: [ADMIN, ZOE_OTRA] }, {}, ZOE_OTRA];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: ZOE_OTRA.id } }, res);
+  ok(res.code === 200 && JSON.stringify(llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Encargado_Produccion) === JSON.stringify([ZOE_OTRA.id])
+    && telegram.some(t => t.body.chat_id === '557' && t.body.text.includes('te toca la producción de EVT-PR2')),
+    'Diana: elige al encargado de producción desde el dashboard');
+
   reset();
   respuestas = [
     GERENTE,

@@ -174,6 +174,27 @@
   .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
   .spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--maiz); animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  /* ---------- Canal con DiMa (igual que la app de la gerente) ---------- */
+  .dima-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); left:20px; z-index:40;
+    padding:0 18px; height:54px; border-radius:27px; border:none; background:var(--divanna); color:var(--ink);
+    font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+  }
+  .dima-fab[hidden], .dima-panel[hidden]{display:none;}
+  .dima-panel{
+    position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
+    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
+    padding:14px 14px calc(14px + var(--safe-bottom)); max-width:760px; margin:0 auto;
+  }
+  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:800; margin-bottom:8px;}
+  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .dima-msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:120px;}
+  .dima-msg{max-width:85%; padding:10px 12px; border-radius:14px; font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
+  .dima-msg.yo{align-self:flex-end; background:var(--maiz); color:var(--ink);}
+  .dima-msg.dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
+  .dima-form{display:flex; gap:8px; margin-top:10px;}
+  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+  .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -201,6 +222,12 @@
   </main>
 </div>
 
+<button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
+<div class="dima-panel" id="dimaPanel" hidden>
+  <div class="dima-top"><span>💬 DiMa, tu asistente</span><span><button id="dimaNueva">Nueva plática</button><button id="dimaCerrar">✕</button></span></div>
+  <div class="dima-msgs" id="dimaMsgs"></div>
+  <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de los eventos"></textarea><button type="submit">Enviar</button></form>
+</div>
 <script src="alertas.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
@@ -211,7 +238,7 @@
   if(!sesion || !sesion.token || sesion.rol !== 'Admin') location.replace('./');
 
   function salir(){
-    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    try { localStorage.removeItem(SESION_KEY); sessionStorage.removeItem('dima_equipo'); } catch(e){}
     location.replace('./');
   }
 
@@ -412,11 +439,71 @@
 
   // Staff de El Vaso Maíz invitado por Telegram (/staff) y su respuesta.
   const ICONO_STAFF = { 'Confirmó': '✅', 'Invitada': '⏳', 'No puede': '❌' };
+  // Staff de El Vaso Maíz: lo mismo que la gerente en su app (Diana ve a todas
+  // las chicas). staffEventos solo trae eventos autorizados de hoy en adelante.
+  let staffEventos = null, staffError = false, opcionesProduccion = null;
+  const STAFF_ESTADO = {
+    confirmo: '✅ confirmó',
+    invitada: '⏳ invitada, esperando respuesta',
+    no_puede: '❌ dijo que no podía',
+    sin_telegram: '📵 no ha activado sus mensajes (pide su enlace en /staff)',
+    choque: '⛔ ya tiene otro evento a esa hora',
+  };
   function bloqueStaff(ev){
-    if(!ev.personalRequerido && !(ev.staff || []).length) return '';
-    const confirmadas = (ev.staff || []).filter(s => s.estado === 'Confirmó').length;
-    const lista = (ev.staff || []).map(s => `${esc(s.nombre)} ${ICONO_STAFF[s.estado] || ''}`).join(' · ');
-    return `<div class="motivo">🧑‍🍳 Staff: ${confirmadas} de ${ev.personalRequerido || '?'} confirmadas${lista ? ' — ' + lista : ' — aún sin invitar (la coordinadora usa /staff en Telegram)'}</div>`;
+    const s = staffEventos && staffEventos[ev.id];
+    if(!s){
+      if(!ev.personalRequerido && !(ev.staff || []).length) return '';
+      const confirmadas = (ev.staff || []).filter(x => x.estado === 'Confirmó').length;
+      const lista = (ev.staff || []).map(x => `${esc(x.nombre)} ${ICONO_STAFF[x.estado] || ''}`).join(' · ');
+      const aviso = staffError ? ' · ⚠️ no se pudo leer la lista para invitar; toca actualizar' : '';
+      return `<div class="motivo">🧑‍🍳 Staff: ${confirmadas} de ${ev.personalRequerido || '?'} confirmadas${lista ? ' — ' + lista : ''}${aviso}</div>`;
+    }
+    const confirmadas = s.chicas.filter(c => c.estado === 'confirmo').length;
+    const lista = s.chicas.length
+      ? s.chicas.map(c => {
+          const invitable = c.estado === 'libre' || c.estado === 'no_puede';
+          const nota = c.estado === 'choque' ? `${STAFF_ESTADO.choque} (${esc(c.choqueFolio)})` : (STAFF_ESTADO[c.estado] || '');
+          return `<label class="asig-check"><input type="checkbox" class="staff-chica" value="${esc(c.id)}" ${invitable ? '' : 'disabled'}> ${esc(c.nombre)}${nota ? ` <span class="evento-sub">${nota}</span>` : ''}</label>`;
+        }).join('')
+      : '<div class="ag-label">No hay staff agregado: usa "➕ Agregar personal" en /staff de Telegram.</div>';
+    return `
+      <details class="agenda staff-inv">
+        <summary>🧑‍🍳 Staff · ${confirmadas} de ${s.necesita || '?'} confirmadas</summary>
+        ${lista}
+        ${s.chicas.length ? `<div class="instr-fila"><button class="instr-guardar staff-invitar" data-id="${esc(ev.id)}">📨 Invitar por Telegram</button><span class="instr-msg staff-msg"></span></div>` : ''}
+      </details>`;
+  }
+
+  async function invitarStaff(btn){
+    const caja = btn.closest('.staff-inv');
+    const msg = caja.querySelector('.staff-msg');
+    const ids = [...caja.querySelectorAll('.staff-chica:checked')].map(c => c.value);
+    if(!ids.length){ msg.textContent = 'Marca a quién quieres invitar.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Enviando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'invitar_staff', colaboradorIds: ids }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = (d.enviadas.length ? `📨 Invitación enviada a ${d.enviadas.join(', ')}. Sus respuestas te llegan por Telegram.` : 'No se envió ninguna invitación nueva.')
+        + (d.fallidas.length ? ` ⚠️ No les llegó a: ${d.fallidas.join(', ')}. Avísales por otro medio.` : '');
+      if(!d.fallidas.length) setTimeout(loadDashboard, 4000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Encargado de producción y su última respuesta.
+  function lineaProduccion(ev){
+    if(!ev.produccionId) return '';
+    const p = (opcionesProduccion || []).find(x => x.id === ev.produccionId);
+    return `<div class="motivo">🍳 Producción: <b>${esc(p ? p.nombre : 'asignada')}</b> · ${esc(ev.produccionRespuesta || 'todavía no responde')}</div>`;
   }
 
   // Plazo de 12 h que DiMa le prometió al cliente.
@@ -603,6 +690,7 @@
           ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
           ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
           ${bloqueCambio(ev)}
+          ${lineaProduccion(ev)}
           ${bloqueStaff(ev)}
           ${bloqueMensajeCliente(ev)}
           ${bloqueAsignar(ev)}
@@ -637,6 +725,9 @@
     conectarMensajeCliente(mainContent);
     conectarAgenda(mainContent);
     mainContent.querySelectorAll('.asig-guardar').forEach(b => b.addEventListener('click', () => guardarAsignacion(b)));
+    mainContent.querySelectorAll('.staff-invitar').forEach(b => b.addEventListener('click', () => invitarStaff(b)));
+    // Marcar chicas no debe perderse con la actualización de cada 30 s.
+    mainContent.querySelectorAll('.staff-inv').forEach(d => d.addEventListener('change', () => { d.dataset.sucio = '1'; }));
     mainContent.querySelectorAll('.resolver-btn').forEach(b => {
       b.addEventListener('click', () => resolverAlerta(b));
     });
@@ -659,6 +750,12 @@
         ${encargadas.length
           ? encargadas.map(c => `<label class="asig-check"><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${ev.encargadaIds.includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')
           : '<div class="ag-label">No hay encargadas activas en COLABORADORES.</div>'}
+        ${ev.vasoMaiz || ev.produccionId ? (opcionesProduccion ? `
+          <label class="ag-label">🍳 Encargado de producción (le llega la lista por Telegram 2 días antes y el mismo día)</label>
+          <select class="asig-produccion">
+            <option value="">Sin encargado de producción</option>
+            ${opcionesProduccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
+          </select>` : '<div class="ag-label">🍳 No se pudo leer quién puede hacer producción. Toca actualizar.</div>') : ''}
         <div class="instr-fila">
           <button class="instr-guardar asig-guardar" data-id="${esc(ev.id)}">Guardar y avisar</button>
           <span class="instr-msg asig-msg"></span>
@@ -689,10 +786,15 @@
           accion: 'asignar',
           brigadaId: caja.querySelector('.asig-brigada').value,
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+          // Solo si está el selector (eventos de El Vaso Maíz y lista leída): si no, no se toca.
+          ...(caja.querySelector('.asig-produccion') ? { produccionId: caja.querySelector('.asig-produccion').value } : {}),
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = textoAvisosAsignacion(data);
+      const p = data.produccion;
+      msg.textContent = textoAvisosAsignacion(data)
+        + (p && p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
+        + (p && p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
       // Si algo no se entregó, el mensaje se queda a la vista (no se repinta).
       if(!(data.erroresAvisos || []).length && !(data.sinTelegram || []).length) setTimeout(loadDashboard, 800);
     } catch(e){
@@ -864,6 +966,9 @@
       inventario = data.inventario || [];
       brigadas = data.brigadas || [];
       encargadas = data.encargadas || [];
+      staffEventos = data.staffEventos || null;
+      staffError = !!data.staffError;
+      opcionesProduccion = data.produccion || null;
       // Suena y vibra si apareció una emergencia o alerta de seguridad nueva.
       DimaAlertas.revisar((data.eventos || []).flatMap(ev => [
         ev.emergencia ? `${ev.id}|E|${ev.motivoEmergencia}` : null,
@@ -881,7 +986,48 @@
   refreshBtn.addEventListener('click', loadDashboard);
   $('logoutBtn').addEventListener('click', salir);
 
+  // ---------- Canal con DiMa (Diana, como la gerente en su app) ----------
+  const DIMA_KEY = 'dima_equipo';
+  let dimaHistorial = [];
+  try { dimaHistorial = JSON.parse(sessionStorage.getItem(DIMA_KEY) || '[]'); } catch(e){ dimaHistorial = []; }
+
+  function pintarDima(extra){
+    const saludo = [{ rol: 'dima', texto: 'Hola 👋 Soy DiMa. Pregúntame lo que necesites de la plataforma, Telegram, el staff o los eventos.' }];
+    $('dimaMsgs').innerHTML = [...saludo, ...dimaHistorial, ...(extra ? [extra] : [])].map(m => `<div class="dima-msg ${m.rol}">${esc(m.texto)}</div>`).join('');
+    $('dimaMsgs').scrollTop = $('dimaMsgs').scrollHeight;
+  }
+
+  async function enviarDima(e){
+    e.preventDefault();
+    const texto = $('dimaTexto').value.trim();
+    if(!texto) return;
+    $('dimaTexto').value = '';
+    dimaHistorial.push({ rol: 'yo', texto });
+    pintarDima({ rol: 'dima', texto: 'Escribiendo…' });
+    try {
+      const d = await api('/api/dima-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'equipo', historial: dimaHistorial.slice(-20) }),
+      });
+      dimaHistorial.push({ rol: 'dima', texto: d.texto });
+      pintarDima();
+    } catch(err){
+      if(err.message === 'sesion') return;
+      dimaHistorial.pop();
+      $('dimaTexto').value = texto;
+      pintarDima({ rol: 'dima', texto: '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No pude contestar, intenta de nuevo.') });
+    }
+    sessionStorage.setItem(DIMA_KEY, JSON.stringify(dimaHistorial.slice(-20)));
+  }
+
+  $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });
+  $('dimaCerrar').addEventListener('click', () => { $('dimaPanel').hidden = true; $('dimaFab').hidden = false; });
+  $('dimaNueva').addEventListener('click', () => { dimaHistorial = []; sessionStorage.removeItem(DIMA_KEY); pintarDima(); });
+  $('dimaForm').addEventListener('submit', enviarDima);
+
   if(sesion && sesion.rol === 'Admin'){
+    $('dimaFab').hidden = false;
     DimaAlertas.iniciar({ contenedorBoton: $('alertasBanner'), token: () => sesion.token });
     loadDashboard();
     // Actualiza cada 30s mientras la pantalla está abierta.
