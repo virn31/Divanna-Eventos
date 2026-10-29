@@ -96,15 +96,15 @@ function mesas(personas, silla, mantel, conCubiertos) {
 
 const PRODUCTOS = {
   // ---------- El Vaso Maíz (piezas a preparar) ----------
-  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (55 pz)', negocio: VM, piezas: 55 },
-  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (75 pz)', negocio: VM, piezas: 75 },
-  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (90 pz)', negocio: VM, piezas: 90 },
-  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100 },
-  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (120 pz)', negocio: VM, piezas: 120 },
-  vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1 },
-  vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1 },
-  vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1 },
-  vm_maruchan: { nombre: 'Maruchan preparada (por pieza)', negocio: VM, piezas: 1 },
+  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (55 pz)', negocio: VM, piezas: 55, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (75 pz)', negocio: VM, piezas: 75, contenido: { 'Fresas con crema': 10, 'Esquites': 10, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (90 pz)', negocio: VM, piezas: 90, contenido: { 'Fresas con crema': 15, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (120 pz)', negocio: VM, piezas: 120, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1, contenido: { 'Sabritas preparadas': 1 } },
+  vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Raspados': 1 } },
+  vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Elotes forrados': 1 } },
+  vm_maruchan: { nombre: 'Maruchan preparada (por pieza)', negocio: VM, piezas: 1, contenido: { 'Maruchan preparadas': 1 } },
   vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
 
   // ---------- Divanna: mobiliario por pieza ----------
@@ -189,6 +189,26 @@ function normalizarProductos(lista) {
 // Lee EVENTOS.Productos (JSON). Si está vacío o roto, lista vacía.
 function leerProductos(texto) {
   try { return normalizarProductos(JSON.parse(texto || '[]')); } catch (e) { return []; }
+}
+
+// Lista de producción de El Vaso Maíz: cuánto de cada cosa hay que preparar
+// (los paquetes se desglosan según el catálogo). Lo que no tiene desglose
+// (pieza suelta) va aparte con su nota tal cual: no se adivina qué es.
+// { productos: [{ nombre, cantidad }], sinDesglose: [{ cantidad, nota }], piezas }
+function produccionVasoMaiz(lista) {
+  const totales = new Map();
+  const sinDesglose = [];
+  for (const p of lista) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod || prod.negocio !== VM) continue;
+    if (!prod.contenido) { sinDesglose.push({ cantidad: p.cantidad, nota: p.nota || '' }); continue; }
+    for (const [nombre, n] of Object.entries(prod.contenido)) totales.set(nombre, (totales.get(nombre) || 0) + n * p.cantidad);
+  }
+  return {
+    productos: [...totales].map(([nombre, cantidad]) => ({ nombre, cantidad })),
+    sinDesglose,
+    piezas: piezasVasoMaiz(lista),
+  };
 }
 
 function piezasVasoMaiz(lista) {
@@ -363,6 +383,7 @@ module.exports = {
   normalizarProductos,
   leerProductos,
   piezasVasoMaiz,
+  produccionVasoMaiz,
   personalVasoMaiz,
   inventarioRequerido,
   inicioEvento,

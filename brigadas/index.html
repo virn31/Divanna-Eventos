@@ -402,8 +402,16 @@
           ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
         </select>
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
+        ${opcionesAsignar.produccion ? `
+          <div style="margin-top:10px; font-weight:800;">🍳 Encargado de producción</div>
+          <select class="asig-produccion">
+            <option value="">Sin encargado de producción</option>
+            ${opcionesAsignar.produccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
+          </select>
+          <div class="asig-msg">Le llega por Telegram la lista de producción dos días antes y el mismo día.</div>`
+          : `<div class="asig-msg">🍳 No se pudo leer quién puede hacer producción. Toca actualizar.</div>`}
         <button class="asig-guardar" data-evento="${esc(ev.id)}">Guardar y avisar</button>
-        <div class="asig-msg"></div>
+        <div class="asig-msg asig-resultado"></div>
       </details>`;
   }
 
@@ -440,6 +448,13 @@
       </details>`;
   }
 
+  // Quién tiene la producción del evento y su última respuesta (solo la gerente).
+  function lineaProduccion(ev){
+    if(!opcionesAsignar || !ev.vasoMaiz || !ev.produccionId) return '';
+    const p = (opcionesAsignar.produccion || []).find(x => x.id === ev.produccionId);
+    return `<div class="instr-box"><b>🍳 Producción: ${esc(p ? p.nombre : 'asignada')}</b>${esc(ev.produccionRespuesta || 'Todavía no responde.')}</div>`;
+  }
+
   async function invitarStaff(btn){
     const caja = btn.closest('.asignar-box');
     const msg = caja.querySelector('.staff-msg');
@@ -467,7 +482,7 @@
 
   async function guardarAsignacion(btn){
     const caja = btn.closest('.asignar-box');
-    const msg = caja.querySelector('.asig-msg');
+    const msg = caja.querySelector('.asig-resultado');
     btn.disabled = true;
     msg.textContent = 'Guardando…';
     try {
@@ -479,12 +494,19 @@
           accion: 'asignar',
           brigadaId: caja.querySelector('.asig-brigada').value,
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+          // Si no se pudo leer la lista, no se manda (el servidor no toca al encargado actual).
+          ...(caja.querySelector('.asig-produccion') ? { produccionId: caja.querySelector('.asig-produccion').value } : {}),
         }),
       });
+      const p = d.produccion;
+      const textoProduccion = !p ? ''
+        : (p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
+          + (p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
       msg.textContent = !d.avisados ? 'Guardado. No hay nadie nuevo a quien avisar.'
         : `Guardado. Avisos a ${d.avisados}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculados, app ${d.porPush}.`
           + ((d.sinTelegram || []).length ? ` Sin Telegram: ${d.sinTelegram.join(', ')}.` : '')
           + ((d.erroresAvisos || []).length ? ` ⚠️ ${d.erroresAvisos.join(' · ')}` : '');
+      msg.textContent += textoProduccion;
     } catch(e){
       if(e.message === 'sesion') return;
       msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
@@ -582,6 +604,7 @@
             ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
             : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
+          ${lineaProduccion(ev)}
           ${bloqueAsignar(ev)}
           ${bloqueStaff(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}

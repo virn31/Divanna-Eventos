@@ -505,5 +505,6 @@ module.exports = {
   invitarDesdeApp,
   textoInvitacion,
   horaTexto,
+  fechaTexto,
   salidaTexto,
 };

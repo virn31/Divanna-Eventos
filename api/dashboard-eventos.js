@@ -18,6 +18,8 @@
 // borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
 // La gerente de El Vaso Maíz también puede asignar, solo en eventos de El Vaso
 // Maíz; en ese caso se avisa a Diana y Víctor por Telegram.
+// En "asignar" también puede venir produccionId: el encargado de producción de
+// El Vaso Maíz (api/_produccion.js); si cambia, se le avisa.
 // POST accion "invitar_staff": la gerente (o un Admin) invita a sus chicas a un
 // evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
 // Telegram y les llega la invitación con "Sí puedo / No puedo".
@@ -31,6 +33,7 @@ const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp } = require('./_staff');
+const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -209,10 +212,22 @@ async function resolverPedido(req, res, colaborador) {
       res.status(400).json({ error: 'Parámetros inválidos' });
       return;
     }
+    // Encargado de producción (opcional; solo si viene en la petición): debe estar
+    // entre las opciones de quien asigna. '' lo quita.
+    const cambiaProduccion = typeof b.produccionId === 'string';
+    if (cambiaProduccion && b.produccionId) {
+      const opciones = await opcionesProduccion(colaborador);
+      if (!opciones.some(o => o.id === b.produccionId)) {
+        res.status(400).json({ error: 'Esa persona no puede ser encargada de producción.' });
+        return;
+      }
+    }
+    const produccionAntes = (f.Encargado_Produccion || [])[0] || '';
     const colaboradores = await colaboradoresActivos();
     // Solo se aceptan encargadas activas con ese rol.
     const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
+    if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
     const antes = equipoDe(f, colaboradores);
     const despues = equipoDe({ ...f, ...campos }, colaboradores);
     const nuevos = despues.filter(id => !antes.includes(id));
@@ -233,12 +248,20 @@ async function resolverPedido(req, res, colaborador) {
       const nombres = colaboradores.filter(c => encargadas.includes(c.id)).map(c => c.fields.Nombre).join(', ');
       await enviarTelegramEquipo({
         roles: [ROLES.ADMIN],
-        texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}.`,
+        texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}`
+          + `${cambiaProduccion && b.produccionId ? ' · producción: ' + ((colaboradores.find(c => c.id === b.produccionId) || {}).fields || {}).Nombre : ''}.`,
       }).catch(err => console.error('Error avisando asignación de la gerente:', err));
+    }
+    // Nuevo encargado de producción: lista ya si faltan 2 días o menos; si no, aviso corto.
+    let produccion = null;
+    if (cambiaProduccion && b.produccionId && b.produccionId !== produccionAntes) {
+      produccion = await avisarAsignacion(b.produccionId, { folio: f.Folio_Evento, fecha: f.Fecha_Evento })
+        .catch(err => { console.error('Error avisando producción:', err.message); return { enviados: [], fallidos: [{ nombre: 'el encargado de producción', motivo: 'error al enviar' }] }; });
     }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
     res.status(200).json({
       success: true,
+      produccion,
       avisados: nuevos.length,
       porTelegram,
       porPush,

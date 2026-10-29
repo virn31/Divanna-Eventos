@@ -73,6 +73,9 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - Debajo tiene **🧑‍🍳 Staff**: ve a sus chicas con su marca, elige a las que quiere y toca **Invitar por
   Telegram**. Es lo mismo que `/staff`; las respuestas le llegan por Telegram. Dar de alta a una chica nueva
   sigue siendo `/staff` → **Agregar personal**.
+- En **Asignar** también elige al **🍳 Encargado de producción**. Dos días antes le llega por Telegram la lista
+  de producción del día (para revisar inventario y reportar insumos) y el mismo día otra para confirmar
+  ingredientes. Sus respuestas le llegan a la gerente con copia a Diana y Víctor, y se ven en el evento.
 - No ve precios ni pagos de los pedidos.
 
 ## DiMa, curso y mensajes

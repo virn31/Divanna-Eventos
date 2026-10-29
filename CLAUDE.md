@@ -27,7 +27,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 - **Bot de Telegram interno** (solo equipo, no clientes): avisos y consultas según rol. Ver `docs/telegram.md`.
 - Sesión de la app: usuario + PIN contra COLABORADORES → token HMAC (`SESSION_SECRET`) en `Authorization: Bearer`. Ver `api/_sesion.js`.
 - Integraciones Google en `api/_google-integrations.js` (Calendar, Sheets, Gmail).
-- Cron semanal en `vercel.json` (balance, lunes).
+- Crons en `vercel.json`: balance (lunes) y producción de El Vaso Maíz (diario 8:00).
 
 ## Mapa del repo
 
@@ -39,6 +39,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `api/_pedidos.js` | Crea CLIENTE + EVENTO (`Autorizacion_Diana` = Pendiente, `Monto_Estimado_IA` si DiMa lo calculó) y avisa por correo. Lo usan el chat y el formulario. |
 | `api/_productos.js` | Catálogo estructurado (claves de producto, piezas de El Vaso Maíz, mobiliario por categoría de Divanna) y cálculo de capacidad: personal por piezas y horas, inventario requerido, ventana de ocupación. DiMa manda los productos con estas claves; se guardan en `EVENTOS.Productos`. |
 | `api/_agenda.js` | Semáforo de disponibilidad: cruza un evento con los eventos AUTORIZADOS que se traslapan (inventario por categoría y por artículo exacto, Casa Isabella, entregas de Divanna por día, personal y equipos de El Vaso Maíz contra `PERSONAL_DIA`). Lo usan `_pedidos.js` al registrar (guarda `Disponibilidad`) y el dashboard (en vivo). |
+| `api/_produccion.js` + `api/produccion-diaria.js` | Encargado de producción de El Vaso Maíz: la gerente lo elige por evento en "Asignar" (`EVENTOS.Encargado_Produccion`). Cron diario 8:00 Culiacán (`0 15 * * *`): le manda por Telegram la lista de producción (paquetes desglosados según `PRODUCTOS[].contenido`, sumada por día) dos días antes ("verifica el inventario y repórtame los insumos") y el mismo día ("confirma si tenemos todos los ingredientes"), con botones `pr:o\|f:<tipo>:<fecha>`. Si se asigna con 2 días o menos, le llega en ese momento. Respuestas a la gerente + Admin y en `Produccion_Respuesta`; `Produccion_Avisos` evita repetir. Plan Hobby: el cron puede correr en cualquier minuto de esa hora. |
 | `api/_staff.js` | Staff de El Vaso Maíz por Telegram: `/staff` (solo Admin o `Coordina_Staff`: Ángela, Diana y Víctor) tiene **Agregar personal** (nombre + teléfono; el bot da un enlace `t.me/dimaclnbot?start=s_<id>_<firma>` y la chica solo toca "Iniciar", sin usuario ni PIN) y **Asignar a evento**: lista eventos autorizados de El Vaso Maíz, se eligen chicas con botones y se les manda la invitación con "Sí puedo / No puedo"; las respuestas le llegan a quien invitó. Tabla STAFF_EVENTO `tblvTVcC3NMt5ddjr`. La selección viaja en el `callback_data` (máscara de bits). |
 | `api/sesion.js` + `api/_sesion.js` | Login (usuario + PIN de 6 dígitos), token de 7 días y permisos por rol. Cada llamada revisa en Airtable que el colaborador siga `Activo`. |
 | `api/brigada-eventos.js` | GET eventos según el rol (líder/asistente: su brigada; encargada: los de `EVENTOS.Encargada`) + alertas de otras brigadas del día. |
@@ -78,7 +79,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 
 1. Todo texto que viene de clientes (chat, formulario) se escapa antes de pintarlo con `innerHTML` (`esc()` en las apps, `escapar()` en la landing) o en correos (`escapeHtml`).
 2. Los campos de Airtable deben existir con el nombre exacto. Ya hubo un bug por `Monto_Cotizacion` (el real es `Monto_Estimado_IA`). Verifica el esquema antes de escribir un campo nuevo.
-3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 10 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal (los archivos con `_` no cuentan).
+3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 11 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal, produccion-diaria (los archivos con `_` no cuentan). Queda 1 libre.
 4. La PWA ya está instalada con scope `/brigadas/` y el APK apunta ahí. **No cambies el scope ni el `start_url`** sin plan de migración.
 5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v8`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.

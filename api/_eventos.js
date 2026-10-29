@@ -52,6 +52,9 @@ function formatearEvento(r) {
     vasoMaiz: esVasoMaiz(r.fields),
     brigadaId: (r.fields.Brigada_Asignada || [])[0] || '',
     encargadaIds: r.fields.Encargada || [],
+    // Encargado de producción de El Vaso Maíz y su última respuesta (api/_produccion.js).
+    produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
+    produccionRespuesta: (r.fields.Produccion_Respuesta || '').trim().split('\n').pop() || '',
     fecha: r.fields.Fecha_Evento || '',
     horaInicio: r.fields.Hora_Inicio || '',
     personalRequerido: r.fields.Personal_Requerido || 0,

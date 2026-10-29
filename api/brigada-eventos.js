@@ -14,6 +14,7 @@
 const { ROLES, requerirSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
 const { staffParaApp } = require('./_staff');
+const { opcionesProduccion: opcionesDeProduccion } = require('./_produccion');
 
 const ID_REGISTRO = /^rec[A-Za-z0-9]{14}$/;
 
@@ -41,9 +42,10 @@ module.exports = async (req, res) => {
     const eventos = await leerEventos(eventoIds);
     // La gerente también ve e invita al staff de sus eventos. Si no se puede
     // leer, se dice (staffError) en vez de mostrar la lista vacía.
-    let staffEventos = null, staffError = false;
+    let staffEventos = null, staffError = false, opcionesProduccion = null;
     if (colaborador.gerente && colaborador.rol !== ROLES.ADMIN) {
       staffEventos = await staffParaApp(colaborador).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; });
+      opcionesProduccion = await opcionesDeProduccion(colaborador).catch(err => { console.error('No se pudo leer quién hace producción:', err.message); return null; });
     }
 
     res.status(200).json({
@@ -53,7 +55,7 @@ module.exports = async (req, res) => {
       alertasEquipo,
       ...(colaborador.rol === ROLES.ADMIN ? { opciones: await opcionesVista() } : {}),
       // La gerente asigna brigada y encargada a los eventos de El Vaso Maíz.
-      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: await opcionesVista(), staffEventos, staffError } : {}),
+      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: { ...(await opcionesVista()), produccion: opcionesProduccion }, staffEventos, staffError } : {}),
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

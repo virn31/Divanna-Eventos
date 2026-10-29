@@ -28,6 +28,7 @@ const {
 const { instrucciones, tema } = require('./_instrucciones');
 const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_curso');
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
+const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -200,7 +201,8 @@ async function configurarBot() {
 
 // Toques de botones: menú de /staff (st:...), respuestas a invitaciones (inv:...)
 // "Confirmar" de los avisos de un evento (cf:eventoId), temas de /instrucciones (in:tema),
-// respuestas del curso (cu:...) y "Responder" de los mensajes directos (rs:...).
+// respuestas del curso (cu:...), "Responder" de los mensajes directos (rs:...)
+// y respuestas del encargado de producción (pr:...).
 async function atenderBoton(cb) {
   const chatId = cb.message && cb.message.chat && cb.message.chat.id;
   const mensajeId = cb.message && cb.message.message_id;
@@ -232,6 +234,14 @@ async function atenderBoton(cb) {
       await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.aviso}`);
       await enviarTelegram(chatId, r.siguiente.texto, r.siguiente.botones);
     }
+    return;
+  }
+
+  if (tipo === 'pr') {
+    // Encargado de producción: "Tenemos todo" / "Reportar insumos" (pr:o|f:<tipo>:<fecha>).
+    const r = await botonProduccion(chatId, colaborador, accion, id, sel);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
     return;
   }
 
@@ -311,6 +321,9 @@ async function responder(mensaje) {
   if (esRespuestaAlta(mensaje)) {
     return (await puedeCoordinar(colaborador)) ? agregarStaff(colaborador, texto) : 'Esta opción es solo para Ángela, Diana y Víctor.';
   }
+
+  // Insumos que faltan, escritos encima de la pregunta del aviso de producción.
+  if (esRespuestaProduccion(mensaje)) return atenderRespuestaProduccion(mensaje, colaborador);
 
   // Respuesta encima de una pregunta de /mensaje o de "↩️ Responder".
   if (esRespuestaMensaje(mensaje)) return atenderRespuesta(mensaje, colaborador);

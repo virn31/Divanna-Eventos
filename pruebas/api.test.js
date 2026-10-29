@@ -108,6 +108,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const chatApi = require(path.join(repo, 'api/dima-chat.js'));
   const pushApi = require(path.join(repo, 'api/push.js'));
   const telegramApi = require(path.join(repo, 'api/telegram.js'));
+  const produccionApi = require(path.join(repo, 'api/produccion-diaria.js'));
   // Cada llamada al chat simula una IP distinta para no chocar con el límite por IP.
   let ipN = 0;
   const chat = (body) => { const r = resMock(); return chatApi({ method: 'POST', body, headers: { 'x-forwarded-for': `10.0.0.${++ipN}` } }, r).then(() => r); };
@@ -915,11 +916,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { records: [EV_STAFF, EV_STAFF_CHOCA] },
     { records: [CHICA_G, CHICA_SIN_TG, CHICA_OCUPADA, ZOE_OTRA] },
     { records: [{ id: 'recINVITA00000020', fields: { Evento: [EV_STAFF_CHOCA.id], Colaborador: [CHICA_OCUPADA.id], Estado: 'Confirmó', Fecha_Evento: '2026-11-21' } }] },
+    // Quién puede ser encargado de producción.
+    { records: [CHICA_G, ZOE_OTRA, ENCARG] },
     { records: [{ id: 'recBRIGADA0000003', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz' } }] },
     { records: [ENCARG] },
   ];
   res = resMock();
   await eventosApi({ method: 'GET', headers: auth(tokenGer), query: {} }, res);
+  ok(JSON.stringify((res.body.opcionesAsignar.produccion || []).map(p => p.nombre + ':' + p.conTelegram)) === JSON.stringify(['Ana:false', 'Lucía:true']),
+    'producción: la gerente puede elegir a su staff y a las encargadas como encargado de producción (no al staff de otra coordinadora)');
   const consultaEventos = llamadas.find(l => l.url.includes('RECORD_ID()="recEVENTO0000VM02"'));
   ok(res.code === 200 && res.body.colaborador.gerente && consultaEventos && consultaEventos.url.includes('RECORD_ID()="recEVENTO0000VM01"'), 'gerente: ve los eventos de su brigada y todos los de El Vaso Maíz');
   ok(res.body.eventos[0].vasoMaiz && res.body.eventos[0].encargadaIds[0] === ENCARG.id && res.body.opcionesAsignar.encargadas.length === 1, 'gerente: recibe las opciones para asignar');
@@ -970,6 +975,113 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_STAFF.id, accion: 'invitar_staff', colaboradorIds: [] } }, res);
   ok(res.code === 400 && !telegram.length, 'gerente: invitar sin elegir a nadie no manda nada');
+
+  // ---------- Encargado de producción de El Vaso Maíz ----------
+  const hoyCln = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+  const enDias = (n) => { const d = new Date(`${hoyCln}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const EV_PROD = { id: 'recEVENTOPROD0001', fields: { Folio_Evento: 'EVT-PR1', Fecha_Evento: enDias(2), Hora_Inicio: '18:00', Ubicacion: 'Las Quintas', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Piezas_Vaso_Maiz: 150,
+    Productos: JSON.stringify([{ clave: 'vm_paquete_3', cantidad: 1 }, { clave: 'vm_raspado', cantidad: 50 }, { clave: 'vm_pieza', cantidad: 10, nota: 'fresas extra' }]),
+    Encargado_Produccion: [CHICA_G.id], Instrucciones_Equipo: 'Sin picante para niños' } };
+
+  reset();
+  respuestas = [{ records: [EV_PROD] }, CHICA_G, {}, { records: [] }, { records: [] }];
+  res = resMock();
+  await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
+  const avisoPrevio = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555');
+  const marcaPrevio = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+  ok(res.code === 200 && avisoPrevio && avisoPrevio.body.text.startsWith('Hola Lucía 👋 esta es la producción que necesitamos para el')
+    && avisoPrevio.body.text.includes('• Fresas con crema: 15') && avisoPrevio.body.text.includes('• Raspados: 50') && avisoPrevio.body.text.includes('10 pieza(s) suelta(s) de EVT-PR1: fresas extra')
+    && avisoPrevio.body.text.includes('Total: 150 piezas') && avisoPrevio.body.text.includes('📌 Sin picante para niños') && avisoPrevio.body.text.includes('verifica el inventario y repórtame las necesidades de insumos'),
+    'producción: dos días antes le llega al encargado la lista desglosada (paquetes, piezas sueltas con su nota) y las instrucciones');
+  ok(botonesDe(avisoPrevio).join() === `pr:o:previo:${enDias(2)},pr:f:previo:${enDias(2)}` && !avisoPrevio.body.text.includes('$')
+    && marcaPrevio && marcaPrevio.body.records[0].fields.Produccion_Avisos.startsWith(`previo:${CHICA_G.id} `),
+    'producción: el aviso previo trae "Tenemos todo / Reportar insumos", no trae montos y queda anotado');
+
+  reset();
+  respuestas = [{ records: [{ ...EV_PROD, fields: { ...EV_PROD.fields, Produccion_Avisos: `previo:${CHICA_G.id} 2026-10-29T15:00:00Z` } }] }, { records: [] }, { records: [] }];
+  res = resMock();
+  await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
+  ok(res.code === 200 && !telegram.length && !llamadas.some(l => l.method === 'PATCH'), 'producción: si el cron corre otra vez no repite el aviso');
+
+  const EV_HOY = { ...EV_PROD, fields: { ...EV_PROD.fields, Fecha_Evento: hoyCln } };
+  reset();
+  respuestas = [{ records: [] }, { records: [] }, { records: [EV_HOY] }, CHICA_G, {}];
+  res = resMock();
+  await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
+  const avisoHoy = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555');
+  ok(avisoHoy && avisoHoy.body.text.startsWith('Hola Lucía 👋 esta es la producción del día de hoy') && avisoHoy.body.text.includes('confirma si tenemos todos los ingredientes')
+    && botonesDe(avisoHoy).join() === `pr:o:dia:${hoyCln},pr:f:dia:${hoyCln}`, 'producción: el mismo día le llega la producción de hoy para confirmar ingredientes');
+
+  reset();
+  respuestas = [{ records: [{ ...EV_PROD, fields: { ...EV_PROD.fields, Encargado_Produccion: [CHICA_SIN_TG.id] } }] }, CHICA_SIN_TG, { records: [] }, { records: [] },
+    { records: [GERENTE, ADMIN_T] }, { records: [GERENTE, ADMIN_T] }];
+  res = resMock();
+  await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
+  ok(telegram.some(t => t.body.chat_id === '444' && t.body.text.includes('No pude mandar la lista de producción a:') && t.body.text.includes('Mariana') && t.body.text.includes('no ha activado su Telegram')),
+    'producción: si el encargado no tiene Telegram, la gerente se entera');
+
+  // Respuestas del encargado.
+  const botonPr = (dato) => ({ callback_query: { id: 'cb9', data: dato, message: { message_id: 70, chat: { id: 555, type: 'private' }, text: 'Lista de producción' } } });
+  reset();
+  respuestas = [{ records: [CHICA_G] }, { records: [EV_PROD] }, {}, { records: [GERENTE, ADMIN_T] }, { records: [GERENTE, ADMIN_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonPr(`pr:o:previo:${enDias(2)}`) }, res);
+  const respTodo = llamadas.find(l => l.method === 'PATCH');
+  ok(respTodo && respTodo.body.records[0].fields.Produccion_Respuesta.includes('✅ Lucía: tenemos todo')
+    && ['444', '111'].every(id => telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === id && t.body.text.includes('Lucía confirmó que tenemos todo') && t.body.text.includes('EVT-PR1')))
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Respondiste que tenemos todo')),
+    'producción: "Tenemos todo" queda anotado y le llega a la gerente con copia a Diana y Víctor');
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, { records: [EV_PROD] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonPr(`pr:f:previo:${enDias(2)}`) }, res);
+  const pideInsumos = telegram.find(t => t.metodo === 'sendMessage');
+  ok(pideInsumos && pideInsumos.body.text.startsWith('📝 Insumos que faltan para la producción del') && pideInsumos.body.text.includes(`(${enDias(2)})`) && pideInsumos.body.reply_markup.force_reply,
+    'producción: "Reportar insumos" le pide escribir lo que falta');
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, { records: [EV_PROD] }, {}, { records: [GERENTE, ADMIN_T] }, { records: [GERENTE, ADMIN_T] }];
+  res = resMock();
+  const respuestaInsumos = msg('3 kg de fresa y 2 botes de crema', 555);
+  respuestaInsumos.message.reply_to_message = { from: { is_bot: true }, text: pideInsumos.body.text };
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: respuestaInsumos }, res);
+  ok(llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Produccion_Respuesta.includes('📝 Lucía: faltan 3 kg de fresa'))
+    && telegram.some(t => t.body.chat_id === '444' && t.body.text.includes('reporta que faltan') && t.body.text.includes('3 kg de fresa y 2 botes de crema'))
+    && respuestaTg().includes('Se lo mandé a la gerente'), 'producción: los insumos que faltan quedan anotados y le llegan a la gerencia');
+
+  reset();
+  respuestas = [{ records: [ZOE_OTRA] }, { records: [EV_PROD] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonPr(`pr:o:previo:${enDias(2)}`) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('ya no está a tu cargo')),
+    'producción: alguien que no es el encargado no puede responder');
+
+  // Asignar el encargado desde la app.
+  const EV_LEJOS = { id: 'recEVENTOPROD0002', fields: { Folio_Evento: 'EVT-PR2', Fecha_Evento: enDias(10), Negocio: 'El Vaso Maiz' } };
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }, { records: [GERENTE, ENCARG, CHICA_G] }, {}, { records: [ADMIN_T] }, CHICA_G];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id } }, res);
+  const patchProd = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && patchProd && JSON.stringify(patchProd.body.records[0].fields.Encargado_Produccion) === JSON.stringify([CHICA_G.id])
+    && telegram.some(t => t.body.chat_id === '555' && t.body.text.includes('te toca la producción de EVT-PR2') && t.body.text.includes('Dos días antes'))
+    && JSON.stringify(res.body.produccion.enviados) === JSON.stringify(['Lucía']) && telegram.some(t => t.body.chat_id === '111' && t.body.text.includes('producción: Lucía')),
+    'producción: la gerente asigna al encargado desde la app; si faltan más de 2 días le llega un aviso corto');
+
+  reset();
+  respuestas = [GERENTE, { ...EV_PROD, fields: { ...EV_PROD.fields, Encargado_Produccion: [] } }, { records: [CHICA_G, ENCARG] }, { records: [GERENTE, ENCARG, CHICA_G] }, {},
+    { records: [ADMIN_T] }, { records: [EV_PROD] }, CHICA_G, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_PROD.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id } }, res);
+  ok(res.code === 200 && telegram.some(t => t.body.chat_id === '555' && t.body.text.includes('esta es la producción que necesitamos')),
+    'producción: si se asigna con 2 días o menos, la lista le llega en ese momento');
+
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: ZOE_OTRA.id } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'producción: no se puede poner de encargado a alguien fuera de las opciones');
 
   reset();
   respuestas = [
