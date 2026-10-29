@@ -67,7 +67,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 
 ## Roles (campo `Rol` en COLABORADORES)
 
-- **Admin** (Diana, Víctor): dashboard completo y **Vista equipo** (`/brigadas/?vista=equipo`): la app como la ve cada brigada o encargada, con opción "Como asistente".
+- **Admin** (Diana, Víctor): dashboard completo y **Vista equipo** (`/brigadas/?vista=equipo`): la app como la ve cada brigada o encargada, con opción "Como asistente". Diana es la jefa de todo (2026-10-29): en el dashboard tiene además todo lo de la gerente: invitar staff por evento, elegir encargado de producción y "💬 Pregúntale a DiMa".
 - **Lider de brigada**: eventos de su brigada; todo lo operativo.
 - **Asistente**: eventos de su brigada; solo checklist de carga y alertas (emergencia/seguridad).
 - **Encargada de evento** (El Vaso Maíz): los eventos donde está en `EVENTOS.Encargada`; lo mismo que un líder.
@@ -82,7 +82,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 2. Los campos de Airtable deben existir con el nombre exacto. Ya hubo un bug por `Monto_Cotizacion` (el real es `Monto_Estimado_IA`). Verifica el esquema antes de escribir un campo nuevo.
 3. Vercel Hobby limita a **12 funciones serverless** por deployment. Hoy hay 11 rutas en `api/`: dima-chat, pedido, sesion, push, telegram, brigada-eventos, brigada-estatus, brigada-checklist, dashboard-eventos, balance-semanal, produccion-diaria (los archivos con `_` no cuentan). Queda 1 libre.
 4. La PWA ya está instalada con scope `/brigadas/` y el APK apunta ahí. **No cambies el scope ni el `start_url`** sin plan de migración.
-5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v9`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
+5. El `CACHE_NAME` del service worker (hoy `dima-brigadas-v10`) debe subir de versión cuando cambie cualquier archivo del app shell, o los teléfonos seguirán sirviendo la versión vieja.
 6. Con `claude-sonnet-5-5`: nada de `tool_choice` `any`/`tool`, nada de `thinking: disabled`, `budget_tokens` ni `temperature`. El historial del chat se manda solo como texto, sin bloques de thinking; la instrucción de cierre va como mensaje `role: "system"` al final, sin guardarse en el historial.
 14. **Temporada alta** (`api/_temporada.js`): del 18 de diciembre al 1 de enero (fecha del EVENTO), precios por pieza +70% y sin paquetes regulares (Divanna y El Vaso Maíz). DiMa lo explica con sutileza (temporada de más demanda). El traslado no sube. Los pedidos llegan marcados "🎄 Temporada alta". Para cambiar fechas o porcentaje se edita solo `TEMPORADA_ALTA`.
 13. **Aproximado de traslado** (`api/_traslado.js`): km por carretera desde la salida de Culiacán x $10 x 4 (ir a dejar y regresar, ir a recoger y regresar). Ruta con OpenStreetMap (Nominatim + OSRM, gratis, sin llave); la "salida" es donde la ruta deja el límite oficial de Culiacán Rosales (`api/_culiacan-limite.json`). DiMa solo lo da si el cliente lo pide, siempre como estimado que confirma logística. Si crece el volumen o se quiere la distancia exacta de Google, cambiar a Google Maps Distance Matrix (requiere llave y cuenta de facturación).

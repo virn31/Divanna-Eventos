@@ -189,3 +189,7 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Cómo quedó:** `EVENTOS.Cambio_Cliente` (JSON con estado aplicado/pendiente/confirmado/descartado, lo de antes y lo nuevo). Pedido sin cotizar: se aplica directo. Pedido autorizado: pendiente → Confirmar (aplica servicios, hora, productos e indicaciones, borra Enterado, avisa al equipo con Confirmar y reenvía la producción si ya se había mandado) o Descartar (Diana se lo explica al cliente con "Mensaje para el cliente"). El monto nunca va a la app del equipo.
 **Descartado:** avisar a todo el equipo en cuanto el cliente lo pide (podrían preparar algo no aprobado); rechazar los cambios con menos de 24 h (Víctor prefiere que la gerencia decida).
 **Pendiente:** al confirmar no se recalculan los artículos exactos (`EVENTOS.Articulos`) ni el monto: Diana los ajusta a mano.
+
+## 2026-10-29 — Diana tiene todas las funciones de la gerente
+
+**Decisión (Víctor):** "Diana es la jefa de todo": todo lo que puede hacer Ángela lo puede hacer Diana. Como Admin ya asignaba brigada y encargada, recibía las respuestas de producción y los cambios de pedido; faltaban en su dashboard invitar staff por evento (antes solo por /staff), elegir al encargado de producción y "Pregúntale a DiMa" (antes solo en Telegram). Se agregaron con el mismo código que usa la app de la gerente; Diana ve a todo el staff, no solo al de una coordinadora.
