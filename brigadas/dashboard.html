@@ -242,6 +242,7 @@
   <main>
     <div id="pedidosContent"></div>
     <div id="finContent"></div>
+    <div id="cuadreContent"></div>
     <div id="balanceContent"></div>
     <div id="histContent"></div>
     <div id="mainContent">
@@ -976,6 +977,142 @@
     }
   }
 
+  // ---------- 🔍 Cuadre del dinero (api/_cuadre.js, solo Admin) ----------
+  // Por excepción: solo aparece lo que no cuadra. Las respuestas son las mismas
+  // que los botones de Telegram (le pagaron a ella, sigue debiendo, descuento…).
+  const cuadreContent = $('cuadreContent');
+  let cuadreCargado = 0, cuadreFirma = '';
+  const $$ = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+
+  async function cargarCuadre(forzar){
+    if(!forzar && Date.now() - cuadreCargado < 5 * 60 * 1000) return;
+    cuadreCargado = Date.now();
+    try {
+      pintarCuadre(await api('/api/finanzas?vista=cuadre'));
+    } catch(e){
+      if(e.message === 'sesion') return;
+      cuadreCargado = 0;
+      cuadreContent.innerHTML = `<div class="hist-card">🔍 No se pudo leer el cuadre (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  function pintarCuadre(v){
+    if(cuadreContent.querySelector('input:focus, textarea:focus')) return;
+    const firma = JSON.stringify(v);
+    if(firma === cuadreFirma) return;
+    cuadreFirma = firma;
+    const ef = v.efectivo;
+    const tarjeta = (e, conBotones) => `
+      <div class="pedido-card cuadre-ev" data-id="${esc(e.id)}">
+        <h3>${esc(e.folio)} · ${esc(e.fecha)}${e.cliente ? ' · ' + esc(e.cliente) : ''}</h3>
+        <div class="meta-line">
+          <span>Contratado <span class="dinero-favor">${$$(e.contratado)}</span></span>
+          <span>Cobró la brigada <span class="dinero-favor">${$$(e.brigada)}</span>${e.brigadaSinAprobar ? ` <span class="evento-sub">(${$$(e.brigadaSinAprobar)} sin aprobar)</span>` : ''}</span>
+          ${e.diana ? `<span>Te pagaron <span class="dinero-favor">${$$(e.diana)}</span></span>` : ''}
+          ${e.descuento ? `<span>Descuento ${$$(e.descuento)}</span>` : ''}
+          ${e.saldo < 0 ? `<span>Cobrado de más <span class="dinero-gasto">${$(-e.saldo)}</span></span>` : `<span>Falta <span class="dinero-gasto">${$(e.saldo)}</span></span>`}
+        </div>
+        ${e.notas ? `<div class="evento-sub">${esc(e.notas.trim().split('\n').pop())}</div>` : ''}
+        ${conBotones ? `
+          <div class="instr-fila">
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo">💵 Me pagaron todo (efectivo)</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Transferencia">🏦 Todo por transferencia</button>
+          </div>
+          <div class="instr-fila">
+            <input class="cuadre-monto" inputmode="decimal" placeholder="Otra cantidad" style="max-width:140px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <select class="cuadre-forma" style="padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago">Registrar pago</button>
+          </div>
+          <div class="instr-fila">
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="debe">⏳ Sigue debiendo</button>
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="descuento">🎁 Descuento o cortesía</button>
+          </div>
+          <div class="instr-fila">
+            <input class="cuadre-nota" maxlength="500" placeholder="¿Otra cosa? Escribe qué pasó con ese dinero" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="otro">Anotar</button>
+          </div>
+          <div class="instr-msg cuadre-msg"></div>` : ''}
+      </div>`;
+    const lista = (titulo, items, botones) => items.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">${titulo} (${items.length})</h3>${items.map(e => tarjeta(e, botones)).join('')}` : '';
+    const destinos = Object.entries(ef.destinos || {});
+    const todoCuadra = !v.porAclarar.length && !v.cobradoDeMas.length && ef.sinDestino <= 0.5 && !ef.excedente;
+    cuadreContent.innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">🔍 Cuadre del dinero <span class="evento-sub">(desde ${esc(v.desde)}; solo Diana y Víctor)</span></h2>
+        ${todoCuadra ? '<div class="motivo">✅ Todo cuadra: no hay dinero sin aclarar ni efectivo sin destino.</div>' : ''}
+        <div class="cifras">
+          <div class="cifra"><div class="etq">Efectivo que te entregaron</div><div class="val favor">${$$(ef.entregadoBrigadas)}</div></div>
+          <div class="cifra"><div class="etq">Te pagaron en efectivo</div><div class="val favor">${$$(ef.pagadoEfectivo)}</div></div>
+          <div class="cifra"><div class="etq">Declarado en caja</div><div class="val cobrar">${$$(ef.enCaja)}</div></div>
+          <div class="cifra"><div class="etq">Efectivo sin destino</div><div class="val ${ef.sinDestino > 0.5 ? 'gasto' : 'favor'}">${$$(ef.sinDestino)}</div></div>
+        </div>
+        ${destinos.length ? `<div class="evento-sub" style="margin-top:6px;">Destinos registrados: ${destinos.map(([k, x]) => `${esc(k)} ${$$(x)}`).join(' · ')}</div>` : ''}
+        ${ef.excedente ? `<div class="motivo aviso-fuera">⚠️ Hay ${$$(ef.excedente)} más registrado como destino de lo que entró en efectivo: revisa si algo se anotó dos veces.</div>` : ''}
+        ${ef.sinDestino > 0.5 ? `
+          <div class="evento-sub" style="margin-top:8px;">¿Qué se hizo con ${$$(ef.sinDestino)}? Tú decides; solo queda anotado para que cuadre.</div>
+          <div class="instr-fila">
+            <button class="msgcli-enviar caja-acc" data-tipo="dep">🏦 Lo deposité</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="gas">🧾 Gasto del negocio</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="ret">👛 Retiro personal</button>
+            <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="caja">💼 Sigue en caja</button>
+          </div>
+          <div class="instr-fila"><input id="cajaNota" maxlength="300" placeholder="¿Repartido? Ej. deposité 3000 y 500 fueron de gasolina" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="var">Anotar</button></div>
+          <div class="instr-msg" id="cajaMsg"></div>` : ''}
+        ${lista('🧾 Eventos que no cuadran', v.porAclarar, true)}
+        ${lista('🔴 Cobrado de más (revisa si es error de captura)', v.cobradoDeMas, false)}
+        ${lista('⏳ Clientes que siguen debiendo', v.deben, true)}
+        ${lista('📝 Explicados como "otra cosa"', v.otros, false)}
+        ${v.conPerdida.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">📉 Eventos con pérdida (${v.conPerdida.length})</h3>${v.conPerdida.map(e => `<div class="motivo">${esc(e.folio)} · ${esc(e.fecha)}${e.cliente ? ' · ' + esc(e.cliente) : ''}: contratado <span class="dinero-favor">${$$(e.contratado)}</span>, gastos <span class="dinero-gasto">${$$(e.gastos)}</span>, margen <span class="dinero-gasto">${$$(e.margen)}</span></div>`).join('')}` : ''}
+        ${v.clientes.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">👀 Clientes a vigilar</h3>
+          <table class="hist-tabla"><tr><th>Cliente</th><th>Eventos</th><th>Cancelados</th><th>Pendiente</th><th>Margen</th></tr>
+          ${v.clientes.map(c => `<tr><td>${esc(c.cliente)}</td><td>${c.eventos}</td><td>${c.cancelados}</td><td class="${c.pendiente > 0.5 ? 'dinero-gasto' : ''}">${$$(c.pendiente)}</td><td class="${c.margen < 0 ? 'dinero-gasto' : 'dinero-favor'}">${$$(c.margen)}</td></tr>`).join('')}</table>` : ''}
+        <div class="evento-sub" style="margin-top:10px;">💬 Pregúntale a DiMa "¿dónde hay fugas?" o "¿estamos metiendo dinero bueno al malo?": tiene este cuadre.</div>
+      </div>`;
+    cuadreContent.querySelectorAll('.cuadre-acc').forEach(b => b.addEventListener('click', () => aclararEvento(b)));
+    cuadreContent.querySelectorAll('.caja-acc').forEach(b => b.addEventListener('click', () => destinoCaja(b)));
+  }
+
+  async function aclararEvento(btn){
+    const caja = btn.closest('.cuadre-ev');
+    const msg = caja.querySelector('.cuadre-msg');
+    const tipo = btn.dataset.tipo;
+    const cuerpo = { accion: 'aclarar', eventoId: caja.dataset.id, tipo };
+    if(tipo === 'pago'){
+      cuerpo.monto = btn.dataset.monto || caja.querySelector('.cuadre-monto').value;
+      cuerpo.forma = btn.dataset.forma || caja.querySelector('.cuadre-forma').value;
+    }
+    if(tipo === 'otro') cuerpo.nota = caja.querySelector('.cuadre-nota').value;
+    caja.querySelectorAll('.cuadre-acc').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+      msg.textContent = d.texto || '✅ Anotado';
+      cuadreFirma = '';
+      setTimeout(() => cargarCuadre(true), 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar');
+      caja.querySelectorAll('.cuadre-acc').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  async function destinoCaja(btn){
+    const msg = $('cajaMsg');
+    cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '' }) });
+      msg.textContent = d.texto || '✅ Anotado';
+      cuadreFirma = '';
+      setTimeout(() => cargarCuadre(true), 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar');
+      cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = false; });
+    }
+  }
+
   // ---------- Reportes financieros del día (api/finanzas.js) ----------
   // Diana aprueba o pide aclaración; solo lo aprobado cuenta en el balance.
   const finContent = $('finContent');
@@ -1207,13 +1344,14 @@
       renderEventos(data.eventos);
       cargarFinanzas();
       cargarHistorial();
+      cargarCuadre();
     } catch(e){
       if(e.message === 'sesion') return;
       mainContent.innerHTML = `<div class="empty-state">📡<br>No se pudo cargar. Revisa tu señal y toca actualizar.</div>`;
     }
   }
 
-  refreshBtn.addEventListener('click', () => { histCargado = 0; loadDashboard(); });
+  refreshBtn.addEventListener('click', () => { histCargado = 0; cuadreCargado = 0; loadDashboard(); });
   $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc }));
   $('logoutBtn').addEventListener('click', salir);
 

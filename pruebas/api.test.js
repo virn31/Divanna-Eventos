@@ -1388,7 +1388,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 403 && llamadas.length === 1, 'historial: solo Diana y Víctor lo ven');
 
   reset();
-  respuestas = [ADMIN, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
   res = resMock();
   await chatApi({ method: 'POST', headers: auth(tokenAdmin), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'Dame el balance, ¿cuáles son las mejores temporadas?' }] } }, res);
@@ -1396,6 +1396,89 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && sistemaAdmin.includes('HISTORIAL POR MES') && sistemaAdmin.includes('jul 2026 · Divanna Eventos: 1 eventos, ingresos contratados $5,000')
     && sistemaAdmin.includes('MEJORES MESES') && sistemaAdmin.includes('con menos de 12 meses no afirmes'),
     'DiMa equipo: a Diana le da el historial por empresa y los mejores meses, aclarando cuántos meses hay');
+
+  // ---------- Cuadre por excepción ----------
+  const ayer = enDias(-1);
+  const CLI1 = 'recCLIENTEPEPE001';
+  const EQ1 = { id: 'recEVCUADRE000001', fields: { Folio_Evento: 'EVT-Q1', Fecha_Evento: ayer, Monto_Estimado_IA: 5000, Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Cliente: [CLI1], COBROS: ['recCOBROQ0000001'] } };
+  const EQ2 = { id: 'recEVCUADRE000002', fields: { Folio_Evento: 'EVT-Q2', Fecha_Evento: ayer, Monto_Estimado_IA: 2000, Autorizacion_Diana: 'SI', Cuadre_Estado: 'Debe' } };
+  const EQ3 = { id: 'recEVCUADRE000003', fields: { Folio_Evento: 'EVT-Q3', Fecha_Evento: ayer, Monto_Estimado_IA: 1000, Autorizacion_Diana: 'SI', Cuadre_Estado: 'Cuadrado' } };
+  const EQ4 = { id: 'recEVCUADRE000004', fields: { Folio_Evento: 'EVT-Q4', Fecha_Evento: ayer, Monto_Estimado_IA: 1000, Autorizacion_Diana: 'SI' } };
+  const EQ5 = { id: 'recEVCUADRE000005', fields: { Folio_Evento: 'EVT-Q5', Fecha_Evento: ayer, Monto_Estimado_IA: 900, Cancelado: true, Cliente: [CLI1] } };
+  const CQ1 = { id: 'recCOBROQ0000001', fields: { Evento: [EQ1.id], Monto: 3000, Forma: 'Efectivo', Recibido_Por: 'Brigada', Reporte: ['recREPQAPROB0001'] } };
+  const CQ3 = { id: 'recCOBROQ0000003', fields: { Evento: [EQ3.id], Monto: 1500, Forma: 'Efectivo', Recibido_Por: 'Diana' } };
+  const datosQ = () => [
+    { records: [EQ1, EQ2, EQ3, EQ4, EQ5] },
+    { records: [CQ1, CQ3] },
+    { records: [{ id: 'recREPQAPROB0001', fields: { Efectivo_Entregado: 3000, Fecha: hoyCln } }] },
+    { records: [{ fields: { Monto: 1800, Evento_Relacionado: [EQ4.id] } }] },
+    { records: [{ fields: { Tipo: 'Depósito al banco', Monto: 2000, Fecha: hoyCln } }] },
+  ];
+  reset();
+  respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
+  res = await fin(tokenAdmin, undefined, 'GET', { vista: 'cuadre' });
+  const vq = res.body;
+  ok(res.code === 200 && vq.porAclarar.map(e => e.folio).join() === 'EVT-Q1,EVT-Q4' && vq.porAclarar[0].saldo === 2000 && vq.porAclarar[0].cliente === 'Pepe'
+    && vq.deben.map(e => e.folio).join() === 'EVT-Q2' && vq.cobradoDeMas.map(e => e.folio).join() === 'EVT-Q3' && vq.conPerdida.map(e => e.folio).join() === 'EVT-Q4',
+    'cuadre: detecta lo que no cuadra, lo que se debe, lo cobrado de más y los eventos con pérdida');
+  ok(vq.efectivo.entregadoBrigadas === 3000 && vq.efectivo.pagadoEfectivo === 1500 && vq.efectivo.sinDestino === 2500 && vq.clientes[0].cliente === 'Pepe' && vq.clientes[0].cancelados === 1,
+    'cuadre: efectivo sin destino (entregado + pagos en efectivo − destinos) y clientes a vigilar');
+
+  reset();
+  respuestas = [LIDER];
+  res = await fin(tokenLider, undefined, 'GET', { vista: 'cuadre' });
+  ok(res.code === 403 && llamadas.length === 1, 'cuadre: solo Diana y Víctor lo ven');
+
+  reset();
+  respuestas = [ADMIN, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA001' }] }, {}];
+  res = await fin(tokenAdmin, { accion: 'aclarar', eventoId: EQ1.id, tipo: 'pago', monto: 'todo', forma: 'Efectivo' });
+  const pagoDiana = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  const cuadrado = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && pagoDiana.body.records[0].fields.Monto === 2000 && pagoDiana.body.records[0].fields.Recibido_Por === 'Diana' && pagoDiana.body.records[0].fields.Forma === 'Efectivo'
+    && cuadrado.body.records[0].fields.Cuadre_Estado === 'Cuadrado' && cuadrado.body.records[0].fields.Cuadre_Notas.includes('le pagaron $2,000 (Efectivo)'),
+    'cuadre: "me pagaron todo" registra el pago a Diana por lo que faltaba y el evento queda cuadrado');
+
+  reset();
+  respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, { records: [ADMIN_T] }, {}];
+  const Qmod = require(path.join(repo, 'api/_cuadre.js'));
+  respuestas.shift();
+  const rq = await Qmod.preguntasDelDia();
+  const preguntaQ = telegram.find(t => t.body.chat_id === '111' && t.body.text.includes('EVT-Q1'));
+  ok(rq.preguntados === 2 && preguntaQ && preguntaQ.body.text.includes('Falta: $2,000') && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
+    && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Cuadre_Preguntado === hoyCln),
+    'cuadre: al día siguiente DiMa le pregunta a Diana por Telegram con botones y no vuelve a preguntar');
+
+  const botonQ = (dato) => ({ callback_query: { id: 'cbQ', data: dato, message: { message_id: 80, chat: { id: 111, type: 'private' }, text: 'EVT-Q1 no cuadra' } } });
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA002' }] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:pt:${EQ1.id}`) }, res);
+  ok(llamadas.some(l => l.method === 'POST' && l.body.records[0].fields.Forma === 'Transferencia' && l.body.records[0].fields.Monto === 2000)
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Ya cuadra')), 'cuadre: Diana contesta con un botón de Telegram y queda anotado');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA003' }] }, {}];
+  res = resMock();
+  const escritoQ = msg('1500 transferencia', 111);
+  escritoQ.message.reply_to_message = { from: { is_bot: true }, text: `✍️ ¿Cuánto te pagaron y cómo? EVT-Q1 (${EQ1.id})` };
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: escritoQ }, res);
+  ok(llamadas.some(l => l.method === 'POST' && l.body.records[0].fields.Monto === 1500 && l.body.records[0].fields.Forma === 'Transferencia')
+    && respuestaTg().includes('Todavía falta $500'), 'cuadre: "otra cantidad" escrita se registra y dice cuánto falta');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, ...datosQ(), { records: [{ id: 'recCAJA000000001' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:ret') }, res);
+  const retiro = llamadas.find(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'));
+  ok(retiro && retiro.body.records[0].fields.Tipo === 'Retiro personal' && retiro.body.records[0].fields.Monto === 2500 && retiro.body.records[0].fields.Registrado_Por === 'Diana',
+    'cuadre: el efectivo sin destino queda anotado (aquí, retiro personal) sin juzgar');
+
+  reset();
+  respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbQ2', data: `cd:pe:${EQ1.id}`, message: { message_id: 81, chat: { id: 222, type: 'private' }, text: 'x' } } } }, res);
+  ok(!llamadas.some(l => l.method === 'POST' || l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('solo para Diana y Víctor')),
+    'cuadre: nadie más puede contestar el cuadre');
 
   // ---------- Calendario del equipo ----------
   const LIDER_CAL = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };

@@ -29,6 +29,7 @@ const { instrucciones, tema } = require('./_instrucciones');
 const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_curso');
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
+const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -237,6 +238,14 @@ async function atenderBoton(cb) {
     return;
   }
 
+  if (tipo === 'cd' || tipo === 'cj') {
+    // Cuadre del dinero: Diana dice qué pasó con lo que falta (cd:<acción>:<evento>) o con el efectivo (cj:<destino>).
+    const r = await botonCuadre(chatId, colaborador, tipo, accion, id);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    return;
+  }
+
   if (tipo === 'pr') {
     // Encargado de producción: "Tenemos todo" / "Reportar insumos" (pr:o|f:<tipo>:<fecha>).
     const r = await botonProduccion(chatId, colaborador, accion, id, sel);
@@ -321,6 +330,9 @@ async function responder(mensaje) {
   if (esRespuestaAlta(mensaje)) {
     return (await puedeCoordinar(colaborador)) ? agregarStaff(colaborador, texto) : 'Esta opción es solo para Ángela, Diana y Víctor.';
   }
+
+  // Monto o explicación del cuadre, escritos encima de la pregunta de DiMa.
+  if (esRespuestaCuadre(mensaje)) return atenderRespuestaCuadre(mensaje, colaborador);
 
   // Insumos que faltan, escritos encima de la pregunta del aviso de producción.
   if (esRespuestaProduccion(mensaje)) return atenderRespuestaProduccion(mensaje, colaborador);

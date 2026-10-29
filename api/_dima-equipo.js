@@ -14,6 +14,7 @@ const { ROLES } = require('./_sesion');
 const { alcanceDe, leerEventos } = require('./_eventos');
 const { manualTexto } = require('./_instrucciones');
 const { historialMensual, historialParaDima } = require('./_finanzas');
+const { vistaCuadre, cuadreParaDima } = require('./_cuadre');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES = 20;
@@ -75,8 +76,14 @@ async function sistemaPara(colaborador, coordina) {
   const puesto = colaborador.gerente ? 'gerente de El Vaso Maíz' : colaborador.rol === ROLES.ADMIN ? 'dueño(a) del negocio (Admin)' : colaborador.rol;
   const esAdmin = colaborador.rol === ROLES.ADMIN;
   // Solo a Diana y Víctor: historial de dinero por mes y por empresa.
-  let finanzas = '';
+  let finanzas = '', cuadre = '';
   if (esAdmin) {
+    try {
+      cuadre = cuadreParaDima(await vistaCuadre());
+    } catch (err) {
+      console.error('DiMa equipo: no se pudo leer el cuadre:', err.message);
+      cuadre = 'NO SE PUDO LEER el cuadre en este momento: dilo y no inventes cifras.';
+    }
     try {
       finanzas = historialParaDima(await historialMensual());
     } catch (err) {
@@ -93,12 +100,13 @@ async function sistemaPara(colaborador, coordina) {
     '- Usa solo el manual y los eventos de abajo. Si algo no está ahí, dilo y sugiere escribirles a Diana y Víctor con /mensaje. No inventes botones ni funciones.\n' +
     '- No puedes hacer cambios (asignar, confirmar, invitar): explica dónde y cómo se hacen.\n' +
     (esAdmin
-      ? '- Con esta persona SÍ puedes hablar de dinero, usando solo el HISTORIAL POR MES de abajo. Si te pide un balance o las mejores temporadas, compara las dos empresas mes por mes y di cuáles son sus mejores meses (por ingresos y por número de eventos). Di siempre cuántos meses de datos hay: con menos de 12 meses no afirmes que es una temporada que se repite cada año, di que es lo que se ve hasta ahora. Aclara que "ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado. No inventes cifras ni meses que no estén abajo.\n'
+      ? '- Con esta persona SÍ puedes hablar de dinero, usando solo el HISTORIAL POR MES de abajo. Si te pide un balance o las mejores temporadas, compara las dos empresas mes por mes y di cuáles son sus mejores meses (por ingresos y por número de eventos). Di siempre cuántos meses de datos hay: con menos de 12 meses no afirmes que es una temporada que se repite cada año, di que es lo que se ve hasta ahora. Aclara que "ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado. No inventes cifras ni meses que no estén abajo.\n' +
+        '- CUADRE: ayúdales a ver dónde hay fugas y si están "metiendo dinero bueno al malo" (eventos con pérdida, clientes que deben o cancelan, efectivo sin destino, cobros de más). Explica el comportamiento: contratado, cobrado por brigadas, pagado a Diana, descuentos, gastos y margen. Propón correcciones concretas (por ejemplo: "marca EVT-x como descuento", "pídele el comprobante a la brigada", "dale seguimiento a este cliente"), pero NO las aplicas tú: Diana las aplica con los botones del cuadre en el dashboard o en Telegram. El dinero es de Diana y decide qué hacer con él; tu papel es que todo quede registrado, no juzgar.\n'
       : '- No hablas de precios, pagos ni montos de los pedidos; eso lo llevan Diana y Víctor.\n') +
     '- Cuando ayude, propón el siguiente paso concreto o una práctica corta para que aprenda haciéndolo.',
     `MANUAL DE LA PLATAFORMA (lo que le toca a esta persona):\n${manualTexto(colaborador, coordina)}`,
     `SUS PRÓXIMOS EVENTOS (lo que ve en la app hoy):\n${resumenEventos(eventos)}`,
-    ...(esAdmin ? [`HISTORIAL POR MES DE LAS DOS EMPRESAS:\n${finanzas}`] : []),
+    ...(esAdmin ? [`HISTORIAL POR MES DE LAS DOS EMPRESAS:\n${finanzas}`, `CUADRE DEL DINERO (dónde está cada peso):\n${cuadre}`] : []),
   ].join('\n\n');
 }
 
