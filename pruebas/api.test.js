@@ -1322,6 +1322,45 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await chatApi({ method: 'POST', headers: auth(tokenGer), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: '¿Cómo invito a las chicas?' }] } }, res);
   ok(res.code === 200 && res.body.texto === 'Con /staff tocas Asignar a evento.', 'DiMa equipo: la gerente pregunta desde la app');
   ok(llamadasClaude[0].system.includes('gerente de El Vaso Maíz') && llamadasClaude[0].system.includes('Agregar personal') && llamadasClaude[0].messages.slice(-1)[0].role === 'user' && !llamadasClaude[0].tools, 'DiMa equipo: sabe el manual de su rol y no tiene herramientas');
+  ok(!llamadasClaude[0].system.includes('HISTORIAL POR MES') && llamadasClaude[0].system.includes('No hablas de precios'), 'DiMa equipo: a la gerente no le da el dinero de las empresas');
+
+  // ---------- Historial mensual por empresa (gráfica de Diana y DiMa) ----------
+  const EVS_HIST = { records: [
+    { id: 'recHISTEVENTO0001', fields: { Fecha_Evento: '2026-07-10', Negocio: 'Divanna Eventos', Monto_Estimado_IA: 5000 } },
+    { id: 'recHISTEVENTO0002', fields: { Fecha_Evento: '2026-07-20', Piezas_Vaso_Maiz: 90, Monto_Estimado_IA: 2700 } },
+    { id: 'recHISTEVENTO0003', fields: { Fecha_Evento: '2026-08-01', Monto_Estimado_IA: 100 } },
+  ] };
+  const GASTOS_HIST = { records: [
+    { fields: { Fecha: '2026-07-11', Negocio: 'Divanna Eventos', Monto: 1000 } },
+    { fields: { Fecha: '2026-07-12', Negocio: 'Divanna Eventos', Monto: 999, Reporte: ['recREPORTEPENDI01'] } },
+  ] };
+  const COBROS_HIST = { records: [{ fields: { Fecha: '2026-07-10', Negocio: 'Divanna Eventos', Monto: 5000, Reporte: ['recREPORTEAPROB01'] } }] };
+  const APROB_HIST = { records: [{ id: 'recREPORTEAPROB01', fields: { Estado: 'Aprobado' } }] };
+  reset();
+  respuestas = [ADMIN, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  res = resMock();
+  await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenAdmin), query: { vista: 'historial' } }, res);
+  const julio = res.body.meses && res.body.meses[0];
+  ok(res.code === 200 && julio.mes === '2026-07' && julio['Divanna Eventos'].ingresos === 5000 && julio['Divanna Eventos'].gastos === 1000 && julio['Divanna Eventos'].utilidad === 4000
+    && julio['Divanna Eventos'].cobrado === 5000 && julio['El Vaso Maiz'].eventos === 1 && julio['El Vaso Maiz'].ingresos === 2700 && res.body.sinNegocio === 1
+    && res.body.meses[res.body.meses.length - 1].mes === hoyCln.slice(0, 7),
+    'historial: por mes y empresa, sin gastos de reportes sin aprobar, sin adivinar el negocio y con los meses hasta hoy');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenLider), query: { vista: 'historial' } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'historial: solo Diana y Víctor lo ven');
+
+  reset();
+  respuestas = [ADMIN, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
+  res = resMock();
+  await chatApi({ method: 'POST', headers: auth(tokenAdmin), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'Dame el balance, ¿cuáles son las mejores temporadas?' }] } }, res);
+  const sistemaAdmin = llamadasClaude[0] && llamadasClaude[0].system;
+  ok(res.code === 200 && sistemaAdmin.includes('HISTORIAL POR MES') && sistemaAdmin.includes('jul 2026 · Divanna Eventos: 1 eventos, ingresos contratados $5,000')
+    && sistemaAdmin.includes('MEJORES MESES') && sistemaAdmin.includes('con menos de 12 meses no afirmes'),
+    'DiMa equipo: a Diana le da el historial por empresa y los mejores meses, aclarando cuántos meses hay');
 
   reset();
   respuestas = [LIDER];

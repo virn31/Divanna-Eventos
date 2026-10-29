@@ -163,6 +163,31 @@
   .balance-card summary{cursor:pointer; font-weight:700;}
   .balance-card pre{white-space:pre-wrap; font-family:inherit; font-size:0.88rem; color:var(--muted); margin:12px 0 0;}
 
+  /* ---------- Más claro para Diana (2026-10-29): letra más grande y montos en color ---------- */
+  html{font-size:112.5%;}
+  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --serie-dv:#3987e5; --serie-vm:#d95926; }
+  .dinero-gasto{color:var(--gasto); font-weight:800; font-size:1.12em;}
+  .dinero-favor{color:var(--favor); font-weight:800; font-size:1.12em;}
+  .cifras{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px;}
+  .cifra{background:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
+  .cifra .etq{font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  .cifra .val{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:700; margin-top:4px;}
+  .cifra .val.gasto{color:var(--gasto);} .cifra .val.favor{color:var(--favor);}
+  .hist-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 18px; margin-bottom:20px;}
+  .hist-filtros{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px;}
+  .hist-filtros button{border:1.5px solid var(--line); background:var(--ink); color:var(--paper); border-radius:100px; padding:8px 14px; font:inherit; font-size:0.85rem; font-weight:700; cursor:pointer;}
+  .hist-filtros button.activo{border-color:var(--maiz); color:var(--maiz);}
+  .hist-leyenda{display:flex; gap:16px; font-size:0.88rem; margin:6px 0;}
+  .hist-leyenda span::before{content:''; display:inline-block; width:14px; height:4px; border-radius:2px; margin-right:6px; vertical-align:middle; background:var(--c);}
+  .hist-svg{width:100%; height:auto; display:block; touch-action:pan-y;}
+  .hist-tip{position:absolute; pointer-events:none; background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:0.82rem; white-space:nowrap; box-shadow:0 8px 24px -8px rgba(0,0,0,.6);}
+  .hist-tip i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; background:var(--c);}
+  .hist-tabla{width:100%; border-collapse:collapse; font-size:0.85rem; margin-top:8px;}
+  .hist-tabla th, .hist-tabla td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:right;}
+  .hist-tabla th:first-child, .hist-tabla td:first-child{text-align:left;}
+  .mejores{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-top:12px;}
+  .mejores > div{background:var(--ink); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:12px; padding:10px 12px; font-size:0.88rem;}
+
   .alertas-banner{
     max-width:900px; margin:14px auto 0; width:calc(100% - 36px); padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
     background:rgba(240,185,58,0.12); border:1.5px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
@@ -217,6 +242,7 @@
     <div id="pedidosContent"></div>
     <div id="finContent"></div>
     <div id="balanceContent"></div>
+    <div id="histContent"></div>
     <div id="mainContent">
       <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
     </div>
@@ -975,9 +1001,9 @@
       <div class="pedido-card fin-rep" data-id="${esc(r.id)}">
         <h3>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.negocio)}</h3>
         <div class="evento-sub">${r.estado === 'Aclaración' ? '✏️ Pediste aclaración; esperando corrección' : '⏳ Enviado para revisión'}${r.enviadoHora ? ' · ' + new Date(r.enviadoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
-        <div class="meta-line"><span>💸 Gastos ${pesosFin(r.totalGastos)}</span><span>💵 Cobros ${pesosFin(r.totalCobros)}</span><span>🧾 Efectivo entregado ${pesosFin(r.efectivoEntregado)}</span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero ${pesosFin(r.reembolsoPendiente)}</span>` : ''}</div>
-        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <b>${pesosFin(g.monto)}</b> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
-        ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <b>${pesosFin(c.monto)}</b> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
+        <div class="meta-line"><span>💸 Gastos <span class="dinero-gasto">${pesosFin(r.totalGastos)}</span></span><span>💵 Cobros <span class="dinero-favor">${pesosFin(r.totalCobros)}</span></span><span>🧾 Efectivo entregado <span class="dinero-favor">${pesosFin(r.efectivoEntregado)}</span></span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero <span class="dinero-gasto">${pesosFin(r.reembolsoPendiente)}</span></span>` : ''}</div>
+        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
+        ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <span class="dinero-favor">${pesosFin(c.monto)}</span> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
         ${r.insumos ? `<div class="motivo">🌽 Insumos: ${esc(r.insumos)}</div>` : ''}
         ${r.notas ? `<div class="motivo">📝 ${esc(r.notas)}</div>` : ''}
         ${r.revision ? `<div class="evento-sub">${esc(r.revision.trim().split('\n').pop())}</div>` : ''}
@@ -991,7 +1017,7 @@
       </div>`;
     const reembolsos = rev.reembolsos.length ? `
       <h2 class="section-title">🔁 Reembolsos pendientes (${rev.reembolsos.length} · ${pesosFin(rev.reembolsos.reduce((t, g) => t + g.monto, 0))})</h2>
-      ${rev.reembolsos.map(g => `<div class="motivo">${esc(g.quien)} · ${esc(g.fechaReporte)} · ${esc(g.concepto)} · <b>${pesosFin(g.monto)}</b> ${fotoFin(g.foto, '')}
+      ${rev.reembolsos.map(g => `<div class="motivo">${esc(g.quien)} · ${esc(g.fechaReporte)} · ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> ${fotoFin(g.foto, '')}
         <button class="msgcli-enviar fin-reemb" data-id="${esc(g.id)}" style="margin-left:8px;">Marcar reembolsado</button></div>`).join('')}` : '';
     finContent.innerHTML = (rev.pendientes.length ? `<h2 class="section-title">💰 Reportes del día por revisar (${rev.pendientes.length})</h2>${rev.pendientes.map(tarjeta).join('')}` : '') + reembolsos;
     finContent.querySelectorAll('.fin-coment').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
@@ -1032,16 +1058,130 @@
     }
   }
 
+  // Último balance semanal con las cifras grandes: lo que entra en azul, lo que sale en rojo.
   function renderBalance(balance){
     if(!balance){ balanceContent.innerHTML = ''; return; }
     const abierto = balanceContent.querySelector('details')?.open ? 'open' : '';
     const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX');
+    const utilidad = balance.ingresos - balance.gastos;
     balanceContent.innerHTML = `
-      <details class="balance-card" ${abierto}>
-        <summary>📊 Último balance · ${esc(balance.periodo)} · Utilidad ${fmt(balance.ingresos - balance.gastos)}</summary>
-        <pre>${esc(balance.detalle)}</pre>
-      </details>
+      <div class="balance-card">
+        <h2 class="section-title">📊 Balance de la semana · ${esc(balance.periodo)}</h2>
+        <div class="cifras">
+          <div class="cifra"><div class="etq">Ingresos contratados</div><div class="val favor">${fmt(balance.ingresos)}</div></div>
+          <div class="cifra"><div class="etq">Gastos</div><div class="val gasto">${fmt(balance.gastos)}</div></div>
+          <div class="cifra"><div class="etq">${utilidad >= 0 ? 'Saldo a favor' : 'Saldo en contra'}</div><div class="val ${utilidad >= 0 ? 'favor' : 'gasto'}">${fmt(utilidad)}</div></div>
+        </div>
+        <details ${abierto} style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver el detalle completo</summary><pre>${esc(balance.detalle)}</pre></details>
+      </div>
     `;
+  }
+
+  // ---------- Cómo van las empresas: historial mensual (api/finanzas.js?vista=historial) ----------
+  // Dos series (Divanna azul, El Vaso Maíz naranja; validadas para daltonismo),
+  // una sola escala, leyenda + nombre al final de cada línea, detalle al pasar
+  // el dedo y tabla. Ingresos = lo contratado en eventos autorizados.
+  const histContent = $('histContent');
+  const SERIES = [
+    { clave: 'Divanna Eventos', nombre: 'Divanna', color: 'var(--serie-dv)' },
+    { clave: 'El Vaso Maiz', nombre: 'El Vaso Maíz', color: 'var(--serie-vm)' },
+  ];
+  const METRICAS = [
+    { clave: 'ingresos', nombre: 'Ingresos contratados', dinero: true },
+    { clave: 'gastos', nombre: 'Gastos', dinero: true },
+    { clave: 'utilidad', nombre: 'Utilidad', dinero: true },
+    { clave: 'eventos', nombre: 'Eventos', dinero: false },
+    { clave: 'cobrado', nombre: 'Cobrado (reportes)', dinero: true },
+  ];
+  const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const nombreMes = (m) => `${MESES_CORTOS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
+  let historial = null, histMetrica = 'ingresos', histCargado = 0;
+
+  async function cargarHistorial(forzar){
+    if(!forzar && Date.now() - histCargado < 10 * 60 * 1000) return;
+    histCargado = Date.now();
+    try {
+      historial = await api('/api/finanzas?vista=historial');
+      pintarHistorial();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      histCargado = 0;
+      histContent.innerHTML = `<div class="hist-card">📈 No se pudo leer el historial (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  const fmtValor = (v, dinero) => dinero ? '$' + Math.round(v).toLocaleString('es-MX') : String(v);
+  function escalaBonita(min, max){
+    if(min === max){ max = min + 1; }
+    const paso0 = (max - min) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(paso0)));
+    const paso = [1, 2, 2.5, 5, 10].map(f => f * mag).find(p => p >= paso0);
+    const ini = Math.floor(min / paso) * paso, fin = Math.ceil(max / paso) * paso;
+    const ticks = []; for(let t = ini; t <= fin + paso / 2; t += paso) ticks.push(Math.round(t * 100) / 100);
+    return { ini, fin, ticks };
+  }
+
+  function pintarHistorial(){
+    const h = historial;
+    if(!h || !h.meses.length){
+      histContent.innerHTML = `<div class="hist-card"><h2 class="section-title">📈 Cómo van las empresas</h2><div class="evento-sub">Todavía no hay eventos autorizados con fecha para comparar.</div></div>`;
+      return;
+    }
+    const met = METRICAS.find(m => m.clave === histMetrica);
+    const meses = h.meses;
+    const valores = SERIES.map(s => meses.map(x => x[s.clave][met.clave]));
+    const todos = valores.flat();
+    const { ini, fin, ticks } = escalaBonita(Math.min(0, ...todos), Math.max(0, ...todos));
+    const W = 640, H = 260, M = { l: 64, r: 92, t: 14, b: 30 };
+    const x = (i) => M.l + (meses.length === 1 ? (W - M.l - M.r) / 2 : i * (W - M.l - M.r) / (meses.length - 1));
+    const y = (v) => M.t + (fin - v) * (H - M.t - M.b) / (fin - ini);
+    const cadaCuanto = meses.length > 12 ? 2 : 1;
+    const svg = `
+      <svg class="hist-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(met.nombre)} por mes de Divanna y El Vaso Maíz">
+        ${ticks.map(t => `<line x1="${M.l}" x2="${W - M.r}" y1="${y(t)}" y2="${y(t)}" stroke="${t === 0 ? 'rgba(246,241,234,0.35)' : 'rgba(246,241,234,0.08)'}" stroke-width="1"/>
+          <text x="${M.l - 8}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="rgba(246,241,234,0.6)">${fmtValor(t, met.dinero)}</text>`).join('')}
+        ${meses.map((m, i) => i % cadaCuanto === 0 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="rgba(246,241,234,0.6)">${nombreMes(m.mes)}</text>` : '').join('')}
+        <line id="histCruz" x1="0" x2="0" y1="${M.t}" y2="${H - M.b}" stroke="rgba(246,241,234,0.4)" stroke-width="1" visibility="hidden"/>
+        ${SERIES.map((s, k) => `
+          <polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${valores[k].map((v, i) => `${x(i)},${y(v)}`).join(' ')}"/>
+          ${valores[k].map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${s.color}" stroke="var(--ink-2)" stroke-width="2"/>`).join('')}
+          <text x="${x(meses.length - 1) + 10}" y="${y(valores[k][meses.length - 1]) + 4 + (k === 0 ? -6 : 8) * (Math.abs(y(valores[0][meses.length - 1]) - y(valores[1][meses.length - 1])) < 14 ? 1 : 0)}" font-size="12" font-weight="700" fill="rgba(246,241,234,0.9)">${s.nombre}</text>`).join('')}
+        ${meses.map((m, i) => `<rect class="hist-zona" data-i="${i}" x="${x(i) - (W - M.l - M.r) / Math.max(1, meses.length - 1) / 2}" y="${M.t}" width="${(W - M.l - M.r) / Math.max(1, meses.length - 1)}" height="${H - M.t - M.b}" fill="transparent"/>`).join('')}
+      </svg>`;
+    const mejores = SERIES.map(s => {
+      const top = meses.filter(m => m[s.clave].eventos > 0).sort((a, b) => b[s.clave].ingresos - a[s.clave].ingresos || b[s.clave].eventos - a[s.clave].eventos).slice(0, 3);
+      return `<div style="--c:${s.color};"><b>Mejores meses de ${s.nombre}</b><br>${top.length ? top.map(m => `${nombreMes(m.mes)}: <span class="dinero-favor">$${m[s.clave].ingresos.toLocaleString('es-MX')}</span> · ${m[s.clave].eventos} evento${m[s.clave].eventos === 1 ? '' : 's'}`).join('<br>') : 'Sin eventos todavía.'}</div>`;
+    }).join('');
+    histContent.innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">📈 Cómo van las empresas, mes por mes</h2>
+        <div class="hist-filtros">${METRICAS.map(m => `<button data-m="${m.clave}" class="${m.clave === histMetrica ? 'activo' : ''}">${m.nombre}</button>`).join('')}</div>
+        <div class="hist-leyenda">${SERIES.map(s => `<span style="--c:${s.color};">${s.nombre}</span>`).join('')}</div>
+        <div style="position:relative;" id="histLienzo">${svg}<div class="hist-tip" id="histTip" hidden></div></div>
+        <div class="evento-sub">${meses.length} mes${meses.length === 1 ? '' : 'es'} de historial${meses.length < 12 ? ': todavía no alcanza para ver temporadas que se repitan cada año' : ''}. "Ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado.${h.sinNegocio ? ` ${h.sinNegocio} evento${h.sinNegocio === 1 ? '' : 's'} sin negocio definido no se cuentan.` : ''}</div>
+        <div class="mejores">${mejores}</div>
+        <details style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver tabla</summary>
+          <table class="hist-tabla"><tr><th>Mes</th>${SERIES.map(s => `<th>${s.nombre}</th>`).join('')}</tr>
+          ${meses.map((m, i) => `<tr><td>${nombreMes(m.mes)}</td>${SERIES.map((s, k) => `<td>${fmtValor(valores[k][i], met.dinero)}</td>`).join('')}</tr>`).join('')}</table>
+        </details>
+      </div>`;
+    histContent.querySelectorAll('.hist-filtros button').forEach(b => b.addEventListener('click', () => { histMetrica = b.dataset.m; pintarHistorial(); }));
+    // Detalle al pasar el dedo o el mouse por un mes.
+    const lienzo = $('histLienzo'), tip = $('histTip'), cruz = $('histCruz');
+    const mostrar = (i) => {
+      cruz.setAttribute('x1', x(i)); cruz.setAttribute('x2', x(i)); cruz.setAttribute('visibility', 'visible');
+      tip.innerHTML = `<b>${nombreMes(meses[i].mes)}</b><br>${SERIES.map((s, k) => `<i style="--c:${s.color};"></i>${s.nombre}: <b>${fmtValor(valores[k][i], met.dinero)}</b>`).join('<br>')}`;
+      tip.hidden = false;
+      const caja = lienzo.getBoundingClientRect();
+      const px = x(i) / W * caja.width;
+      tip.style.left = Math.min(Math.max(0, px + 12), caja.width - tip.offsetWidth) + 'px';
+      tip.style.top = '8px';
+    };
+    lienzo.querySelectorAll('.hist-zona').forEach(z => {
+      z.addEventListener('mouseenter', () => mostrar(Number(z.dataset.i)));
+      z.addEventListener('click', () => mostrar(Number(z.dataset.i)));
+    });
+    lienzo.addEventListener('mouseleave', () => { tip.hidden = true; cruz.setAttribute('visibility', 'hidden'); });
   }
 
   async function loadDashboard(){
@@ -1063,13 +1203,14 @@
       renderBalance(data.balance);
       renderEventos(data.eventos);
       cargarFinanzas();
+      cargarHistorial();
     } catch(e){
       if(e.message === 'sesion') return;
       mainContent.innerHTML = `<div class="empty-state">📡<br>No se pudo cargar. Revisa tu señal y toca actualizar.</div>`;
     }
   }
 
-  refreshBtn.addEventListener('click', loadDashboard);
+  refreshBtn.addEventListener('click', () => { histCargado = 0; loadDashboard(); });
   $('logoutBtn').addEventListener('click', salir);
 
   // ---------- Canal con DiMa (Diana, como la gerente en su app) ----------

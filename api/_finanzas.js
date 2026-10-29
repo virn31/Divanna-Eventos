@@ -502,7 +502,98 @@ async function marcarReembolsado(colaborador, body) {
   return { ok: true };
 }
 
+// ---------- Historial mensual por empresa (gráfica del dashboard y DiMa) ----------
+// Por mes y por negocio: eventos autorizados, ingresos contratados (monto de los
+// eventos autorizados: es lo pactado, no lo cobrado), gastos (capturados a mano
+// o de reportes aprobados) y cobrado real (cobros de reportes aprobados).
+// Los eventos sin negocio claro se cuentan aparte (sinNegocio) en vez de adivinarlo.
+const MAX_MESES = 24;
+
+function negocioDeEvento(f) {
+  if (f.Negocio === NEGOCIOS.DV || f.Negocio === NEGOCIOS.VM) return f.Negocio;
+  return Number(f.Piezas_Vaso_Maiz) > 0 ? NEGOCIOS.VM : null;
+}
+
+async function historialMensual() {
+  const [eventos, gastos, cobros, aprobados] = await Promise.all([
+    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Fecha_Evento})`)}&fields%5B%5D=Fecha_Evento&fields%5B%5D=Negocio&fields%5B%5D=Monto_Estimado_IA&fields%5B%5D=Piezas_Vaso_Maiz`),
+    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
+    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
+    todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`{Estado} = "${ESTADOS.APROBADO}"`)}&fields%5B%5D=Estado`),
+  ]);
+  const ok = new Set(aprobados.map(r => r.id));
+  const meses = new Map();
+  let sinNegocio = 0;
+  const celda = (mes, negocio) => {
+    if (!meses.has(mes)) meses.set(mes, { mes, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
+    return meses.get(mes)[negocio];
+  };
+  function vacio() { return { eventos: 0, ingresos: 0, gastos: 0, cobrado: 0 }; }
+  const mesDe = (fecha) => (esFecha(fecha) ? fecha.slice(0, 7) : null);
+
+  for (const r of eventos) {
+    const mes = mesDe(r.fields.Fecha_Evento), negocio = negocioDeEvento(r.fields);
+    if (!mes) continue;
+    if (!negocio) { sinNegocio++; continue; }
+    const c = celda(mes, negocio);
+    c.eventos++;
+    c.ingresos += Number(r.fields.Monto_Estimado_IA) || 0;
+  }
+  for (const r of gastos) {
+    const reporte = (r.fields.Reporte || [])[0];
+    if (reporte && !ok.has(reporte)) continue;
+    const mes = mesDe(r.fields.Fecha);
+    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
+    celda(mes, r.fields.Negocio).gastos += Number(r.fields.Monto) || 0;
+  }
+  for (const r of cobros) {
+    if (!ok.has((r.fields.Reporte || [])[0])) continue;
+    const mes = mesDe(r.fields.Fecha);
+    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
+    celda(mes, r.fields.Negocio).cobrado += Number(r.fields.Monto) || 0;
+  }
+  // Meses seguidos desde el primero con datos hasta el actual (los vacíos en 0).
+  const conDatos = [...meses.keys()].sort();
+  const lista = [];
+  if (conDatos.length) {
+    const fin = hoyCuliacan().slice(0, 7) > conDatos[conDatos.length - 1] ? hoyCuliacan().slice(0, 7) : conDatos[conDatos.length - 1];
+    let [a, m] = conDatos[0].split('-').map(Number);
+    for (;;) {
+      const clave = `${a}-${String(m).padStart(2, '0')}`;
+      lista.push(meses.get(clave) || { mes: clave, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
+      if (clave >= fin) break;
+      m++; if (m > 12) { m = 1; a++; }
+    }
+  }
+  const redondear = (c) => ({ ...c, ingresos: Math.round(c.ingresos), gastos: Math.round(c.gastos), cobrado: Math.round(c.cobrado), utilidad: Math.round(c.ingresos - c.gastos) });
+  return {
+    meses: lista.slice(-MAX_MESES).map(x => ({ mes: x.mes, [NEGOCIOS.DV]: redondear(x[NEGOCIOS.DV]), [NEGOCIOS.VM]: redondear(x[NEGOCIOS.VM]) })),
+    sinNegocio,
+  };
+}
+
+const MESES_NOMBRE = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const nombreMes = (clave) => `${MESES_NOMBRE[Number(clave.slice(5, 7)) - 1]} ${clave.slice(0, 4)}`;
+
+// Texto para DiMa (solo Admin): tabla mensual y los mejores meses de cada empresa.
+function historialParaDima(h) {
+  if (!h.meses.length) return 'Todavía no hay eventos autorizados con fecha: no hay historial para comparar.';
+  const filas = h.meses.map(x => [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+    const c = x[n];
+    return `${nombreMes(x.mes)} · ${n}: ${c.eventos} eventos, ingresos contratados ${pesos(c.ingresos)}, gastos ${pesos(c.gastos)}, utilidad ${pesos(c.utilidad)}, cobrado reportado ${pesos(c.cobrado)}`;
+  }).join('\n')).join('\n');
+  const mejores = [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+    const top = h.meses.filter(x => x[n].eventos > 0).sort((a, b) => b[n].ingresos - a[n].ingresos || b[n].eventos - a[n].eventos).slice(0, 3);
+    return `${n}: ${top.length ? top.map(x => `${nombreMes(x.mes)} (${x[n].eventos} eventos, ${pesos(x[n].ingresos)})`).join(', ') : 'sin eventos todavía'}`;
+  }).join('\n');
+  return `Meses con historial: ${h.meses.length} (de ${nombreMes(h.meses[0].mes)} a ${nombreMes(h.meses[h.meses.length - 1].mes)}).` +
+    (h.sinNegocio ? ` Hay ${h.sinNegocio} eventos autorizados sin negocio definido que no están en las cifras.` : '') +
+    `\n${filas}\n\nMEJORES MESES POR INGRESOS CONTRATADOS:\n${mejores}`;
+}
+
 module.exports = {
+  historialMensual,
+  historialParaDima,
   ESTADOS,
   NEGOCIOS,
   TABLES,
