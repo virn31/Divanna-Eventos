@@ -116,11 +116,11 @@ function listaProduccion(eventos) {
   return { lineas, piezas };
 }
 
-function textoAviso(tipo, nombre, fecha, eventos) {
+function textoAviso(tipo, nombre, fecha, eventos, { actualizada = false } = {}) {
   const { lineas, piezas } = listaProduccion(eventos);
-  const encabezado = tipo === TIPOS.dia
+  const encabezado = (actualizada ? '🔄 LISTA ACTUALIZADA: el cliente cambió su pedido.\n' : '') + (tipo === TIPOS.dia
     ? `Hola ${nombre} 👋 esta es la producción del día de hoy (${fechaTexto(fecha)}):`
-    : `Hola ${nombre} 👋 esta es la producción que necesitamos para el ${fechaTexto(fecha)}:`;
+    : `Hola ${nombre} 👋 esta es la producción que necesitamos para el ${fechaTexto(fecha)}:`);
   const detalle = eventos.map(ev => [
     `🌽 ${ev.folio}${ev.horaInicio ? ' · empieza ' + horaTexto(ev.horaInicio) : ' · hora por confirmar'}${ev.ubicacion ? ' · ' + ev.ubicacion : ''}`,
     ev.instrucciones ? `   📌 ${ev.instrucciones}` : null,
@@ -147,7 +147,7 @@ const ahoraTexto = () => new Intl.DateTimeFormat('es-MX', { timeZone: 'America/M
 // Manda el aviso (previo o del día) de esa fecha a cada encargado que no lo
 // haya recibido. soloEncargado limita a una persona. Devuelve
 // { enviados: [nombres], fallidos: [{ nombre, motivo }] }.
-async function enviarAvisos(tipo, fecha, { soloEncargado = null } = {}) {
+async function enviarAvisos(tipo, fecha, { soloEncargado = null, actualizada = false } = {}) {
   const eventos = (await eventosDelDia(fecha)).filter(e => !soloEncargado || e.encargadoId === soloEncargado);
   const porEncargado = new Map();
   for (const ev of eventos) {
@@ -161,7 +161,7 @@ async function enviarAvisos(tipo, fecha, { soloEncargado = null } = {}) {
     const nombre = (persona && persona.nombre) || 'el encargado';
     if (!persona || !persona.activo) { fallidos.push({ nombre, motivo: 'ya no está activo' }); continue; }
     if (!persona.chatId) { fallidos.push({ nombre, motivo: 'no ha activado su Telegram' }); continue; }
-    const r = await enviarTelegram(persona.chatId, textoAviso(tipo, nombre, fecha, suyos), botonesAviso(tipo, fecha));
+    const r = await enviarTelegram(persona.chatId, textoAviso(tipo, nombre, fecha, suyos, { actualizada }), botonesAviso(tipo, fecha));
     if (!r.ok) { fallidos.push({ nombre, motivo: (r.data && r.data.description) || `error ${r.status}` }); continue; }
     enviados.push(nombre);
     const linea = `${marcaAviso(tipo, encargadoId)} ${new Date().toISOString()}`;
@@ -199,6 +199,16 @@ async function avisarAsignacion(encargadoId, ev) {
   if (!persona || !persona.chatId) return { enviados: [], fallidos: [{ nombre, motivo: 'no ha activado su Telegram' }] };
   const r = await enviarTelegram(persona.chatId, `🍳 Hola ${nombre}, te toca la producción de ${ev.folio || 'un evento'} (${fechaTexto(ev.fecha)}). Dos días antes te mando aquí la lista de lo que hay que preparar.`);
   return r.ok ? { enviados: [nombre], fallidos: [] } : { enviados: [], fallidos: [{ nombre, motivo: (r.data && r.data.description) || `error ${r.status}` }] };
+}
+
+// Diana confirmó un cambio del cliente: si la lista de ese evento ya se había
+// mandado (faltan 2 días o menos), se borra la marca y se le manda otra vez,
+// marcada como actualizada. Si falta más, el cron la manda ya con el cambio.
+async function reenviarPorCambio(eventoId, fecha) {
+  const hoy = hoyCuliacan();
+  if (!esFecha(fecha) || fecha < hoy || fecha > sumarDias(hoy, DIAS_ANTES)) return null;
+  await airtable(EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Produccion_Avisos: '' } }] }) });
+  return enviarAvisos(fecha === hoy ? TIPOS.dia : TIPOS.previo, fecha, { actualizada: true });
 }
 
 // ---------- Respuestas del encargado ----------
@@ -262,6 +272,7 @@ module.exports = {
   enviarAvisos,
   avisosDelDia,
   avisarAsignacion,
+  reenviarPorCambio,
   botonProduccion,
   esRespuestaProduccion,
   atenderRespuestaProduccion,

@@ -181,3 +181,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 ## 2026-10-29 — La gerente invita staff desde la app
 
 **Decisión (Víctor):** Ángela, además de asignar brigada, asigna staff desde su app. Caja "🧑‍🍳 Staff" en cada evento autorizado de El Vaso Maíz, con el mismo código que `/staff` (`estadosChicas` / `invitarChicas` en `_staff.js`). El alta de chicas nuevas sigue por `/staff` (necesita el enlace de Telegram). Sin función nueva (`invitar_staff` en `dashboard-eventos`).
+
+## 2026-10-29 — Cambios de pedido visibles y avisados; regla de 24 horas
+
+**Problema (prueba de Víctor):** un cliente cambió su pedido desde la página; llegó el Telegram a los Admin pero no sonó la app (no había push), el cambio solo quedaba al final de Notas (no se veía en el dashboard ni en la app, y `Servicios_Solicitados` seguía con lo viejo) y nadie del equipo se enteraba. Además, si guardar fallaba, DiMa igual decía "listo".
+**Decisión (Víctor, opciones recomendadas):** al momento se avisa a Diana, Víctor y la gerente (si es de El Vaso Maíz) por app (push) y Telegram; el equipo del evento se entera cuando Diana confirma el cambio en el dashboard. Los cambios se piden con 24 h de anticipación: con menos, DiMa le dice al cliente que no se puede garantizar y lo pasa como URGENTE (no se rechaza).
+**Cómo quedó:** `EVENTOS.Cambio_Cliente` (JSON con estado aplicado/pendiente/confirmado/descartado, lo de antes y lo nuevo). Pedido sin cotizar: se aplica directo. Pedido autorizado: pendiente → Confirmar (aplica servicios, hora, productos e indicaciones, borra Enterado, avisa al equipo con Confirmar y reenvía la producción si ya se había mandado) o Descartar (Diana se lo explica al cliente con "Mensaje para el cliente"). El monto nunca va a la app del equipo.
+**Descartado:** avisar a todo el equipo en cuanto el cliente lo pide (podrían preparar algo no aprobado); rechazar los cambios con menos de 24 h (Víctor prefiere que la gerencia decida).
+**Pendiente:** al confirmar no se recalculan los artículos exactos (`EVENTOS.Articulos`) ni el monto: Diana los ajusta a mano.

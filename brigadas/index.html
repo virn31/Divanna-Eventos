@@ -448,6 +448,22 @@
       </details>`;
   }
 
+  // Cambio que pidió el cliente. Confirmado por la gerencia: lo ve todo el
+  // equipo. Pendiente: solo la gerente (el equipo se entera al confirmarse).
+  function avisoCambio(ev){
+    const c = ev.cambio;
+    if(!c) return '';
+    const cuando = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const antes = c.antes ? `<details><summary>Ver cómo estaba antes</summary>${esc(c.antes)}</details>` : '';
+    if(c.estado === 'confirmado'){
+      return `<div class="instr-box"><b>🔄 El pedido cambió (${cuando(c.confirmadoEl)})</b>El cliente pidió un cambio y la gerencia lo confirmó. Lo que hay que llevar ya está actualizado abajo.${antes}</div>`;
+    }
+    if(c.estado === 'pendiente' && opcionesAsignar){
+      return `<div class="instr-box"><b>${c.urgente ? '⚠️ URGENTE · ' : ''}✏️ El cliente pidió un cambio (${cuando(c.pedidoEl)})</b>Pendiente de que Diana lo confirme; el equipo todavía no lo sabe.<br><br>${esc(c.servicios)}${antes}</div>`;
+    }
+    return '';
+  }
+
   // Quién tiene la producción del evento y su última respuesta (solo la gerente).
   function lineaProduccion(ev){
     if(!opcionesAsignar || !ev.vasoMaiz || !ev.produccionId) return '';
@@ -604,6 +620,7 @@
             ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
             : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
+          ${avisoCambio(ev)}
           ${lineaProduccion(ev)}
           ${bloqueAsignar(ev)}
           ${bloqueStaff(ev)}

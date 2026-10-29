@@ -78,6 +78,15 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
   ingredientes. Sus respuestas le llegan a la gerente con copia a Diana y Víctor, y se ven en el evento.
 - No ve precios ni pagos de los pedidos.
 
+## Cambios que pide el cliente
+
+- Cuando un cliente cambia su pedido, a Diana y Víctor (y a la gerente si es de El Vaso Maíz) les suena la app
+  y les llega Telegram. Si el pedido ya estaba autorizado, Diana lo revisa y toca **Confirmar cambio** o
+  **Descartar** en el dashboard.
+- Al confirmarse, al equipo del evento le llega "🔄 Cambió el pedido" con lo nuevo y el botón **Confirmar**; en
+  la app sale el aviso y lo que hay que llevar ya está actualizado. Hay que volver a tocar **Enterado**.
+- Los cambios se piden con 24 horas de anticipación; si faltan menos, llegan marcados como **URGENTE**.
+
 ## DiMa, curso y mensajes
 
 - **DiMa** (gerente y Admin): en la app con **💬 Pregúntale a DiMa**, o en Telegram escribiendo sin comando.

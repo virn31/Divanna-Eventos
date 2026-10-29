@@ -20,6 +20,9 @@
 // Maíz; en ese caso se avisa a Diana y Víctor por Telegram.
 // En "asignar" también puede venir produccionId: el encargado de producción de
 // El Vaso Maíz (api/_produccion.js); si cambia, se le avisa.
+// POST accion "confirmar_cambio" / "descartar_cambio": Diana confirma (se aplica y
+// se avisa al equipo) o descarta el cambio que pidió el cliente en un pedido ya
+// autorizado (api/_cambios.js).
 // POST accion "invitar_staff": la gerente (o un Admin) invita a sus chicas a un
 // evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
 // Telegram y les llega la invitación con "Sí puedo / No puedo".
@@ -34,6 +37,8 @@ const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArt
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
+const { confirmarCambio, descartarCambio } = require('./_cambios');
+const { leerCambio } = require('./_pedidos');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -171,7 +176,7 @@ function agendaDesdeDashboard(body, inventario) {
 async function resolverPedido(req, res, colaborador) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff', 'confirmar_cambio', 'descartar_cambio'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
@@ -269,6 +274,20 @@ async function resolverPedido(req, res, colaborador) {
       sinTelegram: nuevosColab.filter(c => !c.fields.Telegram_Chat_ID).map(c => c.fields.Nombre || ''),
       erroresAvisos,
     });
+    return;
+  }
+
+  if (accion === 'confirmar_cambio') {
+    const r = await confirmarCambio(eventoId, f, colaborador, await colaboradoresActivos());
+    if (r.error) { res.status(409).json({ error: r.error }); return; }
+    res.status(200).json({ success: true, ...r });
+    return;
+  }
+
+  if (accion === 'descartar_cambio') {
+    const r = await descartarCambio(eventoId, f, colaborador);
+    if (r.error) { res.status(409).json({ error: r.error }); return; }
+    res.status(200).json({ success: true });
     return;
   }
 
@@ -421,6 +440,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        cambioCliente: leerCambio(r.fields.Cambio_Cliente),
         ...agendaParaVista(r.fields),
       };
     });
@@ -445,6 +465,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        cambioCliente: leerCambio(r.fields.Cambio_Cliente),
         ...agendaParaVista(r.fields),
         // DiMa le promete al cliente respuesta en 12 h o menos desde que registra.
         limiteRespuesta: r.createdTime ? new Date(Date.parse(r.createdTime) + HORAS_RESPUESTA * 3600 * 1000).toISOString() : '',

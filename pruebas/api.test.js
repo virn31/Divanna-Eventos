@@ -270,9 +270,57 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV\n9 mesas', monto_estimado: 6400 } },
   ] }];
   const firmar = (f) => require('crypto').createHmac('sha256', process.env.SESSION_SECRET).update(`folio:${f}`).digest('base64url').slice(0, 32);
-  respuestas = [{ records: [] }]; // sin mensaje pendiente de Diana
+  // Pedido todavía sin cotizar, para dentro de varios días. (Telegram se configura
+  // solo para estos casos; las pruebas de abajo lo esperan sin configurar.)
+  process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';
+  const enDiasCambio = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const SUB_ADMIN = { id: 'recSUB00000000009', fields: { Endpoint: 'https://push.example/admin', Colaborador: [ADMIN.id], Claves: '{"p256dh":"a","auth":"b"}' } };
+  const ADMIN_TG = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
+  const EV_CAMBIO = { id: 'recEVENTOCAMBIO01', fields: { Folio_Evento: 'EVT-123456', Fecha_Evento: enDiasCambio(10), Hora_Inicio: '18:00', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'Pendiente', Servicios_Solicitados: 'Paquete viejo', Notas: 'notas' } };
+  respuestas = [{ records: [] }, { records: [EV_CAMBIO] }, {}, { records: [ADMIN_TG] }, { records: [ADMIN_TG] }, { records: [ADMIN] }, { records: [SUB_ADMIN] }];
   res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
+  const patchCambioCli = llamadas.find(l => l.method === "PATCH");
+  const cambioGuardado = patchCambioCli && JSON.parse(patchCambioCli.body.records[0].fields.Cambio_Cliente);
   ok(res.body.folio === 'EVT-123456' && !llamadas.some(l => l.method === 'POST') && correos.length === 1 && correos[0].subject.includes('Cambio en el pedido EVT-123456'), 'chat: cambios después de registrar no duplican el evento');
+  ok(patchCambioCli && patchCambioCli.body.records[0].fields.Servicios_Solicitados === 'Paquete XV\n9 mesas' && cambioGuardado.estado === 'aplicado' && cambioGuardado.antes === 'Paquete viejo' && !cambioGuardado.urgente,
+    'cambio: en un pedido sin cotizar se actualizan los servicios (antes se quedaban los viejos) y queda a la vista');
+  ok(pushes.length === 1 && pushes[0].payload.titulo.includes('Cambio en el pedido EVT-123456') && pushes[0].payload.url === '/brigadas/dashboard.html'
+    && telegram.some(t => t.body.chat_id === '111' && t.body.text.includes('Así lo quiere ahora')),
+    'cambio: a Diana y Víctor les suena la app (push) y les llega Telegram');
+  ok(res.body.texto.includes('al menos 24 horas de anticipación') && !res.body.texto.includes('no podemos garantizarlo'), 'cambio: DiMa le recuerda al cliente que los cambios se piden con 24 h de anticipación');
+
+  // Pedido ya autorizado de El Vaso Maíz a menos de 24 h: queda pendiente y urgente; avisa también a la gerente.
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete 5', monto_estimado: 3400 } },
+  ] }];
+  const GER_CAMBIO = { id: 'recCOLABGERENTE01', fields: { Nombre: 'Ángela', Rol: 'Lider de brigada', Activo: true, Gerente_Vaso_Maiz: true, Telegram_Chat_ID: '444' } };
+  const EV_URGENTE = { id: 'recEVENTOCAMBIO02', fields: { ...EV_CAMBIO.fields, Fecha_Evento: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date(Date.now() + 3 * 3600000)),
+    Hora_Inicio: new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Mazatlan', hour: '2-digit', minute: '2-digit' }).format(new Date(Date.now() + 3 * 3600000)),
+    Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3' } };
+  // Después del PATCH: gerencia, Telegram (Admin y gerente), push activos (Admin y gerente), suscripciones (Admin y gerente).
+  respuestas = [{ records: [] }, { records: [EV_URGENTE] }, {}, { records: [ADMIN_TG, GER_CAMBIO] }, { records: [ADMIN_TG, GER_CAMBIO] }, { records: [ADMIN_TG, GER_CAMBIO] }, { records: [ADMIN, GER_CAMBIO] }, { records: [ADMIN, GER_CAMBIO] }, { records: [] }, { records: [] }];
+  res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
+  const patchUrg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const cambioUrg = JSON.parse(patchUrg.Cambio_Cliente);
+  const aGerente = telegram.find(t => t.body.chat_id === '444');
+  ok(cambioUrg.estado === 'pendiente' && cambioUrg.urgente && !('Servicios_Solicitados' in patchUrg) && !('Productos' in patchUrg),
+    'cambio: en un pedido autorizado no se toca nada hasta que Diana lo confirme; con menos de 24 h va urgente');
+  ok(aGerente && aGerente.body.text.startsWith('⚠️ URGENTE') && !aGerente.body.text.includes('$') && telegram.some(t => t.body.chat_id === '111' && t.body.text.includes('$3,400')),
+    'cambio: a la gerente le llega (sin montos) junto con Diana y Víctor');
+  ok(res.body.texto.includes('menos de 24 horas') && res.body.texto.includes('no podemos garantizarlo') && res.body.texto.includes('urgente'),
+    'cambio: con menos de 24 h DiMa le dice al cliente que no se puede garantizar y que va como urgente');
+
+  // Si no se puede guardar, DiMa no dice "listo".
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: null } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [] }, { records: [ADMIN_TG] }];
+  res = await chat({ historial, folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
+  ok(res.body.texto.includes('no pude guardar tu cambio') && !res.body.texto.startsWith('Listo') && telegram.some(t => t.body.chat_id === '111' && t.body.text.includes('NO se pudo guardar') && t.body.text.includes('Paquete XV')),
+    'cambio: si no se pudo guardar, DiMa lo dice y la gerencia recibe lo que pidió');
+  delete process.env.TELEGRAM_BOT_TOKEN;
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
@@ -1083,6 +1131,45 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: ZOE_OTRA.id } }, res);
   ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'producción: no se puede poner de encargado a alguien fuera de las opciones');
 
+  // ---------- Diana confirma o descarta el cambio del cliente ----------
+  const CAMBIO_PEND = { estado: 'pendiente', pedidoEl: '2026-10-29T18:00:00Z', urgente: false, antes: 'Paquete 3', servicios: 'Paquete 5 y 50 raspados',
+    indicaciones: 'Llegar por la puerta lateral', montoEstimado: 4650, horaInicio: '19:00', horasServicio: 2, productos: [{ clave: 'vm_paquete_5', cantidad: 1 }, { clave: 'vm_raspado', cantidad: 50 }] };
+  const LIDER_CAMBIO = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+  const EV_PEND = { id: 'recEVENTOCAMBIO03', fields: { Folio_Evento: 'EVT-CM1', Fecha_Evento: enDias(10), Hora_Inicio: '18:00', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI',
+    Brigada_Asignada: ['recBRIGADA0000001'], Servicios_Solicitados: 'Paquete 3', Enterado_Por: 'Juan', Cambio_Cliente: JSON.stringify(CAMBIO_PEND), Notas: 'n' } };
+  reset();
+  respuestas = [ADMIN, EV_PEND, { records: [ADMIN, LIDER_CAMBIO] }, {}, { records: [ADMIN, LIDER_CAMBIO] }, { records: [ADMIN_T, LIDER_CAMBIO] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
+  const aplicado = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  const avisoLider = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '222');
+  ok(res.code === 200 && aplicado.Servicios_Solicitados === 'Paquete 5 y 50 raspados' && aplicado.Hora_Inicio === '19:00' && aplicado.Piezas_Vaso_Maiz === 170
+    && JSON.parse(aplicado.Cambio_Cliente).estado === 'confirmado' && aplicado.Enterado_Por === '' && aplicado.Instrucciones_Equipo === 'Del cliente: Llegar por la puerta lateral',
+    'cambio: al confirmar se aplica (servicios, hora, productos, indicaciones) y el equipo vuelve a confirmar "Enterado"');
+  ok(avisoLider && avisoLider.body.text.startsWith('🔄 Cambió el pedido EVT-CM1') && avisoLider.body.text.includes('Paquete 5 y 50 raspados') && !avisoLider.body.text.includes('4650') && !avisoLider.body.text.includes('$')
+    && botonesDe(avisoLider).join() === `cf:${EV_PEND.id}` && res.body.avisados === 1,
+    'cambio: al confirmar se avisa a la brigada con lo nuevo (sin montos) y botón Confirmar');
+
+  reset();
+  respuestas = [ADMIN, EV_PEND, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_PEND.id, accion: 'descartar_cambio' } }, res);
+  const descartado = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && JSON.parse(descartado.Cambio_Cliente).estado === 'descartado' && !('Servicios_Solicitados' in descartado) && !telegram.length,
+    'cambio: descartar no aplica nada ni avisa al equipo');
+
+  reset();
+  respuestas = [ADMIN, { ...EV_PEND, fields: { ...EV_PEND.fields, Cambio_Cliente: JSON.stringify({ ...CAMBIO_PEND, estado: 'confirmado' }) } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
+  ok(res.code === 409 && !llamadas.some(l => l.method === 'PATCH'), 'cambio: no se confirma dos veces');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'cambio: solo Diana y Víctor confirman cambios');
+
   reset();
   respuestas = [
     GERENTE,
@@ -1228,7 +1315,6 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ---------- Avisos de asignación por Telegram y "Enterado" ----------
   const LIDER_TG = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
-  const ADMIN_TG = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
   reset();
   // Después del PATCH: colaboradores activos (push), colaboradores con Telegram, suscripciones push.
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, { records: [LIDER_TG, ADMIN_TG] }, {}, { records: [LIDER_TG, ADMIN_TG] }, { records: [LIDER_TG, ADMIN_TG] }, { records: [] }];

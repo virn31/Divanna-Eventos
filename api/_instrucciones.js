@@ -69,6 +69,7 @@ const TEMAS = {
       '• En cada evento de El Vaso Maíz tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
       '• Debajo tienes "🧑‍🍳 Staff": ves a tus chicas con su marca, eliges a las que quieres y tocas "📨 Invitar por Telegram". Es lo mismo que /staff; las respuestas te llegan aquí. Para dar de alta a una chica nueva sigue siendo /staff → "➕ Agregar personal".\n' +
       '• En "👷 Asignar" también eliges al "🍳 Encargado de producción". Dos días antes le llega por Telegram la lista de lo que hay que preparar para que revise inventario, y el mismo día otra para confirmar ingredientes. Lo que conteste te llega aquí (con copia a Diana y Víctor) y lo ves en el evento.\n' +
+      '• Si un cliente cambia su pedido te suena la app y te llega aquí ("✏️ Cambio en el pedido"). Diana lo confirma; entonces al equipo le llega "🔄 Cambió el pedido" y tienen que volver a tocar "Enterado". Los cambios se piden con 24 h de anticipación; si faltan menos, llega como URGENTE.\n' +
       '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',
   },
   mensajes: {
