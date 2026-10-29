@@ -36,15 +36,39 @@ async function telegramApi(metodo, cuerpo) {
   return { ok: res.ok && data.ok, status: res.status, data };
 }
 
+// Botones bajo el mensaje: lista de renglones de { texto, dato } (dato = callback_data, máx. 64 bytes).
+function teclado(botones) {
+  return { inline_keyboard: botones.map(fila => fila.map(b => ({ text: b.texto, callback_data: b.dato }))) };
+}
+
 // Texto plano (sin parse_mode) para no tener que escapar lo que escriben
-// clientes y brigadas.
-async function enviarTelegram(chatId, texto) {
+// clientes y brigadas. "botones" es opcional.
+async function enviarTelegram(chatId, texto, botones = null) {
   if (!telegramConfigurado()) return { ok: false, status: 0 };
   return telegramApi('sendMessage', {
     chat_id: chatId,
     text: String(texto).slice(0, LIMITE_TEXTO),
     disable_web_page_preview: true,
+    ...(botones ? { reply_markup: teclado(botones) } : {}),
   });
+}
+
+// Cambia el texto (y los botones) de un mensaje que ya mandó el bot.
+async function editarTelegram(chatId, mensajeId, texto, botones = null) {
+  if (!telegramConfigurado()) return { ok: false, status: 0 };
+  return telegramApi('editMessageText', {
+    chat_id: chatId,
+    message_id: mensajeId,
+    text: String(texto).slice(0, LIMITE_TEXTO),
+    disable_web_page_preview: true,
+    reply_markup: teclado(botones || []),
+  });
+}
+
+// Respuesta a un toque de botón (quita el relojito; "alerta" lo muestra como ventana).
+async function responderBoton(callbackId, texto = '', alerta = false) {
+  if (!telegramConfigurado()) return;
+  await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: String(texto).slice(0, 190), show_alert: alerta }).catch(() => {});
 }
 
 async function borrarMensaje(chatId, mensajeId) {
@@ -59,6 +83,7 @@ function aColaborador(r) {
     rol: r.fields.Rol || '',
     brigadaId: (r.fields.Brigada || [])[0] || null,
     chatId: r.fields.Telegram_Chat_ID || '',
+    coordinaStaff: !!r.fields.Coordina_Staff,
   };
 }
 
@@ -83,7 +108,7 @@ async function guardarChat(colaboradorId, chatId) {
 // de IDs para mandarlo solo a esas personas; ubicacion: { lat, lng } para
 // mandar además el pin del mapa. Devuelve a cuántos les llegó. Nunca lanza error.
 // Si se pasa una lista de errores, ahí quedan los motivos de lo que no se entregó.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null }) {
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null, botones = null }) {
   if (!telegramConfigurado()) {
     if (errores) errores.push('Telegram sin configurar (falta TELEGRAM_BOT_TOKEN)');
     return 0;
@@ -97,7 +122,7 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
 
     let enviados = 0;
     await Promise.all(destinos.map(async (c) => {
-      const r = await enviarTelegram(c.chatId, texto);
+      const r = await enviarTelegram(c.chatId, texto, botones);
       if (r.ok) {
         enviados++;
         if (ubicacion) await telegramApi('sendLocation', { chat_id: c.chatId, latitude: ubicacion.lat, longitude: ubicacion.lng }).catch(() => {});
@@ -118,7 +143,10 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
 
 module.exports = {
   telegramConfigurado,
+  telegramApi,
   enviarTelegram,
+  editarTelegram,
+  responderBoton,
   borrarMensaje,
   colaboradorPorChat,
   guardarChat,

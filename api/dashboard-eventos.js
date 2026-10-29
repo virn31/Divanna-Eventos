@@ -21,9 +21,11 @@ const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } 
 const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
+const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
+const { staffPorEvento } = require('./_staff');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -123,14 +125,14 @@ async function asignadosDe(eventoFields) {
   return equipoDe(eventoFields, await colaboradoresActivos());
 }
 
-async function avisarInstrucciones(eventoFields, texto) {
+async function avisarInstrucciones(eventoId, eventoFields, texto) {
   const asignados = await asignadosDe(eventoFields);
   if (!asignados.length) return 0;
   const titulo = `📌 Instrucciones para ${eventoFields.Folio_Evento || 'tu evento'}`;
   const cuerpo = `${eventoFields.Ubicacion ? eventoFields.Ubicacion + ' · ' : ''}${eventoFields.Fecha_Evento || ''}\n${texto}`;
   await Promise.all([
     enviarPushEquipo({ titulo, cuerpo, soloColaboradores: asignados }),
-    enviarTelegramEquipo({ texto: `${titulo}\n${cuerpo}`, soloColaboradores: asignados }),
+    enviarTelegramEquipo({ texto: `${titulo}\n${cuerpo}`, soloColaboradores: asignados, botones: botonConfirmar(eventoId) }),
   ]);
   return asignados.length;
 }
@@ -184,7 +186,7 @@ async function resolverPedido(req, res) {
     await airtablePatch(TABLES.EVENTOS, eventoId, { Instrucciones_Equipo: instrucciones });
     // Solo se avisa si hay algo escrito y cambió.
     const avisados = instrucciones && instrucciones !== (f.Instrucciones_Equipo || '').trim()
-      ? await avisarInstrucciones(f, instrucciones)
+      ? await avisarInstrucciones(eventoId, f, instrucciones)
       : 0;
     res.status(200).json({ success: true, avisados });
     return;
@@ -210,12 +212,10 @@ async function resolverPedido(req, res) {
     const erroresAvisos = [];
     if (nuevos.length) {
       const titulo = `🗓️ Te asignaron ${f.Folio_Evento || 'un evento'}`;
-      const cuerpo = `${f.Ubicacion ? f.Ubicacion + ' · ' : ''}${f.Fecha_Evento || ''}${f.Hora_Inicio ? ' · ' + f.Hora_Inicio : ''}
-Ábrelo en la app y toca "Enterado".`;
+      const cuerpo = `${f.Ubicacion ? f.Ubicacion + ' · ' : ''}${f.Fecha_Evento || ''}${f.Hora_Inicio ? ' · ' + f.Hora_Inicio : ''}\nConfirma que lo viste con el botón o en la app ("Enterado").`;
       [porPush, porTelegram] = await Promise.all([
         enviarPushEquipo({ titulo, cuerpo, soloColaboradores: nuevos }),
-        enviarTelegramEquipo({ texto: `${titulo}
-${cuerpo}`, soloColaboradores: nuevos, errores: erroresAvisos }),
+        enviarTelegramEquipo({ texto: `${titulo}\n${cuerpo}`, soloColaboradores: nuevos, errores: erroresAvisos, botones: botonConfirmar(eventoId) }),
       ]);
     }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
@@ -403,7 +403,9 @@ module.exports = async (req, res) => {
     // Semáforo en vivo: cada pedido y evento contra los demás eventos autorizados.
     const paraAgenda = eventosData.records.map(eventoParaAgenda);
     const porId = new Map(paraAgenda.map(e => [e.id, e]));
+    const staff = await staffPorEvento().catch(err => { console.error('No se pudo leer STAFF_EVENTO:', err.message); return {}; });
     [...eventos, ...pedidos].forEach(item => {
+      item.staff = staff[item.id] || [];
       item.porAsignar = porAsignar(item, inventario);
       const ev = porId.get(item.id);
       item.disponibilidad = ev ? evaluarDisponibilidad(ev, { otros: paraAgenda, inventario, personalPorFecha }) : null;

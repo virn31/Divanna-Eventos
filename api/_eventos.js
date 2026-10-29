@@ -1,9 +1,12 @@
 // api/_eventos.js
 // Qué eventos ve cada colaborador según su rol, y las alertas del equipo del
 // día. Lo usan la app (api/brigada-eventos.js) y el bot de Telegram (api/telegram.js).
+// También la confirmación "Enterado" de un evento asignado (app y botón de Telegram).
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, puedeOperarEvento } = require('./_sesion');
+const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
+const { eventosConfirmadosDe } = require('./_staff');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -18,6 +21,16 @@ async function airtableGet(path) {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}` },
   });
   if (!res.ok) throw new Error(`Airtable error ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function airtablePatch(tableId, recordId, fields) {
+  const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records: [{ id: recordId, fields }] }),
+  });
+  if (!res.ok) throw new Error(`Airtable PATCH error ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
@@ -77,6 +90,8 @@ function formatearEvento(r) {
 // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
 async function alcanceDe(colaborador) {
   if (colaborador.rol === ROLES.ADMIN) return { brigada: null, eventoIds: null };
+  // Staff de El Vaso Maíz: los eventos que confirmó por Telegram.
+  if (colaborador.rol === ROLES.STAFF) return { brigada: null, eventoIds: await eventosConfirmadosDe(colaborador.id) };
   if (colaborador.rol === ROLES.ENCARGADA) {
     const registro = await airtableGet(`${COLABORADORES_TABLE}/${colaborador.id}?returnFieldsByFieldId=true`);
     return { brigada: null, eventoIds: registro.fields[CAMPO_EVENTOS_DE_ENCARGADA] || [] };
@@ -146,4 +161,28 @@ async function opcionesVista() {
   };
 }
 
-module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista };
+// Botón "Confirmar" que va debajo de los avisos de un evento (asignación e
+// instrucciones). Lo atiende api/telegram.js con confirmarEvento.
+function botonConfirmar(eventoId) {
+  return [[{ texto: '✅ Confirmar', dato: `cf:${eventoId}` }]];
+}
+
+function textoEnterado(nombre, eventoFields) {
+  const f = eventoFields;
+  return `👍 ${nombre} está enterado de ${f.Folio_Evento || 'un evento'} (${f.Ubicacion || 'ubicación por confirmar'}${f.Fecha_Evento ? ' · ' + f.Fecha_Evento : ''}).`;
+}
+
+// Quien tiene el evento asignado confirma que lo vio: se guarda en
+// Enterado_Por/Enterado_Hora y se avisa a los Admin por Telegram.
+// Devuelve null si el evento no es suyo.
+async function confirmarEvento(colaborador, eventoId) {
+  const evento = await airtableGet(`${TABLES.EVENTOS}/${eventoId}`);
+  if (!puedeOperarEvento(colaborador, evento.fields)) return null;
+  const nombre = colaborador.nombre || 'sin identificar';
+  await airtablePatch(TABLES.EVENTOS, eventoId, { Enterado_Por: nombre, Enterado_Hora: new Date().toISOString() });
+  await enviarTelegramEquipo({ texto: textoEnterado(nombre, evento.fields), roles: [ROLES.ADMIN] })
+    .catch(err => console.error('Error avisando enterado:', err));
+  return { folio: evento.fields.Folio_Evento || '' };
+}
+
+module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista, botonConfirmar, textoEnterado, confirmarEvento };

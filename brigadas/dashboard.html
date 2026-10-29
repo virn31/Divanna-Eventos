@@ -359,6 +359,15 @@
     return `<span class="badge badge-sem-${disp.nivel}">${s.icono} ${s.titulo}</span>`;
   }
 
+  // Staff de El Vaso Maíz invitado por Telegram (/staff) y su respuesta.
+  const ICONO_STAFF = { 'Confirmó': '✅', 'Invitada': '⏳', 'No puede': '❌' };
+  function bloqueStaff(ev){
+    if(!ev.personalRequerido && !(ev.staff || []).length) return '';
+    const confirmadas = (ev.staff || []).filter(s => s.estado === 'Confirmó').length;
+    const lista = (ev.staff || []).map(s => `${esc(s.nombre)} ${ICONO_STAFF[s.estado] || ''}`).join(' · ');
+    return `<div class="motivo">🧑‍🍳 Staff: ${confirmadas} de ${ev.personalRequerido || '?'} confirmadas${lista ? ' — ' + lista : ' — aún sin invitar (la coordinadora usa /staff en Telegram)'}</div>`;
+  }
+
   // Plazo de 12 h que DiMa le prometió al cliente.
   function bloqueLimite(iso){
     if(!iso) return '';
@@ -542,6 +551,7 @@
             </div>` : ''}
           ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
           ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
+          ${bloqueStaff(ev)}
           ${bloqueMensajeCliente(ev)}
           ${bloqueAsignar(ev)}
           <details class="agenda">

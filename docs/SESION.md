@@ -5,7 +5,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 - Repo de trabajo (fuera de OneDrive): `C:\Users\virn3\Proyectos\Divanna-Eventos`
 - Remoto: https://github.com/virn31/Divanna-Eventos
-- Rama de trabajo actual: `agenda-semaforo` (nunca trabajar directo en `main`; `main` es producción).
+- Rama de trabajo actual: `staff-telegram` (nunca trabajar directo en `main`; `main` es producción).
 
 ## Cuando Víctor dice "cerrar"
 
@@ -28,11 +28,13 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-28 (noche) · **Rama:** `agenda-semaforo` (sin merge) · **Producción:** `main` en 66859b1 = fase 1 de agenda (merge local de `agenda-inventario`, sin PR).
+**Actualizado:** 2026-10-28 (noche) · **Rama:** `staff-telegram` (sin merge) · **Producción:** `main` en ed74908 = fase 1 de agenda + semáforo (merges locales, sin PR).
 
 **En producción:** todo lo de los PR #1 a #4 (sin WhatsApp, chat de DiMa, app con roles y PIN, push, Telegram, vista equipo, GPS, pedido existente, mensaje de Diana al cliente, traslado, 35 km, paquetes primero, temporada alta) y la fase 1 de agenda. Verificado: chat de DiMa responde con la API real.
 
-**En la rama `agenda-semaforo` (fase 2, falta publicar):**
+**En la rama `staff-telegram` (falta publicar):** staff de El Vaso Maíz por Telegram: Rol "Staff", `COLABORADORES.Coordinadora`, tabla STAFF_EVENTO, `/staff` con botones, invitaciones "Sí puedo / No puedo", avisos a la coordinadora, `/configurar` (Admin) para activar los botones. 157 pruebas pasan. Después de publicar: Diana o Víctor escriben `/configurar`; alta de Ángela y las chicas en COLABORADORES.
+
+**Fase 2 (semáforo, ya en producción):**
 - `api/_agenda.js`: semáforo 🟢/🟡/🔴 contra eventos autorizados que se traslapan (inventario por categoría y artículo exacto, Casa Isabella, entregas por día, personal y equipos de El Vaso Maíz). Tabla nueva `PERSONAL_DIA` (cupo por día; 12 si no hay renglón).
 - Al registrar se guarda en `EVENTOS.Disponibilidad`/`Disponibilidad_Detalle` y va en Telegram y correo con la hora límite (12 h). Dashboard: semáforo en vivo en pedidos y eventos, conteo por color y plazo de 12 h (avisa si se venció).
 - DiMa y el formulario: "ya tenemos todos los datos… en un lapso no mayor a 12 horas te confirmamos". El cliente nunca ve el semáforo.
