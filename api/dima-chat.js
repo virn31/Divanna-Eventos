@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { avisarCambioPedido } = require('./_cambios');
+const { bloqueosProximos } = require('./_calendario');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
@@ -288,6 +289,16 @@ async function registrarPedido(input, historial, folioPrevio) {
     return { texto: `Antes de registrarlo me falta un dato: ${error.charAt(0).toLowerCase() + error.slice(1)}` };
   }
 
+  // Día bloqueado en el calendario: un pedido nuevo no se registra aunque DiMa
+  // no lo haya notado (los cambios a un pedido existente sí pasan; la gerencia decide).
+  if (!folioPrevio && datos.fecha) {
+    const bloqueos = await bloqueosProximos().catch(() => []);
+    const choca = bloqueos.find(b => b.fecha === datos.fecha && (b.negocio === 'Ambos' || datos.negocio === 'Ambos' || !datos.negocio || b.negocio === datos.negocio));
+    if (choca) {
+      return { texto: `Una disculpa: el ${datos.fecha} ya no tenemos disponibilidad${choca.negocio === 'Ambos' ? '' : ' para ' + (choca.negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna Eventos')}. ¿Te gustaría revisar otra fecha?` };
+    }
+  }
+
   // Límite de servicio: aunque DiMa no lo haya revisado, no se registran
   // eventos a más de 35 km. Si el mapa no responde, se registra y logística valida.
   if (datos.fueraDeCiudad && datos.ubicacion) {
@@ -456,6 +467,16 @@ module.exports = async (req, res) => {
   }
   if (mensajeAEntregar) {
     avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
+  }
+
+  // Días que la gerencia bloqueó en el calendario: DiMa no los ofrece.
+  try {
+    const bloqueos = await bloqueosProximos();
+    if (bloqueos.length) {
+      avisos.push(`DÍAS NO DISPONIBLES (los bloqueó la gerencia): ${bloqueos.map(b => `${b.fecha} (${b.negocio === 'Ambos' ? 'los dos negocios' : b.negocio})`).join(', ')}. Si el cliente pide una de esas fechas para ese negocio, dile con amabilidad que esa fecha ya no está disponible y ofrécele otra; no registres el pedido en esa fecha.`);
+    }
+  } catch (err) {
+    console.error('No se pudieron leer los días bloqueados:', err.message);
   }
 
   if (temporadaMencionada(historial)) {

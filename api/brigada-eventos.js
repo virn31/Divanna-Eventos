@@ -14,6 +14,7 @@
 const { ROLES, requerirSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
 const { staffParaApp } = require('./_staff');
+const { vistaMes } = require('./_calendario');
 const { opcionesProduccion: opcionesDeProduccion } = require('./_produccion');
 
 const ID_REGISTRO = /^rec[A-Za-z0-9]{14}$/;
@@ -36,6 +37,13 @@ module.exports = async (req, res) => {
   try {
     const colaborador = await requerirSesion(req, res, [ROLES.LIDER, ROLES.ASISTENTE, ROLES.ENCARGADA, ROLES.ADMIN]);
     if (!colaborador) return;
+
+    // Calendario del equipo (?vista=calendario&mes=YYYY-MM): todos ven todo, sin montos.
+    if ((req.query || {}).vista === 'calendario') {
+      const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.mes || '') ? req.query.mes : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date()).slice(0, 7);
+      res.status(200).json(await vistaMes(colaborador, mes));
+      return;
+    }
 
     const { brigada, eventoIds } = await alcanceDe(alcanceSolicitado(colaborador, req.query || {}));
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
