@@ -19,7 +19,8 @@
 
 const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { HORAS_RESPUESTA, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
+const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
+const { avisarCambioPedido } = require('./_cambios');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
@@ -195,6 +196,7 @@ FLUJO DE LA COTIZACIÓN:
 5. Con eso llama a registrar_pedido. Después dile que ya tenemos todos los datos de su evento, que el equipo revisa la disponibilidad y que en un lapso no mayor a ${HORAS_RESPUESTA} horas le confirmamos la cotización; lo contactan por teléfono para el anticipo y los datos de pago.
 - Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
+- CAMBIOS AL PEDIDO: se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación al evento. Si el cliente pregunta o quiere cambiar algo, díselo con amabilidad. Con menos de ${HORAS_ANTICIPACION_CAMBIO} horas no se puede garantizar: si aun así lo quiere, regístralo y la gerencia lo revisa como urgente.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
 ${CATALOGO}`;
@@ -301,29 +303,51 @@ async function registrarPedido(input, historial, folioPrevio) {
   // teléfono), no se duplica el evento: el cambio se guarda en el evento y se
   // avisa a Diana para que ajuste la cotización.
   if (folioPrevio) {
-    await registrarCambioCliente(folioPrevio, {
+    let cambio;
+    try {
+      cambio = await registrarCambioCliente(folioPrevio, {
+        servicios: datos.servicios,
+        indicaciones: datos.indicaciones,
+        montoEstimado: datos.montoEstimado,
+        transcripcion: transcripcion(historial),
+        preferenciaContacto: datos.preferenciaContacto,
+        horaInicio: datos.horaInicio,
+        horasServicio: datos.horasServicio,
+        productos: datos.productos,
+      });
+    } catch (err) {
+      // No se finge que quedó: se le dice al cliente y se avisa a los Admin con lo que pidió.
+      console.error('No se pudo guardar el cambio en el evento:', err.message);
+      await enviarTelegramEquipo({
+        roles: [ROLES.ADMIN],
+        texto: `⚠️ El cliente ${datos.nombre} quiso cambiar el pedido ${folioPrevio} pero NO se pudo guardar (${err.message}). Lo que pidió:\n\n${datos.servicios}` +
+          (datos.indicaciones ? `\n\n📌 ${datos.indicaciones}` : ''),
+      });
+      return { texto: `Una disculpa: no pude guardar tu cambio en este momento. Ya le avisé a la gerencia con lo que me pediste para que te contacte; si quieres, inténtalo de nuevo en unos minutos.`, folio: folioPrevio };
+    }
+    await avisarCambioPedido({
+      folio: folioPrevio,
+      nombre: datos.nombre,
       servicios: datos.servicios,
-      indicaciones: datos.indicaciones,
       montoEstimado: datos.montoEstimado,
-      transcripcion: transcripcion(historial),
-      preferenciaContacto: datos.preferenciaContacto,
-      horaInicio: datos.horaInicio,
-      horasServicio: datos.horasServicio,
-      productos: datos.productos,
-    }).catch(err => console.error('No se pudo guardar el cambio en el evento:', err.message));
-    await enviarTelegramEquipo({
-      roles: [ROLES.ADMIN],
-      texto: `✏️ Cambio en el pedido ${folioPrevio} (${datos.nombre}). Así queda:\n\n${datos.servicios}` +
-        (datos.montoEstimado > 0 ? `\n\nNuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}` : '') +
-        (datos.indicaciones ? `\n\n📌 ${datos.indicaciones}` : ''),
-    });
+      indicaciones: datos.indicaciones,
+      urgente: cambio.urgente,
+      autorizado: cambio.autorizado,
+      eventoFields: cambio.campos,
+    }).catch(err => console.error('Error avisando el cambio de pedido:', err.message));
     await enviarCorreoEquipo({
-      asunto: `✏️ Cambio en el pedido ${folioPrevio} - ${datos.nombre}`,
-      texto: `El cliente pidió cambios en el chat después de registrar el pedido ${folioPrevio}.\n\nAsí queda ahora:\n${datos.servicios}\n\n` +
+      asunto: `${cambio.urgente ? '⚠️ URGENTE · ' : ''}✏️ Cambio en el pedido ${folioPrevio} - ${datos.nombre}`,
+      texto: `El cliente pidió cambios en el chat después de registrar el pedido ${folioPrevio}.` +
+        (cambio.urgente ? ' Faltan menos de 24 horas para el evento.' : '') +
+        (cambio.autorizado ? ' El pedido ya estaba autorizado: confírmalo o descártalo en el dashboard.' : '') +
+        `\n\nAsí queda ahora:\n${datos.servicios}\n\n` +
         (datos.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
         `Conversación:\n${transcripcion(historial)}`,
     });
-    return { texto: `Listo, ya pasé tus cambios al equipo para el pedido ${folioPrevio}. La gerencia revisa si cambia la cotización y te confirma en un lapso no mayor a ${HORAS_RESPUESTA} horas.`, folio: folioPrevio };
+    const texto = cambio.urgente
+      ? `Listo, ya pasé tus cambios a la gerencia para el pedido ${folioPrevio}. Te recuerdo que los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación: como faltan menos de ${HORAS_ANTICIPACION_CAMBIO} horas para tu evento, no podemos garantizarlo, pero lo marqué como urgente y la gerencia te confirma lo antes posible.`
+      : `Listo, ya pasé tus cambios a la gerencia para el pedido ${folioPrevio}. Revisa si cambia la cotización y te confirma en un lapso no mayor a ${HORAS_RESPUESTA} horas. Recuerda que los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.`;
+    return { texto, folio: folioPrevio };
   }
 
   const { folio } = await crearPedido(datos, {
@@ -419,6 +443,9 @@ module.exports = async (req, res) => {
       `Lo que lleva:\n${pedido.servicios}\n` +
       (pedido.instrucciones ? `Indicaciones ya guardadas:\n${pedido.instrucciones}\n` : '') +
       (pedido.autorizado ? 'La gerencia ya confirmó esta cotización: cualquier cambio lo vuelve a revisar.\n' : 'La gerencia todavía no confirma la cotización.\n') +
+      (cambioUrgente(pedido.fecha, pedido.horaInicio)
+        ? `IMPORTANTE: faltan menos de ${HORAS_ANTICIPACION_CAMBIO} horas para el evento. Dile al inicio, con amabilidad, que los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación y que ya no podemos garantizarlo; si aun así quiere el cambio, regístralo (se pasa como urgente a la gerencia).\n`
+        : `Recuérdale con amabilidad que los cambios de pedido se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.\n`) +
       'Lo que pida ahora son agregados o cambios a ESE pedido. No pidas otra vez sus datos de contacto. Cuando tengas claro el cambio, llama registrar_pedido con los datos completos ya actualizados (nombre y teléfono del pedido).'
     );
   }
@@ -511,7 +538,7 @@ module.exports = async (req, res) => {
           if (resultado.texto) partes.push(resultado.texto);
           if (resultado.folio && !folioNuevo) {
             folioNuevo = resultado.folio;
-            partes.push(`Ya tenemos todos los datos de tu evento. El equipo revisa la disponibilidad y en un lapso no mayor a ${HORAS_RESPUESTA} horas te confirmamos la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar algo, escríbelo en la página en "¿Ya tienes número de pedido?".`);
+            partes.push(`Ya tenemos todos los datos de tu evento. El equipo revisa la disponibilidad y en un lapso no mayor a ${HORAS_RESPUESTA} horas te confirmamos la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar o cambiar algo, escríbelo en la página en "¿Ya tienes número de pedido?". Los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.`);
           } else if (resultado.folio) {
             folioNuevo = resultado.folio;
           }

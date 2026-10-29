@@ -329,7 +329,58 @@
     }
   }
 
+  // Cambio que pidió el cliente en el chat (api/_cambios.js). En un pedido ya
+  // autorizado queda pendiente hasta que Diana lo confirma o lo descarta.
+  const fechaHora = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  function bloqueCambio(item){
+    const c = item.cambioCliente;
+    if(!c) return '';
+    if(c.estado === 'aplicado') return `<div class="motivo aviso-fuera">✏️ El cliente cambió el pedido (${fechaHora(c.pedidoEl)})${c.urgente ? ' · ⚠️ con menos de 24 h' : ''}: ya está actualizado abajo.</div>`;
+    if(c.estado === 'confirmado') return `<div class="motivo">🔄 Cambio del cliente confirmado${c.confirmadoPor ? ' por ' + esc(c.confirmadoPor) : ''} (${fechaHora(c.confirmadoEl)}); el equipo ya fue avisado.</div>`;
+    if(c.estado !== 'pendiente') return '';
+    return `
+      <div class="motivo aviso-fuera cambio-box">
+        <b>${c.urgente ? '⚠️ URGENTE (menos de 24 h) · ' : ''}✏️ El cliente pidió un cambio (${fechaHora(c.pedidoEl)})</b>
+        <div class="evento-sub">El equipo todavía no lo sabe. Revisa si cambia la cotización o la disponibilidad.</div>
+        <div style="margin-top:8px;"><b>Ahora lo quiere así:</b><div class="servicios">${esc(c.servicios)}</div></div>
+        ${c.indicaciones ? `<div>📌 ${esc(c.indicaciones)}</div>` : ''}
+        ${c.montoEstimado ? `<div>Nuevo estimado de DiMa: $${Number(c.montoEstimado).toLocaleString('es-MX')}</div>` : ''}
+        <details><summary>Ver cómo estaba antes</summary><div class="servicios">${esc(c.antes || '(sin detalle)')}</div></details>
+        <div class="instr-fila">
+          <button class="msgcli-enviar cambio-btn" data-id="${esc(item.id)}" data-accion="confirmar_cambio">✅ Confirmar cambio y avisar al equipo</button>
+          <button class="msgcli-enviar cambio-btn" style="background:var(--line); color:var(--paper);" data-id="${esc(item.id)}" data-accion="descartar_cambio">✖ Descartar</button>
+          <span class="instr-msg cambio-msg"></span>
+        </div>
+        <div class="evento-sub">Después de confirmar, revisa "Hora y productos" y los artículos exactos. Si lo descartas, explícaselo al cliente con "Mensaje para el cliente".</div>
+      </div>`;
+  }
+
+  async function resolverCambio(btn){
+    const caja = btn.closest('.cambio-box');
+    const msg = caja.querySelector('.cambio-msg');
+    caja.querySelectorAll('.cambio-btn').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: btn.dataset.accion }),
+      });
+      msg.textContent = btn.dataset.accion === 'descartar_cambio' ? 'Descartado. Avísale al cliente con "Mensaje para el cliente".'
+        : `Confirmado. Avisos al equipo: ${d.avisados} (Telegram ${d.porTelegram}, app ${d.porPush}).`
+          + ((d.erroresAvisos || []).length ? ` ⚠️ ${d.erroresAvisos.join(' · ')}` : '')
+          + (d.produccion && d.produccion.enviados.length ? ` 🍳 Lista de producción reenviada a ${d.produccion.enviados.join(', ')}.` : '')
+          + (d.produccion && d.produccion.fallidos.length ? ` ⚠️ Producción: ${d.produccion.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
+      setTimeout(loadDashboard, 4000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+      caja.querySelectorAll('.cambio-btn').forEach(b => { b.disabled = false; });
+    }
+  }
+
   function conectarMensajeCliente(contenedor){
+    contenedor.querySelectorAll('.cambio-btn').forEach(b => b.addEventListener('click', () => resolverCambio(b)));
     contenedor.querySelectorAll('.msgcli-texto').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
     contenedor.querySelectorAll('.msgcli-enviar').forEach(b => b.addEventListener('click', () => enviarMensajeCliente(b)));
   }
@@ -551,6 +602,7 @@
             </div>` : ''}
           ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
           ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
+          ${bloqueCambio(ev)}
           ${bloqueStaff(ev)}
           ${bloqueMensajeCliente(ev)}
           ${bloqueAsignar(ev)}
@@ -700,7 +752,8 @@
   function renderPedidos(pedidos){
     // El polling cada 30s no debe borrar lo que Diana está escribiendo:
     // solo se vuelve a pintar si cambió la lista de pedidos.
-    const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
+    // Incluye el último cambio del cliente: si cambia el pedido, se vuelve a pintar.
+    const firma = pedidos.map(p => `${p.id}:${p.cambioCliente ? p.cambioCliente.pedidoEl : ''}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
     if(firma === pedidosFirma) return;
     if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio]')) return;
     pedidosFirma = firma;
@@ -728,8 +781,9 @@
           ${p.fueraDeCiudad ? `<div class="motivo aviso-fuera">🛣️ Fuera de la ciudad: confirma cobertura y suma el costo de traslado al monto.</div>` : ''}
           ${p.temporadaAlta ? `<div class="motivo aviso-fuera">🎄 Temporada alta: sin paquetes regulares; precios de temporada (+70%).</div>` : ''}
           ${p.preferenciaContacto ? `<div class="motivo">📞 ${PREF_TEXTO[p.preferenciaContacto] || esc(p.preferenciaContacto)}</div>` : ''}
+          ${bloqueCambio(p)}
           ${bloqueMensajeCliente(p)}
-          ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
+          ${p.notas ?`<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
           ${p.resumenCapacidad ? `<div class="motivo capacidad">${esc(p.resumenCapacidad)}</div>` : ''}
           <div class="agenda">${camposAgenda(p)}</div>

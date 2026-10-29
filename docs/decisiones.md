@@ -169,3 +169,23 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - `/curso`: 6 lecciones para la gerente (4 a 6 según el rol), cada una con práctica y pregunta de opción múltiple; avance en `COLABORADORES.Curso_Avance` y aviso a los Admin por lección. Admin ve el avance y le manda a cada quien su lección.
 - `/mensaje`: ida y vuelta por el bot con "↩️ Responder"; el otro Admin recibe copia. El staff no lo usa (habla con su coordinadora).
 **Descartado:** rol "Gerente" nuevo (había que agregarlo en cada `requerirSesion`); que la gerente entre al dashboard (tiene precios, pagos y datos de clientes); guardar la plática de DiMa en Airtable (costo y datos; en Telegram el contexto es el mensaje al que se contesta).
+
+## 2026-10-29 — Encargado de producción de El Vaso Maíz
+
+**Decisión (Víctor):** habrá un encargado de producción; la gerente lo designa y por Telegram le llega la lista de producción dos días antes ("verifica el inventario y repórtame las necesidades de insumos") y el mismo día ("confirma si tenemos todos los ingredientes").
+**Cómo quedó (opciones elegidas por Víctor):** uno por evento (`EVENTOS.Encargado_Produccion`, se elige en "Asignar" de la app de la gerente); si tiene dos eventos el mismo día le llega un solo mensaje. Cron diario a las 8:00 de Culiacán (`api/produccion-diaria.js`). Las respuestas ("Tenemos todo" / "Reportar insumos" con texto) le llegan a la gerente con copia a Diana y Víctor y quedan en `Produccion_Respuesta`. Puede ser encargado: el staff de la gerente, las encargadas de evento o la gerente.
+**Lista de producción:** los paquetes se desglosan con el catálogo real (`PRODUCTOS[].contenido` en `_productos.js`, igual a `_dima-catalogo.js`; si cambia un paquete hay que cambiar ambos). La "pieza suelta" sin desglose sale con su nota tal cual; sin nota, dice que se pregunte a la gerente (no se adivina). Sin montos.
+**Descartado:** un encargado fijo para todos los eventos (Víctor prefirió por evento); un cron por cada aviso (el plan Hobby corre crons una vez al día, así que uno solo manda los dos tipos); una función nueva para las respuestas (van por el webhook de Telegram existente).
+**Pendiente:** Diana no elige al encargado desde el dashboard (solo la gerente desde la app); confirmar que `CRON_SECRET` existe en Vercel (si no, el endpoint queda abierto, aunque no repite avisos).
+
+## 2026-10-29 — La gerente invita staff desde la app
+
+**Decisión (Víctor):** Ángela, además de asignar brigada, asigna staff desde su app. Caja "🧑‍🍳 Staff" en cada evento autorizado de El Vaso Maíz, con el mismo código que `/staff` (`estadosChicas` / `invitarChicas` en `_staff.js`). El alta de chicas nuevas sigue por `/staff` (necesita el enlace de Telegram). Sin función nueva (`invitar_staff` en `dashboard-eventos`).
+
+## 2026-10-29 — Cambios de pedido visibles y avisados; regla de 24 horas
+
+**Problema (prueba de Víctor):** un cliente cambió su pedido desde la página; llegó el Telegram a los Admin pero no sonó la app (no había push), el cambio solo quedaba al final de Notas (no se veía en el dashboard ni en la app, y `Servicios_Solicitados` seguía con lo viejo) y nadie del equipo se enteraba. Además, si guardar fallaba, DiMa igual decía "listo".
+**Decisión (Víctor, opciones recomendadas):** al momento se avisa a Diana, Víctor y la gerente (si es de El Vaso Maíz) por app (push) y Telegram; el equipo del evento se entera cuando Diana confirma el cambio en el dashboard. Los cambios se piden con 24 h de anticipación: con menos, DiMa le dice al cliente que no se puede garantizar y lo pasa como URGENTE (no se rechaza).
+**Cómo quedó:** `EVENTOS.Cambio_Cliente` (JSON con estado aplicado/pendiente/confirmado/descartado, lo de antes y lo nuevo). Pedido sin cotizar: se aplica directo. Pedido autorizado: pendiente → Confirmar (aplica servicios, hora, productos e indicaciones, borra Enterado, avisa al equipo con Confirmar y reenvía la producción si ya se había mandado) o Descartar (Diana se lo explica al cliente con "Mensaje para el cliente"). El monto nunca va a la app del equipo.
+**Descartado:** avisar a todo el equipo en cuanto el cliente lo pide (podrían preparar algo no aprobado); rechazar los cambios con menos de 24 h (Víctor prefiere que la gerencia decida).
+**Pendiente:** al confirmar no se recalculan los artículos exactos (`EVENTOS.Articulos`) ni el monto: Diana los ajusta a mano.

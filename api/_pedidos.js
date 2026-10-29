@@ -8,7 +8,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
-const { normalizarProductos, capacidadEvento } = require('./_productos');
+const { normalizarProductos, capacidadEvento, inicioEvento } = require('./_productos');
 const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
 
 // Plazo que DiMa le promete al cliente para confirmar su cotización.
@@ -274,38 +274,82 @@ async function marcarMensajeEntregado(eventoId) {
   });
 }
 
+// Los cambios de pedido se piden con 24 h de anticipación (decisión de Víctor
+// 2026-10-29). Con menos, se registran igual pero marcados como urgentes.
+const HORAS_ANTICIPACION_CAMBIO = 24;
+
+// Horas que faltan para que empiece el evento (null si no hay fecha válida).
+function horasParaEvento(fecha, horaInicio) {
+  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? inicioEvento(fecha, horaInicio) : null;
+  return inicio === null ? null : (inicio - Date.now()) / 3600000;
+}
+
+function cambioUrgente(fecha, horaInicio) {
+  const h = horasParaEvento(fecha, horaInicio);
+  return h !== null && h < HORAS_ANTICIPACION_CAMBIO;
+}
+
+// EVENTOS.Cambio_Cliente (JSON) -> objeto, o null si no hay o no se entiende.
+function leerCambio(texto) {
+  try {
+    const c = JSON.parse(texto || 'null');
+    return c && typeof c === 'object' && typeof c.servicios === 'string' ? c : null;
+  } catch (e) { return null; }
+}
+
 // Guarda en el evento lo que el cliente agregó o cambió después de registrar
-// el pedido: queda en Notas (historial) y las indicaciones nuevas se suman a
-// Instrucciones_Equipo. Diana ajusta la cotización si hace falta.
+// el pedido. Siempre queda en Notas (historial) y en Cambio_Cliente (lo que se
+// muestra en el dashboard y la app):
+// - Pedido pendiente de cotizar: el cambio se aplica de una vez (servicios,
+//   productos, hora, estimado, indicaciones) y queda como "aplicado".
+// - Pedido ya autorizado: no se toca lo que ya tiene; queda "pendiente" hasta
+//   que Diana lo confirme o descarte en el dashboard.
+// Devuelve { eventoId, autorizado, urgente, negocio, fecha, campos } o lanza
+// error si no se pudo guardar (quien llama debe decirlo, no fingir que quedó).
 async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
-  if (!r) return false;
+  if (!r) throw new Error(`No existe el evento ${folio}`);
+  const autorizado = r.fields.Autorizacion_Diana === 'SI';
+  const urgente = cambioUrgente(r.fields.Fecha_Evento, r.fields.Hora_Inicio);
   const fecha = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
-  const cambio = [
-    `\n--- Cambio pedido por el cliente en el chat (${fecha}) ---`,
+  const notaCambio = [
+    `\n--- Cambio pedido por el cliente en el chat (${fecha})${urgente ? ' ⚠️ URGENTE: menos de 24 h antes del evento' : ''}${autorizado ? ' · pendiente de confirmar por la gerencia' : ''} ---`,
     `Así lo quiere ahora:\n${servicios}`,
     montoEstimado > 0 ? `Nuevo estimado de DiMa: $${Number(montoEstimado).toLocaleString('es-MX')}` : '',
     indicaciones ? `Indicaciones: ${indicaciones}` : '',
     transcripcion ? `Conversación:\n${transcripcion}` : '',
   ].filter(Boolean).join('\n');
 
-  const fields = { Notas: `${r.fields.Notas || ''}${cambio}`.slice(-90000) };
+  const cambio = {
+    estado: autorizado ? 'pendiente' : 'aplicado',
+    pedidoEl: new Date().toISOString(),
+    urgente,
+    antes: r.fields.Servicios_Solicitados || '',
+    servicios: String(servicios || ''),
+    indicaciones: indicaciones || '',
+    montoEstimado: montoEstimado > 0 ? Number(montoEstimado) : null,
+    horaInicio: horaInicio || '',
+    horasServicio: horasServicio || null,
+    productos: productos || [],
+  };
+  const fields = { Notas: `${r.fields.Notas || ''}${notaCambio}`.slice(-90000), Cambio_Cliente: JSON.stringify(cambio) };
   if (preferenciaContacto) fields.Preferencia_Contacto = preferenciaContacto;
-  // Si el pedido ya está autorizado, los productos los ajusta Diana: aquí solo
-  // se actualizan mientras sigue pendiente de cotizar.
-  if (r.fields.Autorizacion_Diana !== 'SI') {
+  if (!autorizado) {
+    // Todavía no se cotiza: Diana ve directo el pedido como quedó.
+    if (cambio.servicios) fields.Servicios_Solicitados = cambio.servicios;
+    if (cambio.montoEstimado) fields.Monto_Estimado_IA = cambio.montoEstimado;
     Object.assign(fields, camposAgenda({ horaInicio, horasServicio, productos: productos || [] }));
-  }
-  if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
-    fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
+    if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
+      fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
+    }
   }
   await airtableRequest(TABLES.EVENTOS, {
     method: 'PATCH',
     body: JSON.stringify({ records: [{ id: r.id, fields }] }),
   });
-  return true;
+  return { eventoId: r.id, autorizado, urgente, negocio: r.fields.Negocio || '', fecha: r.fields.Fecha_Evento || '', campos: r.fields };
 }
 
 module.exports = {
@@ -315,6 +359,10 @@ module.exports = {
   crearPedido,
   verificarPedido,
   registrarCambioCliente,
+  leerCambio,
+  cambioUrgente,
+  horasParaEvento,
+  HORAS_ANTICIPACION_CAMBIO,
   mensajeDianaPendiente,
   marcarMensajeEntregado,
 };

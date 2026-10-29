@@ -18,6 +18,14 @@
 // borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
 // La gerente de El Vaso Maíz también puede asignar, solo en eventos de El Vaso
 // Maíz; en ese caso se avisa a Diana y Víctor por Telegram.
+// En "asignar" también puede venir produccionId: el encargado de producción de
+// El Vaso Maíz (api/_produccion.js); si cambia, se le avisa.
+// POST accion "confirmar_cambio" / "descartar_cambio": Diana confirma (se aplica y
+// se avisa al equipo) o descarta el cambio que pidió el cliente en un pedido ya
+// autorizado (api/_cambios.js).
+// POST accion "invitar_staff": la gerente (o un Admin) invita a sus chicas a un
+// evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
+// Telegram y les llega la invitación con "Sí puedo / No puedo".
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
@@ -27,7 +35,10 @@ const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
-const { staffPorEvento } = require('./_staff');
+const { staffPorEvento, invitarDesdeApp } = require('./_staff');
+const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
+const { confirmarCambio, descartarCambio } = require('./_cambios');
+const { leerCambio } = require('./_pedidos');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -165,7 +176,7 @@ function agendaDesdeDashboard(body, inventario) {
 async function resolverPedido(req, res, colaborador) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff', 'confirmar_cambio', 'descartar_cambio'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
@@ -206,10 +217,22 @@ async function resolverPedido(req, res, colaborador) {
       res.status(400).json({ error: 'Parámetros inválidos' });
       return;
     }
+    // Encargado de producción (opcional; solo si viene en la petición): debe estar
+    // entre las opciones de quien asigna. '' lo quita.
+    const cambiaProduccion = typeof b.produccionId === 'string';
+    if (cambiaProduccion && b.produccionId) {
+      const opciones = await opcionesProduccion(colaborador);
+      if (!opciones.some(o => o.id === b.produccionId)) {
+        res.status(400).json({ error: 'Esa persona no puede ser encargada de producción.' });
+        return;
+      }
+    }
+    const produccionAntes = (f.Encargado_Produccion || [])[0] || '';
     const colaboradores = await colaboradoresActivos();
     // Solo se aceptan encargadas activas con ese rol.
     const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
+    if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
     const antes = equipoDe(f, colaboradores);
     const despues = equipoDe({ ...f, ...campos }, colaboradores);
     const nuevos = despues.filter(id => !antes.includes(id));
@@ -230,12 +253,20 @@ async function resolverPedido(req, res, colaborador) {
       const nombres = colaboradores.filter(c => encargadas.includes(c.id)).map(c => c.fields.Nombre).join(', ');
       await enviarTelegramEquipo({
         roles: [ROLES.ADMIN],
-        texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}.`,
+        texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}`
+          + `${cambiaProduccion && b.produccionId ? ' · producción: ' + ((colaboradores.find(c => c.id === b.produccionId) || {}).fields || {}).Nombre : ''}.`,
       }).catch(err => console.error('Error avisando asignación de la gerente:', err));
+    }
+    // Nuevo encargado de producción: lista ya si faltan 2 días o menos; si no, aviso corto.
+    let produccion = null;
+    if (cambiaProduccion && b.produccionId && b.produccionId !== produccionAntes) {
+      produccion = await avisarAsignacion(b.produccionId, { folio: f.Folio_Evento, fecha: f.Fecha_Evento })
+        .catch(err => { console.error('Error avisando producción:', err.message); return { enviados: [], fallidos: [{ nombre: 'el encargado de producción', motivo: 'error al enviar' }] }; });
     }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
     res.status(200).json({
       success: true,
+      produccion,
       avisados: nuevos.length,
       porTelegram,
       porPush,
@@ -243,6 +274,32 @@ async function resolverPedido(req, res, colaborador) {
       sinTelegram: nuevosColab.filter(c => !c.fields.Telegram_Chat_ID).map(c => c.fields.Nombre || ''),
       erroresAvisos,
     });
+    return;
+  }
+
+  if (accion === 'confirmar_cambio') {
+    const r = await confirmarCambio(eventoId, f, colaborador, await colaboradoresActivos());
+    if (r.error) { res.status(409).json({ error: r.error }); return; }
+    res.status(200).json({ success: true, ...r });
+    return;
+  }
+
+  if (accion === 'descartar_cambio') {
+    const r = await descartarCambio(eventoId, f, colaborador);
+    if (r.error) { res.status(409).json({ error: r.error }); return; }
+    res.status(200).json({ success: true });
+    return;
+  }
+
+  if (accion === 'invitar_staff') {
+    const ids = (req.body || {}).colaboradorIds;
+    if (!Array.isArray(ids) || !ids.length || ids.length > 60 || !ids.every(id => /^rec[A-Za-z0-9]{14}$/.test(id))) {
+      res.status(400).json({ error: 'Elige al menos a una persona.' });
+      return;
+    }
+    const r = await invitarDesdeApp(colaborador, eventoId, ids);
+    if (!r) { res.status(403).json({ error: 'Solo se invita staff a eventos autorizados de El Vaso Maíz de hoy en adelante.' }); return; }
+    res.status(200).json({ success: true, enviadas: r.enviadas, fallidas: r.fallidas });
     return;
   }
 
@@ -320,8 +377,8 @@ module.exports = async (req, res) => {
     try {
       const colaborador = await requerirSesion(req, res, [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA]);
       if (!colaborador) return;
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar.
-      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && (req.body || {}).accion === 'asignar')) {
+      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar o invitar staff.
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
       }
@@ -383,6 +440,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        cambioCliente: leerCambio(r.fields.Cambio_Cliente),
         ...agendaParaVista(r.fields),
       };
     });
@@ -407,6 +465,7 @@ module.exports = async (req, res) => {
         mensajeParaCliente: r.fields.Mensaje_Para_Cliente || '',
         mensajeEntregado: !!r.fields.Mensaje_Cliente_Entregado,
         temporadaAlta: enTemporadaAlta(r.fields.Fecha_Evento),
+        cambioCliente: leerCambio(r.fields.Cambio_Cliente),
         ...agendaParaVista(r.fields),
         // DiMa le promete al cliente respuesta en 12 h o menos desde que registra.
         limiteRespuesta: r.createdTime ? new Date(Date.parse(r.createdTime) + HORAS_RESPUESTA * 3600 * 1000).toISOString() : '',

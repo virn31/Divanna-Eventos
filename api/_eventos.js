@@ -7,6 +7,7 @@ const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz } = require('.
 const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
+const { leerCambio } = require('./_pedidos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -40,6 +41,12 @@ function hoyCuliacan() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
 }
 
+function cambioParaApp(texto) {
+  const c = leerCambio(texto);
+  if (!c || (c.estado !== 'pendiente' && c.estado !== 'confirmado')) return null;
+  return { estado: c.estado, pedidoEl: c.pedidoEl || '', confirmadoEl: c.confirmadoEl || '', urgente: !!c.urgente, antes: c.antes || '', servicios: c.servicios };
+}
+
 function formatearEvento(r) {
   const itemsRaw = (r.fields.Checklist_Items || '').split('\n').map(s => s.trim()).filter(Boolean);
   let marcados = [];
@@ -52,6 +59,11 @@ function formatearEvento(r) {
     vasoMaiz: esVasoMaiz(r.fields),
     brigadaId: (r.fields.Brigada_Asignada || [])[0] || '',
     encargadaIds: r.fields.Encargada || [],
+    // Encargado de producción de El Vaso Maíz y su última respuesta (api/_produccion.js).
+    produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
+    produccionRespuesta: (r.fields.Produccion_Respuesta || '').trim().split('\n').pop() || '',
+    // Cambio que pidió el cliente (pendiente o ya confirmado por Diana), sin montos.
+    cambio: cambioParaApp(r.fields.Cambio_Cliente),
     fecha: r.fields.Fecha_Evento || '',
     horaInicio: r.fields.Hora_Inicio || '',
     personalRequerido: r.fields.Personal_Requerido || 0,
