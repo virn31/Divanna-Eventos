@@ -695,11 +695,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ---------- Balance semanal ----------
   reset();
-  respuestas = [{ records: [{ fields: { Monto: 500 } }] }, { records: [{ fields: { Monto_Estimado_IA: 2000 } }] }, {}];
+  // Reportes aprobados, gastos (uno a mano, uno de reporte aprobado con dinero propio, uno de reporte sin aprobar), cobros, eventos.
+  respuestas = [
+    { records: [{ id: 'recREPORTEAPROB01', fields: { Efectivo_Entregado: 1500 } }] },
+    { records: [{ fields: { Monto: 500 } }, { fields: { Monto: 300, Reporte: ['recREPORTEAPROB01'], Pagado_Con: 'Dinero propio' } }, { fields: { Monto: 200, Reporte: ['recREPORTEPENDI01'] } }] },
+    { records: [{ fields: { Monto: 1000, Forma: 'Efectivo', Reporte: ['recREPORTEAPROB01'] } }, { fields: { Monto: 999, Forma: 'Efectivo', Reporte: ['recREPORTEPENDI01'] } }] },
+    { records: [{ fields: { Monto_Estimado_IA: 2000 } }] },
+    {},
+  ];
   res = resMock();
   await balance({ headers: {}, query: {} }, res);
   const bal = llamadas.find(l => l.method === 'POST').body.records[0].fields;
   ok(res.code === 200 && correos.length === 1 && bal.Detalle_Enviado === true, 'balance: correo enviado y registrado');
+  ok(bal.Gastos_Totales === 800 && bal.Detalle_Completo.includes('Total cobrado: $1,000') && bal.Detalle_Completo.includes('efectivo entregado a Diana: $1,500')
+    && bal.Detalle_Completo.includes('Reembolsos pendientes (gastos con dinero propio): $300') && bal.Detalle_Completo.includes('1 gasto ($200) en reportes sin aprobar'),
+    'balance: solo cuentan los gastos y cobros de reportes aprobados (más los capturados a mano) y avisa lo pendiente');
 
   // ---------- Bot de Telegram del equipo ----------
   process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';
@@ -912,7 +922,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 777) }, res);
   let tgIn = telegram.find(t => t.metodo === 'sendMessage');
-  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff');
+  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:reporte,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff y el reporte del día');
 
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
@@ -1185,6 +1195,97 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && JSON.stringify(llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Encargado_Produccion) === JSON.stringify([ZOE_OTRA.id])
     && telegram.some(t => t.body.chat_id === '557' && t.body.text.includes('te toca la producción de EVT-PR2')),
     'Diana: elige al encargado de producción desde el dashboard');
+
+  // ---------- Reporte financiero del día ----------
+  const finanzasApi = require(path.join(repo, 'api/finanzas.js'));
+  const fin = (token, body, metodo = 'POST', query = {}) => { const r = resMock(); return finanzasApi({ method: metodo, headers: auth(token), body, query }, r).then(() => r); };
+  const BRIG_FIN = { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Brigada Edén', EVENTOS: ['recEVENTOFINAN001'] } };
+  const EV_FIN = { id: 'recEVENTOFINAN001', fields: { Folio_Evento: 'EVT-FN1', Fecha_Evento: hoyCln, Negocio: 'Divanna Eventos', Ubicacion: 'Las Quintas', Monto_Adeudado: 1000 } };
+  const REP_FIN = { id: 'recREPORTEDIA0001', fields: { Fecha: hoyCln, Colaborador: [LIDER.id], Estado: 'Abierto', Negocio: 'Divanna Eventos', GASTOS: ['recGASTOFINAN0001'], COBROS: ['recCOBROFINAN0001'], Efectivo_Entregado: 500 } };
+  const GASTO_FIN = { id: 'recGASTOFINAN0001', fields: { Concepto: 'Gasolina', Monto: 300, Categoria: 'Combustible', Negocio: 'Divanna Eventos', Pagado_Con: 'Dinero propio', Reporte: [REP_FIN.id], Reportado_Por: [LIDER.id], Fecha: hoyCln } };
+  const COBRO_FIN = { id: 'recCOBROFINAN0001', fields: { Monto: 1000, Forma: 'Efectivo', Negocio: 'Divanna Eventos', Evento: [EV_FIN.id], Reporte: [REP_FIN.id], Fecha: hoyCln } };
+  const fotoPrueba = { tipo: 'image/jpeg', base64: Buffer.from('foto-de-ticket').toString('base64'), nombre: 'ticket.jpg' };
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [] }, { records: [{ id: REP_FIN.id, fields: { Estado: 'Abierto' } }] }, { records: [{ id: 'recGASTONUEVO0001' }] }, {}];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Gasolina', categoria: 'Combustible', monto: '$300', pagadoCon: 'Dinero propio', foto: fotoPrueba });
+  const altaRep = llamadas.find(l => l.method === 'POST' && l.url.includes('tbllUK2N9ZDv2Bpdt'));
+  const altaGasto = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  const subida = llamadas.find(l => l.url.includes('content.airtable.com'));
+  ok(res.code === 200 && altaRep && altaRep.body.records[0].fields.Colaborador[0] === LIDER.id && altaRep.body.records[0].fields.Estado === 'Abierto'
+    && altaGasto.body.records[0].fields.Monto === 300 && altaGasto.body.records[0].fields.Pagado_Con === 'Dinero propio' && altaGasto.body.records[0].fields.Reporte[0] === REP_FIN.id
+    && altaGasto.body.records[0].fields.Negocio === 'Divanna Eventos' && altaGasto.body.records[0].fields.Reportado_Por[0] === LIDER.id,
+    'reporte: el líder agrega un gasto (dinero propio) y se crea su reporte del día');
+  ok(subida && subida.url.includes('/recGASTONUEVO0001/Attachments/uploadAttachment') && subida.body.contentType === 'image/jpeg', 'reporte: la foto del ticket se sube al gasto');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Gasolina', categoria: 'Combustible', monto: '300', pagadoCon: '' });
+  ok(res.code === 400 && res.body.error.includes('dinero del negocio o con dinero propio') && !llamadas.some(l => l.method === 'POST'), 'reporte: el gasto debe decir si fue con dinero propio o del negocio');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [REP_FIN] }, { records: [{ id: 'recCOBRONUEVO0001' }] }];
+  res = await fin(tokenLider, { accion: 'cobro', fecha: hoyCln, eventoId: EV_FIN.id, monto: '1000', forma: 'Efectivo' });
+  const altaCobro = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && altaCobro.body.records[0].fields.Evento[0] === EV_FIN.id && altaCobro.body.records[0].fields.Forma === 'Efectivo' && altaCobro.body.records[0].fields.Negocio === 'Divanna Eventos',
+    'reporte: el líder registra un cobro de su evento');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }];
+  res = await fin(tokenLider, { accion: 'cobro', fecha: hoyCln, eventoId: 'recEVENTOAJENO001', monto: '1000', forma: 'Efectivo' });
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reporte: no se puede registrar un cobro de un evento que no es suyo');
+
+  reset();
+  respuestas = [LIDER, { records: [REP_FIN] }, REP_FIN, { records: [GASTO_FIN] }, { records: [COBRO_FIN] }, {}, { records: [ADMIN_T] }, { records: [ADMIN_T] }, { records: [ADMIN] }, { records: [] }];
+  res = await fin(tokenLider, { accion: 'enviar', fecha: hoyCln });
+  const envio = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisoEnvio = telegram.find(t => t.body.chat_id === '111');
+  ok(res.code === 200 && envio.Estado === 'Enviado' && envio.Total_Gastos === 300 && envio.Total_Cobros === 1000 && envio.Reembolso_Pendiente === 300,
+    'reporte: al enviarlo se calculan los totales y queda Enviado');
+  ok(avisoEnvio && avisoEnvio.body.text.includes('Reporte del día de Juan') && avisoEnvio.body.text.includes('⚠️ 1 sin ticket') && avisoEnvio.body.text.includes('Efectivo entregado a Diana: $500')
+    && avisoEnvio.body.text.includes('Pagó con dinero propio: $300'), 'reporte: a Diana le llega el resumen (con gastos sin ticket y reembolso)');
+
+  const LIDER_TG_FIN = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+  const REP_ENVIADO = { ...REP_FIN, fields: { ...REP_FIN.fields, Estado: 'Enviado' } };
+  reset();
+  respuestas = [ADMIN, REP_ENVIADO, REP_ENVIADO, { records: [GASTO_FIN] }, { records: [COBRO_FIN] }, {}, LIDER_TG_FIN, { records: [ADMIN, LIDER] }, { records: [] }];
+  res = await fin(tokenAdmin, { accion: 'aprobar', reporteId: REP_FIN.id });
+  const aprob = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && aprob.Estado === 'Aprobado' && aprob.Revision.includes('Diana: ✅ aprobado') && telegram.some(t => t.body.chat_id === '222' && t.body.text.includes('aprobó tu reporte') && t.body.text.includes('Te deben $300')),
+    'reporte: Diana lo aprueba y a quien reportó le llega el aviso con lo que le deben');
+
+  reset();
+  respuestas = [ADMIN];
+  res = await fin(tokenAdmin, { accion: 'aclaracion', reporteId: REP_FIN.id, comentario: '' });
+  ok(res.code === 400 && res.body.error.includes('aclarar'), 'reporte: pedir aclaración requiere decir qué');
+
+  reset();
+  respuestas = [LIDER];
+  res = await fin(tokenLider, { accion: 'aprobar', reporteId: REP_FIN.id });
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'reporte: el líder no puede aprobar reportes');
+
+  reset();
+  respuestas = [ASIST];
+  res = await fin(tokenAsist, { accion: 'gasto', fecha: hoyCln });
+  ok(res.code === 403 && llamadas.length === 1, 'reporte: el asistente no hace el reporte');
+
+  reset();
+  respuestas = [ADMIN, { ...REP_FIN, fields: { ...REP_FIN.fields, Estado: 'Aprobado' } }];
+  res = await fin(tokenAdmin, { accion: 'aprobar', reporteId: REP_FIN.id });
+  ok(res.code === 409 && !llamadas.some(l => l.method === 'PATCH'), 'reporte: un reporte aprobado no se vuelve a revisar');
+
+  // La gerente ve de un reporte "Ambos" solo lo de El Vaso Maíz.
+  const REP_AMBOS = { id: 'recREPORTEAMBOS01', fields: { Fecha: hoyCln, Colaborador: [LIDER.id], Estado: 'Enviado', Negocio: 'Ambos', GASTOS: ['recGASTOVM0000001', 'recGASTODV0000001'], COBROS: ['recCOBRODV0000001'] } };
+  reset();
+  respuestas = [GERENTE, { records: [] }, BRIGADA_VM, { records: [] }, { records: [] }, { records: [] },
+    { records: [REP_AMBOS] },
+    { records: [{ id: 'recGASTOVM0000001', fields: { Monto: 100, Negocio: 'El Vaso Maiz', Reporte: [REP_AMBOS.id] } }, { id: 'recGASTODV0000001', fields: { Monto: 900, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },
+    { records: [{ id: 'recCOBRODV0000001', fields: { Monto: 5000, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },
+    { records: [LIDER] }];
+  res = await fin(tokenGer, undefined, 'GET', { fecha: hoyCln });
+  const vistaGer = res.body.revision && res.body.revision.pendientes[0];
+  ok(res.code === 200 && vistaGer && vistaGer.totalGastos === 100 && vistaGer.gastos.length === 1 && vistaGer.cobros.length === 0 && vistaGer.soloVasoMaiz && res.body.revision.puedeAprobar === false,
+    'reporte: la gerente ve la administración de El Vaso Maíz (no lo de Divanna) y no aprueba');
 
   reset();
   respuestas = [

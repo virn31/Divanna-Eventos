@@ -87,7 +87,17 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
   la app sale el aviso y lo que hay que llevar ya está actualizado. Hay que volver a tocar **Enterado**.
 - Los cambios se piden con 24 horas de anticipación; si faltan menos, llegan marcados como **URGENTE**.
 
+## Reporte financiero del día
+
+- El líder de brigada o la encargada, al final del día, toca **💰** en la app (arriba, junto a salir).
+- **Gastos:** concepto, monto, categoría, **dinero del negocio o dinero propio** (el propio se reembolsa) y foto del ticket.
+- **Cobros:** de qué evento, monto, efectivo / transferencia / depósito y foto del comprobante.
+- **Cierre:** efectivo entregado a Diana e insumos que se usaron o sobraron. Luego **Enviar a Diana**.
+- Diana lo **aprueba** o **pide aclaración** (llega por Telegram) desde el dashboard; solo lo aprobado cuenta en el balance
+  del lunes. Ahí también marca los **reembolsos** hechos. Ángela ve la administración de El Vaso Maíz.
+
 ## DiMa, curso y mensajes
+
 
 - **DiMa** (gerente y Admin): en la app con **💬 Pregúntale a DiMa**, o en Telegram escribiendo sin comando.
   Contesta dudas de la plataforma y de sus eventos; no hace cambios.

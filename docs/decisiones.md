@@ -193,3 +193,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 ## 2026-10-29 — Diana tiene todas las funciones de la gerente
 
 **Decisión (Víctor):** "Diana es la jefa de todo": todo lo que puede hacer Ángela lo puede hacer Diana. Como Admin ya asignaba brigada y encargada, recibía las respuestas de producción y los cambios de pedido; faltaban en su dashboard invitar staff por evento (antes solo por /staff), elegir al encargado de producción y "Pregúntale a DiMa" (antes solo en Telegram). Se agregaron con el mismo código que usa la app de la gerente; Diana ve a todo el staff, no solo al de una coordinadora.
+
+## 2026-10-29 — Reporte financiero del día (fase 3)
+
+**Decisión (Víctor):** cada brigada hace su reporte **al final del día** en la app: gastos con foto del ticket y si se pagaron con **dinero del negocio o propio** (el propio queda como reembolso pendiente), cobros recibidos (con comprobante), efectivo entregado a Diana e insumos usados o sobrantes. **Diana aprueba** cada reporte o pide aclaración; solo lo aprobado cuenta en el balance. Diana y Víctor ven todo; **Ángela ve la administración completa de El Vaso Maíz** (de un reporte con los dos negocios, solo lo suyo) y no aprueba.
+**Cómo quedó:** tablas REPORTES_DIA y COBROS; GASTOS (que ya existía y estaba vacía) ganó Reporte, Pagado_Con, Reembolsado y Reportado_Por. Lo hacen el líder de brigada y la encargada (no el asistente). Se puede reportar hoy o ayer. Fotos reducidas en el teléfono y subidas con la API de contenido de Airtable. El balance semanal ahora separa gastos aprobados, cobros reales, efectivo entregado, reembolsos pendientes y lo que falta aprobar, y avisa si no pudo leer algo (antes un fallo daba $0 en silencio).
+**Costo:** `api/finanzas.js` usa la última función del plan Hobby (12 de 12).
+**Pendiente:** recordatorio automático en la noche a quien no haya enviado su reporte; los insumos son texto libre (no descuentan inventario).

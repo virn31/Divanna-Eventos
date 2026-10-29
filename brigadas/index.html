@@ -202,6 +202,29 @@
     font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
   }
   .dima-fab[hidden], .dima-panel[hidden]{display:none;}
+
+  /* ---------- Reporte financiero del día ---------- */
+  .fin-btn{font-size:1.1rem; margin-right:8px;}
+  .fin-btn[hidden], .fin-panel[hidden]{display:none;}
+  .fin-panel{position:fixed; inset:0; z-index:60; overflow-y:auto; background:var(--ink-2); padding:16px 16px calc(24px + var(--safe-bottom));}
+  .fin-tabs{display:flex; gap:8px; margin:6px 0 12px;}
+  .fin-tabs button{flex:1; padding:10px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-weight:800;}
+  .fin-tabs button.activo{border-color:var(--maiz); color:var(--maiz);}
+  .fin-caja{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.88rem;}
+  .fin-caja h4{margin:0 0 8px; font-size:0.95rem;}
+  .fin-caja input, .fin-caja select, .fin-caja textarea{width:100%; margin-top:6px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .fin-caja textarea{min-height:64px; resize:vertical;}
+  .fin-caja label{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .fin-caja label input{width:auto; margin:0;}
+  .fin-item{display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);}
+  .fin-item small{color:var(--muted); display:block;}
+  .fin-item a{color:var(--maiz);}
+  .fin-quitar{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .fin-boton{width:100%; margin-top:10px; padding:12px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .fin-boton.secundario{background:var(--line); color:var(--paper);}
+  .fin-boton:disabled{opacity:.5;}
+  .fin-estado{padding:10px 12px; border-radius:10px; background:var(--ink); border:1.5px solid var(--maiz); font-weight:700;}
+  .fin-msg{margin-top:8px; color:var(--muted); font-size:0.85rem;}
   .dima-panel{
     position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
     background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
@@ -323,9 +346,12 @@
       <h2 id="brigadaNombre">Brigada</h2>
       <span id="brigadaDetalle">—</span>
     </div>
+    <div style="display:flex; align-items:center;">
+    <button class="icon-btn fin-btn" id="finBtn" aria-label="Reporte del día" hidden>💰</button>
     <button class="icon-btn" id="logoutBtn" aria-label="Cerrar sesión">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
+    </div>
   </header>
   <div id="vistaAdmin" class="vista-admin" hidden>
     <select id="vistaComo" aria-label="Ver la app como">
@@ -341,6 +367,10 @@
   <button class="refresh-fab" id="refreshBtn" aria-label="Actualizar">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
   </button>
+  <div class="fin-panel" id="finPanel" hidden>
+    <div class="dima-top"><span>💰 Reporte del día</span><button id="finCerrar">✕ Cerrar</button></div>
+    <div id="finCuerpo"></div>
+  </div>
   <button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
   <div class="dima-panel" id="dimaPanel" hidden>
     <div class="dima-top"><span>💬 DiMa, tu asistente</span><span><button id="dimaNueva">Nueva plática</button><button id="dimaCerrar">✕</button></span></div>
@@ -917,6 +947,8 @@
     dimaHistorial = [];
     $('dimaPanel').hidden = true;
     $('dimaFab').hidden = true;
+    $('finBtn').hidden = true;
+    $('finPanel').hidden = true;
     sesion = null;
     if(revisionTimer) clearInterval(revisionTimer);
     revisionTimer = null;
@@ -978,6 +1010,8 @@
       staffEventos = data.staffEventos || null;
       staffError = !!data.staffError;
       $('dimaFab').hidden = !data.colaborador.gerente || !$('dimaPanel').hidden;
+      // Reporte del día: lo hacen el líder de brigada y la encargada (la gerente es líder).
+      $('finBtn').hidden = !['Lider de brigada', 'Encargada de evento'].includes(data.colaborador.rol);
       if(data.colaborador.rol === 'Admin'){
         const sel = $('vistaComo');
         $('brigadaNombre').textContent = 'Vista equipo';
@@ -1062,6 +1096,238 @@
     sessionStorage.setItem(DIMA_KEY, JSON.stringify(dimaHistorial.slice(-20)));
     pintarDima();
   }
+
+  // ---------- Reporte financiero del día (api/finanzas.js) ----------
+  // El líder o la encargada lo llena al final del día: gastos con foto del
+  // ticket (dinero del negocio o propio), cobros, efectivo entregado a Diana e
+  // insumos. Diana lo aprueba. La gerente además ve lo de El Vaso Maíz.
+  let finDatos = null, finFecha = null, finTab = 'mio';
+  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const hoyCln = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+  const ayerCln = () => { const d = new Date(`${hoyCln()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+  const ESTADO_TEXTO = {
+    Abierto: '📝 Sin enviar: cuando termines, toca "Enviar a Diana".',
+    'Enviado': '⏳ Enviado: Diana lo está revisando. Si cambias algo, hay que volver a enviarlo.',
+    'Aclaración': '✏️ Diana pidió una aclaración: corrígelo y vuelve a enviarlo.',
+    Aprobado: '✅ Aprobado por Diana. Ya no se puede cambiar.',
+  };
+
+  // Foto del ticket: se reduce en el teléfono (máx. 1600 px, JPG) antes de subirla.
+  function comprimirFoto(archivo){
+    return new Promise((resolve, reject) => {
+      if(!archivo) return resolve(null);
+      const img = new Image();
+      const url = URL.createObjectURL(archivo);
+      img.onload = () => {
+        const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        const datos = c.toDataURL('image/jpeg', 0.72);
+        resolve({ tipo: 'image/jpeg', base64: datos.split(',')[1], nombre: 'ticket.jpg' });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la foto.')); };
+      img.src = url;
+    });
+  }
+
+  async function abrirFinanzas(){
+    $('finPanel').hidden = false;
+    finFecha = finFecha || hoyCln();
+    await cargarFinanzas();
+  }
+
+  async function cargarFinanzas(){
+    $('finCuerpo').innerHTML = '<div class="loader"><div class="spinner"></div> Cargando…</div>';
+    try {
+      finDatos = await api(`/api/finanzas?fecha=${finFecha}`);
+      if(!finDatos.puedeReportar) finTab = 'admin';
+      pintarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      $('finCuerpo').innerHTML = `<div class="fin-caja">⚠️ No se pudo cargar el reporte (${esc(e.message && e.message !== 'fail' ? e.message : 'sin conexión')}). Revisa tu señal e intenta de nuevo.</div>`;
+    }
+  }
+
+  function fotoLink(foto, faltaTexto){
+    return foto ? `<a href="${esc(foto.url)}" target="_blank" rel="noopener">📷 ver</a>` : `<small>${faltaTexto}</small>`;
+  }
+
+  function pintarMiReporte(){
+    const d = finDatos, r = d.miReporte;
+    const editable = !r || r.estado !== 'Aprobado';
+    const gastos = r ? r.gastos : [], cobros = r ? r.cobros : [];
+    const evento = (id) => (d.eventos.find(e => e.id === id) || {}).folio || '';
+    const ultimaRevision = r && r.revision ? r.revision.trim().split('\n').pop() : '';
+    const opcionesEventos = d.eventos.map(e => `<option value="${esc(e.id)}">${esc(e.folio)}${e.ubicacion ? ' · ' + esc(e.ubicacion) : ''}${e.montoAdeudado ? ' · debe ' + pesos(e.montoAdeudado) : ''}</option>`).join('');
+    return `
+      <div class="fin-caja">
+        <label>Día del reporte
+          <select id="finFechaSel">
+            <option value="${hoyCln()}" ${finFecha === hoyCln() ? 'selected' : ''}>Hoy (${hoyCln()})</option>
+            <option value="${ayerCln()}" ${finFecha === ayerCln() ? 'selected' : ''}>Ayer (${ayerCln()})</option>
+          </select>
+        </label>
+        <div class="fin-estado" style="margin-top:10px;">${r ? ESTADO_TEXTO[r.estado] || esc(r.estado) : '📝 Todavía no empiezas el reporte de este día.'}</div>
+        ${ultimaRevision ? `<div class="fin-msg">${esc(ultimaRevision)}</div>` : ''}
+        ${d.eventos.length ? `<div class="fin-msg">Tus eventos de este día: ${d.eventos.map(e => esc(e.folio)).join(', ')}</div>` : '<div class="fin-msg">No tienes eventos este día (puedes reportar gastos igual).</div>'}
+      </div>
+
+      <div class="fin-caja">
+        <h4>💸 Gastos · ${pesos(gastos.reduce((t, g) => t + g.monto, 0))}</h4>
+        ${gastos.length ? gastos.map(g => `
+          <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
+          <div>${fotoLink(g.foto, '⚠️ sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
+        ${editable ? `
+          <input id="gConcepto" maxlength="120" placeholder="¿En qué se gastó? (ej. Gasolina, hielo, comida)">
+          <input id="gMonto" inputmode="decimal" placeholder="Monto (ej. 350)">
+          <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+          ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
+          ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
+          ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
+          <label>📷 Foto del ticket <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
+          <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>` : ''}
+      </div>
+
+      <div class="fin-caja">
+        <h4>💵 Cobros · ${pesos(cobros.reduce((t, c) => t + c.monto, 0))}</h4>
+        ${cobros.length ? cobros.map(c => `
+          <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.forma)}</small></div>
+          <div>${fotoLink(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')} ${editable ? `<button class="fin-quitar" data-tipo="cobro" data-id="${esc(c.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin cobros.</div>'}
+        ${editable && d.eventos.length ? `
+          <select id="cEvento">${opcionesEventos}</select>
+          <input id="cMonto" inputmode="decimal" placeholder="Monto cobrado">
+          <select id="cForma">${d.formas.map(f => `<option>${esc(f)}</option>`).join('')}</select>
+          <label>📷 Foto del comprobante <input type="file" id="cFoto" accept="image/*" capture="environment"></label>
+          <button class="fin-boton" id="cAgregar">+ Agregar cobro</button>` : ''}
+      </div>
+
+      <div class="fin-caja">
+        <h4>🧾 Cierre del día</h4>
+        <label style="display:block;">Efectivo que le entregaste a Diana
+          <input id="fEfectivo" inputmode="decimal" placeholder="0" value="${r && r.efectivoEntregado ? esc(r.efectivoEntregado) : ''}" ${editable ? '' : 'disabled'}></label>
+        <label style="display:block;">Insumos que se usaron o sobraron
+          <textarea id="fInsumos" maxlength="3000" placeholder="Ej. sobraron 2 kg de fresa, se acabó el chamoy" ${editable ? '' : 'disabled'}>${esc(r ? r.insumos : '')}</textarea></label>
+        <label style="display:block;">Notas
+          <textarea id="fNotas" maxlength="3000" ${editable ? '' : 'disabled'}>${esc(r ? r.notas : '')}</textarea></label>
+        ${editable ? `<button class="fin-boton secundario" id="fGuardar">Guardar</button>
+          <button class="fin-boton" id="fEnviar">📨 Enviar a Diana</button>` : ''}
+        <div class="fin-msg" id="finMsg"></div>
+      </div>
+
+      ${(d.misReportes || []).length ? `<div class="fin-caja"><h4>📅 Mis reportes</h4>${d.misReportes.map(m => `
+        <div class="fin-item"><div>${esc(m.fecha)}<small>${esc(m.estado)}</small></div><div>gastos ${pesos(m.totalGastos)} · cobros ${pesos(m.totalCobros)}${m.reembolsoPendiente ? `<small>te deben ${pesos(m.reembolsoPendiente)}</small>` : ''}</div></div>`).join('')}</div>` : ''}`;
+  }
+
+  // Lo que ve la gerente: la administración de El Vaso Maíz (solo lectura).
+  function pintarRevision(){
+    const rev = finDatos.revision;
+    const tarjeta = (r) => `
+      <div class="fin-caja">
+        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloVasoMaiz ? ' <small>(solo lo de El Vaso Maíz)</small>' : ''}</h4>
+        <div>Gastos ${pesos(r.totalGastos)} · Cobros ${pesos(r.totalCobros)} · Efectivo entregado ${pesos(r.efectivoEntregado)}${r.reembolsoPendiente ? ' · reembolso ' + pesos(r.reembolsoPendiente) : ''}</div>
+        ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, '⚠️ sin ticket')}</div></div>`).join('')}
+        ${r.cobros.map(c => `<div class="fin-item"><div>Cobro ${esc(c.concepto)} · ${pesos(c.monto)}</div><div>${fotoLink(c.foto, '')}</div></div>`).join('')}
+        ${r.insumos ? `<div class="fin-msg">Insumos: ${esc(r.insumos)}</div>` : ''}
+      </div>`;
+    return `${rev.pendientes.length ? '<h4>Por revisar (Diana los aprueba)</h4>' + rev.pendientes.map(tarjeta).join('') : '<div class="fin-msg">No hay reportes pendientes.</div>'}
+      ${rev.aprobados.length ? '<h4 style="margin-top:16px;">Aprobados (últimos 14 días)</h4>' + rev.aprobados.map(tarjeta).join('') : ''}`;
+  }
+
+  function pintarFinanzas(){
+    const tabs = finDatos.revision && finDatos.puedeReportar ? `
+      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">🌽 Administración El Vaso Maíz</button></div>` : '';
+    $('finCuerpo').innerHTML = tabs + (finTab === 'admin' && finDatos.revision ? pintarRevision() : pintarMiReporte());
+    $('finCuerpo').querySelectorAll('.fin-tabs button').forEach(b => b.addEventListener('click', () => { finTab = b.dataset.tab; pintarFinanzas(); }));
+    const sel = $('finFechaSel');
+    if(sel) sel.addEventListener('change', () => { finFecha = sel.value; cargarFinanzas(); });
+    if($('gAgregar')) $('gAgregar').addEventListener('click', agregarGasto);
+    if($('cAgregar')) $('cAgregar').addEventListener('click', agregarCobro);
+    if($('fGuardar')) $('fGuardar').addEventListener('click', () => guardarCierre(false));
+    if($('fEnviar')) $('fEnviar').addEventListener('click', () => guardarCierre(true));
+    $('finCuerpo').querySelectorAll('.fin-quitar').forEach(b => b.addEventListener('click', () => quitarFin(b)));
+  }
+
+  async function postFin(datos, boton){
+    if(boton) boton.disabled = true;
+    try {
+      return await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: finFecha, ...datos }) });
+    } finally {
+      if(boton) boton.disabled = false;
+    }
+  }
+
+  async function agregarGasto(){
+    const boton = $('gAgregar');
+    try {
+      boton.textContent = 'Guardando…';
+      const foto = await comprimirFoto($('gFoto').files[0]);
+      const d = await postFin({
+        accion: 'gasto',
+        concepto: $('gConcepto').value,
+        monto: $('gMonto').value,
+        categoria: $('gCategoria').value,
+        pagadoCon: (document.querySelector('input[name="gPagado"]:checked') || {}).value,
+        negocio: $('gNegocio') ? $('gNegocio').value : '',
+        eventoId: $('gEvento') ? $('gEvento').value : '',
+        foto,
+      }, boton);
+      if(d.avisoFoto) showToast(d.avisoFoto);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      boton.textContent = '+ Agregar gasto';
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar el gasto');
+    }
+  }
+
+  async function agregarCobro(){
+    const boton = $('cAgregar');
+    try {
+      boton.textContent = 'Guardando…';
+      const foto = await comprimirFoto($('cFoto').files[0]);
+      const d = await postFin({ accion: 'cobro', eventoId: $('cEvento').value, monto: $('cMonto').value, forma: $('cForma').value, foto }, boton);
+      if(d.avisoFoto) showToast(d.avisoFoto);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      boton.textContent = '+ Agregar cobro';
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar el cobro');
+    }
+  }
+
+  async function quitarFin(boton){
+    try {
+      await postFin({ accion: 'quitar', tipo: boton.dataset.tipo, id: boton.dataset.id }, boton);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo quitar');
+    }
+  }
+
+  // Guarda efectivo, insumos y notas; con enviar=true además lo manda a Diana.
+  async function guardarCierre(enviarlo){
+    const msg = $('finMsg');
+    msg.textContent = 'Guardando…';
+    try {
+      await postFin({ accion: 'datos', efectivoEntregado: $('fEfectivo').value, insumos: $('fInsumos').value, notas: $('fNotas').value }, $('fGuardar'));
+      if(enviarlo){
+        await postFin({ accion: 'enviar' }, $('fEnviar'));
+        showToast('📨 Reporte enviado a Diana');
+      } else {
+        showToast('Guardado');
+      }
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.');
+    }
+  }
+
+  $('finBtn').addEventListener('click', abrirFinanzas);
+  $('finCerrar').addEventListener('click', () => { $('finPanel').hidden = true; });
 
   $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });
   $('dimaCerrar').addEventListener('click', () => { $('dimaPanel').hidden = true; $('dimaFab').hidden = false; });
