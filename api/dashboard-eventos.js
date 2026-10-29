@@ -13,7 +13,9 @@
 // (Mensaje_Para_Cliente); DiMa se lo entrega en el chat si está esperando o
 // cuando regrese con su número de pedido.
 // POST accion "asignar": Diana asigna la brigada y la encargada (El Vaso Maíz)
-// de un evento; se avisa por push y Telegram solo a quien se acaba de sumar.
+// de un evento; se avisa por push y Telegram solo a quien se acaba de sumar y
+// se responde cuántos avisos se entregaron de verdad. Si cambia el equipo, se
+// borra el "Enterado" anterior (lo vuelve a confirmar el equipo nuevo).
 
 const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
 const { ROLES, COLABORADORES_TABLE, requerirSesion } = require('./_sesion');
@@ -199,19 +201,33 @@ async function resolverPedido(req, res) {
     // Solo se aceptan encargadas activas con ese rol.
     const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
+    const antes = equipoDe(f, colaboradores);
+    const despues = equipoDe({ ...f, ...campos }, colaboradores);
+    const nuevos = despues.filter(id => !antes.includes(id));
+    if (nuevos.length || antes.length !== despues.length) Object.assign(campos, { Enterado_Por: '', Enterado_Hora: null });
     await airtablePatch(TABLES.EVENTOS, eventoId, campos);
-    const antes = new Set(equipoDe(f, colaboradores));
-    const nuevos = equipoDe({ ...f, ...campos }, colaboradores).filter(id => !antes.has(id));
+    let porTelegram = 0, porPush = 0;
+    const erroresAvisos = [];
     if (nuevos.length) {
       const titulo = `🗓️ Te asignaron ${f.Folio_Evento || 'un evento'}`;
-      const cuerpo = `${f.Ubicacion ? f.Ubicacion + ' · ' : ''}${f.Fecha_Evento || ''}${f.Hora_Inicio ? ' · ' + f.Hora_Inicio : ''}`;
-      await Promise.all([
+      const cuerpo = `${f.Ubicacion ? f.Ubicacion + ' · ' : ''}${f.Fecha_Evento || ''}${f.Hora_Inicio ? ' · ' + f.Hora_Inicio : ''}
+Ábrelo en la app y toca "Enterado".`;
+      [porPush, porTelegram] = await Promise.all([
         enviarPushEquipo({ titulo, cuerpo, soloColaboradores: nuevos }),
         enviarTelegramEquipo({ texto: `${titulo}
-${cuerpo}`, soloColaboradores: nuevos }),
+${cuerpo}`, soloColaboradores: nuevos, errores: erroresAvisos }),
       ]);
     }
-    res.status(200).json({ success: true, avisados: nuevos.length });
+    const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
+    res.status(200).json({
+      success: true,
+      avisados: nuevos.length,
+      porTelegram,
+      porPush,
+      conTelegram: nuevosColab.filter(c => c.fields.Telegram_Chat_ID).length,
+      sinTelegram: nuevosColab.filter(c => !c.fields.Telegram_Chat_ID).map(c => c.fields.Nombre || ''),
+      erroresAvisos,
+    });
     return;
   }
 
@@ -324,6 +340,8 @@ module.exports = async (req, res) => {
         invitados: r.fields.Invitados || null,
         brigadaId: brigadaIds[0] || '',
         encargadaIds: r.fields.Encargada || [],
+        enteradoPor: r.fields.Enterado_Por || '',
+        enteradoHora: r.fields.Enterado_Hora || '',
         brigadaNombre: brigadaInfo ? brigadaInfo.Nombre_Brigada : 'Sin asignar',
         brigadaLider: brigadaInfo ? brigadaInfo.Lider : '',
         estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',

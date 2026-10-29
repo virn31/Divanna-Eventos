@@ -62,6 +62,8 @@ function formatearEvento(r) {
     estatusPago: r.fields.Estatus_Pago || '',
     montoAdeudado: r.fields.Monto_Adeudado || null,
     instrucciones: r.fields.Instrucciones_Equipo || '',
+    enteradoPor: r.fields.Enterado_Por || '',
+    enteradoHora: r.fields.Enterado_Hora || '',
     fueraDeCiudad: !!r.fields.Fuera_De_Ciudad,
     ubicacionAlerta: r.fields.Ubicacion_Alerta || '',
     ubicacionAlertaHora: r.fields.Ubicacion_Alerta_Hora || '',

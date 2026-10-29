@@ -41,6 +41,7 @@ const llamadas = [];
 let respuestas = [];
 const telegram = [];
 let mapaCaido = false;
+let telegramFalla = false;
 global.fetch = async (url, opts = {}) => {
   if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
     if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
@@ -64,6 +65,7 @@ global.fetch = async (url, opts = {}) => {
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
     telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
+    if (telegramFalla) return { ok: false, status: 400, json: async () => ({ ok: false, description: 'Bad Request: chat not found' }), text: async () => '' };
     return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
   }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
@@ -88,7 +90,7 @@ process.env.VAPID_PRIVATE_KEY = 'privada';
 process.env.VAPID_SUBJECT = 'mailto:prueba@example.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { mapaCaido = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -604,6 +606,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patchAsig = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && JSON.stringify(patchAsig.Brigada_Asignada) === '["recBRIGADA0000001"]' && JSON.stringify(patchAsig.Encargada) === JSON.stringify([ENCARG.id]), 'asignar: guarda la brigada y solo encargadas activas con ese rol');
   ok(res.body.avisados === 2 && pushes.length === 1 && pushes[0].payload.titulo.includes('EVT-1'), 'asignar: avisa solo a los que se acaban de sumar (no a la encargada que ya estaba)');
+  ok(res.body.porPush === 1 && res.body.porTelegram === 0 && res.body.conTelegram === 0 && res.body.sinTelegram.join() === 'Juan,Luis' && res.body.erroresAvisos[0].includes('sin configurar'), 'asignar: responde lo que de verdad se entregó y a quién le falta Telegram');
+  ok(patchAsig.Enterado_Por === '' && patchAsig.Enterado_Hora === null, 'asignar: al cambiar el equipo se borra el Enterado anterior');
 
   reset();
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Brigada_Asignada: ['recBRIGADA0000001'] } }, { records: [LIDER, ASIST] }, {}];
@@ -720,6 +724,39 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await pedido({ method: 'POST', body: { nombre: 'Rosa', telefono: '6679990000', negocio: 'El Vaso Maiz', fecha: '2026-12-20', servicios: 'Paquete 3' } }, res);
   const avisosPedido = telegram.filter(t => t.metodo === 'sendMessage');
   ok(res.code === 200 && avisosPedido.length === 1 && avisosPedido[0].body.chat_id === '111' && avisosPedido[0].body.text.includes('Pedido nuevo'), 'telegram: pedido nuevo solo a los Admin');
+
+  // ---------- Avisos de asignación por Telegram y "Enterado" ----------
+  const LIDER_TG = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+  const ADMIN_TG = { ...ADMIN, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } };
+  reset();
+  // Después del PATCH: colaboradores activos (push), colaboradores con Telegram, suscripciones push.
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, { records: [LIDER_TG, ADMIN_TG] }, {}, { records: [LIDER_TG, ADMIN_TG] }, { records: [LIDER_TG, ADMIN_TG] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: 'recBRIGADA0000001', encargadaIds: [] } }, res);
+  const tgAsig = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && res.body.porTelegram === 1 && res.body.conTelegram === 1 && tgAsig.length === 1 && tgAsig[0].body.chat_id === '222' && tgAsig[0].body.text.includes('Enterado'), 'asignar: Telegram entregado al líder y contado');
+
+  reset();
+  telegramFalla = true;
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, { records: [LIDER_TG] }, {}, { records: [LIDER_TG] }, { records: [LIDER_TG] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: 'recBRIGADA0000001', encargadaIds: [] } }, res);
+  ok(res.code === 200 && res.body.porTelegram === 0 && res.body.conTelegram === 1 && res.body.erroresAvisos.some(e => e.includes('Juan') && e.includes('chat not found')), 'asignar: si Telegram no entrega, dice a quién y por qué');
+
+  reset();
+  respuestas = [ASIST, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Ubicacion: 'Las Quintas', Brigada_Asignada: ['recBRIGADA0000001'] } }, {}, { records: [LIDER_TG, ADMIN_TG] }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenAsist), body: { eventoId: 'recEVENTO00000001', tipo: 'enterado' } }, res);
+  const patchEnt = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const tgEnt = telegram.filter(t => t.metodo === 'sendMessage');
+  ok(res.code === 200 && patchEnt.Enterado_Por === 'Luis' && !!patchEnt.Enterado_Hora, 'enterado: guarda quién y cuándo (también el asistente)');
+  ok(tgEnt.length === 1 && tgEnt[0].body.chat_id === '111' && tgEnt[0].body.text.includes('Luis está enterado de EVT-1'), 'enterado: avisa solo a los Admin por Telegram');
+
+  reset();
+  respuestas = [LIDER, { id: 'recEVENTO00000009', fields: { Folio_Evento: 'EVT-9', Brigada_Asignada: ['recBRIGADA0000002'] } }];
+  res = resMock();
+  await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000009', tipo: 'enterado' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'enterado: no se puede en un evento de otra brigada');
 
   // ---------- Ubicación en tiempo real de las alertas ----------
   const ubicLider = { lat: 24.7701234, lng: -107.6012345, precision: 15 };

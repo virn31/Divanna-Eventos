@@ -582,9 +582,12 @@
 
   function bloqueAsignar(ev){
     const sinNadie = !ev.brigadaId && !ev.encargadaIds.length;
+    const enterado = sinNadie ? ''
+      : ev.enteradoPor ? ` · 👍 Enterado: ${esc(ev.enteradoPor)}${ev.enteradoHora ? ' (' + new Date(ev.enteradoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`
+      : ' · ⏳ Sin confirmar';
     return `
       <details class="agenda asignar" ${sinNadie ? 'open' : ''}>
-        <summary>👷 Asignar brigada y encargada${sinNadie ? ' (sin asignar)' : ''}</summary>
+        <summary>👷 Asignar brigada y encargada${sinNadie ? ' (sin asignar)' : enterado}</summary>
         <label class="ag-label">Brigada</label>
         <select class="asig-brigada">
           <option value="">Sin brigada</option>
@@ -599,6 +602,15 @@
           <span class="instr-msg asig-msg"></span>
         </div>
       </details>`;
+  }
+
+  // Lo que de verdad se entregó al asignar, para saber si a alguien no le llegó.
+  function textoAvisosAsignacion(d){
+    if(!d.avisados) return 'Guardado. No hay nadie nuevo a quien avisar.';
+    let t = `Guardado. Avisos a ${d.avisados} persona${d.avisados === 1 ? '' : 's'}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculado${d.conTelegram === 1 ? '' : 's'}, app ${d.porPush}.`;
+    if((d.sinTelegram || []).length) t += ` Sin Telegram vinculado: ${d.sinTelegram.join(', ')}.`;
+    if((d.erroresAvisos || []).length) t += ` ⚠️ ${d.erroresAvisos.join(' · ')}`;
+    return t;
   }
 
   async function guardarAsignacion(btn){
@@ -618,8 +630,9 @@
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = data.avisados ? `Guardado. Aviso enviado a ${data.avisados} del equipo.` : 'Guardado.';
-      setTimeout(loadDashboard, 800);
+      msg.textContent = textoAvisosAsignacion(data);
+      // Si algo no se entregó, el mensaje se queda a la vista (no se repinta).
+      if(!(data.erroresAvisos || []).length && !(data.sinTelegram || []).length) setTimeout(loadDashboard, 800);
     } catch(e){
       if(e.message === 'sesion') return;
       msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
