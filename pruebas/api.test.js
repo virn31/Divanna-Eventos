@@ -1388,7 +1388,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 403 && llamadas.length === 1, 'historial: solo Diana y Víctor lo ven');
 
   reset();
-  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
   res = resMock();
   await chatApi({ method: 'POST', headers: auth(tokenAdmin), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'Dame el balance, ¿cuáles son las mejores temporadas?' }] } }, res);
@@ -1400,7 +1400,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   // ---------- Cuadre por excepción ----------
   const ayer = enDias(-1);
   const CLI1 = 'recCLIENTEPEPE001';
-  const EQ1 = { id: 'recEVCUADRE000001', fields: { Folio_Evento: 'EVT-Q1', Fecha_Evento: ayer, Monto_Estimado_IA: 5000, Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Cliente: [CLI1], COBROS: ['recCOBROQ0000001'] } };
+  const EQ1 = { id: 'recEVCUADRE000001', fields: { Folio_Evento: 'EVT-Q1', Fecha_Evento: ayer, Monto_Estimado_IA: 5000, Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Cliente: [CLI1], COBROS: ['recCOBROQ0000001'], Brigada_Asignada: ['recBRIGADA0000001'] } };
   const EQ2 = { id: 'recEVCUADRE000002', fields: { Folio_Evento: 'EVT-Q2', Fecha_Evento: ayer, Monto_Estimado_IA: 2000, Autorizacion_Diana: 'SI', Cuadre_Estado: 'Debe' } };
   const EQ3 = { id: 'recEVCUADRE000003', fields: { Folio_Evento: 'EVT-Q3', Fecha_Evento: ayer, Monto_Estimado_IA: 1000, Autorizacion_Diana: 'SI', Cuadre_Estado: 'Cuadrado' } };
   const EQ4 = { id: 'recEVCUADRE000004', fields: { Folio_Evento: 'EVT-Q4', Fecha_Evento: ayer, Monto_Estimado_IA: 1000, Autorizacion_Diana: 'SI' } };
@@ -1413,6 +1413,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { records: [{ id: 'recREPQAPROB0001', fields: { Efectivo_Entregado: 3000, Fecha: hoyCln } }] },
     { records: [{ fields: { Monto: 1800, Evento_Relacionado: [EQ4.id] } }] },
     { records: [{ fields: { Tipo: 'Depósito al banco', Monto: 2000, Fecha: hoyCln } }] },
+    { records: [{ id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Brigada Edén' } }] },
   ];
   reset();
   respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
@@ -1439,14 +1440,28 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     'cuadre: "me pagaron todo" registra el pago a Diana por lo que faltaba y el evento queda cuadrado');
 
   reset();
-  respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, { records: [ADMIN_T] }, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un día bonito. Te cuento con cariño: las cuentas de ayer no cuadraron en dos eventos. Va el detalle 👇' }] }];
   const Qmod = require(path.join(repo, 'api/_cuadre.js'));
-  respuestas.shift();
   const rq = await Qmod.preguntasDelDia();
-  const preguntaQ = telegram.find(t => t.body.chat_id === '111' && t.body.text.includes('EVT-Q1'));
-  ok(rq.preguntados === 2 && preguntaQ && preguntaQ.body.text.includes('Falta: $2,000') && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
+  const mensajesQ = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
+  const preguntaQ = mensajesQ.find(t => t.body.text.includes('EVT-Q1'));
+  ok(rq.preguntados === 2 && mensajesQ[0].body.text.startsWith('¡Buenos días, Diana!') && !botonesDe(mensajesQ[0]).length
+    && llamadasClaude[0].messages[0].content.includes('Escríbele a Diana') && llamadasClaude[0].messages[0].content.includes('NO pongas montos'),
+    'cuadre: primero un saludo amistoso con su nombre, escrito por DiMa sin cifras');
+  ok(preguntaQ && preguntaQ.body.text.includes('el evento de Pepe (EVT-Q1)') && preguntaQ.body.text.includes('Brigada Edén reportó $3,000') && preguntaQ.body.text.includes('Me faltan $2,000')
+    && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
     && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Cuadre_Preguntado === hoyCln),
-    'cuadre: al día siguiente DiMa le pregunta a Diana por Telegram con botones y no vuelve a preguntar');
+    'cuadre: luego el detalle con números exactos, la brigada sin acusarla y los botones; no vuelve a preguntar');
+
+  // Si DiMa mete cifras en el saludo (o falla), se usa un saludo de respaldo.
+  reset();
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hola Diana, faltan $2,000 en EVT-Q1.' }] }];
+  await Qmod.preguntasDelDia();
+  const saludoResp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
+  ok(saludoResp && saludoResp.body.text.includes('Diana') && !saludoResp.body.text.includes('$') && !saludoResp.body.text.includes('EVT-'),
+    'cuadre: si el saludo trae cifras o folios se descarta y sale uno de respaldo');
 
   const botonQ = (dato) => ({ callback_query: { id: 'cbQ', data: dato, message: { message_id: 80, chat: { id: 111, type: 'private' }, text: 'EVT-Q1 no cuadra' } } });
   reset();

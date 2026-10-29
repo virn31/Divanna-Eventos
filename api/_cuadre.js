@@ -14,7 +14,12 @@
 // "dinero bueno al malo"; las correcciones las aplica Diana con los botones.
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
+
+const MODELO = 'claude-sonnet-5-5';
+let clienteIA = null;
+const ia = () => (clienteIA = clienteIA || new Anthropic());
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -24,6 +29,7 @@ const TABLES = {
   GASTOS: 'tblfuEW0oiX4xTw7T',
   CAJA: 'tbl9UVlnxzfXscnW5',
   CLIENTES: 'tblgViisKQRG9TVjh',
+  BRIGADAS: 'tblwqJrIaC1MsMGNL',
 };
 // El cuadre empieza aquí: antes no había cobros registrados y todo saldría "sin cuadrar".
 const FECHA_INICIO = '2026-10-29';
@@ -88,6 +94,7 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
     fecha: f.Fecha_Evento || '',
     negocio: f.Negocio || '',
     clienteId: (f.Cliente || [])[0] || '',
+    brigadaId: (f.Brigada_Asignada || [])[0] || '',
     contratado,
     brigada: redondo(brigada),
     brigadaSinAprobar: redondo(brigadaSinAprobar),
@@ -106,17 +113,20 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
 async function datosCuadre() {
   const hoy = hoyCuliacan();
   const desde = `NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${FECHA_INICIO}")))`;
-  const [eventos, cobros, aprobados, gastos, caja] = await Promise.all([
+  const [eventos, cobros, aprobados, gastos, caja, brigadas] = await Promise.all([
     todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND(OR({Autorizacion_Diana} = "SI", {Cancelado}), ${desde})`)}`),
     todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent('{Estado} = "Aprobado"')}&fields%5B%5D=Efectivo_Entregado&fields%5B%5D=Fecha`),
     todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.CAJA}`),
+    todas(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada`),
   ]);
   const ok = new Set(aprobados.map(r => r.id));
   // Gastos que cuentan: capturados a mano o de reportes aprobados.
   const gastosValidos = gastos.filter(g => !(g.fields.Reporte || [])[0] || ok.has(g.fields.Reporte[0]));
   const lista = eventos.map(e => dineroDelEvento(e, cobros, ok, gastosValidos));
+  const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
+  lista.forEach(e => { e.brigadaNombre = nombreBrigada.get(e.brigadaId) || ''; });
   return { hoy, eventos: lista, cobros, aprobados, ok, caja };
 }
 
@@ -296,37 +306,100 @@ const botonesCaja = () => [
   [{ texto: '✍️ Repartido / otra cosa', dato: 'cj:var' }],
 ];
 
-// Eventos que ya pasaron, no cuadran y no se han preguntado: un mensaje por evento.
+// ---------- Tono (pedido de Víctor 2026-10-29) ----------
+// DiMa le escribe a Diana como una amiga cercana: primero rompe el hielo, luego
+// se pone seria sin perder el cariño, y ahí van los datos y los botones. El
+// saludo lo escribe la IA SIN cifras ni folios (los números siempre los pone el
+// sistema); si falla o se sale de eso, se usa uno de los saludos de abajo.
+// Nunca se acusa a la brigada: casi siempre el dinero llegó y no se registró.
+const azar = (lista) => lista[Math.floor(Math.random() * lista.length)];
+const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+
+const SALUDOS_RESPALDO = [
+  (n, k) => `¡Buenos días, ${n}! ☀️ Espero que hayas descansado rico y que hoy sea un gran día. Yo ya estoy lista para seguir trabajando contigo.\n\nOye, te platico: revisé las cuentas de ayer y no me cuadraron ${k === 1 ? 'en un evento' : `en ${k} eventos`}. Nada grave, pero conviene dejarlo claro hoy para llevar la administración sana y que no se nos escape nada. Te paso el detalle 👇`,
+  (n, k) => `Hola ${n} 💜 ¿cómo amaneciste? Te mando un abrazo para empezar el día con todo.\n\nAhora sí, en modo serio pero con cariño: las cuentas de ayer no me cerraron ${k === 1 ? 'en un evento' : `en ${k} eventos`}. Ayúdame a aclararlo para que no haya fugas; te dejo cada uno abajo.`,
+  (n, k) => `¡Hola, ${n}! 🌸 Que tengas un día precioso. Aquí sigo al pendiente de todo.\n\nTe cuento: al cuadrar lo de ayer me quedaron ${k === 1 ? 'un evento sin cerrar' : `${k} eventos sin cerrar`} en el dinero. Con dos toques lo dejamos listo y la administración queda sana 👇`,
+];
+
+async function saludoDelDia(nombre, cuantos) {
+  try {
+    const r = await ia().beta.messages.create({
+      model: MODELO,
+      max_tokens: 400,
+      output_config: { effort: 'low' },
+      system: 'Eres DiMa, la asistente de Divanna Eventos y El Vaso Maíz (Culiacán). Escribes como una amiga cercana, cálida y natural, en español mexicano, sin markdown.',
+      messages: [{ role: 'user', content:
+        `Escríbele a ${nombre} un mensaje de buenos días por Telegram. Dos partes, en 3 a 5 frases en total:\n` +
+        `1) Rompe el hielo con cariño (deséale un gran día, dile que estás lista para seguir trabajando). Varía la forma, que no suene a plantilla.\n` +
+        `2) Ponte seria sin perder el tono amistoso: dile que al revisar las cuentas de ayer no cuadraron ${cuantos === 1 ? 'en un evento' : `en ${cuantos} eventos`}, que llevar la administración sana evita fugas y que enseguida le pasas el detalle.\n` +
+        'Reglas: NO pongas montos, cifras, folios, nombres de clientes ni de brigadas (el detalle va aparte). No culpes a nadie. Máximo 450 caracteres. Uno o dos emojis como mucho.' }],
+    });
+    const texto = ((r && r.content) || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    // Solo se usa si respetó las reglas: sin cifras ni folios y corto.
+    if (texto && texto.length <= 600 && !/\$|\d{2,}|EVT-/i.test(texto)) return texto;
+  } catch (err) {
+    console.error('DiMa: no se pudo escribir el saludo del cuadre:', err.message);
+  }
+  return azar(SALUDOS_RESPALDO)(nombre, cuantos);
+}
+
+// Detalle de un evento, en plática (los números los pone el sistema).
+function textoEvento(e) {
+  const quien = e.cliente ? `el evento de ${e.cliente} (${e.folio})` : `el evento ${e.folio}`;
+  const brigada = e.brigadaNombre || 'la brigada';
+  const reporto = e.brigada > 0
+    ? `${brigada} reportó ${pesos(e.brigada)}${e.brigadaSinAprobar ? ` (${pesos(e.brigadaSinAprobar)} todavía sin aprobar)` : ''}`
+    : `${brigada} no reportó ningún cobro`;
+  const yaTe = e.diana ? ` y tú ya me dijiste que te pagaron ${pesos(e.diana)}` : '';
+  const pregunta = e.brigada > 0
+    ? azar(['¿Los muchachos te lo pagaron directo o te entregaron el efectivo?', '¿Te lo entregaron a ti, o el cliente todavía lo debe?', '¿Ese dinero te llegó a ti o quedó pendiente?'])
+    : azar(['¿El cliente te pagó directo a ti, o sigue pendiente?', '¿Te depositaron a ti, o todavía lo deben?']);
+  return `🧾 En ${quien}, del ${e.fecha}, el contrato era de ${pesos(e.contratado)}; ${reporto}${yaTe}. Me faltan ${pesos(e.saldo)}.\n${pregunta}`;
+}
+
+// Diana y Víctor con Telegram (cada quien recibe su versión con su nombre).
+async function adminsConTelegram() {
+  const formula = encodeURIComponent(`AND({Activo}, {Rol} = "${ROLES.ADMIN}", {Telegram_Chat_ID} != "")`);
+  return (await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`)).records
+    .map(r => ({ id: r.id, nombre: primerNombre(r.fields.Nombre), chatId: r.fields.Telegram_Chat_ID }));
+}
+
+// Eventos que ya pasaron, no cuadran y no se han preguntado: saludo + un mensaje por evento.
 async function preguntasDelDia() {
   const v = await vistaCuadre();
-  const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado);
-  let enviados = 0;
-  for (const e of nuevos.slice(0, 15)) {
-    const texto = [
-      `🧾 ${e.folio} (${e.fecha}${e.cliente ? ', ' + e.cliente : ''}) no cuadra:`,
-      `Contratado ${pesos(e.contratado)} · cobró la brigada ${pesos(e.brigada)}${e.brigadaSinAprobar ? ` (${pesos(e.brigadaSinAprobar)} sin aprobar)` : ''}${e.diana ? ` · te pagaron ${pesos(e.diana)}` : ''}`,
-      `Falta: ${pesos(e.saldo)}. ¿Qué pasó con ese dinero?`,
-    ].join('\n');
-    const n = await enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto, botones: botonesEvento(e.id) });
-    if (n) {
-      enviados++;
-      await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: e.id, fields: { Cuadre_Preguntado: hoyCuliacan(), Cuadre_Estado: ESTADOS.POR_ACLARAR } }] }) });
+  const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
+  if (!nuevos.length) return { pendientes: v.porAclarar.length, preguntados: 0 };
+  const admins = await adminsConTelegram();
+  const entregados = new Set();
+  for (const a of admins) {
+    const hola = await enviarTelegram(a.chatId, await saludoDelDia(a.nombre, nuevos.length));
+    if (!hola.ok) { console.error('Cuadre: no se pudo saludar a', a.nombre, hola.status); continue; }
+    for (const e of nuevos) {
+      const r = await enviarTelegram(a.chatId, textoEvento(e), botonesEvento(e.id));
+      if (r.ok) entregados.add(e.id);
     }
   }
-  return { pendientes: v.porAclarar.length, preguntados: enviados };
+  for (const e of nuevos.filter(x => entregados.has(x.id))) {
+    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: e.id, fields: { Cuadre_Preguntado: hoyCuliacan(), Cuadre_Estado: ESTADOS.POR_ACLARAR } }] }) });
+  }
+  return { pendientes: v.porAclarar.length, preguntados: entregados.size };
 }
 
 // Lunes: efectivo sin destino.
 async function preguntaCaja() {
   const ef = efectivoDe(await datosCuadre());
   if (ef.sinDestino <= TOLERANCIA) return { sinDestino: 0, enviado: false };
-  const texto = [
-    `💼 Efectivo sin destino registrado: ${pesos(ef.sinDestino)}`,
-    `Te entregaron las brigadas ${pesos(ef.entregadoBrigadas)} y te pagaron en efectivo ${pesos(ef.pagadoEfectivo)}${ef.enCaja ? `; tenías declarado ${pesos(ef.enCaja)} en caja` : ''}.`,
-    'Tú decides qué hacer con el dinero; solo dime a dónde fue para que todo cuadre:',
-  ].join('\n');
-  const n = await enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto, botones: botonesCaja() });
-  return { sinDestino: ef.sinDestino, enviado: n > 0 };
+  let enviado = false;
+  for (const a of await adminsConTelegram()) {
+    const texto = [
+      azar([`¡Feliz inicio de semana, ${a.nombre}! 💜`, `Buenos días, ${a.nombre} ☀️ arrancamos semana.`, `Hola ${a.nombre}, ¡a darle con todo esta semana! 🌸`]),
+      `Para cerrar bien la anterior: te llegaron ${pesos(ef.entradas)} en efectivo (${pesos(ef.entregadoBrigadas)} que te entregaron las brigadas y ${pesos(ef.pagadoEfectivo)} que te pagaron directo)${ef.enCaja ? ` y tenías ${pesos(ef.enCaja)} en caja` : ''}, y me quedan ${pesos(ef.sinDestino)} sin destino.`,
+      'El dinero es tuyo y tú decides qué hacer con él; solo dime a dónde fue para que todo cuadre 👇',
+    ].join('\n');
+    const r = await enviarTelegram(a.chatId, texto, botonesCaja());
+    enviado = enviado || r.ok;
+  }
+  return { sinDestino: ef.sinDestino, enviado };
 }
 
 // Botones cd:<acción>:<evento> y cj:<destino>. Devuelve { aviso, alerta, textoFinal }.

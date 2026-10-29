@@ -1010,7 +1010,7 @@
           <span>Cobró la brigada <span class="dinero-favor">${$$(e.brigada)}</span>${e.brigadaSinAprobar ? ` <span class="evento-sub">(${$$(e.brigadaSinAprobar)} sin aprobar)</span>` : ''}</span>
           ${e.diana ? `<span>Te pagaron <span class="dinero-favor">${$$(e.diana)}</span></span>` : ''}
           ${e.descuento ? `<span>Descuento ${$$(e.descuento)}</span>` : ''}
-          ${e.saldo < 0 ? `<span>Cobrado de más <span class="dinero-gasto">${$(-e.saldo)}</span></span>` : `<span>Falta <span class="dinero-gasto">${$(e.saldo)}</span></span>`}
+          ${e.saldo < 0 ? `<span>Cobrado de más <span class="dinero-gasto">${$$(-e.saldo)}</span></span>` : `<span>Falta <span class="dinero-gasto">${$$(e.saldo)}</span></span>`}
         </div>
         ${e.notas ? `<div class="evento-sub">${esc(e.notas.trim().split('\n').pop())}</div>` : ''}
         ${conBotones ? `
