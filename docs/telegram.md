@@ -58,6 +58,14 @@ Las dos respuestas deben decir `ok : True`. Si cambias el token o el secreto, re
 3. Listo. Para desvincular: `/salir`. Si alguien deja el equipo, basta con desmarcar `Activo` en
    COLABORADORES: deja de recibir avisos y el bot ya no le responde.
 
+## Manual con /instrucciones
+
+Cualquiera vinculado escribe `/instrucciones` y el bot le contesta con un menú de temas en botones
+(instalar la app, eventos, alertas, `/staff` si coordina, si algo falla); cada botón manda ese tema y el
+menú otra vez. Las chicas del staff solo ven sus temas. El texto vive en `api/_instrucciones.js` y es el
+mismo que `docs/manual-equipo.md`. Para que salga en la lista de comandos de Telegram, un Admin vuelve a
+escribir `/configurar`.
+
 ## Botón "Confirmar" en los avisos de un evento
 
 Cuando a una brigada o encargada se le asigna un evento desde el dashboard, o se le mandan
