@@ -5,7 +5,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 - Repo de trabajo (fuera de OneDrive): `C:\Users\virn3\Proyectos\Divanna-Eventos`
 - Remoto: https://github.com/virn31/Divanna-Eventos
-- Rama de trabajo actual: `staff-telegram` (nunca trabajar directo en `main`; `main` es producción).
+- Rama de trabajo: una rama por tema, que se une a `main` cuando Víctor pide publicar (`main` es producción y Vercel la despliega sola).
 
 ## Cuando Víctor dice "cerrar"
 
@@ -28,28 +28,29 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-28 (cierre de la noche) · **Rama de trabajo:** `main` (todo publicado; ramas de hoy ya unidas) · **Producción:** `main` con el merge de `gerente-vaso-maiz` (merges locales, sin PR). Rama aparte sin publicar: `entrenar-dima` (Entrenar a DiMa desde el dashboard).
+**Actualizado:** 2026-10-29 (cierre de la mañana) · **Rama de trabajo:** `main` (todo publicado; ramas del día ya unidas: `staff-en-app`, `diana-jefa`, `reporte-dia`) · **Producción:** `main` en `f926847`, despliegue verificado (caché `dima-brigadas-v11`). Rama aparte sin publicar: `entrenar-dima`. **257 pruebas pasan.**
 
-**Publicado hoy (en orden):**
-- Asignar brigada y encargada desde el dashboard (`asignar`), con conteo real de avisos entregados por Telegram/push y el motivo si falla.
-- Al autorizar, el mensaje dice qué falló de Google (Calendar, Sheets, correo) y por qué.
-- Botón "👍 Enterado" en la app y "✅ Confirmar" en los avisos de Telegram (`EVENTOS.Enterado_Por`/`Enterado_Hora`); se avisa a los Admin.
-- `/staff` (rama `staff-telegram`): staff de El Vaso Maíz por Telegram, invitaciones "Sí puedo / No puedo".
-- `/instrucciones`: manual por temas con botones (`api/_instrucciones.js` = `docs/manual-equipo.md`).
-- Gerente de El Vaso Maíz (`COLABORADORES.Gerente_Vaso_Maiz`, Ángela): ve y asigna todos los eventos de El Vaso Maíz desde su app; DiMa interna (app "💬 Pregúntale a DiMa" y Telegram sin comando); `/curso` (6 lecciones, `Curso_Avance`); `/mensaje` con "↩️ Responder".
-- `CACHE_NAME` = `dima-brigadas-v7`. 210 pruebas pasan.
+**Acceso a Vercel (nuevo):** CLI instalada y enlazada (`vercel login` de Víctor; `.vercel/` y `.env.local` ignorados). Claude puede ver `vercel ls`, `vercel env ls` (solo nombres) y `vercel logs -e production -s 48h --json`. El sistema de permisos NO deja a Claude guardar secretos (`vercel env add`) ni desplegar a mano (`vercel redeploy`): se le pasa a Víctor el comando para `!` (en Git Bash usar rutas `/c/Users/...`). El conector MCP de Vercel sigue sin entrar al proyecto.
 
-**Airtable hoy:** campos nuevos `EVENTOS.Enterado_Por`, `EVENTOS.Enterado_Hora`, `COLABORADORES.Gerente_Vaso_Maiz`, `COLABORADORES.Curso_Avance`. Alta de Ángel (Brigada Ángel), Eden ligado a Brigada Edén, Ángela (usuario `angela`, Lider de Brigada El Vaso Maíz, `Coordina_Staff` y `Gerente_Vaso_Maiz`). Se borraron los 3 eventos de prueba y sus clientes.
+**Publicado hoy:**
+- Ángela (gerente) desde la app: invita staff por evento (mismo código que `/staff`) y elige al **encargado de producción**; 🚗 junto al vehículo en el encabezado.
+- **Encargado de producción:** cron diario 8:00 (`api/produccion-diaria.js`): lista desglosada por producto 2 días antes y el mismo día por Telegram, con "Tenemos todo / Reportar insumos"; respuestas a Ángela + Diana y Víctor.
+- **Cambios de pedido:** `EVENTOS.Cambio_Cliente`; suenan en la app (push) y Telegram a Diana, Víctor y Ángela; Diana confirma o descarta en el dashboard y al confirmar se avisa al equipo (vuelven a tocar Enterado) y se reenvía la producción. DiMa: cambios con 24 h de anticipación; con menos, URGENTE. Si no se guarda, DiMa lo dice.
+- **Diana tiene todo lo de Ángela** en el dashboard (staff, producción, "Pregúntale a DiMa").
+- **Reporte financiero del día (fase 3):** 💰 en la app (líder y encargada): gastos con foto (dinero del negocio o propio), cobros, efectivo entregado, insumos → Diana aprueba o pide aclaración y marca reembolsos; Ángela ve la administración de El Vaso Maíz. Balance semanal solo cuenta lo aprobado. `api/finanzas.js` = función **12 de 12**.
+- **Arreglado en Vercel:** faltaban `VAPID_*` (los avisos al teléfono NUNCA habían funcionado) y `CRON_SECRET` (los crons estaban abiertos). Ya cargados y desplegados.
 
-**Pendiente de Víctor (siguiente sesión):**
-1. Escribir `/configurar` al bot (activa los botones y agrega `/instrucciones`, `/curso`, `/mensaje` a la lista). Sin esto los botones de Telegram no responden.
-2. `/curso` → "📨 Angela Samano" para mandarle su primera lección.
-3. Conectar Google Calendar/Sheets: cuenta de servicio, compartir el calendario de divannaeventos@gmail.com y la hoja, variables `GOOGLE_*` en Vercel y redeploy (pasos en la conversación y en `api/_google-integrations.js`). Hoy al autorizar falla Calendar/Sheets.
-4. Alta de las chicas de El Vaso Maíz (Ángela con `/staff` → Agregar personal) y de José (asistente de Brigada Edén) si va a usar la app.
-5. Teléfono de Ángel (ZTE con "Security Lock"): instalar la app desde Chrome, no el APK.
-6. Lo anterior: conteos de INVENTARIO, proveedores aliados, rutas de Divanna, PIN de Diana, `VAPID_*`, `assetlinks.json`, limpieza de Twilio.
+**Airtable hoy:** EVENTOS `Encargado_Produccion`, `Produccion_Avisos`, `Produccion_Respuesta`, `Cambio_Cliente`; tablas nuevas REPORTES_DIA `tbllUK2N9ZDv2Bpdt` y COBROS `tblb8ADFukpm6nRZV`; GASTOS `Reporte`, `Pagado_Con`, `Reembolsado`, `Reportado_Por`.
 
-**Siguientes pasos:**
-- Prueba completa con un pedido nuevo: chat de DiMa → autorizar → asignar a una brigada → Confirmar en Telegram → ver "Enterado" en el dashboard.
-- Decidir si se publica `entrenar-dima`.
-- Fase 3: gastos y entradas por brigada. Fase 4: proveedores y compras. Fase 5: recordatorios de checklist por Telegram.
+**Pendiente de Víctor:**
+1. **Todos tocan "Activar alertas"** en la app (antes no había llaves; nadie quedó suscrito). Cerrar y abrir la app para cargar la versión nueva.
+2. **Borrar en BALANCES el duplicado** "Semana 2026-10-19 a 2026-10-25" creado hoy (`rec374o2IWhy1bBph`), que Claude generó por error al llamar el balance. Dejar el del 26-oct.
+3. Probar con datos reales: un cambio de pedido desde la página (debe sonar a Diana), un reporte del día con **foto real** del ticket, y asignar un encargado de producción.
+4. Google Calendar/Sheets: "invalid_grant: account not found" (la llave en Vercel no corresponde a la cuenta de servicio). Volver a bajar el JSON y cargar correo + llave del mismo archivo; Sheets espera los PDF de cotización.
+5. Lo anterior: `/curso` → Ángela, alta de las chicas y de José, teléfono de Ángel (PWA desde Chrome), conteos de INVENTARIO, PIN de Diana, limpiar variables de Twilio/WhatsApp en Vercel.
+
+**Siguiente (esta tarde, pedido de Víctor):**
+1. **Identificador de los eventos:** hoy solo sale el folio; agregar **nombre y teléfono del cliente** (app, dashboard, Telegram).
+2. **DiMa no debe volver a pedir los datos del evento** cuando el cliente abre su pedido desde la página para cambiarlo: debe tomarlos del expediente (hoy `verificarPedido` ya da fecha, hora, lugar y servicios, pero DiMa los vuelve a preguntar; revisar el aviso en `api/dima-chat.js` y el flujo de `registrar_pedido`).
+3. **Reconocer al cliente por celular y nombre** y categorizarlo: decoradores (precio especial), clientes frecuentes, malos clientes (no pagan, cancelan sin aviso). Ya existen en CLIENTES `Es_Decorador`, `Semaforo_Cliente` (Verde/Amarillo/Rojo), `Tipo_Cliente`, `Nivel`, `Trust_Score`, `Pricing_Profile` y en EVENTOS `Requiere_Liquidacion_Anticipada`: revisar qué se usa antes de crear nada nuevo.
+4. Después: recordatorio nocturno a quien no envió su reporte del día; decidir si se publica `entrenar-dima`; Fase 4 (proveedores y compras) y Fase 5 (recordatorios de checklist). Toda ruta nueva de Vercel requiere juntar funciones (ya son 12).
