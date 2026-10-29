@@ -8,7 +8,11 @@
 // pin en Telegram), y con tipo "ubicacion" la app la actualiza cada minuto
 // mientras la emergencia siga activa. Quien reporta recibe confirmación en Telegram.
 //
-// Requiere sesión. El asistente solo marca la carga y lanza alertas; el resto
+// Con tipo "enterado" quien tiene el evento asignado confirma que lo vio; se
+// avisa a los Admin por Telegram.
+//
+// Requiere sesión. El asistente solo marca la carga, lanza alertas y confirma
+// "Enterado"; el resto
 // de cambios son del líder, la encargada del evento o un admin.
 
 const { enviarCorreoEquipo } = require('./_google-integrations');
@@ -21,7 +25,7 @@ const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
 };
 
-const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad', 'ubicacion'];
+const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad', 'ubicacion', 'enterado'];
 
 // { lat, lng, precision } del GPS del teléfono, o null si no viene o no es válido.
 function leerUbicacion(u) {
@@ -117,6 +121,7 @@ module.exports = async (req, res) => {
     let alertaMensaje = null;
     let alertaAsunto = '';
     let resueltaMensaje = null;
+    let enteradoMensaje = null;
 
     switch (tipo) {
       case 'checklist_item': {
@@ -227,6 +232,12 @@ module.exports = async (req, res) => {
         }
         break;
 
+      case 'enterado':
+        fieldsToUpdate.Enterado_Por = reporta;
+        fieldsToUpdate.Enterado_Hora = new Date().toISOString();
+        enteradoMensaje = `👍 ${reporta} está enterado de ${folio} (${ubicacion}${eventoData.fields.Fecha_Evento ? ' · ' + eventoData.fields.Fecha_Evento : ''}).`;
+        break;
+
       case 'eta_confirmado':
         fieldsToUpdate.ETA_Confirmado_Brigada = valor || '';
         break;
@@ -249,6 +260,10 @@ module.exports = async (req, res) => {
     // que nadie siga yendo; también a quien la marcó, como confirmación.
     if (resueltaMensaje) {
       await enviarTelegramEquipo({ texto: resueltaMensaje }).catch(err => console.error('Error avisando resolución:', err));
+    }
+
+    if (enteradoMensaje) {
+      await enviarTelegramEquipo({ texto: enteradoMensaje, roles: [ROLES.ADMIN] }).catch(err => console.error('Error avisando enterado:', err));
     }
 
     let enviados = null;
