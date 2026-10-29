@@ -46,7 +46,7 @@ Repo: github.com/virn31/Divanna-Eventos · copia de trabajo: `C:\Users\virn3\Pro
 | `api/_eventos.js` | Qué eventos ve cada rol y alertas del día; lo usan la app y el bot. |
 | `api/push.js` + `api/_push.js` | Suscripción del teléfono a las alertas (tabla PUSH_SUSCRIPCIONES `tblSyRGsMwcSnkcAR`) y envío. Solo a colaboradores activos, nunca a quien reporta. |
 | `api/brigada-checklist.js` | POST etapas del evento (líder, encargada, admin). |
-| `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. |
+| `api/dashboard-eventos.js` | Solo Admin. GET eventos, pedidos por cotizar, último balance, brigadas y encargadas. POST autoriza/rechaza: checklist + Calendar + Sheets + correo al cliente. POST `asignar`: brigada y encargada del evento (avisa solo a quien se suma). |
 | `api/balance-semanal.js` | Cron de balance semanal, enviado por correo. |
 | `brigadas/index.html` | **App del equipo** (PWA/APK, scope `/brigadas/`): login y vista según rol. Admin pasa a `dashboard.html`. |
 | `brigadas/dashboard.html` | Dashboard de Diana/Víctor (misma sesión, solo Admin). Aquí se cotizan y autorizan los pedidos. |
@@ -96,7 +96,6 @@ Corregidos el 2026-10-27: endpoints de brigada sin validación, inyección en `f
 ## Siguientes fases
 
 - **Alertas nuevas:** botón "Situación con cliente" (solo a Diana/Víctor), `Estatus_Semaforo` con alerta al pasar a Rojo, instrucción de Diana a la brigada desde el dashboard.
-- Asignar `Encargada` y brigada a un evento desde el dashboard (hoy se hace en Airtable).
 
 ## Pendientes de contexto
 

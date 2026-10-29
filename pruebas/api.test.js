@@ -588,6 +588,42 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', accion: 'instrucciones', instrucciones: 'x' } }, res);
   ok(res.code === 403, 'instrucciones: solo Admin las puede escribir');
 
+  // ---------- Asignar brigada y encargada ----------
+  reset();
+  const ENCARG2 = { id: 'recCOLAB000000005', fields: { Nombre: 'Rosa', Rol: 'Encargada de evento', Activo: false } };
+  respuestas = [
+    ADMIN,
+    { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-11-20', Ubicacion: 'Las Quintas', Encargada: [ENCARG.id] } },
+    { records: [LIDER, ASIST, ADMIN, ENCARG] },
+    {},
+    { records: [LIDER, ASIST, ADMIN, ENCARG] },
+    { records: [{ id: 'recSUB00000000010', fields: { Endpoint: 'https://push.example/lider', Colaborador: [LIDER.id], Claves: '{"p256dh":"a","auth":"b"}' } }] },
+  ];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: 'recBRIGADA0000001', encargadaIds: [ENCARG.id, ENCARG2.id, LIDER.id] } }, res);
+  const patchAsig = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && JSON.stringify(patchAsig.Brigada_Asignada) === '["recBRIGADA0000001"]' && JSON.stringify(patchAsig.Encargada) === JSON.stringify([ENCARG.id]), 'asignar: guarda la brigada y solo encargadas activas con ese rol');
+  ok(res.body.avisados === 2 && pushes.length === 1 && pushes[0].payload.titulo.includes('EVT-1'), 'asignar: avisa solo a los que se acaban de sumar (no a la encargada que ya estaba)');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Brigada_Asignada: ['recBRIGADA0000001'] } }, { records: [LIDER, ASIST] }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: '', encargadaIds: [] } }, res);
+  const patchQuitar = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && patchQuitar.Brigada_Asignada.length === 0 && patchQuitar.Encargada.length === 0 && res.body.avisados === 0, 'asignar: se puede dejar sin brigada, sin avisos');
+
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: {} }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: 'x"); DROP', encargadaIds: [] } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'asignar: rechaza una brigada inválida');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaId: '', encargadaIds: [] } }, res);
+  ok(res.code === 403, 'asignar: solo Admin');
+
   // ---------- Suscripción push ----------
   reset();
   res = resMock();
