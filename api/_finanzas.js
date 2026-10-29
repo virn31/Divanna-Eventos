@@ -502,6 +502,52 @@ async function marcarReembolsado(colaborador, body) {
   return { ok: true };
 }
 
+// ---------- Por cobrar (balance de la semana) ----------
+// Lo que todavía deben los clientes de los eventos autorizados de un periodo,
+// evento por evento (pedido de Víctor 2026-10-29):
+// 1. Estatus de pago "Pagado - …" o "Liquidado 100%" -> 0.
+// 2. Si se capturó Monto_Adeudado -> ese.
+// 3. Si no -> monto contratado menos los cobros de reportes aprobados de ese evento.
+// Los anticipos que se pagan directo a Diana no están registrados como cobro:
+// en esos eventos sale de más hasta que se marque pagado o se capture lo adeudado.
+const PAGADO = (estatus) => /^Pagado\b/.test(estatus || '') || estatus === 'Liquidado 100%';
+
+function calcularPorCobrar(eventos, cobros, aprobados) {
+  const cobradoPorEvento = new Map();
+  for (const c of cobros) {
+    const f = c.fields || {};
+    if (!aprobados.has((f.Reporte || [])[0])) continue;
+    const ev = (f.Evento || [])[0];
+    if (ev) cobradoPorEvento.set(ev, (cobradoPorEvento.get(ev) || 0) + (Number(f.Monto) || 0));
+  }
+  let total = 0, conSaldo = 0;
+  for (const e of eventos) {
+    const f = e.fields || {};
+    if (f.Cancelado) continue;
+    let debe;
+    if (PAGADO(f.Estatus_Pago)) debe = 0;
+    else if (typeof f.Monto_Adeudado === 'number') debe = f.Monto_Adeudado;
+    else debe = Math.max(0, (Number(f.Monto_Estimado_IA) || 0) - (cobradoPorEvento.get(e.id) || 0));
+    if (debe > 0) { total += debe; conSaldo++; }
+  }
+  return { total: Math.round(total * 100) / 100, eventos: conSaldo };
+}
+
+// Por cobrar de un periodo, leído en vivo (dashboard). fin es inclusivo.
+async function porCobrarPeriodo(inicio, fin) {
+  const desde = `NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${inicio}")))`;
+  const hasta = `NOT(IS_AFTER({Fecha_Evento}, DATETIME_PARSE("${fin}")))`;
+  const eventos = await todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", ${desde}, ${hasta})`)}`);
+  if (!eventos.length) return { total: 0, eventos: 0 };
+  // Cobros de esos eventos por el vínculo inverso EVENTOS.COBROS (IDs; ARRAYJOIN daría nombres).
+  const cobroIds = eventos.flatMap(e => e.fields.COBROS || []);
+  const [cobros, aprobados] = await Promise.all([
+    cobroIds.length ? todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(porIds(cobroIds))}`) : [],
+    cobroIds.length ? todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`{Estado} = "${ESTADOS.APROBADO}"`)}&fields%5B%5D=Estado`) : [],
+  ]);
+  return calcularPorCobrar(eventos, cobros, new Set(aprobados.map(r => r.id)));
+}
+
 // ---------- Historial mensual por empresa (gráfica del dashboard y DiMa) ----------
 // Por mes y por negocio: eventos autorizados, ingresos contratados (monto de los
 // eventos autorizados: es lo pactado, no lo cobrado), gastos (capturados a mano
@@ -593,6 +639,8 @@ function historialParaDima(h) {
 
 module.exports = {
   historialMensual,
+  calcularPorCobrar,
+  porCobrarPeriodo,
   historialParaDima,
   ESTADOS,
   NEGOCIOS,
