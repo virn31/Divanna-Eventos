@@ -22,7 +22,11 @@ const origLoad = Module._load;
 Module._load = function (req, parent, ...rest) {
   if (req === 'nodemailer') return { createTransport: () => ({ sendMail: async (m) => { correos.push(m); } }) };
   if (req === 'googleapis') {
-    return { google: { auth: { JWT: function () {} }, calendar: () => ({ events: { insert: async () => ({ data: { htmlLink: 'x' } }) } }), sheets: () => ({ spreadsheets: { values: { append: async () => ({}) } } }) } };
+    return { google: { auth: { JWT: function () {} }, calendar: () => ({ events: {
+      insert: async (p) => { googleCal.push({ op: 'insert', ...p }); return { data: { id: 'gcal' + googleCal.length, htmlLink: 'x' } }; },
+      update: async (p) => { googleCal.push({ op: 'update', ...p }); return { data: {} }; },
+      delete: async (p) => { googleCal.push({ op: 'delete', ...p }); return {}; },
+    } }), sheets: () => ({ spreadsheets: { values: { append: async () => ({}) } } }) } };
   }
   if (req === '@anthropic-ai/sdk') return { Anthropic: AnthropicMock };
   if (req === 'web-push') {
@@ -38,6 +42,9 @@ Module._load = function (req, parent, ...rest) {
 };
 
 const llamadas = [];
+const googleCal = [];
+let bloqueosPrueba = [];
+let bloqueoLeido = null;
 let respuestas = [];
 const telegram = [];
 let mapaCaido = false;
@@ -61,6 +68,16 @@ global.fetch = async (url, opts = {}) => {
     const rad = Math.PI / 180;
     const recta = 2 * 6371000 * Math.asin(Math.sqrt(Math.sin((latD - 24.8091) * rad / 2) ** 2 + Math.cos(24.8091 * rad) * Math.cos(latD * rad) * Math.sin((lngD + 107.3940) * rad / 2) ** 2));
     return { ok: true, status: 200, json: async () => ({ routes: [{ distance: recta * 1.3, geometry: { coordinates: coords } }] }) };
+  }
+  // DIAS_BLOQUEADOS tiene su propia respuesta (el chat la consulta en cada mensaje):
+  // las lecturas no consumen respuestas de Airtable; las escrituras se registran.
+  if (url.includes('tblHSdMCxW2kkiiC9')) {
+    if (opts.method && opts.method !== 'GET') {
+      llamadas.push({ url: decodeURIComponent(url), method: opts.method, body: opts.body ? JSON.parse(opts.body) : null });
+      return { ok: true, status: 200, json: async () => (opts.method === 'POST' ? { records: [{ id: 'recBLOQUEONUEVO01' }] } : bloqueoLeido || {}), text: async () => '' };
+    }
+    const unico = /tblHSdMCxW2kkiiC9\/rec/.test(url);
+    return { ok: true, status: 200, json: async () => (unico ? bloqueoLeido || {} : { records: bloqueosPrueba }), text: async () => '' };
   }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
@@ -88,9 +105,12 @@ process.env.SESSION_SECRET = 'secreto-de-prueba';
 process.env.VAPID_PUBLIC_KEY = 'publica';
 process.env.VAPID_PRIVATE_KEY = 'privada';
 process.env.VAPID_SUBJECT = 'mailto:prueba@example.com';
+process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'cuenta@prueba.iam.gserviceaccount.com';
+process.env.GOOGLE_PRIVATE_KEY = 'llave-de-prueba';
+process.env.GOOGLE_CALENDAR_ID = 'calendario@prueba.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { googleCal.length = 0; bloqueosPrueba = []; bloqueoLeido = null; mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -383,7 +403,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 401 && llamadas.length === 0, 'token alterado: 401');
 
   reset();
-  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Cliente: ['recCLIENTE0000001'], Servicios_Solicitados: 'a\nb' } }, {}, { fields: { Nombre: 'Ana', Email: 'ana@x.com' } }];
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Cliente: ['recCLIENTE0000001'], Servicios_Solicitados: 'a\nb' } }, {}, { fields: { Nombre: 'Ana', Email: 'ana@x.com' } }, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Hora_Inicio: '18:00', Horas_Servicio: 2, Ubicacion: 'Las Quintas', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 4500, Servicios_Solicitados: '10 mesas' } }, {}];
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'autorizar', monto: '4500', items: '10 mesas\n\n80 sillas ' } }, res);
   const patch = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
@@ -1361,6 +1381,98 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && sistemaAdmin.includes('HISTORIAL POR MES') && sistemaAdmin.includes('jul 2026 · Divanna Eventos: 1 eventos, ingresos contratados $5,000')
     && sistemaAdmin.includes('MEJORES MESES') && sistemaAdmin.includes('con menos de 12 meses no afirmes'),
     'DiMa equipo: a Diana le da el historial por empresa y los mejores meses, aclarando cuántos meses hay');
+
+  // ---------- Calendario del equipo ----------
+  const LIDER_CAL = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+  const BRIG_CAL = { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Brigada Edén' } };
+  const EV_CAL = { id: 'recEVENTOCALEN001', fields: { Folio_Evento: 'EVT-CL1', Fecha_Evento: '2026-12-01', Hora_Inicio: '18:00', Horas_Servicio: 2, Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Ubicacion: 'Las Quintas', Brigada_Asignada: ['recBRIGADA0000001'], Monto_Estimado_IA: 9000, Notas: 'n' } };
+  const EV_CAL_VM = { id: 'recEVENTOCALEN002', fields: { Folio_Evento: 'EVT-CL2', Fecha_Evento: '2026-12-03', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Piezas_Vaso_Maiz: 90 } };
+  const calApi = require(path.join(repo, 'api/brigada-eventos.js'));
+
+  reset();
+  respuestas = [ADMIN, EV_CAL, {}, { records: [ADMIN, LIDER_CAL] }, { records: [] }, { records: [ADMIN_T, LIDER_CAL] },
+    { ...EV_CAL, fields: { ...EV_CAL.fields, Fecha_Evento: '2026-12-05', Hora_Inicio: '19:00', Horas_Servicio: 3 } }, BRIG_CAL, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05', hora: '19:00', horasServicio: 3 } }, res);
+  const movido = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  const avisoMov = telegram.find(t => t.body.chat_id === '222');
+  const enGoogle = googleCal.find(g => g.op === 'insert');
+  ok(res.code === 200 && movido.Fecha_Evento === '2026-12-05' && movido.Hora_Inicio === '19:00' && movido.Horas_Servicio === 3 && movido.Enterado_Por === ''
+    && avisoMov && avisoMov.body.text.includes('Se movió EVT-CL1') && avisoMov.body.text.includes('Antes: martes 1 dic 18:00') && avisoMov.body.text.includes('Ahora: sábado 5 dic 19:00'),
+    'calendario: Diana mueve un evento, se borra el Enterado y la brigada recibe antes y ahora');
+  ok(enGoogle && enGoogle.requestBody.start.dateTime === '2026-12-05T19:00:00' && enGoogle.requestBody.end.dateTime === '2026-12-05T22:00:00' && enGoogle.requestBody.summary.includes('EVT-CL1')
+    && enGoogle.requestBody.description.includes('Brigada: Brigada Edén') && !enGoogle.requestBody.description.includes('9000') && res.body.google.ok,
+    'calendario: se refleja en Google Calendar con hora, duración y brigada, sin montos');
+
+  reset();
+  respuestas = [GERENTE, EV_CAL];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'calendario: la gerente no modifica eventos de Divanna');
+
+  reset();
+  respuestas = [LIDER];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'calendario: el líder ve pero no modifica');
+
+  reset();
+  respuestas = [ADMIN, { ...EV_CAL, fields: { ...EV_CAL.fields, Google_Evento_ID: 'gcalVIEJO' } }, {}, { records: [ADMIN, LIDER_CAL] }, { records: [] }, { records: [ADMIN_T, LIDER_CAL] },
+    { ...EV_CAL, fields: { ...EV_CAL.fields, Cancelado: true, Autorizacion_Diana: 'NO', Google_Evento_ID: 'gcalVIEJO' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'calendario_cancelar', eventoId: EV_CAL.id, motivo: 'El cliente lo canceló' } }, res);
+  const cancel = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && cancel.Cancelado === true && cancel.Autorizacion_Diana === 'NO' && cancel.Estado === 'Cerrado' && cancel.Notas.includes('CANCELADO por Diana')
+    && telegram.some(t => t.body.chat_id === '222' && t.body.text.includes('Se canceló EVT-CL1') && t.body.text.includes('El cliente lo canceló'))
+    && googleCal.some(g => g.op === 'delete' && g.eventId === 'gcalVIEJO'),
+    'calendario: cancelar marca el expediente (sin borrarlo), avisa al equipo y lo quita de Google');
+
+  reset();
+  respuestas = [ADMIN, EV_CAL];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'calendario_cancelar', eventoId: EV_CAL.id, motivo: '' } }, res);
+  ok(res.code === 400 && res.body.error.includes('motivo') && !llamadas.some(l => l.method === 'PATCH'), 'calendario: cancelar pide el motivo');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'bloquear_dia', fecha: '2026-12-24', negocio: 'Ambos', motivo: 'Navidad' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'POST'), 'calendario: la gerente solo bloquea días de El Vaso Maíz');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'bloquear_dia', fecha: '2026-12-24', negocio: 'El Vaso Maiz', motivo: 'Navidad' } }, res);
+  const bloqueo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblHSdMCxW2kkiiC9'));
+  ok(res.code === 200 && bloqueo && bloqueo.body.records[0].fields.Fecha === '2026-12-24' && bloqueo.body.records[0].fields.Negocio === 'El Vaso Maiz' && bloqueo.body.records[0].fields.Creado_Por === 'Ángela G'
+    && googleCal.some(g => g.op === 'insert' && g.requestBody.summary.includes('No disponible') && g.requestBody.start.date === '2026-12-24'),
+    'calendario: la gerente bloquea un día de El Vaso Maíz y sale en Google');
+
+  reset();
+  respuestas = [ASIST, { records: [EV_CAL, EV_CAL_VM] }, { records: [BRIG_CAL] }];
+  bloqueosPrueba = [{ id: 'recBLOQUEOPRUEBA1', fields: { Fecha: '2026-12-24', Negocio: 'El Vaso Maiz', Motivo: 'Navidad' } }];
+  res = resMock();
+  await calApi({ method: 'GET', headers: auth(tokenAsist), query: { vista: 'calendario', mes: '2026-12' } }, res);
+  ok(res.code === 200 && res.body.eventos.length === 2 && res.body.puedeEditar === false && res.body.eventos.every(e => !e.editable && !('monto' in e) && !JSON.stringify(e).includes('9000'))
+    && res.body.eventos[0].brigada === 'Brigada Edén' && res.body.bloqueos[0].motivo === 'Navidad',
+    'calendario: el asistente ve todos los eventos y los días bloqueados, sin montos y sin poder editar');
+
+  reset();
+  respuestas = [GERENTE, { records: [EV_CAL, EV_CAL_VM] }, { records: [BRIG_CAL] }];
+  res = resMock();
+  await calApi({ method: 'GET', headers: auth(tokenGer), query: { vista: 'calendario', mes: '2026-12' } }, res);
+  ok(res.code === 200 && res.body.puedeEditar && res.body.eventos.find(e => e.folio === 'EVT-CL1').editable === false && res.body.eventos.find(e => e.folio === 'EVT-CL2').editable === true,
+    'calendario: la gerente puede editar solo los de El Vaso Maíz');
+
+  // DiMa no registra un pedido nuevo en un día bloqueado.
+  reset();
+  bloqueosPrueba = [{ id: 'recBLOQUEOPRUEBA1', fields: { Fecha: '2026-12-12', Negocio: 'Ambos', Motivo: 'Vacaciones' } }];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6400 } },
+  ] }];
+  res = await chat({ historial });
+  ok(res.body.texto.includes('ya no tenemos disponibilidad') && !llamadas.some(l => l.method === 'POST') && !res.body.folio && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS NO DISPONIBLES')),
+    'calendario: DiMa sabe los días bloqueados y no registra un pedido nuevo en uno');
 
   reset();
   respuestas = [LIDER];

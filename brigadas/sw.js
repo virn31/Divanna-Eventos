@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dima-brigadas-v12';
+const CACHE_NAME = 'dima-brigadas-v13';
 const APP_SHELL = [
   '/brigadas/',
   '/brigadas/index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   '/brigadas/icon-192.png',
   '/brigadas/icon-512.png',
   '/brigadas/alertas.js',
+  '/brigadas/calendario.js',
 ];
 
 self.addEventListener('install', (event) => {

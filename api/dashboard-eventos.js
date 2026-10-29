@@ -27,7 +27,9 @@
 // evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
 // Telegram y les llega la invitación con "Sí puedo / No puedo".
 
-const { crearEventoCalendar, agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
+const { agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
+const C = require('./_calendario');
+const { sincronizarEvento } = C;
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
@@ -264,8 +266,11 @@ async function resolverPedido(req, res, colaborador) {
         .catch(err => { console.error('Error avisando producción:', err.message); return { enviados: [], fallidos: [{ nombre: 'el encargado de producción', motivo: 'error al enviar' }] }; });
     }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
+    // La brigada y la encargada van en la descripción del evento en Google.
+    const google = await sincronizarEvento(eventoId);
     res.status(200).json({
       success: true,
+      google,
       produccion,
       avisados: nuevos.length,
       porTelegram,
@@ -280,7 +285,7 @@ async function resolverPedido(req, res, colaborador) {
   if (accion === 'confirmar_cambio') {
     const r = await confirmarCambio(eventoId, f, colaborador, await colaboradoresActivos());
     if (r.error) { res.status(409).json({ error: r.error }); return; }
-    res.status(200).json({ success: true, ...r });
+    res.status(200).json({ success: true, ...r, google: await sincronizarEvento(eventoId) });
     return;
   }
 
@@ -307,13 +312,15 @@ async function resolverPedido(req, res, colaborador) {
     const campos = agendaDesdeDashboard(req.body, inventario);
     if (!Object.keys(campos).length) { res.status(400).json({ error: 'Nada que guardar' }); return; }
     await airtablePatch(TABLES.EVENTOS, eventoId, campos);
-    res.status(200).json({ success: true, resumen: campos.Resumen_Capacidad || '' });
+    res.status(200).json({ success: true, resumen: campos.Resumen_Capacidad || '', google: await sincronizarEvento(eventoId) });
     return;
   }
 
   if (accion === 'rechazar') {
     await airtablePatch(TABLES.EVENTOS, eventoId, { Autorizacion_Diana: 'NO' });
-    res.status(200).json({ success: true });
+    // Si ya estaba en Google Calendar (autorizado antes), se quita.
+    const google = await sincronizarEvento(eventoId);
+    res.status(200).json({ success: true, google });
     return;
   }
 
@@ -355,8 +362,10 @@ async function resolverPedido(req, res, colaborador) {
       servicios: listaItems.join(', '),
       monto: montoNum,
     };
+    // Calendar: DiMa lo crea o lo actualiza (y guarda su ID para cambios posteriores).
+    const calendario = sincronizarEvento(eventoId).then(r => { if (!r.ok) erroresGoogle.push(r.error); return r.ok; });
     const resultados = await Promise.all([
-      crearEventoCalendar(datosEvento, erroresGoogle),
+      calendario,
       agregarFilaCotizacion({ ...datosEvento, clienteNombre, clienteTelefono }, erroresGoogle),
       clienteEmail ? enviarCotizacionPorCorreo({ ...datosEvento, emailCliente: clienteEmail }, erroresGoogle) : Promise.resolve(true),
     ]);
@@ -370,6 +379,15 @@ async function resolverPedido(req, res, colaborador) {
   res.status(200).json({ success: true, googleOk, erroresGoogle });
 }
 
+// Calendario (api/_calendario.js): Diana, Víctor y la gerente (ella solo El Vaso Maíz).
+const ACCIONES_CALENDARIO = {
+  calendario_mover: C.mover,
+  calendario_cancelar: C.cancelar,
+  bloquear_dia: C.bloquear,
+  desbloquear_dia: C.desbloquear,
+  calendario_sincronizar: C.sincronizarPendientes,
+};
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
@@ -377,6 +395,14 @@ module.exports = async (req, res) => {
     try {
       const colaborador = await requerirSesion(req, res, [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA]);
       if (!colaborador) return;
+      const accionCal = ACCIONES_CALENDARIO[(req.body || {}).accion];
+      if (accionCal) {
+        if (!C.esEditor(colaborador)) { res.status(403).json({ error: 'Solo Diana, Víctor y la gerente modifican el calendario.' }); return; }
+        const r = await accionCal(colaborador, req.body || {});
+        if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
+        res.status(200).json({ success: true, ...r });
+        return;
+      }
       // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar o invitar staff.
       if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
