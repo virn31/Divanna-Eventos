@@ -1,0 +1,81 @@
+/* brigadas/tema.css
+   Tema visual del equipo (pedido de Víctor 2026-10-29): negro puro para
+   pantallas OLED, tarjetas flotantes, tipografía Inter, carga animada y
+   transiciones suaves. Solo apariencia: los colores de los datos NO cambian
+   (gastos rojo, ingresos/saldo azul, por cobrar verde oliva, Divanna morado,
+   El Vaso Maíz amarillo/naranja). Lo cargan la app y el dashboard al final,
+   así que sobrescribe los estilos base de cada página. */
+
+:root{
+  --ink:#080707;              /* fondo base: negro puro */
+  --ink-2:#1A1A1A;            /* tarjetas */
+  --ink-3:#222222;            /* tarjetas internas / campos */
+  --paper:#F8F7F6;            /* títulos y texto principal */
+  --muted:#B1A5A3;            /* descripciones secundarias */
+  --line:rgba(248,247,246,0.09);
+  --radio:20px;
+  --sombra:0 14px 34px -18px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+
+/* ---------- Tipografía: Inter con pesos marcados ---------- */
+html, body, button, input, select, textarea{
+  font-family:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+h1, h2, h3, .display, .login-brand, .summary-card .num, .cifra .val, .section-title, .day-label{
+  font-family:'Inter', system-ui, sans-serif !important;
+  letter-spacing:-0.02em;
+}
+h1, h2, h3, .display{ font-weight:800; color:var(--paper); }
+.cifra .val, .summary-card .num{ font-weight:900; }
+body{ background:var(--ink); color:var(--paper); }
+
+/* ---------- Tarjetas flotantes ---------- */
+.event-card, .evento-row, .pedido-card, .hist-card, .balance-card, .summary-card,
+.login-card, .fin-caja, .cal-ev, .cuadre-ev, .fin-rep{
+  background:var(--ink-2) !important;
+  border:1px solid var(--line) !important;
+  border-radius:var(--radio) !important;
+  box-shadow:var(--sombra);
+}
+.evento-row{ border-left-width:4px !important; } /* conserva la franja de color del estatus */
+.cifra, .motivo, .instr-box, .event-services, .carga-box, .asignar-box, .agenda, .msgcli, .instr,
+.cal-dia, .semaforo{
+  border-radius:14px !important;
+}
+.cifra, .motivo, .instr-box, .event-services, .carga-box, .cal-dia{ background:var(--ink-3) !important; }
+header.appbar{ background:rgba(8,7,7,0.86) !important; }
+
+/* Botones redondeados y con respuesta al toque */
+button, .alert-btn, .enterado-btn{ transition:transform .12s ease, opacity .2s ease, background-color .2s ease; }
+button:active, .alert-btn:active, .enterado-btn:active{ transform:scale(0.97); }
+
+/* ---------- Feed vertical: las tarjetas entran suave ---------- */
+@keyframes entrar { from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+@keyframes salir { to{ opacity:0; transform:translateX(40px) scale(0.98); height:0; margin:0; padding:0; } }
+.event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev{ animation:entrar .32s ease both; }
+.saliendo{ animation:salir .45s ease forwards !important; overflow:hidden; }
+
+/* ---------- Ficha del evento con pestañas ---------- */
+.ev-tabs{ display:flex; gap:6px; margin:14px 0 4px; padding:4px; background:var(--ink); border-radius:14px; }
+.ev-tab-btn{
+  flex:1; border:none; background:transparent; color:var(--muted); font:inherit; font-weight:700; font-size:0.9rem;
+  padding:10px 6px; border-radius:11px; cursor:pointer;
+}
+.ev-tab-btn small{ font-weight:600; opacity:.8; }
+.ev-tab-btn.activa{ background:var(--ink-3); color:var(--paper); box-shadow:0 1px 0 rgba(255,255,255,0.05) inset; }
+.ev-tab{ animation:entrar .22s ease both; }
+body.rol-asistente .ev-tab-btn[data-tab="tareas"]{ display:none; }
+
+/* ---------- Carga animada (esqueletos) ---------- */
+@keyframes brillo { 0%{ background-position:-400px 0; } 100%{ background-position:400px 0; } }
+.esqueleto{ display:grid; gap:12px; margin-top:6px; }
+.esqueleto .hueso{
+  height:118px; border-radius:var(--radio);
+  background:linear-gradient(90deg, var(--ink-2) 0%, #262424 50%, var(--ink-2) 100%);
+  background-size:800px 100%; animation:brillo 1.2s linear infinite;
+}
+.esqueleto .hueso.chico{ height:54px; }
+
+@media (prefers-reduced-motion: reduce){
+  .event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev, .ev-tab, .saliendo, .esqueleto .hueso{ animation:none !important; }
+}
