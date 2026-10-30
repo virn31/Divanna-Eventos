@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
@@ -221,6 +221,7 @@
   .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
   .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 </style>
+<link rel="stylesheet" href="tema.css">
 </head>
 <body>
 
@@ -246,7 +247,7 @@
     <div id="balanceContent"></div>
     <div id="histContent"></div>
     <div id="mainContent">
-      <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+      <div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>
     </div>
   </main>
 </div>
@@ -969,7 +970,9 @@
         : data.googleOk ? 'Autorizado. Checklist listo para la brigada.'
         : 'Autorizado, pero falló: ' + ((data.erroresGoogle || []).join(' · ') || 'Calendar, Sheets o el correo al cliente') + '. Revísalo a mano.';
       pedidosFirma = null;
-      setTimeout(loadDashboard, 1500);
+      // La tarjeta se desvanece hacia los eventos activos; si algo falló, se queda a la vista.
+      if(accion === 'rechazar' || data.googleOk) setTimeout(() => card.classList.add('saliendo'), 900);
+      setTimeout(loadDashboard, data.googleOk || accion === 'rechazar' ? 1500 : 6000);
     } catch(e){
       msg.style.color = 'var(--bad)';
       msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';

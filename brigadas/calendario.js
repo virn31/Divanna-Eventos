@@ -69,7 +69,7 @@ window.DimaCalendario = (function(){
 
   async function cargar(){
     const cuerpo = panel.querySelector('#calCuerpo');
-    cuerpo.innerHTML = '<div class="cal-sub" style="margin-top:16px;">Cargando…</div>';
+    cuerpo.innerHTML = '<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>';
     try {
       datos = await o.api(`/api/brigada-eventos?vista=calendario&mes=${mes}`);
       pintar();

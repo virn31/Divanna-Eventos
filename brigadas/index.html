@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
@@ -322,6 +322,7 @@
     .spinner, .refresh-fab.spinning svg{animation:none;}
   }
 </style>
+<link rel="stylesheet" href="tema.css">
 </head>
 <body>
 
@@ -363,7 +364,7 @@
   </div>
   <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main id="mainContent">
-    <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+    <div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>
   </main>
   <button class="refresh-fab" id="refreshBtn" aria-label="Actualizar">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -608,6 +609,15 @@
     ).join('');
   }
 
+  // Pestañas de la ficha del evento (Resumen · Cargar · Tareas). El asistente
+  // abre en "Cargar", que es lo que le toca; los demás en "Resumen".
+  const pestanaPorEvento = {};
+  const pestanaInicial = () => document.body.classList.contains('rol-asistente') ? 'cargar' : 'resumen';
+  function mostrarPestana(card, tab){
+    card.querySelectorAll('.ev-tab').forEach(p => { p.hidden = p.dataset.tab !== tab; });
+    card.querySelectorAll('.ev-tab-btn').forEach(b => { const activa = b.dataset.tab === tab; b.classList.toggle('activa', activa); b.setAttribute('aria-selected', activa); });
+  }
+
   function renderEventos(eventos, alertasEquipo){
     const alertasHtml = renderAlertasEquipo(alertasEquipo);
     if(!eventos.length){
@@ -651,13 +661,28 @@
           ${ev.enteradoPor
             ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
             : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
-          ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${avisoCambio(ev)}
+          <div class="ev-tabs" role="tablist">
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="resumen" role="tab">Resumen</button>
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="cargar" role="tab">Cargar${ev.checklistItems && ev.checklistItems.length ? ` <small>${ev.checklistItems.filter(i => i.marcado).length}/${ev.checklistItems.length}</small>` : ''}</button>
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="tareas" role="tab">Tareas <small>${doneCount}/${stages.length}</small></button>
+          </div>
+          <div class="ev-tab" data-tab="resumen">
+          ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${lineaProduccion(ev)}
           ${bloqueAsignar(ev)}
           ${bloqueStaff(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
+          <div class="estatus-row">
+            <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
+              ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
+            </select>
+            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+          </div>
+          </div>
+          <div class="ev-tab" data-tab="cargar">
           ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
+          ${!(ev.articulos && ev.articulos.length) && !(ev.checklistItems && ev.checklistItems.length) ? '<div class="event-services">Todavía no hay lista de carga para este evento.</div>' : ''}
 
           ${ev.checklistItems && ev.checklistItems.length ? `
             <div class="carga-box">
@@ -671,14 +696,19 @@
               ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">⚠️ Falta marcar todo para poder salir del almacén</div>` : ''}
             </div>
           ` : ''}
-
-          <div class="estatus-row">
-            <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
-              ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
-            </select>
-            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+          </div>
+          <div class="ev-tab" data-tab="tareas">
+          <div class="checklist" style="margin-top:14px;">
+            ${stages.map(s => `
+              <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
+                <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
+              </div>
+            `).join('')}
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
           </div>
 
+          <!-- Alertas: siempre a la vista, fuera de las pestañas. -->
           <div class="alert-actions">
             <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">🚦 Retraso</div>
             <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
@@ -688,15 +718,6 @@
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
           ${(ev.emergencia || ev.zonaAlertaSeguridad) && linkUbicacion(ev) ? `<div class="motivo-tag">${linkUbicacion(ev).replace('<br>', '')}</div>` : ''}
-
-          <div class="checklist" style="margin-top:14px;">
-            ${stages.map(s => `
-              <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
-                <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
-              </div>
-            `).join('')}
-          </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
       `;
     });
@@ -704,6 +725,12 @@
     const abiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
     abiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
+    // Ficha con pestañas: se recuerda la pestaña de cada evento entre repintados.
+    mainContent.querySelectorAll('.event-card').forEach(card => mostrarPestana(card, pestanaPorEvento[card.dataset.id] || pestanaInicial()));
+    mainContent.querySelectorAll('.ev-tab-btn').forEach(b => b.addEventListener('click', () => {
+      pestanaPorEvento[b.dataset.evento] = b.dataset.tab;
+      mostrarPestana(b.closest('.event-card'), b.dataset.tab);
+    }));
 
     document.querySelectorAll('.check-item').forEach(item => {
       item.addEventListener('click', () => toggleChecklist(item));
@@ -999,7 +1026,7 @@
 
   // silencioso: revisión automática, sin "Cargando…" y sin repintar si nada cambió.
   async function loadEventos(silencioso){
-    if(!silencioso) mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
+    if(!silencioso) mainContent.innerHTML = `<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>`;
     try {
       const data = await api(urlEventos());
       pintarOpcionesVista(data.opciones);
@@ -1142,7 +1169,7 @@
   }
 
   async function cargarFinanzas(){
-    $('finCuerpo').innerHTML = '<div class="loader"><div class="spinner"></div> Cargando…</div>';
+    $('finCuerpo').innerHTML = '<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>';
     try {
       finDatos = await api(`/api/finanzas?fecha=${finFecha}`);
       if(!finDatos.puedeReportar) finTab = 'admin';
