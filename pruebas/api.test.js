@@ -2374,10 +2374,32 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset(); drv.limpiarCacheDrive();
     respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Con gusto, ¿qué evento tienes?' }] }];
     r = await chat({ historial: [{ rol: 'cliente', texto: 'Hola' }] });
-    ok(r.code === 200 && llamadasClaude[0].system.includes('CATÁLOGO REAL') && !llamadasClaude[0].system.includes('INFORMACIÓN ACTUALIZADA'), 'drive: si Drive falla DiMa sigue con el catálogo');
+    ok(r.code === 200 && llamadasClaude[0].system.includes('CATÁLOGO REAL') && !llamadasClaude[0].system.includes('INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta'), 'drive: si Drive falla DiMa sigue con el catálogo');
 
     delete process.env.GOOGLE_DRIVE_CARPETA;
     drivePrueba = { falla: false, archivos: [] };
     drv.limpiarCacheDrive();
+  }
+  // ---------- Letreros genéricos, política de pago y recolección ----------
+  {
+    reset();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Claro, ¿para cuántos invitados?' }] }];
+    let r = await chat({ historial: [{ rol: 'cliente', texto: 'Quiero una mampara para el cumple de mi hija' }] });
+    const sis = llamadasClaude[0].system;
+    ok(r.code === 200 && sis.includes('letrero genérico del evento') && sis.includes('NO lleva el nombre del festejado') && sis.includes('Mampara con Lona Personalizada')
+      && sis.includes('diseño CIRCULAR') && sis.includes('encargado asignado') && !sis.includes('con nombre personalizado\''),
+      'política: DiMa sabe que el letrero es genérico y que nombre o personaje es lona personalizada con cargo extra');
+    ok(sis.includes('a más tardar 24 horas antes') && sis.includes('pasar a la oficina') && sis.includes('DEPÓSITO EN GARANTÍA') && sis.includes('no des una cifra') && sis.includes('responsable_recoleccion'),
+      'política: DiMa explica liquidación 24 h antes, efectivo, depósito (sin inventar monto) y pregunta quién entrega');
+
+    reset();
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [
+      { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Lupita', telefono: '6679990000', email: null, negocio: 'Divanna Eventos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '17:00', horas_servicio: 5, invitados: 50, ubicacion: 'Col. Chapultepec', servicios: 'Mesas para 50', productos: [{ clave: 'dv_paq50_jardin_basico', cantidad: 1, nota: null }], monto_estimado: 2500, fuera_de_ciudad: false, indicaciones: 'Montar a las 3 pm', responsable_recoleccion: 'Su hermano Juan, 6671112233', preferencia_contacto: 'no_preguntado' } },
+    ] }];
+    respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000009', fields: {} }] }, { records: [{}] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Lupita 6679990000, recoge mi hermano Juan 6671112233' }] });
+    const evRec = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+    ok(r.code === 200 && evRec.Instrucciones_Equipo.includes('Montar a las 3 pm') && evRec.Instrucciones_Equipo.includes('Entrega el mobiliario en la recolección: Su hermano Juan, 6671112233'),
+      'política: quién entrega el mobiliario en la recolección llega a las instrucciones de la brigada');
   }
 })();

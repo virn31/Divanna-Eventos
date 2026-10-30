@@ -294,3 +294,12 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor: que Diana actualice paquetes, precios por temporada y promociones sin pedir un cambio de código.
 
 **Descartado:** una Hoja de Google con columnas (Diana tendría que respetar un formato y la página tampoco ganaba mucho), Airtable (Diana ya usa Drive para sus fotos), hacer pública la carpeta para enlazar las fotos directo (se expone todo lo que suba) y que la temporada alta del código (`_temporada.js`) se lea de Drive (sigue fija; un documento de temporada en Drive solo lo lee DiMa).
+
+## 2026-10-30 — Letreros genéricos, política de pago y depósito del mobiliario en la plática de DiMa
+
+**Decisión:** el letrero que incluyen el aro, la mampara lisa, el shimmer y los paquetes es genérico según el evento (Happy Birthday, XV Años, Baby Shower…), sin el nombre del festejado. Si el cliente quiere el nombre, un personaje o un diseño de su tema, DiMa lo ofrece como mejora con cargo extra (mampara con lona personalizada o lona aparte). Los personalizados son diseños circulares sobre el porta plato. Los detalles del diseño los coordina con el cliente el encargado asignado; DiMa anota en la nota del producto lo que el cliente ya dijo. Política de pago, dicha en su momento y con naturalidad: anticipo (El Vaso Maíz $500; Divanna monto fijo), el total se liquida al menos 24 h antes (en efectivo, en la oficina o con el encargado de la brigada) y, si lleva mobiliario de Divanna, un depósito en garantía según el tamaño del pedido que se paga con la liquidación y se regresa al recoger si todo está completo. En pedidos con mobiliario DiMa pregunta quién va a estar para entregarlo en la recolección (`responsable_recoleccion`, se guarda en `Instrucciones_Equipo`). Los montos viven en `HORAS_LIQUIDACION`, `ANTICIPO_DIVANNA` y `DEPOSITO_MOBILIARIO` (`api/_dima-catalogo.js`); en null, DiMa dice que la gerencia confirma el monto.
+
+**Por qué:** lo pidió Víctor: DiMa prometía letreros con nombre, no explicaba las mamparas personalizadas y no decía la política de pago; además ya pasó que al recoger no había nadie que respondiera por el mobiliario.
+
+**Descartado:** decir toda la política en un solo mensaje (suena a letra chiquita), cobrar el depósito en efectivo al montar (decisión de Víctor: va con la liquidación) y un campo nuevo en Airtable para quien recibe en la recolección (en las instrucciones ya lo ven la brigada y `/hoy`).
+

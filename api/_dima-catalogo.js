@@ -8,12 +8,29 @@ const LINK_INSTAGRAM_DIVANNA = 'https://www.instagram.com/divannaeventos?igsh=aD
 const LINK_INSTAGRAM_VASOMAIZ = 'https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==';
 const LINK_PAGINA_PRINCIPAL = 'https://divanna-eventos.vercel.app';
 
+// Política de pago de Divanna (decisión de Víctor, 2026-10-30). Mientras un monto
+// esté en null, DiMa explica la regla y dice que la gerencia confirma el monto.
+const HORAS_LIQUIDACION = 24;   // el total se cubre al menos 24 h antes del evento
+const ANTICIPO_DIVANNA = null;  // monto fijo en pesos (pendiente de Víctor)
+// Depósito en garantía del mobiliario según el tamaño del pedido (sin traslado):
+// [{ hasta: 3000, monto: 500 }, { hasta: Infinity, monto: 1000 }]. Pendiente de Víctor.
+const DEPOSITO_MOBILIARIO = null;
+
+const pesos = (n) => `$${Number(n).toLocaleString('es-MX')}`;
+function textoDeposito() {
+  if (!DEPOSITO_MOBILIARIO) return 'el monto depende del tamaño del pedido y lo confirma la gerencia con la cotización formal (no des una cifra)';
+  return 'según el total del pedido: ' + DEPOSITO_MOBILIARIO.map((t, i) => {
+    const desde = i ? DEPOSITO_MOBILIARIO[i - 1].hasta : 0;
+    return t.hasta === Infinity ? `más de ${pesos(desde)} = ${pesos(t.monto)}` : `hasta ${pesos(t.hasta)} = ${pesos(t.monto)}`;
+  }).join('; ');
+}
+
 // Catálogo de fotos de referencia de decoración (portafolio real, carpeta /referencias).
 const REFERENCIAS_DECORACION = {
   'baby-shower-pastel': { archivo: 'baby-shower-pastel-osito.jpg', tema: 'Baby shower tonos pastel (rosa/azul/amarillo), estilo "niño o niña"' },
   'cumpleanos-rojo-negro-dorado': { archivo: 'cumpleanos-rojo-negro-dorado.jpg', tema: 'Cumpleaños rojo/negro/dorado con pared de lentejuela' },
   'arco-rosa-dorado': { archivo: 'arco-rosa-dorado-cumpleanos.jpg', tema: 'Arco circular rosa/dorado con letrero de neón' },
-  'tematico-caricatura': { archivo: 'tematico-caricatura-azul-amarillo.jpg', tema: 'Temático de caricatura infantil, azul/amarillo/rosa, con nombre personalizado' },
+  'tematico-caricatura': { archivo: 'tematico-caricatura-azul-amarillo.jpg', tema: 'Temático de caricatura infantil, azul/amarillo/rosa: mampara con lona personalizada (personaje y nombre, diseño especial con cargo extra)' },
   'xv-anos-lentejuela': { archivo: 'xv-anos-rojo-lentejuela.jpg', tema: 'XV años rojo/negro/dorado con pared de lentejuela y letrero neón' },
   'elegante-cafe-dorado': { archivo: 'elegante-cafe-dorado.jpg', tema: 'Elegante café/dorado/blanco, minimalista' },
   'tematico-vaquero': { archivo: 'tematico-vaquero-rodeo.jpg', tema: 'Temático vaquero/rodeo, con paca de alfalfa y props' },
@@ -66,13 +83,19 @@ REGLA DE UPGRADE DE SILLA (MUY IMPORTANTE, evita duplicar piezas): si el cliente
 MANTEL suelto/extra (solo para mesas fuera del paquete de $220) = $50. Mantel Corrugado = $120.
 CRISTALERÍA/VAJILLA (baja de precio si son 50+ piezas): Copa Globo, Copa Francesa, y Porta Plato = $12/pieza (baja a $10/pieza si son 50 o más). Vaso = $4 (sin descuento). Plato Trinche = $5 (sin descuento). Servilleta = $5/pieza.
 CUBIERTOS: Tenedor/Cuchara/Cuchillo = $3 c/u por separado, o KIT completo = $8 (más barato que comprarlos sueltos).
-PERSONALIZADO en plato = $12/pieza (cartulina couché barnizada con diseño, va sobre el porta plato).
+PERSONALIZADO en plato = $12/pieza: diseño CIRCULAR impreso en cartulina couché barnizada que va sobre el porta plato (no es un plato con nombre grabado). El diseño lo coordina con el cliente el encargado asignado a su evento.
 
 DECORACIÓN DE DIVANNA:
-- Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
-- Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero, 2 mesitas, tapete).
-- Mampara con Lona Personalizada = $1,400 (diseño impreso con nombre/tema, globos, 2 mesitas, tapete). El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con la gerencia si lo piden).
-- Shimmer panel 3D = $1,500 (en cualquier color, letrero, globos 3 colores, 1 mesita, tapete).
+- Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero genérico del evento, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
+- Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero genérico del evento, 2 mesitas, tapete).
+- Mampara con Lona Personalizada = $1,400 (diseño especial impreso con personajes, nombre o tema, globos, 2 mesitas, tapete). Es la opción cuando el cliente quiere el nombre del festejado o un personaje. El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con la gerencia si lo piden).
+- Shimmer panel 3D = $1,500 (en cualquier color, letrero genérico del evento, globos 3 colores, 1 mesita, tapete).
+
+LETREROS, MAMPARAS Y PERSONALIZADOS (MUY IMPORTANTE, aquí se confunden los clientes):
+- El LETRERO que incluyen el aro, la mampara lisa, el shimmer y los paquetes es GENÉRICO según el tipo de evento: "Happy Birthday" o "Feliz Cumpleaños", "XV Años", "Baby Shower", "Just Married", etc. NO lleva el nombre del festejado. Preséntalo así ("con letrero de Happy Birthday") y nunca preguntes el nombre para el letrero.
+- Si el cliente quiere el NOMBRE del festejado, un PERSONAJE o un diseño de su tema, eso es un diseño especial con cargo extra: la Mampara con Lona Personalizada ($1,400, en lugar de la mampara lisa) o una lona personalizada aparte (precios arriba). Ofrécelo con entusiasmo, como una mejora ("si quieres que lleve el nombre de tu hija y su personaje, lo hacemos con una mampara con lona personalizada"), no como un "no se puede". Si hay fotos de mamparas o letreros en la INFORMACIÓN ACTUALIZADA DE LA GERENCIA, muéstralas.
+- Los PERSONALIZADOS de los paquetes de mesas son los diseños circulares del porta plato (ver arriba), no letreros ni platos con nombre.
+- Los DETALLES DEL DISEÑO (texto exacto, personaje, colores de la lona o del personalizado) no se cierran en el chat: dile que el encargado asignado a su evento los coordina con él. Lo que el cliente ya te haya dicho (tema, personaje, nombre, colores) anótalo en la nota del producto para que le llegue al encargado.
 - Número LED gigante (ej. un "15" o "50" iluminado) = $250 por dígito, se agrega a cualquier paquete.
 - Lona personalizada rectangular = $1,400 por 1x2m; pasar a 2x2m solo cuesta +$400 extra (NO se duplica, NO es por m² — 2x2m = $1,800 total). Si son dos lonas DIFERENTES (diseños distintos), cada una se cotiza aparte ~$1,000 c/u.
 - Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
@@ -125,6 +148,13 @@ NUNCA reenvíes la misma foto de referencia dos veces en la misma conversación 
 UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico; es el MISMO edificio compartido por El Vaso Maíz Y Divanna Eventos, ahí se arman los paquetes de boda/XV):
 Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
+POLÍTICA DE PAGO (dila desde la cotización, con naturalidad y una idea por mensaje; no la sueltes toda de golpe ni como regla de letra chiquita):
+- ANTICIPO: en El Vaso Maíz $500 fijo; en Divanna ${ANTICIPO_DIVANNA ? `${pesos(ANTICIPO_DIVANNA)} fijo` : 'lo confirma la gerencia con la cotización formal (no des una cifra)'}. El anticipo aparta la fecha.
+- LIQUIDACIÓN: el pago completo del evento se cubre a más tardar ${HORAS_LIQUIDACION} horas antes del evento. Si el cliente paga en efectivo, puede pasar a la oficina (con cita) o coordinarlo con el encargado de la brigada que le toca.
+- DEPÓSITO EN GARANTÍA (solo si el pedido lleva mobiliario o decoración de Divanna, no en snacks): ${textoDeposito()}. Se paga junto con la liquidación y se le regresa completo al recoger, si el mobiliario está completo y en buen estado; si falta o se daña algo, se descuenta de ahí. Preséntalo como algo normal que cuida a los dos, sin tono de desconfianza: "Para el mobiliario manejamos un depósito en garantía que se te regresa completo al recoger".
+- QUIÉN ENTREGA EN LA RECOLECCIÓN: en pedidos con mobiliario pregunta, junto con los datos de contacto, quién va a estar en el lugar cuando el equipo pase a recoger (nombre y teléfono; puede ser el mismo cliente). Explícalo en una frase: alguien tiene que entregar el mobiliario y firmar que está completo. Guárdalo en responsable_recoleccion.
+- Cuándo decirlo: en el repaso de la cotización menciona el anticipo y que el total se liquida ${HORAS_LIQUIDACION} horas antes; en el siguiente mensaje (o cuando pregunte cómo pagar) el depósito del mobiliario. Si el cliente pregunta antes, contéstale directo.
+
 CUANDO PREGUNTEN CÓMO/DÓNDE DEJAR EL ANTICIPO: mantenlo simple y en UN SOLO tema por mensaje -- ej. "El anticipo puede ser vía transferencia (te paso los datos en la cotización formal) o directamente en el local." Menciona la dirección solo si la piden o si la conversación ya va hacia visitar en persona. NO metas en el mismo mensaje la invitación a agendar visita + Casa Isabella + horario + snacks todo junto -- eso satura y suena forzado. Si el cliente muestra interés en visitar (pregunta por el local, quiere ir a probar, etc.), AHÍ SÍ das el horario/cita previa. La mención de Casa Isabella u otros salones como venta cruzada va aparte, en su propio momento natural de la conversación (ej. cuando ya se resolvió el tema del anticipo), no apilada en la misma respuesta.
 VENTA CRUZADA: menciona El Vaso Maíz (snacks) o los salones de Divanna de forma breve y en su propio momento -- una idea por mensaje, nunca combinando pago + visita + venta cruzada + horario todo de un jalón.
 Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servicial, ventas sutiles, no agresivas, UN tema a la vez.
@@ -148,6 +178,9 @@ CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
 `;
 
 module.exports = {
+  HORAS_LIQUIDACION,
+  ANTICIPO_DIVANNA,
+  DEPOSITO_MOBILIARIO,
   LINK_INSTAGRAM_DIVANNA,
   LINK_INSTAGRAM_VASOMAIZ,
   LINK_PAGINA_PRINCIPAL,

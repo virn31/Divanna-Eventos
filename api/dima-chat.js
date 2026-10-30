@@ -47,7 +47,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 const { contenidoDima, contenidoPagina, fotoDrive } = require('./_drive');
-const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
+const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA, HORAS_LIQUIDACION } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
@@ -156,9 +156,10 @@ const TOOLS = [
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
+        responsable_recoleccion: { type: ['string', 'null'], description: 'Nombre y teléfono de quien va a estar en el lugar para entregar el mobiliario cuando el equipo pase a recoger (puede ser el mismo cliente). null si el pedido no lleva mobiliario o no lo dio.' },
         preferencia_contacto: { type: 'string', enum: ['esperar_en_chat', 'mensaje', 'llamada', 'no_preguntado'], description: 'Cómo quiere el cliente recibir la respuesta de la cotización: esperar aquí en el chat, por mensaje o por llamada. "no_preguntado" si no aplica.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'preferencia_contacto'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'responsable_recoleccion', 'preferencia_contacto'],
       additionalProperties: false,
     },
   },
@@ -212,12 +213,12 @@ INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso a
 
 FLUJO DE LA COTIZACIÓN:
 1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas. Con esos datos se llena la comanda y el recibo del cliente: procura tener también su nombre completo, la dirección exacta del evento (calle, número y colonia o salón) y, en cada producto, el modelo y color que eligió (va en la nota del producto). Pídelo con naturalidad, sin interrogatorio.
-2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
+2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente." Después, en su momento, la POLÍTICA DE PAGO del catálogo (anticipo, liquidación ${HORAS_LIQUIDACION} h antes y, si lleva mobiliario, el depósito en garantía).
 3. VENTA CRUZADA, una vez y antes de pedir datos de contacto: si el cliente solo ha hablado de un negocio, ofrécele el otro en una o dos frases, ligadas a su evento.
    - Si pidió snacks de El Vaso Maíz, ofrece el mobiliario (mesas, sillas, mantelería) y la decoración de Divanna (aro, mampara, arcos de cerezos).
    - Si pidió mobiliario o decoración, ofrece los snacks de El Vaso Maíz.
    Si dice que no, respétalo y sigue. Si dice que sí, súmalo a la misma cotización.
-4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
+4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido. Si lleva mobiliario, pregúntale también quién va a estar para entregarlo cuando pasemos a recoger.
 5. Con eso llama a registrar_pedido. Después dile que ya tenemos todos los datos de su evento, que el equipo revisa la disponibilidad y que en un lapso no mayor a ${HORAS_RESPUESTA} horas le confirmamos la cotización; lo contactan por teléfono para el anticipo y los datos de pago.
 - Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
@@ -342,7 +343,10 @@ async function registrarPedido(input, historial, folioPrevio) {
     servicios: input.servicios,
     montoEstimado: input.monto_estimado,
     fueraDeCiudad: input.fuera_de_ciudad,
-    indicaciones: input.indicaciones,
+    // Quién entrega el mobiliario en la recolección va con las indicaciones: la
+    // brigada lo ve en la app y en /hoy de Telegram.
+    indicaciones: [input.indicaciones, input.responsable_recoleccion ? `Entrega el mobiliario en la recolección: ${input.responsable_recoleccion}` : '']
+      .filter(Boolean).join('\n') || null,
     preferenciaContacto: input.preferencia_contacto,
     horaInicio: input.hora_inicio,
     horasServicio: input.horas_servicio,
