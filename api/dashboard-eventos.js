@@ -45,6 +45,7 @@ const { enviarRecibo } = require('./_sheets');
 const { leerCambio, notasSinConversacion } = require('./_pedidos');
 const { porCobrarPeriodo } = require('./_finanzas');
 const { aclarar } = require('./_cuadre');
+const { dineroParaApp } = require('./_cargos');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -582,6 +583,9 @@ module.exports = async (req, res) => {
       staffParaApp(admin).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; }),
       opcionesProduccion(admin).catch(err => { console.error('No se pudo leer quién hace producción:', err.message); return null; }),
     ]);
+    // 💰 Dinero de cada evento (api/_cargos.js), igual que en la ficha de la app. Si falla, se dice.
+    const dinero = await dineroParaApp(eventosData.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
+    eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
     res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);

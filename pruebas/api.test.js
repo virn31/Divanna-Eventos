@@ -481,6 +481,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'GET', query: {}, headers: auth(tokenAdmin) }, res);
   ok(res.code === 200 && res.body.pedidos[0].montoEstimado === 6000 && res.body.pedidos[0].clienteNombre === 'Ana', 'dashboard GET: pedido con estimado de DiMa');
+  ok(res.body.eventos[0].dinero && res.body.eventos[0].dinero.total === 6000 && res.body.eventos[0].dinero.resta === 6000, 'dashboard GET: cada evento trae su dinero para la ficha de Diana');
 
   // ---------- App de brigadas por rol ----------
   reset();
