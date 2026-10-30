@@ -1577,6 +1577,45 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && res.body.puedeEditar && res.body.eventos.find(e => e.folio === 'EVT-CL1').editable === false && res.body.eventos.find(e => e.folio === 'EVT-CL2').editable === true,
     'calendario: la gerente puede editar solo los de El Vaso Maíz');
 
+  // ➕ Capturar evento (los que se apartaron fuera del chat).
+  reset();
+  respuestas = [GERENTE, { records: [] }, { records: [{ id: 'recCLIENTENUEVO01', fields: { Nombre: 'Laura Pérez' } }] }, { records: [{ id: 'recEVCAPTURA00001' }] }, {},
+    { id: 'recEVCAPTURA00001', fields: { Folio_Evento: 'EVT-CAP', Fecha_Evento: '2026-12-20', Hora_Inicio: '17:00', Horas_Servicio: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Ubicacion: 'Las Quintas' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'capturar_evento', clienteNombre: 'Laura Pérez', clienteTelefono: '667 123 4567', negocio: 'El Vaso Maiz',
+    fecha: '2026-12-20', hora: '17:00', horasServicio: 2, ubicacion: 'Las Quintas', invitados: 80, servicios: 'Paquete 3\nRaspados', productos: [{ clave: 'vm_paquete_3', cantidad: 1 }],
+    montoContratado: '$4,500', anticipo: '1000', formaAnticipo: 'Transferencia' } }, res);
+  const evCap = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  const antCap = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && evCap.Autorizacion_Diana === 'SI' && evCap.Monto_Estimado_IA === 4500 && evCap.Checklist_Items === 'Paquete 3\nRaspados' && evCap.Piezas_Vaso_Maiz === 90
+    && evCap.Cliente[0] === 'recCLIENTENUEVO01' && res.body.clienteNuevo === true,
+    'capturar: la gerente captura un evento de El Vaso Maíz ya autorizado, con checklist y producción');
+  ok(antCap && antCap.body.records[0].fields.Monto === 1000 && antCap.body.records[0].fields.Recibido_Por === 'Diana' && antCap.body.records[0].fields.Forma === 'Transferencia'
+    && googleCal.some(g => g.op === 'insert' && g.requestBody.start.dateTime === '2026-12-20T17:00:00'),
+    'capturar: el anticipo queda como pago recibido (cuadre) y el evento sale en Google');
+
+  reset();
+  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] },
+    { id: 'recEVCAPTURA00002', fields: { Folio_Evento: 'EVT-CP2', Fecha_Evento: '2026-12-21', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Luna', clienteTelefono: '6671112233', negocio: 'Divanna Eventos',
+    fecha: '2026-12-21', servicios: '10 mesas', montoContratado: 3000 } }, res);
+  ok(res.code === 200 && res.body.clienteNuevo === false && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblgViisKQRG9TVjh'))
+    && llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields.Cliente[0] === 'recCLIENTEVIEJO01',
+    'capturar: si el teléfono ya existe, usa ese cliente (no lo duplica)');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'capturar_evento', clienteNombre: 'X', clienteTelefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-21', servicios: 'x', montoContratado: 3000 } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'capturar: la gerente no captura eventos de Divanna');
+
+  reset();
+  respuestas = [ADMIN];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'X', clienteTelefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-21', servicios: 'x', montoContratado: 3000, anticipo: 5000, formaAnticipo: 'Efectivo' } }, res);
+  ok(res.code === 400 && res.body.error.includes('anticipo') && llamadas.length === 1, 'capturar: el anticipo no puede ser mayor que lo contratado');
+
   // DiMa no registra un pedido nuevo en un día bloqueado.
   reset();
   bloqueosPrueba = [{ id: 'recBLOQUEOPRUEBA1', fields: { Fecha: '2026-12-12', Negocio: 'Ambos', Motivo: 'Vacaciones' } }];

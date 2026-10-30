@@ -357,6 +357,7 @@ module.exports = {
   validarPedido,
   camposAgenda,
   crearPedido,
+  buscarClientePorTelefono,
   verificarPedido,
   registrarCambioCliente,
   leerCambio,

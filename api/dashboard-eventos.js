@@ -397,6 +397,7 @@ const ACCIONES_CALENDARIO = {
   bloquear_dia: C.bloquear,
   desbloquear_dia: C.desbloquear,
   calendario_sincronizar: C.sincronizarPendientes,
+  capturar_evento: C.capturarEvento,
 };
 
 module.exports = async (req, res) => {
