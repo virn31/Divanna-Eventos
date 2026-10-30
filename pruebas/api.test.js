@@ -2075,6 +2075,16 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok((await sh.enviarRecibo('recEVSHEETS00001')).error.includes('no está configurado') && !llamadas.length, 'recibo: sin Sheets configurado lo dice y no hace nada');
   }
 
+  // ---------- La app no muestra la plática con DiMa (sigue en EVENTOS.Notas) ----------
+  {
+    const { notasSinConversacion } = require(path.join(repo, 'api/_pedidos.js'));
+    const notas = 'Pedido armado con DiMa en la página web.\nTipo de evento: XV años\n\nConversación con DiMa:\nCliente: hola\nDiMa: ¡Hola!\n\nCliente: 50 sillas'
+      + '\n--- Cambio pedido por el cliente en el chat (30/10/26) ---\nAsí lo quiere ahora:\n60 sillas\nConversación:\nCliente: mejor 60\nDiMa: Listo';
+    const visto = notasSinConversacion(notas);
+    ok(visto.includes('Tipo de evento: XV años') && visto.includes('60 sillas') && visto.includes('--- Cambio pedido') && !visto.includes('Cliente:') && !visto.includes('DiMa: '),
+      'notas: la app ve el resumen y los cambios del pedido, sin la conversación con DiMa');
+  }
+
   // ---------- Comanda en papel → evento (api/_comanda.js) ----------
   {
     const LEIDA = { negocio: 'Divanna Eventos', cliente_nombre: 'Perla Ayon', cliente_telefono: '696 100 7116', fecha: '2026-11-27', hora: '17:00', horas_servicio: null, ubicacion: 'La Campiña', invitados: 45,

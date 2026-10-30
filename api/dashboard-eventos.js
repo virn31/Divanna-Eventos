@@ -42,7 +42,7 @@ const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { confirmarCambio, descartarCambio } = require('./_cambios');
 const Comanda = require('./_comanda');
 const { enviarRecibo } = require('./_sheets');
-const { leerCambio } = require('./_pedidos');
+const { leerCambio, notasSinConversacion } = require('./_pedidos');
 const { porCobrarPeriodo } = require('./_finanzas');
 const { aclarar } = require('./_cuadre');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
@@ -549,7 +549,7 @@ module.exports = async (req, res) => {
         ...agendaParaVista(r.fields),
         // DiMa le promete al cliente respuesta en 12 h o menos desde que registra.
         limiteRespuesta: r.createdTime ? new Date(Date.parse(r.createdTime) + HORAS_RESPUESTA * 3600 * 1000).toISOString() : '',
-        notas: r.fields.Notas || '',
+        notas: notasSinConversacion(r.fields.Notas),
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',
         clienteEmail: c.Email || '',
