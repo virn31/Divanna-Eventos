@@ -54,6 +54,36 @@ const REFERENCIAS_DECORACION = {
   'tunel-arcos-cerezos-led': { archivo: 'tunel-arcos-cerezos-led-4500.jpg', tema: 'Túnel de 6 medios arcos de cerezos blancos con arcos LED, $4,500' },
   'decoracion-boda': { archivo: 'decoracion-boda-6500.jpg', tema: 'Paquete completo de decoración para boda, mesa de honor y arco de cerezos, $6,500' },
   'paquete-xv': { archivo: 'paquete-xv-6000.jpg', tema: 'Paquete completo para XV años, mesa de honor y arco de cerezos, $6,000' },
+  // Fotos de Víctor (2026-10-30). Nombres de niños y teléfonos pixelados.
+  // LETRERO GENÉRICO (lo que incluye el paquete, sin nombre):
+  'aro-letrero-lets-party': { archivo: 'aro-letrero-lets-party.jpg', tema: 'Aro de globos naranja/rosa/rojo con letrero genérico neón "Let\'s Party" y 2 mesitas doradas (letrero incluido, sin nombre)' },
+  'aro-letrero-happy-birthday': { archivo: 'aro-letrero-happy-birthday.jpg', tema: 'Aro de globos lila/azul/plata con letrero genérico neón "Happy Birthday" (incluido, sin nombre)' },
+  'aro-letrero-oh-baby': { archivo: 'aro-letrero-oh-baby.jpg', tema: 'Aro de baby shower rosa/azul con letrero genérico "Oh Baby" y figuras de coroplast' },
+  'mampara-lisa-letrero-happy-birthday': { archivo: 'mampara-lisa-letrero-happy-birthday.jpg', tema: 'Mampara lisa rosa con letrero genérico neón "Happy Birthday", globos y 2 mesitas (así es el letrero incluido: sin nombre)' },
+  'mampara-letrero-happy-birthday-numero': { archivo: 'mampara-letrero-happy-birthday-numero.jpg', tema: 'Mampara lisa roja con letrero genérico "Happy Birthday", globos de colores y número LED gigante' },
+  'mampara-letrero-nino-o-nina': { archivo: 'mampara-letrero-nino-o-nina.jpg', tema: 'Mampara lisa para revelación con letrero genérico "Niño o Niña" y cubos BABY' },
+  'mampara-peluches': { archivo: 'mampara-peluches.jpg', tema: 'Mampara lisa blanca con globos blancos, peluches, flores y luces (baby shower o bautizo)' },
+  'letras-gigantes-oh-baby': { archivo: 'letras-gigantes-oh-baby.jpg', tema: 'Letras LED gigantes "OH BABY" con globos blancos (baby shower)' },
+  // PERSONALIZADO (diseño especial con nombre o personajes, cargo extra):
+  'mampara-personalizada-baby-shower': { archivo: 'mampara-personalizada-baby-shower.jpg', tema: 'Mampara con lona personalizada de baby shower: conejita, moño gigante y el nombre del bebé (diseño especial, cargo extra)' },
+  'mampara-personalizada-personajes': { archivo: 'mampara-personalizada-personajes.jpg', tema: 'Mampara con lona personalizada con personajes y los nombres de los festejados (diseño especial, cargo extra)' },
+  'mampara-personalizada-infantil': { archivo: 'mampara-personalizada-infantil.jpg', tema: 'Mampara con lona personalizada de personajes infantiles con nombre y edad, y figuras de coroplast (diseño especial, cargo extra)' },
+  'mampara-personalizada-numero-gigante': { archivo: 'mampara-personalizada-numero-gigante.jpg', tema: 'Mampara con lona personalizada temática con nombre, arco forrado y número LED gigante (diseño especial, cargo extra)' },
+  'mampara-lona-revelacion': { archivo: 'mampara-lona-revelacion.jpg', tema: 'Mampara con lona personalizada "Boy or Girl" con personajes, para revelación (diseño especial, cargo extra)' },
+  'aro-personalizado-bautizo': { archivo: 'aro-personalizado-bautizo.jpg', tema: 'Aro de bautizo verde/azul/dorado con flores y un círculo personalizado con el nombre (diseño especial, cargo extra)' },
+  'mampara-xv-silla-honor': { archivo: 'mampara-xv-silla-honor.jpg', tema: 'Montaje de XV años azul/plata: dos mamparas, una con letrero "Mis XV Años" y otra con el nombre de la quinceañera (personalizado), silla de honor y mesitas' },
+  'mesa-montada-personalizados': { archivo: 'mesa-montada-personalizados.jpg', tema: 'Mesa montada con mantel fucsia, copas, plato base dorado y personalizados circulares sobre el porta plato con el nombre del festejado; al fondo shimmer con letrero "Happy Birthday"' },
+  'personalizados-plato-tematico': { archivo: 'personalizados-plato-tematico.jpg', tema: 'Personalizado circular temático sobre el porta plato (diseño de personajes con nombre y edad), copas azules y servilleta' },
+  // El Vaso Maíz:
+  'vasomaiz-barra': { archivo: 'vasomaiz-barra.jpg', tema: 'Barra de El Vaso Maíz montada en el evento, con los vasos preparados listos' },
+  'vasomaiz-barra-servicio': { archivo: 'vasomaiz-barra-servicio.jpg', tema: 'Barra de El Vaso Maíz sirviendo en un evento' },
+  'vasomaiz-barra-toppings': { archivo: 'vasomaiz-barra-toppings.jpg', tema: 'Barra de toppings de El Vaso Maíz: papas, chips, gomitas, cacahuates y limones, todo preparado al momento' },
+  'vasomaiz-fresas-con-crema': { archivo: 'vasomaiz-fresas-con-crema.jpg', tema: 'Fresas con crema de El Vaso Maíz' },
+  'vasomaiz-vasos-servidos': { archivo: 'vasomaiz-vasos-servidos.jpg', tema: 'Vasos de El Vaso Maíz servidos en la barra, listos para los invitados' },
+  'vasomaiz-vasos-para-evento': { archivo: 'vasomaiz-vasos-para-evento.jpg', tema: 'Vasos preparados de El Vaso Maíz para un evento' },
+  'vasomaiz-vaso-preparado': { archivo: 'vasomaiz-vaso-preparado.jpg', tema: 'Vaso preparado de El Vaso Maíz' },
+  'vasomaiz-vaso-con-crema': { archivo: 'vasomaiz-vaso-con-crema.jpg', tema: 'Vaso de El Vaso Maíz con crema y granola' },
+  'vasomaiz-preparando': { archivo: 'vasomaiz-preparando.jpg', tema: 'El equipo de El Vaso Maíz preparando los vasos en el evento' },
 };
 
 // Fotos de los paquetes de El Vaso Maíz (carpeta /paquetes).
@@ -93,7 +123,8 @@ DECORACIÓN DE DIVANNA:
 
 LETREROS, MAMPARAS Y PERSONALIZADOS (MUY IMPORTANTE, aquí se confunden los clientes):
 - El LETRERO que incluyen el aro, la mampara lisa, el shimmer y los paquetes es GENÉRICO según el tipo de evento: "Happy Birthday" o "Feliz Cumpleaños", "XV Años", "Baby Shower", "Just Married", etc. NO lleva el nombre del festejado. Preséntalo así ("con letrero de Happy Birthday") y nunca preguntes el nombre para el letrero.
-- Si el cliente quiere el NOMBRE del festejado, un PERSONAJE o un diseño de su tema, eso es un diseño especial con cargo extra: la Mampara con Lona Personalizada ($1,400, en lugar de la mampara lisa) o una lona personalizada aparte (precios arriba). Ofrécelo con entusiasmo, como una mejora ("si quieres que lleve el nombre de tu hija y su personaje, lo hacemos con una mampara con lona personalizada"), no como un "no se puede". Si hay fotos de mamparas o letreros en la INFORMACIÓN ACTUALIZADA DE LA GERENCIA, muéstralas.
+- Si el cliente quiere el NOMBRE del festejado, un PERSONAJE o un diseño de su tema, eso es un diseño especial con cargo extra: la Mampara con Lona Personalizada ($1,400, en lugar de la mampara lisa) o una lona personalizada aparte (precios arriba). Ofrécelo con entusiasmo, como una mejora ("si quieres que lleve el nombre de tu hija y su personaje, lo hacemos con una mampara con lona personalizada"), no como un "no se puede".
+- Para que el cliente vea la diferencia, enséñale fotos: de letrero genérico (las que empiezan con "aro-letrero-", "mampara-lisa-letrero-" y "mampara-letrero-") y de personalizado ("mampara-personalizada-", "mampara-lona-revelacion", "aro-personalizado-bautizo", "mesa-montada-personalizados", "personalizados-plato-tematico"). Si hay fotos de mamparas o letreros en la INFORMACIÓN ACTUALIZADA DE LA GERENCIA, también puedes usarlas.
 - Los PERSONALIZADOS de los paquetes de mesas son los diseños circulares del porta plato (ver arriba), no letreros ni platos con nombre.
 - Los DETALLES DEL DISEÑO (texto exacto, personaje, colores de la lona o del personalizado) no se cierran en el chat: dile que el encargado asignado a su evento los coordina con él. Lo que el cliente ya te haya dicho (tema, personaje, nombre, colores) anótalo en la nota del producto para que le llegue al encargado.
 - Número LED gigante (ej. un "15" o "50" iluminado) = $250 por dígito, se agrega a cualquier paquete.
