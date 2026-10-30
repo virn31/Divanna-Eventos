@@ -28,29 +28,27 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-29 (cierre de la mañana) · **Rama de trabajo:** `main` (todo publicado; ramas del día ya unidas: `staff-en-app`, `diana-jefa`, `reporte-dia`) · **Producción:** `main` en `f926847`, despliegue verificado (caché `dima-brigadas-v11`). Rama aparte sin publicar: `entrenar-dima`. **257 pruebas pasan.**
+**Actualizado:** 2026-10-29 (cierre de la noche) · **Rama de trabajo:** `main` (todo publicado; ramas del día ya unidas: `dia-lleno`, `sheets` y las de la tarde) · **Producción:** `main` en `6eb4bdc`, despliegue verificado (caché `dima-brigadas-v20`). Rama aparte sin publicar: `entrenar-dima`. **314 pruebas pasan.**
 
-**Acceso a Vercel (nuevo):** CLI instalada y enlazada (`vercel login` de Víctor; `.vercel/` y `.env.local` ignorados). Claude puede ver `vercel ls`, `vercel env ls` (solo nombres) y `vercel logs -e production -s 48h --json`. El sistema de permisos NO deja a Claude guardar secretos (`vercel env add`) ni desplegar a mano (`vercel redeploy`): se le pasa a Víctor el comando para `!` (en Git Bash usar rutas `/c/Users/...`). El conector MCP de Vercel sigue sin entrar al proyecto.
+**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs -e production -s 48h --json`); Claude no puede `vercel env add` ni `vercel redeploy`: se le da a Víctor el comando con `!`. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`; el proyecto `dima-os-513103` NO está en las cuentas de Chrome de Claude (virn31, vivamedik836), Víctor entra con otra. API de Sheets activa; la de Drive no (no hace falta). Llave local en `Downloads\dima-os-513103-eb75c647cb3d.json` (nunca al repo).
 
-**Publicado hoy:**
-- Ángela (gerente) desde la app: invita staff por evento (mismo código que `/staff`) y elige al **encargado de producción**; 🚗 junto al vehículo en el encabezado.
-- **Encargado de producción:** cron diario 8:00 (`api/produccion-diaria.js`): lista desglosada por producto 2 días antes y el mismo día por Telegram, con "Tenemos todo / Reportar insumos"; respuestas a Ángela + Diana y Víctor.
-- **Cambios de pedido:** `EVENTOS.Cambio_Cliente`; suenan en la app (push) y Telegram a Diana, Víctor y Ángela; Diana confirma o descarta en el dashboard y al confirmar se avisa al equipo (vuelven a tocar Enterado) y se reenvía la producción. DiMa: cambios con 24 h de anticipación; con menos, URGENTE. Si no se guarda, DiMa lo dice.
-- **Diana tiene todo lo de Ángela** en el dashboard (staff, producción, "Pregúntale a DiMa").
-- **Reporte financiero del día (fase 3):** 💰 en la app (líder y encargada): gastos con foto (dinero del negocio o propio), cobros, efectivo entregado, insumos → Diana aprueba o pide aclaración y marca reembolsos; Ángela ve la administración de El Vaso Maíz. Balance semanal solo cuenta lo aprobado. `api/finanzas.js` = función **12 de 12**.
-- **Arreglado en Vercel:** faltaban `VAPID_*` (los avisos al teléfono NUNCA habían funcionado) y `CRON_SECRET` (los crons estaban abiertos). Ya cargados y desplegados.
+**Publicado en la tarde/noche:**
+- **Cuadre del dinero** (solo Diana y Víctor), **calendario del equipo** + Google Calendar "DiMa Eventos" (cuenta virn31), ➕ **Capturar evento**, **rediseño visual** (negro puro, tarjetas, pestañas, Inter; `brigadas/tema.css`).
+- **Día lleno** (`cupoDelDia`/`diasLlenos` en `_agenda.js`): Divanna con 9 entregas, El Vaso Maíz con 6 equipos o sin personal. Calendario marca LLENO, aviso a Diana/Víctor (y Ángela si es VM), DiMa no ofrece el día y dice "Lamentablemente esa fecha la tenemos llena y ya no podemos cubrir tu evento" + hasta 3 fechas libres. **Casa Isabella** apartada → "esa fecha ya no está disponible" + fechas libres del salón (todo el día, conservador).
+- **Google Sheets de pedidos** (`api/_sheets.js`): hojas Divanna_Pedidos y VasoMaiz_Pedidos (Hojas de Google de Víctor, compartidas como Editor; `GOOGLE_SHEET_DIVANNA`, `GOOGLE_SHEET_VASOMAIZ` en Vercel). Por evento: pestaña de recibo con el folio EVT + renglón en "Pedidos". `GOOGLE_SHEET_ID` ya no se usa.
+- **Recibo en PDF por Telegram** al registrar anticipo/pago (captura, cuadre, reporte aprobado) o con 🧾 **Mandar recibo** en el calendario.
+- **Comanda en papel por foto** (`api/_comanda.js`): foto a @dimaclnbot o 📷 en ➕ Capturar evento; DiMa la lee con visión, muestra dudas, guarda solo al confirmar; foto en `EVENTOS.Foto_Comanda`.
+- DiMa en el chat pide dirección exacta y modelo/color de cada producto.
 
-**Airtable hoy:** EVENTOS `Encargado_Produccion`, `Produccion_Avisos`, `Produccion_Respuesta`, `Cambio_Cliente`; tablas nuevas REPORTES_DIA `tbllUK2N9ZDv2Bpdt` y COBROS `tblb8ADFukpm6nRZV`; GASTOS `Reporte`, `Pagado_Con`, `Reembolsado`, `Reportado_Por`.
+**Airtable hoy:** tablas MOVIMIENTOS_CAJA `tbl9UVlnxzfXscnW5`, DIAS_BLOQUEADOS `tblHSdMCxW2kkiiC9`, COMANDAS_FOTO `tblNYrh2wjsYgHfmf`; EVENTOS `Cuadre_Estado`, `Cuadre_Notas`, `Cuadre_Preguntado`, `Descuento`, `Cancelado`, `Google_Evento_ID`, `En_Sheets`, `Foto_Comanda`; COBROS `Recibido_Por`.
 
-**Pendiente de Víctor:**
-1. **Todos tocan "Activar alertas"** en la app (antes no había llaves; nadie quedó suscrito). Cerrar y abrir la app para cargar la versión nueva.
-2. **Borrar en BALANCES el duplicado** "Semana 2026-10-19 a 2026-10-25" creado hoy (`rec374o2IWhy1bBph`), que Claude generó por error al llamar el balance. Dejar el del 26-oct.
-3. Probar con datos reales: un cambio de pedido desde la página (debe sonar a Diana), un reporte del día con **foto real** del ticket, y asignar un encargado de producción.
-4. Google Calendar/Sheets: "invalid_grant: account not found" (la llave en Vercel no corresponde a la cuenta de servicio). Volver a bajar el JSON y cargar correo + llave del mismo archivo; Sheets espera los PDF de cotización.
-5. Lo anterior: `/curso` → Ángela, alta de las chicas y de José, teléfono de Ángel (PWA desde Chrome), conteos de INVENTARIO, PIN de Diana, limpiar variables de Twilio/WhatsApp en Vercel.
+**Sin probar en real (Víctor lo hace):**
+1. Diana toca **🔄 Pasar los eventos a Google** en el calendario (20 por vez) para meter a las hojas los eventos ya autorizados.
+2. Foto de una comanda real a @dimaclnbot: revisar qué tan bien la lee (Descartar si es prueba).
+3. 🧾 Mandar recibo en un evento autorizado: revisar el PDF que llega.
+4. Lo anterior: todos tocan "Activar alertas"; borrar en BALANCES el duplicado `rec374o2IWhy1bBph`; compartir "DiMa Eventos" con divannaeventos@gmail.com y Ángela.
 
-**Siguiente (esta tarde, pedido de Víctor):**
-1. **Identificador de los eventos:** hoy solo sale el folio; agregar **nombre y teléfono del cliente** (app, dashboard, Telegram).
-2. **DiMa no debe volver a pedir los datos del evento** cuando el cliente abre su pedido desde la página para cambiarlo: debe tomarlos del expediente (hoy `verificarPedido` ya da fecha, hora, lugar y servicios, pero DiMa los vuelve a preguntar; revisar el aviso en `api/dima-chat.js` y el flujo de `registrar_pedido`).
-3. **Reconocer al cliente por celular y nombre** y categorizarlo: decoradores (precio especial), clientes frecuentes, malos clientes (no pagan, cancelan sin aviso). Ya existen en CLIENTES `Es_Decorador`, `Semaforo_Cliente` (Verde/Amarillo/Rojo), `Tipo_Cliente`, `Nivel`, `Trust_Score`, `Pricing_Profile` y en EVENTOS `Requiere_Liquidacion_Anticipada`: revisar qué se usa antes de crear nada nuevo.
-4. Después: recordatorio nocturno a quien no envió su reporte del día; decidir si se publica `entrenar-dima`; Fase 4 (proveedores y compras) y Fase 5 (recordatorios de checklist). Toda ruta nueva de Vercel requiere juntar funciones (ya son 12).
+**Siguiente (pedido de Víctor para mañana):**
+1. **Mejorar la experiencia de usuario del homepage** (https://divanna-eventos.vercel.app/, `index.html`): "me gusta, pero lo podemos mejorar". Empezar revisándolo en el navegador (móvil y escritorio) y proponer mejoras concretas antes de tocar; respetar marca y colores; el chat con DiMa y el formulario de respaldo deben seguir funcionando igual.
+2. Pendientes de antes: identificador de eventos con nombre y teléfono del cliente; DiMa no repide datos al abrir un pedido existente; reconocer y categorizar clientes (decoradores, frecuentes, malos).
+3. Después: Fase 4 proveedores (brigada propone, Diana aprueba), pago automático (procesador sin decidir; no hay funciones libres: 12 de 12).
