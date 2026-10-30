@@ -259,6 +259,51 @@ function camposDisponibilidad(resultado) {
   };
 }
 
+// ---------- Día lleno (pedido de Víctor 2026-10-29) ----------
+// Con las mismas reglas del semáforo, por día y por negocio:
+// - Divanna: entregas del día (eventos autorizados de Divanna) contra
+//   BRIGADAS_DIVANNA x PEDIDOS_POR_RUTA.
+// - El Vaso Maíz: eventos contra EQUIPOS_VASO_MAIZ y personas requeridas contra
+//   el personal del día (PERSONAL_DIA o PERSONAL_BASE_VASO_MAIZ). Es conservador:
+//   cuenta todo el día como si los eventos coincidieran (no separa turnos).
+// Lleno = ya no cabe uno más. Diana puede capturar uno más a mano (con aviso).
+const CAPACIDAD_DIVANNA = BRIGADAS_DIVANNA * PEDIDOS_POR_RUTA;
+const esDeVasoMaiz = (o) => o.negocio === 'El Vaso Maiz' || o.personal > 0 || piezasVasoMaiz(o.productos) > 0;
+const esDeDivanna = (o) => o.negocio === 'Divanna Eventos' || usaDivanna(o);
+
+function cupoDelDia(fecha, autorizados, personalPorFecha = {}) {
+  const delDia = autorizados.filter(o => o.fecha === fecha && o.autorizacion === 'SI');
+  const dv = delDia.filter(esDeDivanna).length;
+  const vm = delDia.filter(esDeVasoMaiz);
+  const personas = vm.reduce((t, o) => t + Math.max(o.personal || 0, PERSONAS_POR_EQUIPO), 0);
+  const cupoPersonas = personalPorFecha[fecha] != null ? personalPorFecha[fecha] : PERSONAL_BASE_VASO_MAIZ;
+  return {
+    'Divanna Eventos': { usados: dv, cupo: CAPACIDAD_DIVANNA, lleno: dv >= CAPACIDAD_DIVANNA, texto: `${dv} de ${CAPACIDAD_DIVANNA} entregas` },
+    'El Vaso Maiz': {
+      usados: vm.length, cupo: EQUIPOS_VASO_MAIZ, personas, cupoPersonas,
+      lleno: vm.length >= EQUIPOS_VASO_MAIZ || personas + PERSONAS_POR_EQUIPO > cupoPersonas,
+      texto: `${vm.length} de ${EQUIPOS_VASO_MAIZ} equipos · ${personas} de ${cupoPersonas} personas`,
+    },
+  };
+}
+
+// Días llenos en un rango: [{ fecha, negocios: ['El Vaso Maiz', …], detalle }].
+async function diasLlenos(desde, hasta) {
+  const formula = `AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${desde}"))), NOT(IS_AFTER({Fecha_Evento}, DATETIME_PARSE("${hasta}"))))`;
+  const registros = await todasLasPaginas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}`);
+  const eventos = registros.map(eventoParaAgenda);
+  // El cupo de personal solo hace falta si hay eventos de El Vaso Maíz.
+  const personalPorFecha = eventos.some(esDeVasoMaiz) ? await cargarPersonal() : {};
+  const fechas = [...new Set(eventos.map(e => e.fecha))].sort();
+  const llenos = [];
+  for (const fecha of fechas) {
+    const c = cupoDelDia(fecha, eventos, personalPorFecha);
+    const negocios = Object.keys(c).filter(n => c[n].lleno);
+    if (negocios.length) llenos.push({ fecha, negocios, detalle: negocios.map(n => `${n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}: ${c[n].texto}`).join(' · ') });
+  }
+  return llenos;
+}
+
 // Revisión completa con datos de Airtable (al registrar un pedido).
 async function revisarDisponibilidad(ev) {
   const [otros, inventario, personalPorFecha] = await Promise.all([
@@ -280,4 +325,7 @@ module.exports = {
   textoDisponibilidad,
   camposDisponibilidad,
   revisarDisponibilidad,
+  cupoDelDia,
+  diasLlenos,
+  CAPACIDAD_DIVANNA,
 };

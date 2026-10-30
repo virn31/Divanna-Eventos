@@ -51,6 +51,9 @@ window.DimaCalendario = (function(){
       .cal-form{margin-top:10px; display:grid; gap:8px;}
       .cal-form input, .cal-form select{padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;}
       .cal-msg{margin-top:8px; font-size:0.88rem;}
+      .cal-dia.lleno{border-color:#e6a23c !important;}
+      .cal-lleno-tag{display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:.02em; color:#1a1208; background:#e6a23c; border-radius:6px; padding:1px 4px; margin-left:2px;}
+      .cal-lleno{margin-top:10px; padding:10px 12px; border-radius:12px; border:1px solid #e6a23c; color:var(--paper);}
       .cal-bloq{margin-top:10px; padding:10px 12px; border-radius:12px; border:1px dashed #e66767; display:flex; justify-content:space-between; gap:8px; align-items:center;}
     `;
     document.head.appendChild(s);
@@ -103,13 +106,15 @@ window.DimaCalendario = (function(){
     datos.eventos.forEach(ev => { (porDia[ev.fecha] = porDia[ev.fecha] || []).push(ev); });
     const bloqDia = {};
     datos.bloqueos.forEach(b => { (bloqDia[b.fecha] = bloqDia[b.fecha] || []).push(b); });
+    const llenoDia = {};
+    (datos.llenos || []).forEach(l => { llenoDia[l.fecha] = l; });
     let celdas = '';
     for(let i = 0; i < desplazo; i++) celdas += '<div class="cal-dia vacio"></div>';
     for(let d = 1; d <= diasMes; d++){
       const f = `${mes}-${String(d).padStart(2, '0')}`;
       const evs = porDia[f] || [];
-      celdas += `<button class="cal-dia ${f === hoy() ? 'hoy' : ''} ${f === diaSel ? 'sel' : ''} ${bloqDia[f] ? 'bloq' : ''}" data-cal="dia" data-f="${f}" aria-label="${e(textoDia(f))}: ${evs.length} eventos${bloqDia[f] ? ', bloqueado' : ''}">
-        <span class="cal-num">${d}</span>${bloqDia[f] ? ' ⛔' : ''}
+      celdas += `<button class="cal-dia ${f === hoy() ? 'hoy' : ''} ${f === diaSel ? 'sel' : ''} ${bloqDia[f] ? 'bloq' : ''} ${llenoDia[f] ? 'lleno' : ''}" data-cal="dia" data-f="${f}" aria-label="${e(textoDia(f))}: ${evs.length} eventos${bloqDia[f] ? ', bloqueado' : ''}${llenoDia[f] ? ', lleno' : ''}">
+        <span class="cal-num">${d}</span>${bloqDia[f] ? ' ⛔' : ''}${llenoDia[f] ? '<span class="cal-lleno-tag">LLENO</span>' : ''}
         <span class="cal-pts">${evs.slice(0, 6).map(ev => `<i style="background:${COLOR[ev.negocio] || '#888'};"></i>`).join('')}</span></button>`;
     }
     const lista = diaSel ? (porDia[diaSel] || []) : datos.eventos;
@@ -118,9 +123,11 @@ window.DimaCalendario = (function(){
     panel.querySelector('#calCuerpo').innerHTML = `
       ${datos.puedeEditar ? `<div class="cal-form" style="margin-top:12px;"><button data-cal="nuevo">➕ Capturar evento</button></div><div id="calNuevo"></div>` : ''}
       <div class="cal-nav"><button data-cal="mes" data-n="-1">‹</button><span>${e(textoMes(mes))}</span><button data-cal="mes" data-n="1">›</button></div>
-      <div class="cal-ley"><span><i style="background:${COLOR['Divanna Eventos']};"></i>Divanna</span><span><i style="background:${COLOR['El Vaso Maiz']};"></i>El Vaso Maíz</span><span>⛔ día bloqueado</span></div>
+      <div class="cal-ley"><span><i style="background:${COLOR['Divanna Eventos']};"></i>Divanna</span><span><i style="background:${COLOR['El Vaso Maiz']};"></i>El Vaso Maíz</span><span>⛔ día bloqueado</span><span><b style="color:#e6a23c;">LLENO</b> sin cupo</span></div>
+      ${datos.llenosError ? '<div class="cal-sub">⚠️ No se pudo revisar qué días están llenos; intenta en un momento.</div>' : ''}
       <div class="cal-grid">${['L','M','M','J','V','S','D'].map(x => `<div class="cal-dsem">${x}</div>`).join('')}${celdas}</div>
       <div class="cal-sec">${diaSel ? `${e(textoDia(diaSel))} <button class="sec" data-cal="todo" style="border:none; background:none; color:var(--muted); font:inherit; cursor:pointer;">(ver todo el mes)</button>` : `Eventos de ${e(textoMes(mes))} (${datos.eventos.length})`}</div>
+      ${(diaSel ? (llenoDia[diaSel] ? [llenoDia[diaSel]] : []) : (datos.llenos || [])).map(l => `<div class="cal-lleno">📅 <b>${e(textoDia(l.fecha))}: lleno</b> · ${e(l.detalle)}<br><span class="cal-sub">DiMa ya no ofrece este día${datos.puedeEditar ? '; si aun así quieren otro evento, captúralo a mano con ➕' : ''}.</span></div>`).join('')}
       ${bloqueos.map(b => `<div class="cal-bloq"><span>⛔ ${e(textoDia(b.fecha))} · ${e(NOMBRE[b.negocio] || b.negocio)} · ${e(b.motivo)}</span>${b.editable ? `<button class="sec" data-cal="desbloquear" data-id="${e(b.id)}" style="border:none; border-radius:10px; padding:8px 12px; background:var(--line); color:var(--paper); font:inherit; cursor:pointer;">Quitar</button>` : ''}</div>`).join('')}
       ${lista.length ? lista.map(tarjetaEvento).join('') : `<div class="cal-sub" style="margin-top:8px;">${diaSel ? 'No hay eventos este día.' : 'No hay eventos autorizados este mes.'}</div>`}
       ${datos.puedeEditar && !datos.soloVasoMaiz ? `
@@ -139,12 +146,15 @@ window.DimaCalendario = (function(){
         </div>` : ''}`;
   }
 
+  function lleno(d){
+    return d.diaLleno && d.diaLleno.lleno ? ` 📅 Ese día quedó LLENO (${o.esc(d.diaLleno.detalle || '')}); ya se avisó.` : '';
+  }
   function resultado(d){
     const e = o.esc;
     const g = d.google;
     const google = !g ? '' : g.ok ? ' 📆 Google actualizado.' : ` ⚠️ ${e(g.error || 'Google no se actualizó')}`;
     const avisos = d.avisados != null ? ` Avisos al equipo: ${d.avisados} (Telegram ${d.porTelegram || 0}, app ${d.porPush || 0}).` : '';
-    return `✅ Listo.${avisos}${google}`;
+    return `✅ Listo.${avisos}${google}${lleno(d)}`;
   }
 
   // ---------- ➕ Capturar evento (los que se apartaron fuera del chat) ----------
@@ -168,6 +178,7 @@ window.DimaCalendario = (function(){
           <input id="calNTel" inputmode="tel" maxlength="15" placeholder="Teléfono del cliente (10 dígitos)">
           <select id="calNNeg">${negocios.map(n => `<option value="${e(n)}">${e(NOMBRE[n])}</option>`).join('')}</select>
           <label class="cal-sub">Fecha <input type="date" id="calNFecha" value="${diaSel || ''}"></label>
+          ${diaSel && (datos.llenos || []).some(l => l.fecha === diaSel) ? `<div class="cal-lleno">⚠️ Este día ya está lleno (${e(datos.llenos.find(l => l.fecha === diaSel).detalle)}). Puedes capturarlo de todos modos; revisa que tengan equipo.</div>` : ''}
           <label class="cal-sub">Hora de inicio <input type="time" id="calNHora"></label>
           <label class="cal-sub">Horas de servicio <input type="number" id="calNHoras" min="1" max="12" step="0.5" placeholder="Ej. 2"></label>
           <input id="calNLugar" maxlength="200" placeholder="Lugar (colonia, salón o dirección)">
@@ -203,7 +214,7 @@ window.DimaCalendario = (function(){
         fecha: v('calNFecha'), hora: v('calNHora'), horasServicio: v('calNHoras'), ubicacion: v('calNLugar'), invitados: v('calNInv'),
         servicios: v('calNServ'), productos, montoContratado: v('calNMonto'), anticipo: v('calNAnt'), formaAnticipo: v('calNAntForma'), instrucciones: v('calNInstr'),
       });
-      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''} Ahora asígnale brigada en el dashboard.`;
+      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)} Ahora asígnale brigada en el dashboard.`;
       if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
       setTimeout(cargar, 3500);
     } catch(err){

@@ -387,7 +387,9 @@ async function resolverPedido(req, res, colaborador) {
     googleOk = false;
   }
 
-  res.status(200).json({ success: true, googleOk, erroresGoogle });
+  // ¿Con este evento se llenó el día? Avisa a Diana, Víctor (y gerente si es El Vaso Maíz).
+  const diaLleno = await C.avisarSiLleno(f.Fecha_Evento, esVasoMaiz(f) ? 'El Vaso Maiz' : (f.Negocio || 'Divanna Eventos'));
+  res.status(200).json({ success: true, googleOk, erroresGoogle, diaLleno });
 }
 
 // Calendario (api/_calendario.js): Diana, Víctor y la gerente (ella solo El Vaso Maíz).

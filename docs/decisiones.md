@@ -230,3 +230,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decisión (Víctor):** solo apariencia, más amigable para el colaborador: negro puro, tarjetas flotantes, feed vertical, fichas con pestañas, carga animada y tipografía Inter, respetando los colores que ya tenemos y lo hecho para el dashboard de Diana. Sin redes sociales ni fotos de clientes.
 **Cómo quedó:** `brigadas/tema.css` (lo cargan app y dashboard al final): fondo `#080707`, tarjetas `#1A1A1A`/`#222222` de 20 px con sombra, títulos `#F8F7F6` en Inter 800, secundarios `#B1A5A3`; esqueletos animados en lugar de "Cargando…"; tarjetas que entran suave y el pedido autorizado se desvanece. En la app, cada evento es una ficha con pestañas Resumen · Cargar (con contador) · Tareas (etapas); Retraso/Emergencia/Seguridad y "Enterado" quedan siempre fuera de las pestañas; el asistente abre en Cargar. Respeta `prefers-reduced-motion`.
 **Descartado:** cambiar colores de datos (el rojo de acción #C82D32 chocaba con el de gastos); deslizar para aprobar (se mantiene el botón, más seguro con dinero).
+
+## 2026-10-29 — Aviso de día lleno
+
+**Decisión:** un día está lleno cuando ya no cabe un evento más del negocio: Divanna con 9 entregas autorizadas (3 brigadas x 3 pedidos por ruta, el mismo umbral que pone el semáforo en amarillo); El Vaso Maíz con 6 equipos ocupados o cuando el personal del día ya no alcanza para otro equipo de 2. Solo cuentan los eventos autorizados y no cancelados. Al llenarse (al autorizar, capturar a mano o mover un evento) se avisa por Telegram y push a Diana y Víctor, y a la gerente si es El Vaso Maíz; el calendario lo marca LLENO; DiMa deja de ofrecer ese día y el servidor no registra pedidos nuevos de ese negocio ahí. La captura manual sí lo permite, con advertencia.
+
+**Por qué:** Víctor pidió saber cuándo ya no se pueden agregar más eventos; con bloqueos manuales dependía de que alguien se acordara.
+
+**Descartado:** contar por turnos/horas (más exacto, pero hoy no se sabe cómo se reparten las brigadas en el día; es conservador a propósito) y bloquear también la captura manual (Diana es la jefa y a veces mete uno más con proveedor o personal extra).

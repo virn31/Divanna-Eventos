@@ -21,7 +21,7 @@ const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { avisarCambioPedido } = require('./_cambios');
-const { bloqueosProximos } = require('./_calendario');
+const { bloqueosProximos, llenosProximos } = require('./_calendario');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
@@ -294,6 +294,10 @@ async function registrarPedido(input, historial, folioPrevio) {
   if (!folioPrevio && datos.fecha) {
     const bloqueos = await bloqueosProximos().catch(() => []);
     const choca = bloqueos.find(b => b.fecha === datos.fecha && (b.negocio === 'Ambos' || datos.negocio === 'Ambos' || !datos.negocio || b.negocio === datos.negocio));
+    const lleno = (await llenosProximos().catch(() => [])).find(d => d.fecha === datos.fecha && d.negocios.some(n => !datos.negocio || datos.negocio === 'Ambos' || n === datos.negocio));
+    if (lleno && !choca) {
+      return { texto: `Una disculpa: el ${datos.fecha} ya no tenemos cupo${lleno.negocios.length === 1 ? ' para ' + (lleno.negocios[0] === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna Eventos') : ''}. ¿Te gustaría revisar otra fecha?` };
+    }
     if (choca) {
       return { texto: `Una disculpa: el ${datos.fecha} ya no tenemos disponibilidad${choca.negocio === 'Ambos' ? '' : ' para ' + (choca.negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna Eventos')}. ¿Te gustaría revisar otra fecha?` };
     }
@@ -467,6 +471,16 @@ module.exports = async (req, res) => {
   }
   if (mensajeAEntregar) {
     avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
+  }
+
+  // Días sin cupo (ya llenos con eventos autorizados): DiMa no los ofrece.
+  try {
+    const llenos = await llenosProximos();
+    if (llenos.length) {
+      avisos.push(`DÍAS SIN CUPO (ya están llenos): ${llenos.map(d => `${d.fecha} (${d.negocios.map(n => n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna').join(' y ')})`).join(', ')}. Si el cliente pide una de esas fechas para ese negocio, dile con amabilidad que ese día ya no tenemos cupo y ofrécele otro; no registres el pedido en esa fecha.`);
+    }
+  } catch (err) {
+    console.error('No se pudieron leer los días llenos:', err.message);
   }
 
   // Días que la gerencia bloqueó en el calendario: DiMa no los ofrece.

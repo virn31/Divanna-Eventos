@@ -45,6 +45,7 @@ const llamadas = [];
 const googleCal = [];
 let bloqueosPrueba = [];
 let bloqueoLeido = null;
+let llenosPrueba = []; // eventos autorizados que lee diasLlenos (días sin cupo)
 let respuestas = [];
 const telegram = [];
 let mapaCaido = false;
@@ -79,6 +80,10 @@ global.fetch = async (url, opts = {}) => {
     const unico = /tblHSdMCxW2kkiiC9\/rec/.test(url);
     return { ok: true, status: 200, json: async () => (unico ? bloqueoLeido || {} : { records: bloqueosPrueba }), text: async () => '' };
   }
+  // La lectura de días llenos (diasLlenos) tiene su propia respuesta.
+  if (decodeURIComponent(url).includes('NOT({Cancelado}), NOT(IS_BEFORE({Fecha_Evento}')) {
+    return { ok: true, status: 200, json: async () => ({ records: llenosPrueba }), text: async () => '' };
+  }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
     telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
@@ -110,7 +115,7 @@ process.env.GOOGLE_PRIVATE_KEY = 'llave-de-prueba';
 process.env.GOOGLE_CALENDAR_ID = 'calendario@prueba.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { googleCal.length = 0; bloqueosPrueba = []; bloqueoLeido = null; mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { require(path.join(repo, 'api/_calendario.js')).olvidarLlenos(); llenosPrueba = []; googleCal.length = 0; bloqueosPrueba = []; bloqueoLeido = null; mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -1625,6 +1630,50 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial });
   ok(res.body.texto.includes('ya no tenemos disponibilidad') && !llamadas.some(l => l.method === 'POST') && !res.body.folio && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS NO DISPONIBLES')),
     'calendario: DiMa sabe los días bloqueados y no registra un pedido nuevo en uno');
+
+  // ---------- Día lleno ----------
+  const evDia = (i, negocio, extra = {}) => ({ id: `recEVLLENO${String(i).padStart(7, '0')}`, fields: { Fecha_Evento: '2026-12-12', Negocio: negocio, Autorizacion_Diana: 'SI', ...extra } });
+  const nueveDv = Array.from({ length: 9 }, (_, i) => evDia(i, 'Divanna Eventos'));
+  const cupo8 = agendaMod.cupoDelDia('2026-12-12', nueveDv.slice(0, 8).map(agendaMod.eventoParaAgenda));
+  const cupo9 = agendaMod.cupoDelDia('2026-12-12', nueveDv.map(agendaMod.eventoParaAgenda));
+  ok(!cupo8['Divanna Eventos'].lleno && cupo9['Divanna Eventos'].lleno && !cupo9['El Vaso Maiz'].lleno, 'día lleno: Divanna se llena con 9 entregas (3 brigadas x 3)');
+  const seisVm = Array.from({ length: 6 }, (_, i) => evDia(i, 'El Vaso Maiz', { Personal_Requerido: 2 }));
+  ok(agendaMod.cupoDelDia('2026-12-12', seisVm.map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
+    && !agendaMod.cupoDelDia('2026-12-12', seisVm.slice(0, 5).map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
+    && agendaMod.cupoDelDia('2026-12-12', seisVm.slice(0, 2).map(agendaMod.eventoParaAgenda), { '2026-12-12': 5 })['El Vaso Maiz'].lleno,
+    'día lleno: El Vaso Maíz se llena con 6 equipos o cuando ya no cabe otro equipo en el personal del día');
+
+  reset();
+  llenosPrueba = nueveDv;
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6400 } },
+  ] }];
+  res = await chat({ historial });
+  ok(res.body.texto.includes('ya no tenemos cupo') && !res.body.texto.includes('Diana') && !llamadas.some(l => l.method === 'POST') && !res.body.folio
+    && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS SIN CUPO') && m.content.includes('2026-12-12 (Divanna)')),
+    'día lleno: DiMa sabe los días sin cupo y no registra un pedido nuevo de ese negocio');
+
+  reset();
+  llenosPrueba = nueveDv;
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete 3', monto_estimado: 3000 } },
+  ] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000009', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000009' }] }];
+  res = await chat({ historial });
+  ok(/^EVT-[0-9]{6}$/.test(res.body.folio || ''), 'día lleno: si solo Divanna está llena, El Vaso Maíz sí recibe pedidos ese día');
+
+  reset();
+  llenosPrueba = nueveDv;
+  respuestas = [{ records: [ADMIN, { id: 'recGERENTEPRUEB1', fields: { Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Activo: true } }] }];
+  const calMod = require(path.join(repo, 'api/_calendario.js'));
+  const avisoLleno = await calMod.avisarSiLleno('2026-12-12', 'Divanna Eventos');
+  ok(avisoLleno && avisoLleno.lleno && avisoLleno.negocios.join() === 'Divanna Eventos' && avisoLleno.detalle.includes('9 de 9 entregas')
+    && llamadas.some(l => l.url.includes('tblHdz4vqUIlIdkwc')),
+    'día lleno: al llenarse un día se avisa a la gerencia (Divanna: solo Admin)');
+
+  reset();
+  llenosPrueba = nueveDv.slice(0, 3);
+  ok((await calMod.avisarSiLleno('2026-12-12', 'Divanna Eventos')).lleno === false && llamadas.length === 0, 'día lleno: si aún hay cupo no avisa a nadie');
 
   reset();
   respuestas = [LIDER];
