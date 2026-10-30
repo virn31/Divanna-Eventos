@@ -199,7 +199,7 @@ async function vistaMes(colaborador, mes) {
   // Días sin cupo del mes (con las reglas del semáforo). Si falla, se dice.
   const ultimo = new Date(`${sig}T12:00:00Z`); ultimo.setUTCDate(ultimo.getUTCDate() - 1);
   let llenos = [], llenosError = false;
-  try { llenos = await diasLlenos(desde, ultimo.toISOString().slice(0, 10)); } catch (err) { console.error('No se pudieron calcular los días llenos:', err.message); llenosError = true; }
+  try { llenos = (await diasLlenos(desde, ultimo.toISOString().slice(0, 10))).filter(d => d.negocios.length); } catch (err) { console.error('No se pudieron calcular los días llenos:', err.message); llenosError = true; }
   return {
     mes,
     llenos,

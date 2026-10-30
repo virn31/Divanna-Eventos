@@ -1649,7 +1649,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6400 } },
   ] }];
   res = await chat({ historial });
-  ok(res.body.texto.includes('ya no tenemos cupo') && !res.body.texto.includes('Diana') && !llamadas.some(l => l.method === 'POST') && !res.body.folio
+  ok(res.body.texto.includes('Lamentablemente esa fecha') && res.body.texto.includes('la tenemos llena y ya no podemos cubrir tu evento') && res.body.texto.includes('Tenemos disponible el') && !res.body.texto.includes('Diana') && !llamadas.some(l => l.method === 'POST') && !res.body.folio
     && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS SIN CUPO') && m.content.includes('2026-12-12 (Divanna)')),
     'día lleno: DiMa sabe los días sin cupo y no registra un pedido nuevo de ese negocio');
 
@@ -1670,6 +1670,17 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(avisoLleno && avisoLleno.lleno && avisoLleno.negocios.join() === 'Divanna Eventos' && avisoLleno.detalle.includes('9 de 9 entregas')
     && llamadas.some(l => l.url.includes('tblHdz4vqUIlIdkwc')),
     'día lleno: al llenarse un día se avisa a la gerencia (Divanna: solo Admin)');
+
+  // Casa Isabella apartada: "esa fecha ya no está disponible" y fechas libres del salón.
+  reset();
+  llenosPrueba = [evDia(1, 'Divanna Eventos', { Productos: JSON.stringify([{ clave: 'dv_casa_isabella', cantidad: 1 }]) })];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'Cumpleaños', fecha: '2026-12-12', invitados: 40, ubicacion: 'Casa Isabella', servicios: 'Renta de Casa Isabella', productos: [{ clave: 'dv_casa_isabella', cantidad: 1, nota: null }], monto_estimado: 3000 } },
+  ] }];
+  res = await chat({ historial });
+  ok(res.body.texto.includes('ya no está disponible en Casa Isabella') && res.body.texto.includes('El salón está libre el') && !res.body.folio && !llamadas.some(l => l.method === 'POST')
+    && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('CASA ISABELLA YA APARTADA: 2026-12-12')),
+    'Casa Isabella: si ya está apartada ese día, DiMa dice que la fecha no está disponible y ofrece otras');
 
   reset();
   llenosPrueba = nueveDv.slice(0, 3);

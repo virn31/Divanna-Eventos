@@ -238,3 +238,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor pidió saber cuándo ya no se pueden agregar más eventos; con bloqueos manuales dependía de que alguien se acordara.
 
 **Descartado:** contar por turnos/horas (más exacto, pero hoy no se sabe cómo se reparten las brigadas en el día; es conservador a propósito) y bloquear también la captura manual (Diana es la jefa y a veces mete uno más con proveedor o personal extra).
+
+## 2026-10-29 — Mensaje al cliente en día lleno y Casa Isabella apartada
+
+**Decisión:** con día lleno DiMa dice "Lamentablemente esa fecha la tenemos llena y ya no podemos cubrir tu evento"; si lo que se pide es Casa Isabella y ya está apartada, "esa fecha ya no está disponible". En los dos casos el servidor ofrece hasta 3 fechas libres a una semana o menos. Casa Isabella se considera ocupada todo el día si hay un evento autorizado con el salón.
+
+**Por qué:** lo pidió Víctor; antes DiMa no sabía si el salón estaba apartado y solo Diana lo veía en el semáforo después de recibir el pedido.
+
+**Descartado:** revisar el salón por horas (podrían caber dos eventos de 5 h en un día, pero se deja conservador como el resto del día lleno). Se usa "tu" en vez de "su" porque DiMa le habla de tú al cliente.

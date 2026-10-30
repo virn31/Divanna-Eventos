@@ -287,7 +287,9 @@ function cupoDelDia(fecha, autorizados, personalPorFecha = {}) {
   };
 }
 
-// Días llenos en un rango: [{ fecha, negocios: ['El Vaso Maiz', …], detalle }].
+// Días llenos en un rango: [{ fecha, negocios: ['El Vaso Maiz', …], detalle, casaIsabella }].
+// También sale el día (con negocios vacío si hace falta) cuando Casa Isabella ya
+// está apartada por un evento autorizado: el salón es uno solo y se toma el día.
 async function diasLlenos(desde, hasta) {
   const formula = `AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${desde}"))), NOT(IS_AFTER({Fecha_Evento}, DATETIME_PARSE("${hasta}"))))`;
   const registros = await todasLasPaginas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}`);
@@ -299,7 +301,11 @@ async function diasLlenos(desde, hasta) {
   for (const fecha of fechas) {
     const c = cupoDelDia(fecha, eventos, personalPorFecha);
     const negocios = Object.keys(c).filter(n => c[n].lleno);
-    if (negocios.length) llenos.push({ fecha, negocios, detalle: negocios.map(n => `${n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}: ${c[n].texto}`).join(' · ') });
+    const casaIsabella = eventos.some(e => e.fecha === fecha && (usoPorPool(e)['Casa Isabella'] || 0) > 0);
+    if (negocios.length || casaIsabella) {
+      const detalle = negocios.map(n => `${n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}: ${c[n].texto}`).join(' · ') || 'Casa Isabella apartada';
+      llenos.push({ fecha, negocios, detalle, casaIsabella });
+    }
   }
   return llenos;
 }
