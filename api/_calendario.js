@@ -20,6 +20,7 @@ const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES } = require('./_productos');
 const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
+const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -195,8 +196,14 @@ async function vistaMes(colaborador, mes) {
     todas(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada`),
   ]);
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
+  // Días sin cupo del mes (con las reglas del semáforo). Si falla, se dice.
+  const ultimo = new Date(`${sig}T12:00:00Z`); ultimo.setUTCDate(ultimo.getUTCDate() - 1);
+  let llenos = [], llenosError = false;
+  try { llenos = (await diasLlenos(desde, ultimo.toISOString().slice(0, 10))).filter(d => d.negocios.length); } catch (err) { console.error('No se pudieron calcular los días llenos:', err.message); llenosError = true; }
   return {
     mes,
+    llenos,
+    llenosError,
     puedeEditar: esEditor(colaborador),
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
@@ -314,7 +321,8 @@ async function mover(colaborador, body) {
   const avisos = await avisar(colaborador, ids, titulo, texto, body.eventoId, true);
   const google = await sincronizarEvento(body.eventoId);
   const produccion = (f.Encargado_Produccion || []).length ? await reenviarPorCambio(body.eventoId, fecha).catch(() => null) : null;
-  return { ok: true, ...avisos, google, produccion };
+  const diaLleno = fecha !== f.Fecha_Evento ? await avisarSiLleno(fecha, esVasoMaiz(f) ? NEGOCIOS.VM : (f.Negocio || NEGOCIOS.DV)) : null;
+  return { ok: true, ...avisos, google, produccion, diaLleno };
 }
 
 async function cancelar(colaborador, body) {
@@ -379,6 +387,44 @@ async function desbloquear(colaborador, body) {
   await airtable(`${TABLES.BLOQUEOS}/${body.bloqueoId}`, { method: 'DELETE' });
   return { ok: true };
 }
+
+// ---------- Día lleno ----------
+let cacheLlenos = { hasta: 0, datos: [] };
+// Después de autorizar, capturar o mover un evento: si su día quedó sin cupo
+// para su negocio, avisa a Diana y Víctor (y a la gerente si es El Vaso Maíz).
+// Devuelve { lleno, detalle } (o null si no se pudo revisar).
+async function avisarSiLleno(fecha, negocio) {
+  if (!esFecha(fecha)) return null;
+  try {
+    const dia = (await diasLlenos(fecha, fecha))[0];
+    const negocios = dia ? dia.negocios.filter(n => !negocio || n === negocio || negocio === NEGOCIOS.AMBOS) : [];
+    if (!negocios.length) return { lleno: false };
+    const nombres = negocios.map(n => n === NEGOCIOS.VM ? 'El Vaso Maíz' : 'Divanna').join(' y ');
+    const texto = `📅 El ${fechaTexto(fecha)} ya está LLENO para ${nombres} (${dia.detalle}).\nDiMa ya no ofrecerá ese día a los clientes de ${nombres}. Si aun así quieren meter otro, se puede capturar a mano en el calendario.`;
+    const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.ADMIN}", {Gerente_Vaso_Maiz}))`);
+    const gente = await todas(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
+    const ids = gente.filter(c => c.fields.Rol === ROLES.ADMIN || negocios.includes(NEGOCIOS.VM)).map(c => c.id);
+    await Promise.all([
+      enviarTelegramEquipo({ texto, soloColaboradores: ids }),
+      enviarPushEquipo({ titulo: `📅 ${fechaTexto(fecha)}: día lleno`, cuerpo: `${nombres} ya no tiene cupo.`, soloColaboradores: ids }),
+    ]);
+    cacheLlenos.hasta = 0; // DiMa deja de ofrecer el día de inmediato
+    return { lleno: true, detalle: dia.detalle, negocios };
+  } catch (err) {
+    console.error('No se pudo revisar si el día está lleno:', err.message);
+    return null;
+  }
+}
+
+// Días llenos de hoy a 4 meses, para DiMa (se guarda 5 min por instancia).
+async function llenosProximos() {
+  if (Date.now() < cacheLlenos.hasta) return cacheLlenos.datos;
+  const hoy = hoyCuliacan();
+  const datos = await diasLlenos(hoy, sumarHoras(hoy, '00:00', 120 * 24).fecha);
+  cacheLlenos = { hasta: Date.now() + 5 * 60 * 1000, datos };
+  return datos;
+}
+const olvidarLlenos = () => { cacheLlenos.hasta = 0; };
 
 // ---------- Capturar un evento a mano (➕ en el calendario) ----------
 // Para los eventos que se apartaron fuera del chat (teléfono, en persona). Entra
@@ -460,7 +506,8 @@ async function capturarEvento(colaborador, b) {
     anticipoGuardado = true;
   }
   const google = await sincronizarEvento(eventoId);
-  return { ok: true, eventoId, folio, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
+  const diaLleno = await avisarSiLleno(b.fecha, negocio);
+  return { ok: true, eventoId, folio, diaLleno, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
 }
 
 // Pasa a Google los eventos autorizados de hoy en adelante que todavía no están
@@ -483,6 +530,9 @@ async function sincronizarPendientes(colaborador) {
 }
 
 module.exports = {
+  avisarSiLleno,
+  llenosProximos,
+  olvidarLlenos,
   capturarEvento,
   sincronizarPendientes,
   NEGOCIOS,

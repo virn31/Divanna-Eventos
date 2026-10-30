@@ -21,7 +21,27 @@ const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { avisarCambioPedido } = require('./_cambios');
-const { bloqueosProximos } = require('./_calendario');
+const { bloqueosProximos, llenosProximos } = require('./_calendario');
+
+// Fechas en texto para el cliente ("sábado 12 de diciembre").
+const fechaLarga = (f) => new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${f}T12:00:00Z`)).replace(',', '');
+function listaFechas(fechas) {
+  const t = fechas.map(f => 'el ' + fechaLarga(f));
+  return t.length > 1 ? `${t.slice(0, -1).join(', ')} o ${t[t.length - 1]}` : t[0];
+}
+// Hasta 3 fechas libres cerca de la pedida (una semana antes o después, nunca hoy ni antes).
+function fechasLibres(fecha, libre) {
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+  const salida = [];
+  for (let i = 1; i <= 7 && salida.length < 3; i++) {
+    for (const s of [i, -i]) {
+      const d = new Date(`${fecha}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + s);
+      const f = d.toISOString().slice(0, 10);
+      if (f > hoy && libre(f) && salida.length < 3) salida.push(f);
+    }
+  }
+  return salida.sort();
+}
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
@@ -294,8 +314,22 @@ async function registrarPedido(input, historial, folioPrevio) {
   if (!folioPrevio && datos.fecha) {
     const bloqueos = await bloqueosProximos().catch(() => []);
     const choca = bloqueos.find(b => b.fecha === datos.fecha && (b.negocio === 'Ambos' || datos.negocio === 'Ambos' || !datos.negocio || b.negocio === datos.negocio));
-    if (choca) {
-      return { texto: `Una disculpa: el ${datos.fecha} ya no tenemos disponibilidad${choca.negocio === 'Ambos' ? '' : ' para ' + (choca.negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna Eventos')}. ¿Te gustaría revisar otra fecha?` };
+    const todos = await llenosProximos().catch(() => []);
+    const quiereCasa = (datos.productos || []).some(p => p.clave === 'dv_casa_isabella') || /casa\s+isabella/i.test(datos.servicios || '');
+    const ocupado = (f) => ({
+      bloqueo: bloqueos.find(b => b.fecha === f && (b.negocio === 'Ambos' || datos.negocio === 'Ambos' || !datos.negocio || b.negocio === datos.negocio)),
+      lleno: todos.find(d => d.fecha === f && d.negocios.some(n => !datos.negocio || datos.negocio === 'Ambos' || n === datos.negocio)),
+      casa: quiereCasa && todos.find(d => d.fecha === f && d.casaIsabella),
+    });
+    const pedida = ocupado(datos.fecha);
+    if (pedida.bloqueo || pedida.lleno || pedida.casa) {
+      const otras = fechasLibres(datos.fecha, (f) => { const o = ocupado(f); return !o.bloqueo && !o.lleno && !o.casa; });
+      const ofrecer = otras.length ? ` Tenemos disponible ${listaFechas(otras)}. ¿Te acomoda alguna, o prefieres otra fecha?` : ' ¿Te gustaría revisar otra fecha?';
+      if (pedida.bloqueo) {
+        return { texto: `Una disculpa: el ${fechaLarga(datos.fecha)} ya no tenemos disponibilidad${pedida.bloqueo.negocio === 'Ambos' ? '' : ' para ' + (pedida.bloqueo.negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna Eventos')}.${ofrecer}` };
+      }
+      if (pedida.lleno) return { texto: `Lamentablemente esa fecha (${fechaLarga(datos.fecha)}) la tenemos llena y ya no podemos cubrir tu evento.${ofrecer}` };
+      return { texto: `Esa fecha (${fechaLarga(datos.fecha)}) ya no está disponible en Casa Isabella.${otras.length ? ` El salón está libre ${listaFechas(otras)}. ¿Te acomoda alguna, o prefieres otra fecha?` : ' ¿Te gustaría revisar otra fecha?'}` };
     }
   }
 
@@ -467,6 +501,21 @@ module.exports = async (req, res) => {
   }
   if (mensajeAEntregar) {
     avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
+  }
+
+  // Días sin cupo (ya llenos con eventos autorizados): DiMa no los ofrece.
+  try {
+    const todos = await llenosProximos();
+    const llenos = todos.filter(d => d.negocios.length);
+    const casa = todos.filter(d => d.casaIsabella);
+    if (llenos.length) {
+      avisos.push(`DÍAS SIN CUPO (ya están llenos): ${llenos.map(d => `${d.fecha} (${d.negocios.map(n => n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna').join(' y ')})`).join(', ')}. Si el cliente pide una de esas fechas para ese negocio, dile: "Lamentablemente esa fecha la tenemos llena y ya no podemos cubrir tu evento", y ofrécele otras fechas cercanas que no estén en esta lista; no registres el pedido en esa fecha.`);
+    }
+    if (casa.length) {
+      avisos.push(`CASA ISABELLA YA APARTADA: ${casa.map(d => d.fecha).join(', ')}. Si el cliente quiere el salón Casa Isabella en una de esas fechas, dile: "Esa fecha ya no está disponible" y ofrécele otras fechas para el salón; no registres el salón en esa fecha. El mobiliario a domicilio sí se puede ese día si no está en DÍAS SIN CUPO.`);
+    }
+  } catch (err) {
+    console.error('No se pudieron leer los días llenos:', err.message);
   }
 
   // Días que la gerencia bloqueó en el calendario: DiMa no los ofrece.
