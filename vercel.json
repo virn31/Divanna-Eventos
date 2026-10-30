@@ -12,6 +12,12 @@
   "functions": {
     "api/dima-chat.js": {
       "maxDuration": 60
+    },
+    "api/telegram.js": {
+      "maxDuration": 60
+    },
+    "api/dashboard-eventos.js": {
+      "maxDuration": 60
     }
   }
 }

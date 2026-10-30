@@ -30,6 +30,7 @@ const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_cu
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
+const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -214,6 +215,14 @@ async function atenderBoton(cb) {
   if (!colaborador) return responderBoton(cb.id, 'Primero vincula tu Telegram con /entrar.', true);
 
   const [tipo, accion, id, sel] = dato.split(':');
+  // Comanda leída de foto: Guardar (g) o Descartar (x).
+  if (tipo === 'cm' && (accion === 'g' || accion === 'x')) {
+    await responderBoton(cb.id, accion === 'g' ? 'Guardando…' : '');
+    const r = await Comanda.atenderBoton(accion, id, colaborador);
+    if (r.texto) await editarTelegram(chatId, mensajeId, cb.message.text || '');
+    await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
+    return;
+  }
   if (tipo === 'inv' && (accion === 's' || accion === 'n')) {
     const r = await responderInvitacion(colaborador, id, accion === 's');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
@@ -331,6 +340,9 @@ async function responder(mensaje) {
     return (await puedeCoordinar(colaborador)) ? agregarStaff(colaborador, texto) : 'Esta opción es solo para Ángela, Diana y Víctor.';
   }
 
+  // Corrección de una comanda leída, escrita encima del borrador.
+  if (Comanda.esRespuestaComanda(mensaje)) return Comanda.atenderCorreccion(mensaje, colaborador);
+
   // Monto o explicación del cuadre, escritos encima de la pregunta de DiMa.
   if (esRespuestaCuadre(mensaje)) return atenderRespuestaCuadre(mensaje, colaborador);
 
@@ -404,17 +416,25 @@ module.exports = async (req, res) => {
 
   const mensaje = (req.body || {}).message;
   // Siempre 200 a Telegram (si no, reintenta el mismo mensaje una y otra vez).
-  if (!mensaje || !mensaje.chat || typeof mensaje.text !== 'string') { res.status(200).json({ ok: true }); return; }
+  if (!mensaje || !mensaje.chat || (typeof mensaje.text !== 'string' && !Comanda.esFotoComanda(mensaje))) { res.status(200).json({ ok: true }); return; }
 
   try {
     if (mensaje.chat.type !== 'private') {
+      if (typeof mensaje.text !== 'string') { res.status(200).json({ ok: true }); return; }
       // Si alguien escribe su PIN en un grupo, se intenta borrar.
       if (mensaje.text.toLowerCase().startsWith('/entrar')) await borrarMensaje(mensaje.chat.id, mensaje.message_id);
       if (mensaje.text.startsWith('/')) {
         await enviarTelegram(mensaje.chat.id, 'Escríbeme por mensaje privado: aquí no puedo mostrar información del equipo.');
       }
     } else {
-      const respuesta = await responder(mensaje);
+      // Foto de una comanda en papel: DiMa la lee y deja un borrador con botones.
+      let respuesta;
+      if (Comanda.esFotoComanda(mensaje)) {
+        const colaborador = await colaboradorPorChat(mensaje.chat.id);
+        respuesta = colaborador ? await Comanda.atenderFoto(mensaje, colaborador) : 'Primero vincula tu Telegram con /entrar usuario PIN.';
+      } else {
+        respuesta = await responder(mensaje);
+      }
       if (respuesta && typeof respuesta === 'object') await enviarTelegram(mensaje.chat.id, respuesta.texto, respuesta.botones);
       else if (respuesta) await enviarTelegram(mensaje.chat.id, respuesta);
     }

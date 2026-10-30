@@ -22,6 +22,7 @@ const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES }
 const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
+const { sincronizarSheets, sheetsConfigurado, enviarRecibo } = require('./_sheets');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -144,7 +145,14 @@ async function nombresDe(f) {
 
 // Deja Google igual que el EVENTO: lo crea, lo actualiza o lo borra.
 // Devuelve { ok, accion, error } y nunca lanza (el motivo se muestra a quien hizo el cambio).
+// Google completo: Calendar + Sheets de pedidos (api/_sheets.js). ok solo si los dos salieron.
 async function sincronizarEvento(eventoId) {
+  const [cal, sheets] = await Promise.all([sincronizarCalendario(eventoId), sincronizarSheets(eventoId)]);
+  if (sheets.ok) return { ...cal, sheets };
+  return { ...cal, ok: false, error: [cal.ok ? '' : cal.error, sheets.error].filter(Boolean).join(' · '), sheets };
+}
+
+async function sincronizarCalendario(eventoId) {
   if (!googleConfigurado()) return { ok: false, error: 'Google Calendar no está configurado en Vercel.' };
   try {
     const r = await airtable(`${TABLES.EVENTOS}/${eventoId}`);
@@ -207,6 +215,7 @@ async function vistaMes(colaborador, mes) {
     puedeEditar: esEditor(colaborador),
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
+    catalogo: colaborador.rol === ROLES.ADMIN ? CLAVES.filter(k => k !== 'otro').map(k => ({ clave: k, nombre: `${PRODUCTOS[k].negocio === NEGOCIOS.VM ? 'VM · ' : 'DV · '}${PRODUCTOS[k].nombre}` })) : null,
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     eventos: eventos.map(r => {
       const f = r.fields;
@@ -507,7 +516,9 @@ async function capturarEvento(colaborador, b) {
   }
   const google = await sincronizarEvento(eventoId);
   const diaLleno = await avisarSiLleno(b.fecha, negocio);
-  return { ok: true, eventoId, folio, diaLleno, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
+  // Con anticipo: el recibo en PDF para mandarlo al cliente.
+  const recibo = anticipoGuardado && sheetsConfigurado() ? await enviarRecibo(eventoId, 'anticipo recibido') : null;
+  return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
 }
 
 // Pasa a Google los eventos autorizados de hoy en adelante que todavía no están
@@ -517,7 +528,9 @@ const TANDA = 20;
 async function sincronizarPendientes(colaborador) {
   if (colaborador.rol !== ROLES.ADMIN) return { error: 'Solo Diana y Víctor.', codigo: 403 };
   if (!googleConfigurado()) return { error: 'Google Calendar no está configurado en Vercel.' };
-  const formula = `AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), {Google_Evento_ID} = "", NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${hoyCuliacan()}"))))`;
+  // Faltan los que no están en Calendar o (si ya hay hojas) no están en Sheets.
+  const falta = sheetsConfigurado() ? 'OR({Google_Evento_ID} = "", NOT({En_Sheets}))' : '{Google_Evento_ID} = ""';
+  const formula = `AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), ${falta}, NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${hoyCuliacan()}"))))`;
   const pendientes = await todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=Folio_Evento`);
   const tanda = pendientes.slice(0, TANDA);
   const errores = [];
@@ -530,6 +543,7 @@ async function sincronizarPendientes(colaborador) {
 }
 
 module.exports = {
+  fechaTexto,
   avisarSiLleno,
   llenosProximos,
   olvidarLlenos,

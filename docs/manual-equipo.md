@@ -78,6 +78,18 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
   ingredientes. Sus respuestas le llegan a la gerente con copia a Diana y Víctor, y se ven en el evento.
 - No ve precios ni pagos de los pedidos.
 
+## Comandas en papel y recibos (Diana, Víctor y la gerente)
+
+- **Foto de la comanda:** mientras se acostumbran a la app, pueden seguir llenando la comanda a mano. Tómenle
+  foto y mándenla al bot de Telegram (o en el calendario: **➕ Capturar evento** → **📷 Llenar con la foto de una
+  comanda**). DiMa la lee y muestra lo que entendió y lo que no se lee bien. Nada se guarda hasta tocar
+  **✅ Guardar evento** (en la app, **Guardar evento**). Si algo está mal, en Telegram contesten **encima** del
+  borrador con la corrección ("la fecha es el 28, el anticipo fue en transferencia").
+- La gerente solo puede capturar comandas de El Vaso Maíz.
+- **Recibo:** cuando se registra un anticipo o un pago, a Diana y Víctor (y a la gerente si es de El Vaso Maíz)
+  les llega por Telegram el recibo en PDF para reenviárselo al cliente. También se pide cuando quieran con
+  **🧾 Mandar recibo** en el evento del calendario.
+
 ## Cambios que pide el cliente
 
 - Cuando un cliente cambia su pedido, a Diana y Víctor (y a la gerente si es de El Vaso Maíz) les suena la app
