@@ -18,7 +18,8 @@ const { ROLES, COLABORADORES_TABLE, esVasoMaiz } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
-const { capacidadEvento, leerProductos } = require('./_productos');
+const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES } = require('./_productos');
+const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
 const { reenviarPorCambio } = require('./_produccion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -197,6 +198,8 @@ async function vistaMes(colaborador, mes) {
   return {
     mes,
     puedeEditar: esEditor(colaborador),
+    // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
+    catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     eventos: eventos.map(r => {
       const f = r.fields;
@@ -377,6 +380,89 @@ async function desbloquear(colaborador, body) {
   return { ok: true };
 }
 
+// ---------- Capturar un evento a mano (➕ en el calendario) ----------
+// Para los eventos que se apartaron fuera del chat (teléfono, en persona). Entra
+// YA AUTORIZADO (sin cotización), con su checklist de carga; el cliente se busca
+// por teléfono (si no existe se crea); el anticipo recibido queda como pago a
+// Diana (así el cuadre y "por cobrar" ya lo saben). Diana y Víctor cualquier
+// negocio; la gerente solo El Vaso Maíz.
+const TABLA_CLIENTES = 'tblgViisKQRG9TVjh';
+const TABLA_COBROS = 'tblb8ADFukpm6nRZV';
+const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Depósito'];
+
+function montoValido(valor) {
+  const n = Math.round(Number(String(valor == null ? '' : valor).replace(/[$,\s]/g, '')) * 100) / 100;
+  return Number.isFinite(n) && n > 0 && n <= 10000000 ? n : null;
+}
+
+async function capturarEvento(colaborador, b) {
+  const nombre = String(b.clienteNombre || '').trim().slice(0, 80);
+  const tel = String(b.clienteTelefono || '').replace(/\D/g, '').slice(-10);
+  const negocio = b.negocio;
+  if (!nombre) return { error: 'Escribe el nombre del cliente.' };
+  if (tel.length !== 10) return { error: 'El teléfono del cliente debe tener 10 dígitos.' };
+  if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio)) return { error: 'Elige el negocio.' };
+  if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && negocio === NEGOCIOS.VM)) return { error: 'Solo puedes capturar eventos de El Vaso Maíz.', codigo: 403 };
+  if (!esFecha(b.fecha)) return { error: 'Elige la fecha del evento.' };
+  const hora = String(b.hora || '');
+  if (hora && !esHora(hora)) return { error: 'La hora debe ser como 18:00.' };
+  const horas = b.horasServicio === '' || b.horasServicio == null ? null : Number(b.horasServicio);
+  if (horas !== null && !(horas >= 1 && horas <= 12)) return { error: 'Las horas de servicio van de 1 a 12.' };
+  const servicios = String(b.servicios || '').trim().slice(0, 4000);
+  if (!servicios) return { error: 'Escribe qué lleva el evento (uno por línea).' };
+  const contratado = montoValido(b.montoContratado);
+  if (!contratado) return { error: 'Escribe el monto contratado.' };
+  const anticipo = b.anticipo === '' || b.anticipo == null ? null : montoValido(b.anticipo);
+  if (b.anticipo && !anticipo) return { error: 'El anticipo no es un monto válido.' };
+  if (anticipo && !FORMAS_PAGO.includes(b.formaAnticipo)) return { error: 'Elige cómo se pagó el anticipo.' };
+  if (anticipo && anticipo > contratado) return { error: 'El anticipo es mayor que lo contratado.' };
+  const productos = normalizarProductos(Array.isArray(b.productos) ? b.productos : []);
+  const invitados = Number(b.invitados) > 0 && Number(b.invitados) < 100000 ? Math.round(Number(b.invitados)) : null;
+
+  // Cliente: el que ya tenga ese teléfono, o uno nuevo.
+  let cliente = await buscarClientePorTelefono(tel);
+  const clienteNuevo = !cliente;
+  if (!cliente) {
+    const nuevo = await airtable(TABLA_CLIENTES, { method: 'POST', body: JSON.stringify({ records: [{ fields: { Nombre: nombre, Telefono_WhatsApp: `+52${tel}`, Tipo_Cliente: 'Particular', Nivel: 'Nuevo' } }] }) });
+    cliente = nuevo.records[0];
+  }
+
+  const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  const items = servicios.split('\n').map(s => s.trim()).filter(Boolean);
+  const campos = {
+    Folio_Evento: folio,
+    Estado: 'Reservacion confirmada',
+    Cliente: [cliente.id],
+    Negocio: negocio,
+    Fecha_Evento: b.fecha,
+    Servicios_Solicitados: servicios,
+    Autorizacion_Diana: 'SI',
+    Monto_Estimado_IA: contratado,
+    Items_Detallados_Cotizacion: items.join('\n'),
+    Checklist_Items: items.join('\n'),
+    Checklist_Items_Marcados: '[]',
+    Notas: `Evento capturado a mano por ${colaborador.nombre} en el calendario (${fechaCorta()}).${b.notas ? '\n' + String(b.notas).slice(0, 2000) : ''}`,
+    ...camposAgenda({ horaInicio: hora, horasServicio: horas, productos }),
+  };
+  if (String(b.ubicacion || '').trim()) campos.Ubicacion = String(b.ubicacion).trim().slice(0, 200);
+  if (invitados) campos.Invitados = invitados;
+  if (String(b.instrucciones || '').trim()) campos.Instrucciones_Equipo = String(b.instrucciones).trim().slice(0, 2000);
+  const creado = await airtable(TABLES.EVENTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
+  const eventoId = creado.records[0].id;
+
+  // El anticipo ya recibido entra como pago a Diana (cuadre y por cobrar).
+  let anticipoGuardado = false;
+  if (anticipo) {
+    await airtable(TABLA_COBROS, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
+      Concepto: `${folio} · anticipo a ${colaborador.nombre}`, Monto: anticipo, Forma: b.formaAnticipo, Fecha: hoyCuliacan(),
+      Negocio: negocio, Evento: [eventoId], Recibido_Por: 'Diana', Reportado_Por: [colaborador.id],
+    } }] }) });
+    anticipoGuardado = true;
+  }
+  const google = await sincronizarEvento(eventoId);
+  return { ok: true, eventoId, folio, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
+}
+
 // Pasa a Google los eventos autorizados de hoy en adelante que todavía no están
 // (los autorizados antes de que existiera la sincronización). En tandas, para
 // no pasar el tiempo límite de Vercel. Solo Admin.
@@ -397,6 +483,7 @@ async function sincronizarPendientes(colaborador) {
 }
 
 module.exports = {
+  capturarEvento,
   sincronizarPendientes,
   NEGOCIOS,
   esEditor,

@@ -116,6 +116,7 @@ window.DimaCalendario = (function(){
     const bloqueos = diaSel ? (bloqDia[diaSel] || []) : datos.bloqueos;
     const negociosBloqueo = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Ambos', 'Divanna Eventos', 'El Vaso Maiz'];
     panel.querySelector('#calCuerpo').innerHTML = `
+      ${datos.puedeEditar ? `<div class="cal-form" style="margin-top:12px;"><button data-cal="nuevo">➕ Capturar evento</button></div><div id="calNuevo"></div>` : ''}
       <div class="cal-nav"><button data-cal="mes" data-n="-1">‹</button><span>${e(textoMes(mes))}</span><button data-cal="mes" data-n="1">›</button></div>
       <div class="cal-ley"><span><i style="background:${COLOR['Divanna Eventos']};"></i>Divanna</span><span><i style="background:${COLOR['El Vaso Maiz']};"></i>El Vaso Maíz</span><span>⛔ día bloqueado</span></div>
       <div class="cal-grid">${['L','M','M','J','V','S','D'].map(x => `<div class="cal-dsem">${x}</div>`).join('')}${celdas}</div>
@@ -146,6 +147,72 @@ window.DimaCalendario = (function(){
     return `✅ Listo.${avisos}${google}`;
   }
 
+  // ---------- ➕ Capturar evento (los que se apartaron fuera del chat) ----------
+  // Entra ya autorizado; el anticipo queda como pago a Diana (cuadre).
+  function filaProducto(){
+    const e = o.esc;
+    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto de El Vaso Maíz —</option>${(datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
+  }
+
+  function formularioNuevo(){
+    const e = o.esc;
+    const caja = panel.querySelector('#calNuevo');
+    if(caja.innerHTML){ caja.innerHTML = ''; return; }
+    const negocios = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Divanna Eventos', 'El Vaso Maiz'];
+    caja.innerHTML = `
+      <div class="cal-ev" style="--c:var(--maiz);">
+        <b>➕ Capturar evento</b>
+        <div class="cal-sub">Para los eventos que ya se apartaron por teléfono o en persona. Entra ya autorizado y avisa al calendario de Google.</div>
+        <div class="cal-form">
+          <input id="calNNombre" maxlength="80" placeholder="Nombre del cliente">
+          <input id="calNTel" inputmode="tel" maxlength="15" placeholder="Teléfono del cliente (10 dígitos)">
+          <select id="calNNeg">${negocios.map(n => `<option value="${e(n)}">${e(NOMBRE[n])}</option>`).join('')}</select>
+          <label class="cal-sub">Fecha <input type="date" id="calNFecha" value="${diaSel || ''}"></label>
+          <label class="cal-sub">Hora de inicio <input type="time" id="calNHora"></label>
+          <label class="cal-sub">Horas de servicio <input type="number" id="calNHoras" min="1" max="12" step="0.5" placeholder="Ej. 2"></label>
+          <input id="calNLugar" maxlength="200" placeholder="Lugar (colonia, salón o dirección)">
+          <input id="calNInv" type="number" min="1" placeholder="Invitados">
+          <textarea id="calNServ" rows="4" maxlength="4000" placeholder="Qué lleva, uno por línea (sale como checklist de carga)" style="padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
+          <div id="calProdsCaja"><div class="cal-sub">El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
+          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (total)">
+          <div style="display:flex; gap:6px;"><input id="calNAnt" inputmode="decimal" placeholder="Anticipo ya recibido (si hubo)" style="flex:1;"><select id="calNAntForma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></div>
+          <input id="calNInstr" maxlength="2000" placeholder="Instrucciones para el equipo (opcional)">
+          <button data-cal="capturar">Guardar evento</button>
+          <div class="cal-msg" id="calNMsg"></div>
+        </div>
+      </div>`;
+    const negSel = caja.querySelector('#calNNeg');
+    const prods = caja.querySelector('#calProdsCaja');
+    const ver = () => { prods.hidden = negSel.value !== 'El Vaso Maiz'; };
+    negSel.addEventListener('change', ver); ver();
+  }
+
+  async function capturar(b){
+    const e = o.esc;
+    const v = (id) => panel.querySelector('#' + id).value;
+    const msg = panel.querySelector('#calNMsg');
+    const negocio = v('calNNeg');
+    const productos = negocio === 'El Vaso Maiz' ? [...panel.querySelectorAll('.cal-prod')]
+      .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value) }))
+      .filter(p => p.clave && p.cantidad > 0) : [];
+    b.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await post({
+        accion: 'capturar_evento', clienteNombre: v('calNNombre'), clienteTelefono: v('calNTel'), negocio,
+        fecha: v('calNFecha'), hora: v('calNHora'), horasServicio: v('calNHoras'), ubicacion: v('calNLugar'), invitados: v('calNInv'),
+        servicios: v('calNServ'), productos, montoContratado: v('calNMonto'), anticipo: v('calNAnt'), formaAnticipo: v('calNAntForma'), instrucciones: v('calNInstr'),
+      });
+      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''} Ahora asígnale brigada en el dashboard.`;
+      if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
+      setTimeout(cargar, 3500);
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo guardar, intenta de nuevo.');
+      b.disabled = false;
+    }
+  }
+
   async function post(cuerpo){
     return o.api('/api/dashboard-eventos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
   }
@@ -159,6 +226,9 @@ window.DimaCalendario = (function(){
     if(accion === 'mes'){ mes = moverMes(mes, Number(b.dataset.n)); diaSel = null; cargar(); return; }
     if(accion === 'dia'){ diaSel = diaSel === b.dataset.f ? null : b.dataset.f; pintar(); return; }
     if(accion === 'todo'){ diaSel = null; pintar(); return; }
+    if(accion === 'nuevo'){ formularioNuevo(); return; }
+    if(accion === 'otro-producto'){ panel.querySelector('#calProds').insertAdjacentHTML('beforeend', filaProducto()); return; }
+    if(accion === 'capturar'){ capturar(b); return; }
     const tarjeta = b.closest('.cal-ev');
     const zona = tarjeta && tarjeta.querySelector('.cal-zona');
     const evento = tarjeta && datos.eventos.find(x => x.id === tarjeta.dataset.ev);
