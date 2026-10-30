@@ -246,3 +246,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor; antes DiMa no sabía si el salón estaba apartado y solo Diana lo veía en el semáforo después de recibir el pedido.
 
 **Descartado:** revisar el salón por horas (podrían caber dos eventos de 5 h en un día, pero se deja conservador como el resto del día lleno). Se usa "tu" en vez de "su" porque DiMa le habla de tú al cliente.
+
+## 2026-10-29 — Google Sheets de pedidos con las plantillas de Diana
+
+**Decisión:** una hoja de Google por negocio, hecha con las plantillas Divanna_Pedidos y VasoMaiz_Pedidos. Por cada evento autorizado DiMa crea una pestaña de recibo (copia de la plantilla, nombre = folio EVT) y un renglón en la lista "Pedidos"; lo actualiza con cada cambio del evento. Solo se usa el folio EVT (se deja la numeración del recibo de papel). Sustituye el renglón que se agregaba en `GOOGLE_SHEET_ID`.
+
+**Por qué:** lo pidió Víctor con las dos plantillas; así los recibos salen solos con los datos de la app.
+
+**Descartado:** solo la lista (el recibo seguiría a mano), PDF (más trabajo y otra ruta; se puede descargar de Sheets), y numeración propia en Sheets o dos números (Víctor eligió solo el folio EVT). En "Ambos" no se reparte el total entre negocios: queda en blanco y Diana lo divide.
+
+**Nota:** la plantilla de El Vaso Maíz restaba `B32-B33` (celdas vacías) en "Resto a pagar"; en las pestañas que crea DiMa se escribe `D32-D33`.

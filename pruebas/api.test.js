@@ -26,7 +26,17 @@ Module._load = function (req, parent, ...rest) {
       insert: async (p) => { googleCal.push({ op: 'insert', ...p }); return { data: { id: 'gcal' + googleCal.length, htmlLink: 'x' } }; },
       update: async (p) => { googleCal.push({ op: 'update', ...p }); return { data: {} }; },
       delete: async (p) => { googleCal.push({ op: 'delete', ...p }); return {}; },
-    } }), sheets: () => ({ spreadsheets: { values: { append: async () => ({}) } } }) } };
+    } }), sheets: () => ({ spreadsheets: {
+      get: async () => ({ data: { sheets: hojaPrueba.pestanas.map((t, i) => ({ properties: { title: t, sheetId: i + 1 } })) } }),
+      batchUpdate: async (p) => { googleSheets.push({ op: 'batchUpdate', ...p }); const d = p.requestBody.requests[0].duplicateSheet; if (d) hojaPrueba.pestanas.push(d.newSheetName); return {}; },
+      values: {
+        append: async () => ({}),
+        batchClear: async (p) => { googleSheets.push({ op: 'clear', ...p }); return {}; },
+        batchUpdate: async (p) => { googleSheets.push({ op: 'celdas', ...p }); return {}; },
+        get: async () => ({ data: { values: hojaPrueba.lista } }),
+        update: async (p) => { googleSheets.push({ op: 'renglon', ...p }); return {}; },
+      },
+    } }) } };
   }
   if (req === '@anthropic-ai/sdk') return { Anthropic: AnthropicMock };
   if (req === 'web-push') {
@@ -43,6 +53,8 @@ Module._load = function (req, parent, ...rest) {
 
 const llamadas = [];
 const googleCal = [];
+const googleSheets = [];
+let hojaPrueba = { pestanas: [], lista: [] };
 let bloqueosPrueba = [];
 let bloqueoLeido = null;
 let llenosPrueba = []; // eventos autorizados que lee diasLlenos (días sin cupo)
@@ -115,7 +127,7 @@ process.env.GOOGLE_PRIVATE_KEY = 'llave-de-prueba';
 process.env.GOOGLE_CALENDAR_ID = 'calendario@prueba.com';
 
 const ok = (cond, msg) => { console.log((cond ? 'PASA ' : 'FALLA') + ' - ' + msg); if (!cond) process.exitCode = 1; };
-const reset = () => { require(path.join(repo, 'api/_calendario.js')).olvidarLlenos(); llenosPrueba = []; googleCal.length = 0; bloqueosPrueba = []; bloqueoLeido = null; mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
+const reset = () => { require(path.join(repo, 'api/_calendario.js')).olvidarLlenos(); llenosPrueba = []; googleCal.length = 0; googleSheets.length = 0; bloqueosPrueba = []; bloqueoLeido = null; mapaCaido = false; telegramFalla = false; llamadas.length = 0; correos.length = 0; pushes.length = 0; telegram.length = 0; llamadasClaude.length = 0; respuestas = []; respuestasClaude = []; };
 
 const ADMIN = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true } };
 const LIDER = { id: 'recCOLAB000000002', fields: { Nombre: 'Juan', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000001'] } };
@@ -1959,4 +1971,60 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await pedido({ method: 'POST', body: { nombre: 'Sol', telefono: '6674445566', negocio: 'Divanna Eventos', fecha: '2026-12-24', enCiudad: 'si', servicios: 'Mesas para 50' } }, res);
   const evTemp = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
   ok(res.code === 200 && evTemp.Notas.includes('Temporada alta') && correos[0].text.includes('TEMPORADA ALTA'), 'temporada: el pedido del 24 de diciembre llega marcado a Diana');
+  // ---------- Google Sheets de pedidos (api/_sheets.js) ----------
+  {
+    const sh = require(path.join(repo, 'api/_sheets.js'));
+    process.env.GOOGLE_SHEET_DIVANNA = 'hojaDivanna';
+    process.env.GOOGLE_SHEET_VASOMAIZ = 'hojaVasoMaiz';
+    const EV_SH = { id: 'recEVSHEETS00001', createdTime: '2026-10-28T18:00:00.000Z', fields: { Folio_Evento: 'EVT-111222', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Fecha_Evento: '2026-11-27', Hora_Inicio: '18:00', Ubicacion: 'La Campiña', Monto_Estimado_IA: 2500, Cliente: ['recCLIENTESHEET1'], COBROS: ['recCOBROSHEET001'],
+      Productos: JSON.stringify([{ clave: 'dv_paq50_jardin_basico', cantidad: 1 }, { clave: 'dv_lona', cantidad: 1, nota: 'Feliz cumpleaños' }]) } };
+    reset();
+    hojaPrueba = { pestanas: ['Pedido', 'Pedidos'], lista: [['Recibo Nº', 'Cliente'], ['2000', 'Perla Ayon'], [], [], ['', '', '', 'Totales']] };
+    respuestas = [EV_SH, { fields: { Nombre: 'Laura Pérez', Telefono_WhatsApp: '+526961007116' } }, { records: [{ fields: { Monto: 500 } }] }];
+    const r1 = await sh.sincronizarSheets('recEVSHEETS00001');
+    const dup = googleSheets.find(g => g.op === 'batchUpdate');
+    const celdas = googleSheets.find(g => g.op === 'celdas').requestBody.data;
+    const celda = (c) => (celdas.find(x => x.range === `'EVT-111222'!${c}`) || { values: [[undefined]] }).values[0];
+    const renglon = googleSheets.find(g => g.op === 'renglon');
+    ok(llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.En_Sheets === true), 'sheets: marca el evento como pasado a Sheets');
+    ok(r1.ok && r1.accion === 'creado' && dup.spreadsheetId === 'hojaDivanna' && dup.requestBody.requests[0].duplicateSheet.sourceSheetId === 1 && dup.requestBody.requests[0].duplicateSheet.newSheetName === 'EVT-111222',
+      'sheets: al autorizar copia la plantilla del recibo en una pestaña con el folio');
+    ok(celda('B5')[0] === 'EVT-111222' && celda('B6')[0] === 'Laura Pérez' && celda('B7')[0] === '696 100 7116' && celda('B9')[0] === '6:00 pm' && celda('D29')[0] === 2500 && celda('D30')[0] === 500
+      && celdas.some(x => x.range.includes('A17:E17') && x.values[0][1] > 0) && celdas.some(x => x.values[0][0] === 'Lona personalizada' && x.values[0][2] === 'Feliz cumpleaños'),
+      'sheets: el recibo trae folio, cliente, teléfono, hora, artículos, total y anticipo');
+    ok(renglon.range === "'Pedidos'!A3:I3" && renglon.requestBody.values[0][0] === 'EVT-111222' && renglon.requestBody.values[0][5] === 2500 && renglon.requestBody.values[0][6] === 500
+      && renglon.requestBody.values[0][7] === '=IF(F3="","",F3-G3)' && renglon.requestBody.values[0][8] === 'Anticipo recibido',
+      'sheets: agrega el pedido en el primer renglón libre de la lista (no toca los que ya estaban)');
+
+    reset();
+    hojaPrueba = { pestanas: ['Pedido', 'Pedidos', 'EVT-111222'], lista: [['Recibo Nº'], ['2000'], ['EVT-111222', 'Laura Pérez'], [], ['', '', '', 'Totales']] };
+    respuestas = [{ ...EV_SH, fields: { ...EV_SH.fields, Fecha_Evento: '2026-11-28' } }, { fields: { Nombre: 'Laura Pérez' } }, { records: [] }];
+    const r2 = await sh.sincronizarSheets('recEVSHEETS00001');
+    ok(r2.ok && r2.accion === 'actualizado' && !googleSheets.some(g => g.op === 'batchUpdate') && googleSheets.find(g => g.op === 'renglon').range === "'Pedidos'!A3:I3",
+      'sheets: si el evento cambia, actualiza su pestaña y su renglón (no duplica)');
+
+    reset();
+    hojaPrueba = { pestanas: ['Comanda', 'Pedidos'], lista: [['Folio'], ['', '', '', '', 'Totales']] };
+    respuestas = [{ id: 'recEVSHEETS00002', createdTime: '2026-10-28T18:00:00.000Z', fields: { Folio_Evento: 'EVT-333444', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Fecha_Evento: '2026-12-26', Monto_Estimado_IA: 4435, Piezas_Vaso_Maiz: 90, Notas: 'Tipo de evento: Posada',
+      Productos: JSON.stringify([{ clave: 'vm_paquete_3', cantidad: 1 }]) } }];
+    const r3 = await sh.sincronizarSheets('recEVSHEETS00002');
+    const celdasVm = googleSheets.find(g => g.op === 'celdas').requestBody.data;
+    const insertado = googleSheets.find(g => g.op === 'batchUpdate' && g.requestBody.requests[0].insertDimension);
+    ok(r3.ok && googleSheets.every(g => !g.spreadsheetId || g.spreadsheetId === 'hojaVasoMaiz') && celdasVm.some(x => x.range === "'EVT-333444'!B6" && x.values[0][0] === 'Posada')
+      && celdasVm.some(x => x.range === "'EVT-333444'!D34" && x.values[0][0] === '=D32-D33') && insertado && googleSheets.find(g => g.op === 'renglon').range === "'Pedidos'!A2:J2",
+      'sheets: El Vaso Maíz va a su hoja (Comanda), corrige el resto a pagar y si la lista está llena mete un renglón');
+
+    reset();
+    respuestas = [{ id: 'recEVSHEETS00003', fields: { Folio_Evento: 'EVT-555666', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'Pendiente' } }];
+    const r4 = await sh.sincronizarSheets('recEVSHEETS00003');
+    ok(r4.ok && r4.accion === 'nada' && !googleSheets.length, 'sheets: un pedido sin autorizar no va a la hoja');
+
+    reset();
+    hojaPrueba = { pestanas: ['Hoja 1'], lista: [] };
+    respuestas = [EV_SH, { fields: {} }, { records: [] }];
+    const r5 = await sh.sincronizarSheets('recEVSHEETS00001');
+    ok(!r5.ok && r5.error.includes('falta la pestaña "Pedido"'), 'sheets: si la hoja no tiene la plantilla, lo dice (no truena)');
+    delete process.env.GOOGLE_SHEET_DIVANNA;
+    delete process.env.GOOGLE_SHEET_VASOMAIZ;
+  }
 })();

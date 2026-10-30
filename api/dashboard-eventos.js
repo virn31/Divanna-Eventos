@@ -27,7 +27,7 @@
 // evento autorizado de El Vaso Maíz desde la app; es lo mismo que /staff en
 // Telegram y les llega la invitación con "Sí puedo / No puedo".
 
-const { agregarFilaCotizacion, enviarCotizacionPorCorreo } = require('./_google-integrations');
+const { enviarCotizacionPorCorreo } = require('./_google-integrations');
 const C = require('./_calendario');
 const { sincronizarEvento } = C;
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
@@ -377,7 +377,6 @@ async function resolverPedido(req, res, colaborador) {
     const calendario = sincronizarEvento(eventoId).then(r => { if (!r.ok) erroresGoogle.push(r.error); return r.ok; });
     const resultados = await Promise.all([
       calendario,
-      agregarFilaCotizacion({ ...datosEvento, clienteNombre, clienteTelefono }, erroresGoogle),
       clienteEmail ? enviarCotizacionPorCorreo({ ...datosEvento, emailCliente: clienteEmail }, erroresGoogle) : Promise.resolve(true),
     ]);
     googleOk = resultados.every(Boolean);

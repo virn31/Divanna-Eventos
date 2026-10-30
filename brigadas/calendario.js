@@ -132,7 +132,7 @@ window.DimaCalendario = (function(){
       ${lista.length ? lista.map(tarjetaEvento).join('') : `<div class="cal-sub" style="margin-top:8px;">${diaSel ? 'No hay eventos este día.' : 'No hay eventos autorizados este mes.'}</div>`}
       ${datos.puedeEditar && !datos.soloVasoMaiz ? `
         <div class="cal-sec">📆 Google Calendar</div>
-        <div class="cal-sub">Los eventos que se autorizaron antes de conectar Google no están ahí. Este botón los pasa (de hoy en adelante, 20 por vez).</div>
+        <div class="cal-sub">Los eventos que se autorizaron antes de conectar Google no están en Calendar ni en las hojas de pedidos (Sheets). Este botón los pasa (de hoy en adelante, 20 por vez).</div>
         <div class="cal-form"><button class="sec" data-cal="sincronizar">🔄 Pasar los eventos a Google</button><div class="cal-msg" id="calSyncMsg"></div></div>` : ''}
       ${datos.puedeEditar ? `
         <div class="cal-sec">⛔ Bloquear un día</div>
@@ -271,7 +271,7 @@ window.DimaCalendario = (function(){
         d = await post({ accion: 'desbloquear_dia', bloqueoId: b.dataset.id });
       } else if(accion === 'sincronizar'){
         d = await post({ accion: 'calendario_sincronizar' });
-        msg.innerHTML = `📆 Pasados a Google: ${d.pasados}.${d.faltan ? ` Faltan ${d.faltan}: toca otra vez.` : ' Ya están todos.'}${(d.errores || []).length ? '<br>⚠️ ' + d.errores.map(e).join('<br>⚠️ ') : ''}`;
+        msg.innerHTML = `📆 Pasados a Google (Calendar y Sheets): ${d.pasados}.${d.faltan ? ` Faltan ${d.faltan}: toca otra vez.` : ' Ya están todos.'}${(d.errores || []).length ? '<br>⚠️ ' + d.errores.map(e).join('<br>⚠️ ') : ''}`;
         b.disabled = false;
         return;
       } else { b.disabled = false; return; }
