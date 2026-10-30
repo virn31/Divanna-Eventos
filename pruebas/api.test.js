@@ -903,6 +903,25 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/pedidos') }, res);
   ok(respuestaTg().includes('EVT-7') && respuestaTg().includes('$6,000'), 'telegram: /pedidos del Admin lista los pendientes con estimado');
 
+  // /anuncio: Diana o Víctor le escriben a todo el equipo (sin el staff), con saltos de línea.
+  reset();
+  respuestas = [{ records: [ADMIN] }, { records: [
+    { id: ADMIN.id, fields: { ...ADMIN.fields, Telegram_Chat_ID: '901' } },
+    { id: LIDER.id, fields: { ...LIDER.fields, Telegram_Chat_ID: '902' } },
+    { id: 'recCOLABSTAFF0091', fields: { Nombre: 'Lucía', Rol: 'Staff', Activo: true, Telegram_Chat_ID: '903' } },
+  ] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/anuncio Hola, equipo.\n\nGracias por todo.') }, res);
+  const anuncios = telegram.filter(t => t.metodo === 'sendMessage' && t.body.text === 'Hola, equipo.\n\nGracias por todo.');
+  ok(anuncios.length === 2 && anuncios.some(t => t.body.chat_id === '902') && !anuncios.some(t => t.body.chat_id === '903') && respuestaTg().includes('enviado a 2 personas'),
+    'telegram: /anuncio llega al equipo tal cual (con saltos de línea), sin el staff, y dice a cuántos');
+
+  reset();
+  respuestas = [{ records: [LIDER] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/anuncio hola a todos') }, res);
+  ok(respuestaTg().includes('solo para Diana y Víctor') && !telegram.some(t => t.body.text === 'hola a todos'), 'telegram: /anuncio solo para Diana y Víctor');
+
   reset();
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/entrar Juan 123456', -100, 'group') }, res);

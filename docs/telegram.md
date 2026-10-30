@@ -9,6 +9,7 @@ de la app, y desde ahí:
 - Diana y Víctor (Admin) reciben además los **pedidos nuevos**, los **cambios** que piden los
   clientes en el chat de DiMa y el **balance semanal**.
 - Consultas: `/hoy`, `/eventos`, `/alertas`, `/pedidos` (solo Admin), `/salir`, `/ayuda`.
+- `/anuncio texto` (solo Admin): manda el texto tal cual, con sus saltos de línea, a todo el equipo con Telegram vinculado (Admin, líderes, asistentes y encargadas; el staff no) y responde a cuántos les llegó.
 
 Para marcar checklist o cambiar estatus se sigue usando la app.
 

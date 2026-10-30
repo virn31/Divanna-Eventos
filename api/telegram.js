@@ -20,7 +20,7 @@
 
 const { ROLES, iniciarSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
-const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat } = require('./_telegram');
+const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo } = require('./_telegram');
 const {
   puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
   pedirAlta, esRespuestaAlta, agregarStaff, activarStaff, enlaceActivacion,
@@ -103,7 +103,7 @@ function ayuda(colaborador) {
     '/alertas — emergencias y alertas de seguridad de hoy',
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
-  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/configurar — activar botones y comandos del bot');
+  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
@@ -319,6 +319,18 @@ async function atenderBoton(cb) {
   return responderBoton(cb.id);
 }
 
+// /anuncio <texto>: Diana o Víctor le mandan un mensaje a todo el equipo con
+// Telegram vinculado (Admin, líderes, asistentes y encargadas; el staff no).
+// El texto va tal cual, con sus saltos de línea. Responde a cuántos les llegó.
+const ROLES_ANUNCIO = [ROLES.ADMIN, ROLES.LIDER, ROLES.ASISTENTE, ROLES.ENCARGADA];
+async function anunciar(cuerpo) {
+  if (!cuerpo) return 'Escribe el anuncio después del comando, en el mismo mensaje:\n/anuncio Hola equipo, …\nLe llega a todas las brigadas, encargadas, Diana y Víctor (el staff no).';
+  if (cuerpo.length > 3800) return `El anuncio es muy largo (${cuerpo.length} letras). El máximo es 3,800: divídelo en dos.`;
+  const errores = [];
+  const enviados = await enviarTelegramEquipo({ texto: cuerpo, roles: ROLES_ANUNCIO, errores });
+  return `📣 Anuncio enviado a ${enviados} persona${enviados === 1 ? '' : 's'} del equipo.${errores.length ? `\n⚠️ No les llegó a: ${errores.join(' · ')}` : ''}\nQuien no tiene Telegram vinculado no lo recibe.`;
+}
+
 async function responder(mensaje) {
   const chatId = mensaje.chat.id;
   const texto = String(mensaje.text || '').trim();
@@ -368,6 +380,8 @@ async function responder(mensaje) {
       return colaborador.rol === ROLES.ADMIN ? configurarBot() : 'Esa opción es solo para Diana y Víctor.';
     case '/pedidos':
       return colaborador.rol === ROLES.ADMIN ? listaPedidos() : 'Esa consulta es solo para Diana y Víctor.';
+    case '/anuncio':
+      return colaborador.rol === ROLES.ADMIN ? anunciar(texto.slice(primera.length).trim()) : 'Esa opción es solo para Diana y Víctor.';
     case '/salir':
       await guardarChat(colaborador.id, '');
       return 'Listo, desvinculé este Telegram. Ya no te llegarán avisos aquí. Para volver: /entrar tuusuario tuPIN';
