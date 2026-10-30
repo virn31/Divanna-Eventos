@@ -2389,8 +2389,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(r.code === 200 && sis.includes('letrero genérico del evento') && sis.includes('NO lleva el nombre del festejado') && sis.includes('Mampara con Lona Personalizada')
       && sis.includes('diseño CIRCULAR') && sis.includes('encargado asignado') && !sis.includes('con nombre personalizado\''),
       'política: DiMa sabe que el letrero es genérico y que nombre o personaje es lona personalizada con cargo extra');
-    ok(sis.includes('a más tardar 24 horas antes') && sis.includes('pasar a la oficina') && sis.includes('DEPÓSITO EN GARANTÍA') && sis.includes('no des una cifra') && sis.includes('mínimo de $500 para asegurar la fecha') && sis.includes('una silla desde $700') && sis.includes('responsable_recoleccion'),
-      'política: DiMa explica liquidación 24 h antes, efectivo, depósito (sin inventar monto) y pregunta quién entrega');
+    ok(sis.includes('a más tardar 24 horas antes') && sis.includes('pasar a la oficina') && sis.includes('DEPÓSITO EN GARANTÍA') && sis.includes('$1,000, el mismo para cualquier pedido con mobiliario') && sis.includes('mínimo de $500 para asegurar la fecha') && sis.includes('una silla desde $700') && sis.includes('responsable_recoleccion'),
+      'política: DiMa explica liquidación 24 h antes, efectivo, depósito ($1,000 estándar) y pregunta quién entrega');
 
     reset();
     respuestasClaude = [{ stop_reason: 'tool_use', content: [

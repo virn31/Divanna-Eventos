@@ -13,8 +13,8 @@ const LINK_PAGINA_PRINCIPAL = 'https://divanna-eventos.vercel.app';
 const HORAS_LIQUIDACION = 24;   // el total se cubre al menos 24 h antes del evento
 const ANTICIPO_DIVANNA = 500;   // mínimo para asegurar la fecha (igual que El Vaso Maíz)
 // Depósito en garantía del mobiliario: un monto estándar para todo pedido con
-// mobiliario (Víctor, 2026-10-30). Pendiente la cifra.
-const DEPOSITO_MOBILIARIO = null;
+// mobiliario (Víctor, 2026-10-30): $1,000.
+const DEPOSITO_MOBILIARIO = 1000;
 // Lo que cuesta reponer (Víctor, 2026-10-30): si se daña o falta algo se cobra a
 // este precio. El precio exacto por artículo vive en INVENTARIO.Precio_Reposicion.
 const EJEMPLOS_REPOSICION = 'una silla desde $700, una copa $100, una mesa $2,500';
