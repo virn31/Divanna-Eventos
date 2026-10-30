@@ -28,27 +28,28 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-29 (cierre de la noche) · **Rama de trabajo:** `main` (todo publicado; ramas del día ya unidas: `dia-lleno`, `sheets` y las de la tarde) · **Producción:** `main` en `6eb4bdc`, despliegue verificado (caché `dima-brigadas-v20`). Rama aparte sin publicar: `entrenar-dima`. **314 pruebas pasan.**
+**Actualizado:** 2026-10-30 (cierre) · **Rama de trabajo:** `main` (todo publicado; ramas del día `arreglos-apk` y `homepage` ya unidas) · **Producción:** `main` en `1dae774` + este cierre, despliegue verificado (caché `dima-brigadas-v23`). Rama aparte sin publicar: `entrenar-dima`. **335 pruebas pasan.**
 
-**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs -e production -s 48h --json`); Claude no puede `vercel env add` ni `vercel redeploy`: se le da a Víctor el comando con `!`. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`; el proyecto `dima-os-513103` NO está en las cuentas de Chrome de Claude (virn31, vivamedik836), Víctor entra con otra. API de Sheets activa; la de Drive no (no hace falta). Llave local en `Downloads\dima-os-513103-eb75c647cb3d.json` (nunca al repo).
+**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs -e production -s 48h --json`); Claude no puede `vercel env add` ni `vercel redeploy`. Las variables marcadas sensitive salen como `[SENSITIVE]` en `vercel env pull` (por ejemplo `GOOGLE_CALENDAR_ID`): no se pueden leer. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en `Downloads\dima-os-513103-eb75c647cb3d.json` (nunca al repo); entra a las dos hojas (`Divanna_Pedidos`, `VasoMaiz_Pedidos`).
 
-**Publicado en la tarde/noche:**
-- **Cuadre del dinero** (solo Diana y Víctor), **calendario del equipo** + Google Calendar "DiMa Eventos" (cuenta virn31), ➕ **Capturar evento**, **rediseño visual** (negro puro, tarjetas, pestañas, Inter; `brigadas/tema.css`).
-- **Día lleno** (`cupoDelDia`/`diasLlenos` en `_agenda.js`): Divanna con 9 entregas, El Vaso Maíz con 6 equipos o sin personal. Calendario marca LLENO, aviso a Diana/Víctor (y Ángela si es VM), DiMa no ofrece el día y dice "Lamentablemente esa fecha la tenemos llena y ya no podemos cubrir tu evento" + hasta 3 fechas libres. **Casa Isabella** apartada → "esa fecha ya no está disponible" + fechas libres del salón (todo el día, conservador).
-- **Google Sheets de pedidos** (`api/_sheets.js`): hojas Divanna_Pedidos y VasoMaiz_Pedidos (Hojas de Google de Víctor, compartidas como Editor; `GOOGLE_SHEET_DIVANNA`, `GOOGLE_SHEET_VASOMAIZ` en Vercel). Por evento: pestaña de recibo con el folio EVT + renglón en "Pedidos". `GOOGLE_SHEET_ID` ya no se usa.
-- **Recibo en PDF por Telegram** al registrar anticipo/pago (captura, cuadre, reporte aprobado) o con 🧾 **Mandar recibo** en el calendario.
-- **Comanda en papel por foto** (`api/_comanda.js`): foto a @dimaclnbot o 📷 en ➕ Capturar evento; DiMa la lee con visión, muestra dudas, guarda solo al confirmar; foto en `EVENTOS.Foto_Comanda`.
-- DiMa en el chat pide dirección exacta y modelo/color de cada producto.
+**Publicado hoy:**
+- **Comanda por foto** arreglada (app y Telegram daban error): la API rechazaba `forma_anticipo` con enum + null. Prueba que revisa el esquema.
+- **💵 Registrar pago** en el calendario (Diana y Víctor): anticipo, abono o liquidación como pago a Diana + recibo PDF.
+- **Ficha de identificación por evento** (app del equipo y dashboard de Diana): ficha corta que se abre al tocarla. **💰 Dinero** (líder, encargada, gerente, Admin; no asistente): total, pagado, falta, cliente y teléfono; registrar cobro (la brigada al reporte del día, también de otro día con `desdeFicha`; Admin con `registrar_pago`); **daños y faltantes** con `INVENTARIO.Precio_Reposicion` (o monto a mano marcado para revisar), suman al total del cuadre y del recibo, aviso a Admin por Telegram. Código: `api/_cargos.js`, `brigadas/dinero.js`. Campos nuevos: `INVENTARIO.Precio_Reposicion`, `EVENTOS.Cargos_Extra`, `EVENTOS.Cargos_Extra_Total`.
+- **DiMa ya no se traba después de mandar fotos**: sabe de qué es cada foto, la comenta y no repite las que el cliente ya vio.
+- **La conversación con DiMa ya no se muestra** en el dashboard (sigue en `EVENTOS.Notas`).
+- **Homepage nuevo** inspirado en DuoFankaar: titular grande, cinta de fotos, servicios numerados (con Casa Isabella), paquetes con precio "desde", galería real, preguntas frecuentes, botón flotante en celular. Fotos en `img/home/` recortadas sin texto ni teléfonos. Precios copiados de `_dima-catalogo.js` (si cambian, actualizar los dos).
 
-**Airtable hoy:** tablas MOVIMIENTOS_CAJA `tbl9UVlnxzfXscnW5`, DIAS_BLOQUEADOS `tblHSdMCxW2kkiiC9`, COMANDAS_FOTO `tblNYrh2wjsYgHfmf`; EVENTOS `Cuadre_Estado`, `Cuadre_Notas`, `Cuadre_Preguntado`, `Descuento`, `Cancelado`, `Google_Evento_ID`, `En_Sheets`, `Foto_Comanda`; COBROS `Recibido_Por`.
+**Limpieza para iniciar en real (30 oct):** los 5 eventos eran prueba (Víctor lo confirmó). EVT-182088, EVT-750236, EVT-413125 y EVT-581563 quedaron Cancelado + Autorización NO + Cerrado (EVT-358132 ya lo estaba), sin avisar al equipo. Se borraron sus 2 anticipos de prueba en COBROS. En las hojas, los renglones EVT-581563 y EVT-182088 dicen "Cancelado (prueba)". No se tocaron: reportes del día (parecen gastos reales), clientes de prueba, el renglón 2 de cada hoja ni las pestañas EVT-.
 
-**Sin probar en real (Víctor lo hace):**
-1. Diana toca **🔄 Pasar los eventos a Google** en el calendario (20 por vez) para meter a las hojas los eventos ya autorizados.
-2. Foto de una comanda real a @dimaclnbot: revisar qué tan bien la lee (Descartar si es prueba).
-3. 🧾 Mandar recibo en un evento autorizado: revisar el PDF que llega.
-4. Lo anterior: todos tocan "Activar alertas"; borrar en BALANCES el duplicado `rec374o2IWhy1bBph`; compartir "DiMa Eventos" con divannaeventos@gmail.com y Ángela.
+**Pendientes de Víctor:**
+1. **Borrar en Google Calendar ("DiMa Eventos") los 4 eventos de prueba:** EVT-182088 (26 dic), EVT-750236 (20 dic), EVT-413125 (5 nov), EVT-581563 (15 dic). Claude no tiene el ID del calendario.
+2. Poner **precios de reposición** en INVENTARIO (`Precio_Reposicion`).
+3. Probar en el teléfono: daño/faltante, cobro desde la ficha, foto de comanda (Descartar si es prueba), recibo.
+4. Si quiere, borrar en las hojas las pestañas EVT-581563 y EVT-182088 y sus renglones, y en BALANCES el duplicado `rec374o2IWhy1bBph`.
+5. De antes: todos tocan "Activar alertas"; compartir "DiMa Eventos" con divannaeventos@gmail.com y Ángela.
 
-**Siguiente (pedido de Víctor para mañana):**
-1. **Mejorar la experiencia de usuario del homepage** (https://divanna-eventos.vercel.app/, `index.html`): "me gusta, pero lo podemos mejorar". Empezar revisándolo en el navegador (móvil y escritorio) y proponer mejoras concretas antes de tocar; respetar marca y colores; el chat con DiMa y el formulario de respaldo deben seguir funcionando igual.
-2. Pendientes de antes: identificador de eventos con nombre y teléfono del cliente; DiMa no repide datos al abrir un pedido existente; reconocer y categorizar clientes (decoradores, frecuentes, malos).
-3. Después: Fase 4 proveedores (brigada propone, Diana aprueba), pago automático (procesador sin decidir; no hay funciones libres: 12 de 12).
+**Siguiente (pedido de Víctor):**
+1. **Carpeta en Google Drive con subcarpetas** para que la página y DiMa sean dinámicas: paquetes actualizados, precios por temporada, promociones (con fechas) y galería. DECIDIDO: Google Drive (Diana sube sola). Antes: activar **Google Drive API** en `dima-os-513103` y compartir la carpeta como Editor con la cuenta de servicio. Propuesta de estructura: `divanna/paquetes`, `vaso-maiz/paquetes`, `casa-isabella`, `promociones`, `temporadas`, `galeria`. Ojo: no hay funciones libres (12 de 12); leerlo desde `dima-chat` o una acción existente, con caché.
+2. Fotos originales de El Vaso Maíz, Casa Isabella y montajes de Divanna (Instagram/Facebook no se pueden leer sin sesión; Chrome con la extensión estaba desconectado).
+3. Pendientes de antes: DiMa no repide datos al abrir un pedido existente; reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
