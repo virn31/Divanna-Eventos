@@ -31,13 +31,14 @@ const PLANTILLAS = {
   [DV]: {
     variable: 'GOOGLE_SHEET_DIVANNA',
     pestana: 'Pedido',
-    limpiar: ['B5:B10', 'B13', 'A17:E27', 'D29:D30'], // B11-B12 (entrega) se llenan a mano
+    // B11-B12 (entrega) se llenan a mano. A33:E35: notas internas de la plantilla (no van al cliente).
+    limpiar: ['B5:B10', 'B13', 'A17:E27', 'D29:D30', 'A33:E35'],
     articulos: { desde: 17, hasta: 27 },
   },
   [VM]: {
     variable: 'GOOGLE_SHEET_VASOMAIZ',
     pestana: 'Comanda',
-    limpiar: ['B5:B11', 'A15:B15', 'D15:E15', 'A19:E30', 'D33'],
+    limpiar: ['B5:B11', 'A15:B15', 'D15:E15', 'A19:E30', 'D33', 'A36:E38'], // A36:E38: notas internas
     articulos: { desde: 19, hasta: 30 },
   },
 };
