@@ -13,6 +13,7 @@
 // (Diana pide corregir; se puede editar y volver a enviar). Aprobado ya no cambia.
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { enviarPushEquipo } = require('./_push');
 const { alcanceDe } = require('./_eventos');
@@ -481,7 +482,14 @@ async function revisar(colaborador, body) {
     avisado = (await enviarTelegram(chat, texto)).ok;
   }
   await enviarPushEquipo({ titulo: aprobar ? '✅ Reporte aprobado' : '✏️ Diana pidió una aclaración', cuerpo: `Tu reporte del ${r.fecha}`, soloColaboradores: [r.colaboradorId], url: '/brigadas/' }).catch(() => 0);
-  return { ok: true, avisado };
+  // Cobros aprobados: el recibo actualizado de cada evento (para reenviarlo al cliente).
+  let recibos = 0;
+  if (aprobar && r.cobroIds.length && sheetsConfigurado()) {
+    const { cobros } = await detalleDe([r]);
+    const eventos = [...new Set((cobros.get(r.id) || []).map(c => c.eventoId).filter(Boolean))].slice(0, 5);
+    for (const id of eventos) { if ((await enviarRecibo(id, 'pago cobrado por la brigada')).ok) recibos++; }
+  }
+  return { ok: true, avisado, recibos };
 }
 
 async function marcarReembolsado(colaborador, body) {

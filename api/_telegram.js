@@ -36,6 +36,17 @@ async function telegramApi(metodo, cuerpo) {
   return { ok: res.ok && data.ok, status: res.status, data };
 }
 
+// Archivo (por ejemplo el PDF del recibo). Multipart, no JSON.
+async function enviarDocumento(chatId, contenido, nombre, texto = '', tipo = 'application/pdf') {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  if (texto) form.append('caption', texto.slice(0, 1024));
+  form.append('document', new Blob([contenido], { type: tipo }), nombre);
+  const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendDocument`, { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  return { ok: !!(res.ok && data.ok), error: data.description || '' };
+}
+
 // Botones bajo el mensaje: lista de renglones de { texto, dato } (dato = callback_data, máx. 64 bytes).
 function teclado(botones) {
   return { inline_keyboard: botones.map(fila => fila.map(b => ({ text: b.texto, callback_data: b.dato }))) };
@@ -147,6 +158,7 @@ module.exports = {
   telegramConfigurado,
   telegramApi,
   enviarTelegram,
+  enviarDocumento,
   editarTelegram,
   responderBoton,
   borrarMensaje,

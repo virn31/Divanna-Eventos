@@ -22,7 +22,7 @@ const origLoad = Module._load;
 Module._load = function (req, parent, ...rest) {
   if (req === 'nodemailer') return { createTransport: () => ({ sendMail: async (m) => { correos.push(m); } }) };
   if (req === 'googleapis') {
-    return { google: { auth: { JWT: function () {} }, calendar: () => ({ events: {
+    return { google: { auth: { JWT: function () { this.getAccessToken = async () => ({ token: 'tok' }); } }, calendar: () => ({ events: {
       insert: async (p) => { googleCal.push({ op: 'insert', ...p }); return { data: { id: 'gcal' + googleCal.length, htmlLink: 'x' } }; },
       update: async (p) => { googleCal.push({ op: 'update', ...p }); return { data: {} }; },
       delete: async (p) => { googleCal.push({ op: 'delete', ...p }); return {}; },
@@ -96,9 +96,20 @@ global.fetch = async (url, opts = {}) => {
   if (decodeURIComponent(url).includes('NOT({Cancelado}), NOT(IS_BEFORE({Fecha_Evento}')) {
     return { ok: true, status: 200, json: async () => ({ records: llenosPrueba }), text: async () => '' };
   }
+  // PDF del recibo exportado de Google Sheets.
+  if (url.startsWith('https://docs.google.com/')) {
+    googleSheets.push({ op: 'pdf', url, auth: (opts.headers || {}).Authorization });
+    return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(16) };
+  }
+  // Foto que se baja de Telegram.
+  if (url.startsWith('https://api.telegram.org/file/')) {
+    return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array(Buffer.from('foto-de-la-comanda')).buffer };
+  }
   // Las llamadas a Telegram se registran aparte y no consumen respuestas de Airtable.
   if (url.startsWith('https://api.telegram.org/')) {
-    telegram.push({ metodo: url.split('/').pop(), body: JSON.parse(opts.body) });
+    const cuerpo = opts.body instanceof FormData ? Object.fromEntries([...opts.body.entries()].map(([k, v]) => [k, typeof v === 'string' ? v : '(archivo)'])) : JSON.parse(opts.body);
+    telegram.push({ metodo: url.split('/').pop(), body: cuerpo });
+    if (url.endsWith('/getFile')) return { ok: true, status: 200, json: async () => ({ ok: true, result: { file_path: 'photos/comanda.jpg' } }), text: async () => '' };
     if (telegramFalla) return { ok: false, status: 400, json: async () => ({ ok: false, description: 'Bad Request: chat not found' }), text: async () => '' };
     return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
   }
@@ -2024,7 +2035,102 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [EV_SH, { fields: {} }, { records: [] }];
     const r5 = await sh.sincronizarSheets('recEVSHEETS00001');
     ok(!r5.ok && r5.error.includes('falta la pestaña "Pedido"'), 'sheets: si la hoja no tiene la plantilla, lo dice (no truena)');
+    // Recibo en PDF por Telegram (al registrar un anticipo o a petición).
+    reset();
+    hojaPrueba = { pestanas: ['Pedido', 'Pedidos', 'EVT-111222'], lista: [['Recibo Nº'], ['EVT-111222']] };
+    const EV_REC = { ...EV_SH, fields: { ...EV_SH.fields, En_Sheets: true } };
+    const CLI_REC = { fields: { Nombre: 'Laura Pérez', Telefono_WhatsApp: '+526961007116' } };
+    respuestas = [EV_REC, CLI_REC, { records: [{ fields: { Monto: 500 } }] }, EV_REC, CLI_REC, { records: [{ fields: { Monto: 500 } }] },
+      { records: [{ id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Telegram_Chat_ID: '111' } }, { id: 'recCOLAB000000008', fields: { Nombre: 'Ángela G', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Telegram_Chat_ID: '444' } }] }];
+    const rec = await sh.enviarRecibo('recEVSHEETS00001', 'anticipo recibido');
+    const doc = telegram.filter(t => t.metodo === 'sendDocument');
+    ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000')
+      && googleSheets.some(g => g.op === 'pdf' && g.url.includes('format=pdf') && g.url.includes('gid=3') && g.auth === 'Bearer tok'),
+      'recibo: sale el PDF de la pestaña del evento y le llega a Diana por Telegram (de Divanna no a la gerente)');
     delete process.env.GOOGLE_SHEET_DIVANNA;
     delete process.env.GOOGLE_SHEET_VASOMAIZ;
+    reset();
+    ok((await sh.enviarRecibo('recEVSHEETS00001')).error.includes('no está configurado') && !llamadas.length, 'recibo: sin Sheets configurado lo dice y no hace nada');
+  }
+
+  // ---------- Comanda en papel → evento (api/_comanda.js) ----------
+  {
+    const LEIDA = { negocio: 'Divanna Eventos', cliente_nombre: 'Perla Ayon', cliente_telefono: '696 100 7116', fecha: '2026-11-27', hora: '17:00', horas_servicio: null, ubicacion: 'La Campiña', invitados: 45,
+      productos: [{ clave: 'dv_silla_jardin', cantidad: 45, nota: null }, { clave: 'dv_mesa_10_jardin', cantidad: 4, nota: 'cuadradas' }], lineas: ['4 mesas cuadradas', '4 manteles básicos beige', '45 sillas Jardín'],
+      total: 2500, anticipo: 500, forma_anticipo: null, numero_recibo: '2000', notas: null, dudas: ['El total parece 2500 (confirmar).'] };
+    const claudeLee = (x = LEIDA) => [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'datos_comanda', input: x }] }];
+
+    // App: la foto llena el formulario.
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee();
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    const pedidoVision = llamadasClaude[0];
+    ok(res.code === 200 && res.body.datos.clienteTelefono === '6961007116' && res.body.datos.servicios.includes('45 sillas Jardín') && res.body.datos.notas.includes('Nº 2000')
+      && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')) && pedidoVision.messages[0].content[0].type === 'image' && pedidoVision.tools[0].strict === true,
+      'comanda: en la app DiMa lee la foto y devuelve los datos del formulario con lo que falta');
+
+    reset();
+    respuestas = [ADMIN];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'x', tipo: 'application/pdf' } } }, res);
+    ok(res.code === 400 && llamadasClaude.length === 0, 'comanda: solo acepta fotos');
+
+    reset();
+    respuestas = [LIDER];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    ok(res.code === 403 && llamadasClaude.length === 0, 'comanda: un líder no puede leer comandas');
+
+    // Telegram: Diana manda la foto → borrador con botones.
+    const DIANA_TG = { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '111' } };
+    reset();
+    respuestas = [{ records: [DIANA_TG] }, { records: [{ id: 'recCOMANDA0000001' }] }, {}];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'Efectivo' });
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 20, chat: { id: 111, type: 'private' }, photo: [{ file_id: 'chica' }, { file_id: 'grande', file_size: 90000 }], caption: 'de Divanna' } } }, res);
+    const borrador = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    const subida = llamadas.find(l => l.url.includes('content.airtable.com') && l.url.includes('recCOMANDA0000001'));
+    ok(res.code === 200 && telegram.some(t => t.metodo === 'getFile' && t.body.file_id === 'grande') && borrador.body.text.startsWith('🧾 Comanda leída') && borrador.body.text.includes('Perla Ayon')
+      && borrador.body.text.includes('Borrador: recCOMANDA0000001') && JSON.stringify(borrador.body.reply_markup).includes('cm:g:recCOMANDA0000001') && subida
+      && llamadasClaude[0].messages[0].content[1].text.includes('de Divanna'),
+      'comanda: por Telegram DiMa lee la foto, guarda la foto y deja un borrador con Guardar / Descartar');
+
+    // Corrección escrita encima del borrador.
+    reset();
+    const DATOS_B = require(path.join(repo, 'api/_comanda.js')).aCaptura({ ...LEIDA, forma_anticipo: 'Efectivo' });
+    respuestas = [{ records: [DIANA_TG] }, { id: 'recCOMANDA0000001', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_B) } }, {}];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'Efectivo', fecha: '2026-11-28', dudas: [] });
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 21, chat: { id: 111, type: 'private' }, text: 'la fecha es el 28',
+      reply_to_message: { message_id: 19, from: { is_bot: true }, text: '🧾 Comanda leída (borrador)\n…\nBorrador: recCOMANDA0000001' } } } }, res);
+    const parche = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblNYrh2wjsYgHfmf'));
+    ok(parche && JSON.parse(parche.body.records[0].fields.Datos).fecha === '2026-11-28' && llamadasClaude[0].messages[0].content[0].text.includes('la fecha es el 28')
+      && telegram.filter(t => t.metodo === 'sendMessage').pop().body.text.includes('sáb'.slice(0, 0) + 'Borrador: recCOMANDA0000001'),
+      'comanda: contestando encima del borrador DiMa lo corrige');
+
+    // ✅ Guardar: crea el evento con la foto y el anticipo.
+    reset();
+    respuestas = [{ records: [DIANA_TG] },
+      { id: 'recCOMANDA0000001', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_B), Foto: [{ url: 'https://dl.airtable.com/comanda.jpg', filename: 'comanda.jpg' }] } },
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND1', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00001' }] }, {},
+      { id: 'recEVCOMANDA00001', fields: { Folio_Evento: 'EVT-CMD', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb9', data: 'cm:g:recCOMANDA0000001', message: { message_id: 22, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
+    const evCmd = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+    const anticipoCmd = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+    const fotoEv = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6') && l.body.records[0].fields.Foto_Comanda);
+    ok(evCmd.Autorizacion_Diana === 'SI' && evCmd.Monto_Estimado_IA === 2500 && evCmd.Notas.includes('Comanda de papel Nº 2000') && evCmd.Checklist_Items.includes('45 sillas Jardín')
+      && anticipoCmd && anticipoCmd.body.records[0].fields.Monto === 500 && fotoEv && fotoEv.body.records[0].fields.Foto_Comanda[0].url === 'https://dl.airtable.com/comanda.jpg'
+      && llamadas.some(l => l.method === 'PATCH' && l.url.includes('tblNYrh2wjsYgHfmf') && l.body.records[0].fields.Estado === 'Guardada')
+      && telegram.filter(t => t.metodo === 'sendMessage').pop().body.text.includes('✅ Evento'),
+      'comanda: al tocar Guardar crea el evento autorizado, el anticipo y le pega la foto');
+
+    reset();
+    respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 23, chat: { id: 222, type: 'private' }, photo: [{ file_id: 'x' }] } } }, res);
+    ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('solo para Diana')), 'comanda: un líder no puede mandar comandas a leer');
   }
 })();

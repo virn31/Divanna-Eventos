@@ -19,6 +19,7 @@
 const { google } = require('googleapis');
 const { esVasoMaiz } = require('./_sesion');
 const { PRODUCTOS, leerProductos, inventarioRequerido } = require('./_productos');
+const { enviarDocumento } = require('./_telegram');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = { EVENTOS: 'tblzLAin65BZPP2c6', CLIENTES: 'tblgViisKQRG9TVjh', COBROS: 'tblb8ADFukpm6nRZV' };
@@ -50,14 +51,14 @@ async function airtable(path, options = {}) {
   return res.json();
 }
 
-function sheetsGoogle() {
-  const auth = new google.auth.JWT({
+function authGoogle() {
+  return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-  return google.sheets({ version: 'v4', auth });
 }
+const sheetsGoogle = () => google.sheets({ version: 'v4', auth: authGoogle() });
 
 const configurado = (negocio) => !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env[PLANTILLAS[negocio].variable]);
 const telefonoTexto = (t) => { const d = String(t || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}` : String(t || ''); };
@@ -254,4 +255,52 @@ async function sincronizarSheets(eventoId) {
 
 const sheetsConfigurado = () => configurado(DV) || configurado(VM);
 
-module.exports = { sincronizarSheets, sheetsConfigurado, celdasRecibo, renglonLista, articulosDe, negociosDe };
+// ---------- Recibo en PDF (pestaña del folio) ----------
+// Se exporta solo esa pestaña, tamaño carta, ajustada al ancho.
+async function reciboPdf(folio, negocio) {
+  const spreadsheetId = process.env[PLANTILLAS[negocio].variable];
+  const meta = await sheetsGoogle().spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
+  const hoja = meta.data.sheets.map(s => s.properties).find(h => h.title === folio);
+  if (!hoja) throw new Error(`no está la pestaña ${folio}`);
+  const { token } = await authGoogle().getAccessToken();
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=pdf&gid=${hoja.sheetId}&size=letter&portrait=true&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenum=false&fzr=false`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Google no dio el PDF (${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+// Actualiza la hoja y manda el recibo en PDF por Telegram a Diana y Víctor (y a
+// la gerente si es de El Vaso Maíz) para que se lo reenvíen al cliente.
+// Devuelve { ok, enviados } o { ok: false, error }. Nunca lanza.
+async function enviarRecibo(eventoId, motivo = '') {
+  if (!sheetsConfigurado()) return { ok: false, error: 'Google Sheets todavía no está configurado.' };
+  try {
+    const s = await sincronizarSheets(eventoId);
+    if (!s.ok) return s;
+    const d = await leerDatos(eventoId);
+    const negocios = negociosDe(d.f).filter(configurado);
+    const formula = encodeURIComponent('AND({Activo}, OR({Rol} = "Admin", {Gerente_Vaso_Maiz}))');
+    const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${formula}`)).records || [])
+      .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || negocios.includes(VM)));
+    if (!gente.length) return { ok: false, error: 'Nadie tiene Telegram vinculado para recibir el recibo.' };
+    const resta = Math.max(0, d.total - d.pagado);
+    const texto = `🧾 Recibo ${d.folio}${motivo ? ' · ' + motivo : ''}\n${d.cliente || 'Cliente'} · ${d.f.Fecha_Evento || ''}\nTotal ${dinero(d.total)} · Pagado ${dinero(d.pagado)} · Resta ${dinero(resta)}\nReenvíaselo al cliente.`;
+    let enviados = 0;
+    const errores = [];
+    for (const negocio of negocios) {
+      const pdf = await reciboPdf(d.folio, negocio);
+      const nombre = `Recibo ${d.folio}${negocios.length > 1 ? (negocio === VM ? ' El Vaso Maiz' : ' Divanna') : ''}.pdf`;
+      for (const c of gente) {
+        if (negocio === DV && c.fields.Rol !== 'Admin') continue; // la gerente solo lo de El Vaso Maíz
+        const r = await enviarDocumento(c.fields.Telegram_Chat_ID, pdf, nombre, texto);
+        if (r.ok) enviados++; else errores.push(`${c.fields.Nombre || 'alguien'}: ${r.error}`);
+      }
+    }
+    return enviados ? { ok: true, enviados, errores } : { ok: false, error: errores.join(' · ') || 'No se envió.' };
+  } catch (err) {
+    console.error('Error mandando el recibo:', err.message);
+    return { ok: false, error: `Recibo: ${err.message}` };
+  }
+}
+
+module.exports = { sincronizarSheets, sheetsConfigurado, enviarRecibo, celdasRecibo, renglonLista, articulosDe, negociosDe };

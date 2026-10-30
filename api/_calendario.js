@@ -22,7 +22,7 @@ const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES }
 const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
-const { sincronizarSheets, sheetsConfigurado } = require('./_sheets');
+const { sincronizarSheets, sheetsConfigurado, enviarRecibo } = require('./_sheets');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -215,6 +215,7 @@ async function vistaMes(colaborador, mes) {
     puedeEditar: esEditor(colaborador),
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
+    catalogo: colaborador.rol === ROLES.ADMIN ? CLAVES.filter(k => k !== 'otro').map(k => ({ clave: k, nombre: `${PRODUCTOS[k].negocio === NEGOCIOS.VM ? 'VM · ' : 'DV · '}${PRODUCTOS[k].nombre}` })) : null,
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     eventos: eventos.map(r => {
       const f = r.fields;
@@ -515,7 +516,9 @@ async function capturarEvento(colaborador, b) {
   }
   const google = await sincronizarEvento(eventoId);
   const diaLleno = await avisarSiLleno(b.fecha, negocio);
-  return { ok: true, eventoId, folio, diaLleno, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
+  // Con anticipo: el recibo en PDF para mandarlo al cliente.
+  const recibo = anticipoGuardado && sheetsConfigurado() ? await enviarRecibo(eventoId, 'anticipo recibido') : null;
+  return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
 }
 
 // Pasa a Google los eventos autorizados de hoy en adelante que todavía no están
@@ -540,6 +543,7 @@ async function sincronizarPendientes(colaborador) {
 }
 
 module.exports = {
+  fechaTexto,
   avisarSiLleno,
   llenosProximos,
   olvidarLlenos,

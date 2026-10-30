@@ -40,6 +40,8 @@ const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { confirmarCambio, descartarCambio } = require('./_cambios');
+const Comanda = require('./_comanda');
+const { enviarRecibo } = require('./_sheets');
 const { leerCambio } = require('./_pedidos');
 const { porCobrarPeriodo } = require('./_finanzas');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
@@ -398,8 +400,29 @@ const ACCIONES_CALENDARIO = {
   bloquear_dia: C.bloquear,
   desbloquear_dia: C.desbloquear,
   calendario_sincronizar: C.sincronizarPendientes,
-  capturar_evento: C.capturarEvento,
+  capturar_evento: capturarConFoto,
+  leer_comanda: Comanda.leerParaFormulario,
+  enviar_recibo: reciboAPeticion,
 };
+
+// ➕ Capturar evento; si vino de una foto de comanda, la foto se adjunta al evento.
+async function capturarConFoto(colaborador, body) {
+  const r = await C.capturarEvento(colaborador, body);
+  if (!r.error && Comanda.fotoValida(body.fotoComanda)) {
+    r.fotoGuardada = await Comanda.subirAdjunto(r.eventoId, 'Foto_Comanda', body.fotoComanda).then(() => true).catch(err => { console.error('No se pudo adjuntar la comanda:', err.message); return false; });
+  }
+  return r;
+}
+
+// 🧾 Mandar recibo (calendario): Diana y Víctor cualquiera; la gerente los de El Vaso Maíz.
+async function reciboAPeticion(colaborador, body) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
+  const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
+  if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) return { error: 'Solo puedes mandar recibos de El Vaso Maíz.', codigo: 403 };
+  if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
+  const r = await enviarRecibo(body.eventoId, `lo pidió ${colaborador.nombre}`);
+  return r.ok ? { ok: true, enviados: r.enviados } : { error: r.error };
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

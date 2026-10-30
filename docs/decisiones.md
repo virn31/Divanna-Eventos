@@ -256,3 +256,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Descartado:** solo la lista (el recibo seguiría a mano), PDF (más trabajo y otra ruta; se puede descargar de Sheets), y numeración propia en Sheets o dos números (Víctor eligió solo el folio EVT). En "Ambos" no se reparte el total entre negocios: queda en blanco y Diana lo divide.
 
 **Nota:** la plantilla de El Vaso Maíz restaba `B32-B33` (celdas vacías) en "Resto a pagar"; en las pestañas que crea DiMa se escribe `D32-D33`.
+
+## 2026-10-29 — Recibo en PDF por Telegram y comandas en papel por foto
+
+**Decisión:** (1) Cuando se registra un anticipo o un pago, DiMa actualiza la hoja del negocio y manda la pestaña del recibo en PDF por Telegram a Diana y Víctor (y a la gerente si es de El Vaso Maíz); ellos se la reenvían al cliente. (2) Diana puede seguir llenando comandas a mano: manda la foto al bot o la sube en "➕ Capturar evento"; DiMa la lee con visión, muestra lo leído y las dudas, y solo se guarda al confirmar. La foto queda en el evento. (3) En el chat DiMa pide también nombre completo, dirección exacta y modelo/color de cada producto para que la comanda salga completa.
+
+**Por qué:** lo pidió Víctor: el recibo debe salir en cuanto hay anticipo y Diana necesita tiempo para dejar el papel.
+
+**Descartado:** mandar el recibo directo al cliente (no hay WhatsApp ni canal al cliente; lo reenvía el equipo), imagen en vez de PDF (el PDF sale directo de Sheets, sin librerías), y guardar la comanda sin confirmar (la letra a mano se lee mal a veces; un error crea un evento falso).

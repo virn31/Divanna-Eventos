@@ -91,7 +91,7 @@ window.DimaCalendario = (function(){
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
-        ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
+        ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button><button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
         <div class="cal-zona"></div>
       </div>`;
   }
@@ -161,7 +161,7 @@ window.DimaCalendario = (function(){
   // Entra ya autorizado; el anticipo queda como pago a Diana (cuadre).
   function filaProducto(){
     const e = o.esc;
-    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto de El Vaso Maíz —</option>${(datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
+    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
   }
 
   function formularioNuevo(){
@@ -174,6 +174,9 @@ window.DimaCalendario = (function(){
         <b>➕ Capturar evento</b>
         <div class="cal-sub">Para los eventos que ya se apartaron por teléfono o en persona. Entra ya autorizado y avisa al calendario de Google.</div>
         <div class="cal-form">
+          <button class="sec" data-cal="leer-foto">📷 Llenar con la foto de una comanda</button>
+          <input type="file" id="calNFoto" accept="image/*" hidden>
+          <div class="cal-msg" id="calNFotoMsg"></div>
           <input id="calNNombre" maxlength="80" placeholder="Nombre del cliente">
           <input id="calNTel" inputmode="tel" maxlength="15" placeholder="Teléfono del cliente (10 dígitos)">
           <select id="calNNeg">${negocios.map(n => `<option value="${e(n)}">${e(NOMBRE[n])}</option>`).join('')}</select>
@@ -184,7 +187,7 @@ window.DimaCalendario = (function(){
           <input id="calNLugar" maxlength="200" placeholder="Lugar (colonia, salón o dirección)">
           <input id="calNInv" type="number" min="1" placeholder="Invitados">
           <textarea id="calNServ" rows="4" maxlength="4000" placeholder="Qué lleva, uno por línea (sale como checklist de carga)" style="padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
-          <div id="calProdsCaja"><div class="cal-sub">El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
+          <div id="calProdsCaja"><div class="cal-sub">${datos.catalogo ? 'Productos del catálogo (con esto salen la producción, el personal y el inventario)' : 'El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)'}</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
           <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (total)">
           <div style="display:flex; gap:6px;"><input id="calNAnt" inputmode="decimal" placeholder="Anticipo ya recibido (si hubo)" style="flex:1;"><select id="calNAntForma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></div>
           <input id="calNInstr" maxlength="2000" placeholder="Instrucciones para el equipo (opcional)">
@@ -194,16 +197,66 @@ window.DimaCalendario = (function(){
       </div>`;
     const negSel = caja.querySelector('#calNNeg');
     const prods = caja.querySelector('#calProdsCaja');
-    const ver = () => { prods.hidden = negSel.value !== 'El Vaso Maiz'; };
+    const ver = () => { prods.hidden = !datos.catalogo && negSel.value !== 'El Vaso Maiz'; };
     negSel.addEventListener('change', ver); ver();
+    caja.querySelector('#calNFoto').addEventListener('change', (ev) => leerFoto(ev.target.files[0]));
   }
+
+  // 📷 Foto de la comanda: se achica en el teléfono, DiMa la lee y llena el formulario.
+  let fotoComanda = null;
+  function achicar(archivo){
+    return new Promise((ok, mal) => {
+      const img = new Image();
+      img.onload = () => {
+        const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const lienzo = document.createElement('canvas');
+        lienzo.width = Math.round(img.width * escala); lienzo.height = Math.round(img.height * escala);
+        lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        URL.revokeObjectURL(img.src);
+        ok({ base64: lienzo.toDataURL('image/jpeg', 0.85).split(',')[1], tipo: 'image/jpeg', nombre: 'comanda.jpg' });
+      };
+      img.onerror = () => mal(new Error('No pude abrir la foto.'));
+      img.src = URL.createObjectURL(archivo);
+    });
+  }
+  async function leerFoto(archivo){
+    const e = o.esc;
+    const msg = panel.querySelector('#calNFotoMsg');
+    if(!archivo) return;
+    msg.textContent = '📷 DiMa está leyendo la comanda… (unos segundos)';
+    try {
+      const foto = await achicar(archivo);
+      const r = await post({ accion: 'leer_comanda', imagen: foto });
+      const d = r.datos;
+      const poner = (id, valor) => { const el = panel.querySelector('#' + id); if(el && valor !== '' && valor != null) el.value = valor; };
+      poner('calNNombre', d.clienteNombre); poner('calNTel', d.clienteTelefono); poner('calNFecha', d.fecha); poner('calNHora', d.hora);
+      poner('calNHoras', d.horasServicio); poner('calNLugar', d.ubicacion); poner('calNInv', d.invitados); poner('calNServ', d.servicios);
+      poner('calNMonto', d.montoContratado); poner('calNAnt', d.anticipo); poner('calNAntForma', d.formaAnticipo);
+      const neg = panel.querySelector('#calNNeg');
+      if([...neg.options].some(op => op.value === d.negocio)){ neg.value = d.negocio; neg.dispatchEvent(new Event('change')); }
+      const lista = panel.querySelector('#calProds');
+      const validos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      if(validos.length){
+        lista.innerHTML = validos.map(() => filaProducto()).join('');
+        [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; });
+      }
+      fotoComanda = foto;
+      fotoNotas = d.notas || '';
+      const avisos = [...(d.dudas || []), ...(r.faltan || []).map(x => 'Falta: ' + x)];
+      msg.innerHTML = `✅ Listo, revisa cada dato antes de guardar.${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`;
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer la foto, intenta de nuevo.');
+    }
+  }
+  let fotoNotas = '';
 
   async function capturar(b){
     const e = o.esc;
     const v = (id) => panel.querySelector('#' + id).value;
     const msg = panel.querySelector('#calNMsg');
     const negocio = v('calNNeg');
-    const productos = negocio === 'El Vaso Maiz' ? [...panel.querySelectorAll('.cal-prod')]
+    const productos = !panel.querySelector('#calProdsCaja').hidden ? [...panel.querySelectorAll('.cal-prod')]
       .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value) }))
       .filter(p => p.clave && p.cantidad > 0) : [];
     b.disabled = true;
@@ -213,8 +266,10 @@ window.DimaCalendario = (function(){
         accion: 'capturar_evento', clienteNombre: v('calNNombre'), clienteTelefono: v('calNTel'), negocio,
         fecha: v('calNFecha'), hora: v('calNHora'), horasServicio: v('calNHoras'), ubicacion: v('calNLugar'), invitados: v('calNInv'),
         servicios: v('calNServ'), productos, montoContratado: v('calNMonto'), anticipo: v('calNAnt'), formaAnticipo: v('calNAntForma'), instrucciones: v('calNInstr'),
+        ...(fotoComanda ? { fotoComanda, notas: [fotoNotas, 'Capturado desde foto de comanda.'].filter(Boolean).join(' ') } : {}),
       });
-      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)} Ahora asígnale brigada en el dashboard.`;
+      fotoComanda = null; fotoNotas = '';
+      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
       if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
       setTimeout(cargar, 3500);
     } catch(err){
@@ -240,9 +295,21 @@ window.DimaCalendario = (function(){
     if(accion === 'nuevo'){ formularioNuevo(); return; }
     if(accion === 'otro-producto'){ panel.querySelector('#calProds').insertAdjacentHTML('beforeend', filaProducto()); return; }
     if(accion === 'capturar'){ capturar(b); return; }
+    if(accion === 'leer-foto'){ panel.querySelector('#calNFoto').click(); return; }
     const tarjeta = b.closest('.cal-ev');
     const zona = tarjeta && tarjeta.querySelector('.cal-zona');
     const evento = tarjeta && datos.eventos.find(x => x.id === tarjeta.dataset.ev);
+    if(accion === 'recibo'){
+      zona.innerHTML = '<div class="cal-msg">🧾 Preparando el recibo…</div>';
+      try {
+        const d = await post({ accion: 'enviar_recibo', eventoId: evento.id });
+        zona.innerHTML = `<div class="cal-msg">✅ Recibo enviado por Telegram (${d.enviados}). Reenvíaselo al cliente.</div>`;
+      } catch(err){
+        if(err.message === 'sesion') return;
+        zona.innerHTML = `<div class="cal-msg">⚠️ ${e(err.message && err.message !== 'fail' ? err.message : 'No salió el recibo.')}</div>`;
+      }
+      return;
+    }
     if(accion === 'editar'){
       zona.innerHTML = `<div class="cal-form">
         <label class="cal-sub">Fecha <input type="date" class="cal-fecha" min="${hoy()}" value="${e(evento.fecha)}"></label>

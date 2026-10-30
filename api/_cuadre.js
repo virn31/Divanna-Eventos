@@ -14,6 +14,7 @@
 // "dinero bueno al malo"; las correcciones las aplica Diana con los botones.
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 
@@ -251,8 +252,9 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       } }] }),
     });
     const saldo = redondo(dinero.saldo - valor);
+    const recibo = sheetsConfigurado() ? await enviarRecibo(eventoId, `pago de ${pesos(valor)}`) : null;
     await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
-    return { ok: true, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}` };
+    return { ok: true, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` };
   }
   if (tipo === 'debe') {
     await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.DEBE }, `[${ahoraTexto()}] ${quien}: el cliente sigue debiendo ${pesos(dinero.saldo)}.`);

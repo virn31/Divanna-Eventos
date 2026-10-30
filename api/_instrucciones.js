@@ -70,6 +70,8 @@ const TEMAS = {
       '• Debajo tienes "🧑‍🍳 Staff": ves a tus chicas con su marca, eliges a las que quieres y tocas "📨 Invitar por Telegram". Es lo mismo que /staff; las respuestas te llegan aquí. Para dar de alta a una chica nueva sigue siendo /staff → "➕ Agregar personal".\n' +
       '• En "👷 Asignar" también eliges al "🍳 Encargado de producción". Dos días antes le llega por Telegram la lista de lo que hay que preparar para que revise inventario, y el mismo día otra para confirmar ingredientes. Lo que conteste te llega aquí (con copia a Diana y Víctor) y lo ves en el evento.\n' +
       '• Si un cliente cambia su pedido te suena la app y te llega aquí ("✏️ Cambio en el pedido"). Diana lo confirma; entonces al equipo le llega "🔄 Cambió el pedido" y tienen que volver a tocar "Enterado". Los cambios se piden con 24 h de anticipación; si faltan menos, llega como URGENTE.\n' +
+      '• Comandas en papel de El Vaso Maíz: tómales foto y mándamela aquí. Te muestro lo que leí; si algo está mal, contéstame encima con la corrección, y tocas "✅ Guardar evento". También en el calendario: "➕ Capturar evento" → "📷 Llenar con la foto de una comanda".\n' +
+      '• Cuando se registra un anticipo o un pago de El Vaso Maíz te llega aquí el recibo en PDF para mandárselo al cliente; también con "🧾 Mandar recibo" en el evento del calendario.\n' +
       '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',
   },
   mensajes: {
