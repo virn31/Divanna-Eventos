@@ -286,3 +286,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor con la referencia https://www.awwwards.com/duofankaar/ y las observaciones de la revisión (galería vacía, sin botón de cotizar a la mano, sin precios, "3,000 eventos" repetido, tono defensivo, Casa Isabella ausente, sin preguntas frecuentes).
 
 **Descartado:** GSAP u otra librería de animación (sin paso de compilación; bastan CSS e IntersectionObserver, y se respeta "reducir movimiento"), pantalla de carga (frena al cliente) y testimonios (no hay reales que mostrar).
+
+## 2026-10-30 — Carpeta de Google Drive para que la página y DiMa estén al día
+
+**Decisión:** Diana mantiene una carpeta de Google Drive (`GOOGLE_DRIVE_CARPETA`, compartida como Lector con la cuenta de servicio, Google Drive API activa en `dima-os-513103`). Sin formato especial: cada subcarpeta es un tema (se lee un nivel más adentro); los Documentos de Google los lee DiMa tal cual y, si contradicen el catálogo del código, manda Drive (precios, paquetes, temporadas, promociones con sus fechas); en las fotos el nombre del archivo es la descripción y DiMa las puede mostrar. Las fotos de una carpeta con "galeria" en el nombre reemplazan la galería fija de la página, y lo de una carpeta "promo..." (textos y fotos) sale en una sección Promociones que solo aparece si hay algo. Todo vive en `api/_drive.js`, se cachea 10 minutos y, si Drive falla, el chat sigue con el catálogo del código. Se sirve desde `dima-chat` por GET (`?contenido=1`, `?foto=<id>`) porque ya están las 12 funciones; la foto sale como miniatura de 1600 px (el original de un celular puede pasar el límite de 4.5 MB de respuesta) y solo si está en la carpeta.
+
+**Por qué:** lo pidió Víctor: que Diana actualice paquetes, precios por temporada y promociones sin pedir un cambio de código.
+
+**Descartado:** una Hoja de Google con columnas (Diana tendría que respetar un formato y la página tampoco ganaba mucho), Airtable (Diana ya usa Drive para sus fotos), hacer pública la carpeta para enlazar las fotos directo (se expone todo lo que suba) y que la temporada alta del código (`_temporada.js`) se lea de Drive (sigue fija; un documento de temporada en Drive solo lo lee DiMa).

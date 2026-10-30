@@ -46,6 +46,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
+const { contenidoDima, contenidoPagina, fotoDrive } = require('./_drive');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
@@ -87,6 +88,7 @@ const MENSAJE_LIMITE =
 
 const ID_FOTOS_VASOMAIZ = 'paquetes-vasomaiz';
 
+// Las fotos de la carpeta de Drive se suman al enum en cada mensaje (ver herramientas()).
 const TOOLS = [
   {
     name: 'mostrar_fotos',
@@ -162,7 +164,7 @@ const TOOLS = [
   },
 ];
 
-function systemPrompt() {
+function systemPrompt(drive = { textos: '', fotos: [], hayPromociones: false }) {
   const hoy = new Date();
   const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(hoy);
   const hoyTexto = hoy.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mazatlan' });
@@ -202,7 +204,9 @@ TEMPORADA ALTA DE FIN DE AÑO (${textoTemporada()}): cuenta la fecha del EVENTO,
 - El costo de traslado NO sube en temporada: se mantiene igual (km x $10 x 4). Súmalo aparte, sin aplicarle el aumento.
 - Explícalo con sutileza y sin disculparte de más: es la temporada de más demanda del año, el equipo trabaja a tope y la tarifa es de temporada. Ej.: "Para esas fechas manejamos tarifa de temporada, porque es cuando más eventos atendemos en el año; te lo armo con esa tarifa."
 - Si el cliente puede mover su evento antes del ${TEMPORADA_ALTA.desde.dia} de diciembre, puedes mencionar de pasada que fuera de temporada aplican los paquetes regulares.
-- Las promociones especiales de diciembre se agregarán aparte; si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.
+${drive.hayPromociones
+  ? '- PROMOCIONES: las vigentes están en INFORMACIÓN ACTUALIZADA DE LA GERENCIA (al final). Revisa sus fechas contra la fecha de hoy y ofrece solo las vigentes; si no hay ninguna vigente, dile que la gerencia le comparte las que haya.'
+  : '- Si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.'}
 
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
@@ -220,7 +224,20 @@ FLUJO DE LA COTIZACIÓN:
 - CAMBIOS AL PEDIDO: se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación al evento. Si el cliente pregunta o quiere cambiar algo, díselo con amabilidad. Con menos de ${HORAS_ANTICIPACION_CAMBIO} horas no se puede garantizar: si aun así lo quiere, regístralo y la gerencia lo revisa como urgente.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
-${CATALOGO}`;
+${CATALOGO}${informacionDrive(drive)}`;
+}
+
+// Lo que Diana tiene en la carpeta de Drive (api/_drive.js). Va al final del
+// prompt y manda sobre el catálogo del código.
+function informacionDrive(drive) {
+  if (!drive.textos && !drive.fotos.length) return '';
+  return `
+
+INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta de documentos; si algo de aquí contradice el catálogo de arriba -- precios, paquetes, temporadas, promociones --, MANDA LO DE AQUÍ. Respeta las fechas de vigencia que diga cada promoción o temporada. No inventes nada que no diga):
+${drive.textos || '(sin documentos)'}${drive.fotos.length ? `
+
+FOTOS QUE SUBIÓ LA GERENCIA (muéstralas con mostrar_fotos usando su id exacto, con las mismas reglas que las fotos de referencia):
+${drive.fotos.map(f => `- "${f.id}": ${f.tema}`).join('\n')}` : ''}`;
 }
 
 // Convierte el historial del navegador en mensajes de la API, validando tamaños.
@@ -261,10 +278,24 @@ function lugarForaneoMencionado(historial) {
   return LUGARES_FORANEOS.find(l => new RegExp(`(^|[^a-záéíóúñ])${l}([^a-záéíóúñ]|$)`).test(textoCliente)) || null;
 }
 
+function herramientas(fotosDrive) {
+  if (!fotosDrive.length) return TOOLS;
+  const [fotos, ...resto] = TOOLS;
+  const ids = fotos.input_schema.properties.ids;
+  return [{ ...fotos, input_schema: { ...fotos.input_schema, properties: { ids: { ...ids,
+    items: { ...ids.items, enum: [...ids.items.enum, ...fotosDrive.map(f => f.id)] },
+    description: `${ids.description} Los que empiezan con "drive:" son fotos que subió la gerencia (ver INFORMACIÓN ACTUALIZADA DE LA GERENCIA).` } } } }, ...resto];
+}
+
+// Fotos de la carpeta de Drive del mensaje en curso (id "drive:..." → url y tema).
+let FOTOS_DRIVE = [];
+
 function urlsDeFotos(ids) {
   const urls = [];
   for (const id of ids || []) {
-    if (id === ID_FOTOS_VASOMAIZ) urls.push(...FOTOS_PAQUETES_VASOMAIZ.map(f => `/${f}`));
+    const deDrive = FOTOS_DRIVE.find(f => f.id === id);
+    if (deDrive) urls.push(deDrive.url);
+    else if (id === ID_FOTOS_VASOMAIZ) urls.push(...FOTOS_PAQUETES_VASOMAIZ.map(f => `/${f}`));
     else if (REFERENCIAS_DECORACION[id]) urls.push(`/referencias/${REFERENCIAS_DECORACION[id].archivo}`);
   }
   return [...new Set(urls)].slice(0, 6);
@@ -276,7 +307,8 @@ const TEMA_DE_FOTO = new Map([
   ...FOTOS_PAQUETES_VASOMAIZ.map(f => [`/${f}`, `Paquetes de El Vaso Maíz (${f.replace(/^paquetes\//, '').replace(/\.jpg$/, '').replace(/-/g, ' ')})`]),
 ]);
 function temasDeFotos(urls) {
-  return Array.isArray(urls) ? [...new Set(urls.map(u => TEMA_DE_FOTO.get(u)).filter(Boolean))] : [];
+  const tema = (u) => TEMA_DE_FOTO.get(u) || (FOTOS_DRIVE.find(f => f.url === u) || {}).tema;
+  return Array.isArray(urls) ? [...new Set(urls.map(tema).filter(Boolean))] : [];
 }
 
 // El navegador guarda el folio del pedido de esta conversación. Para que nadie
@@ -429,7 +461,34 @@ async function chatEquipo(req, res) {
   }
 }
 
+// GET público: ?foto=<id> sirve una foto de la carpeta de Drive y ?contenido=1
+// da la galería y las promociones de la página. Se cachea en la CDN de Vercel.
+async function paraLaPagina(req, res) {
+  const { foto, contenido } = req.query || {};
+  try {
+    if (foto) {
+      const f = await fotoDrive(String(foto));
+      if (!f) { res.status(404).json({ error: 'No existe' }); return; }
+      res.setHeader('Content-Type', f.tipo);
+      res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
+      res.status(200).send(f.datos);
+      return;
+    }
+    if (contenido) {
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600');
+      res.status(200).json(await contenidoPagina());
+      return;
+    }
+  } catch (err) {
+    console.error('Error leyendo Drive para la página:', err.message);
+    res.status(502).json({ error: 'No se pudo leer' });
+    return;
+  }
+  res.status(405).json({ error: 'Method not allowed' });
+}
+
 module.exports = async (req, res) => {
+  if (req.method === 'GET') return paraLaPagina(req, res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if ((req.body || {}).modo === 'equipo') return chatEquipo(req, res);
 
@@ -459,6 +518,8 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const drive = await contenidoDima();
+  FOTOS_DRIVE = drive.fotos;
   const mensajes = construirMensajes(historial);
   if (!mensajes) {
     res.status(400).json({ error: 'La conversación es demasiado larga o no es válida. Recarga la página para empezar de nuevo.' });
@@ -559,7 +620,7 @@ module.exports = async (req, res) => {
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
-    const sistema = systemPrompt();
+    const sistema = systemPrompt(drive);
     const conversacion = [...mensajes];
     const partes = [];
     let fotos = [];
@@ -583,7 +644,7 @@ module.exports = async (req, res) => {
         // El catálogo es largo y no cambia en el día: se cachea entre mensajes.
         cache_control: { type: 'ephemeral' },
         system: sistema,
-        tools: TOOLS,
+        tools: herramientas(drive.fotos),
         tool_choice: { type: 'auto' },
         messages: [...conversacion],
       });

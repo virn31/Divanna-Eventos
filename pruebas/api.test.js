@@ -36,6 +36,18 @@ Module._load = function (req, parent, ...rest) {
         get: async () => ({ data: { values: hojaPrueba.lista } }),
         update: async (p) => { googleSheets.push({ op: 'renglon', ...p }); return {}; },
       },
+    } }), drive: () => ({ files: {
+      list: async (p) => {
+        if (drivePrueba.falla) throw new Error('Drive caído');
+        const padre = /'([^']+)' in parents/.exec(p.q)[1];
+        return { data: { files: drivePrueba.archivos.filter(a => a.padre === padre) } };
+      },
+      export: async (p) => ({ data: drivePrueba.archivos.find(a => a.id === p.fileId).texto }),
+      get: async (p) => {
+        const a = drivePrueba.archivos.find(x => x.id === p.fileId);
+        if (p.alt === 'media') return { data: a.texto !== undefined ? a.texto : new Uint8Array([1, 2, 3]).buffer };
+        return { data: { mimeType: a.mimeType, size: '1000', thumbnailLink: 'https://lh3.googleusercontent.com/drive-thumb/' + a.id + '=s220' } };
+      },
     } }) } };
   }
   if (req === '@anthropic-ai/sdk') return { Anthropic: AnthropicMock };
@@ -55,6 +67,9 @@ const llamadas = [];
 const googleCal = [];
 const googleSheets = [];
 let hojaPrueba = { pestanas: [], lista: [] };
+// Carpeta de Drive simulada (api/_drive.js): archivos con su carpeta padre.
+let drivePrueba = { falla: false, archivos: [] };
+const miniaturas = [];
 let bloqueosPrueba = [];
 let bloqueoLeido = null;
 let llenosPrueba = []; // eventos autorizados que lee diasLlenos (días sin cupo)
@@ -63,6 +78,10 @@ const telegram = [];
 let mapaCaido = false;
 let telegramFalla = false;
 global.fetch = async (url, opts = {}) => {
+  if (url.startsWith('https://lh3.googleusercontent.com/drive-thumb/')) {
+    miniaturas.push({ url, auth: (opts.headers || {}).Authorization });
+    return { ok: true, status: 200, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array([9, 9, 9]).buffer };
+  }
   if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
     if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
     if (url.includes('nominatim')) {
@@ -2298,5 +2317,67 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 23, chat: { id: 222, type: 'private' }, photo: [{ file_id: 'x' }] } } }, res);
     ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('solo para Diana')), 'comanda: un líder no puede mandar comandas a leer');
+  }
+  // ---------- Carpeta de Google Drive (api/_drive.js) ----------
+  {
+    const drv = require(path.join(repo, 'api/_drive.js'));
+    const pagina = async (query) => { const r = resMock(); r.send = (b) => { r.body = b; return r; }; await chatApi({ method: 'GET', query }, r); return r; };
+
+    // Sin GOOGLE_DRIVE_CARPETA no hay nada y la página se queda como está.
+    reset(); drv.limpiarCacheDrive();
+    let r = await pagina({ contenido: '1' });
+    ok(r.code === 200 && r.body.galeria.length === 0 && r.body.promociones.textos.length === 0, 'drive: sin carpeta configurada la página no cambia');
+
+    process.env.GOOGLE_DRIVE_CARPETA = 'raiz';
+    drivePrueba = { falla: false, archivos: [
+      { padre: 'raiz', id: 'cGal', name: 'Galería', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'raiz', id: 'cPromo', name: 'Promociones', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'raiz', id: 'cDiv', name: 'Divanna', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'cDiv', id: 'cDivPaq', name: 'Paquetes', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'cGal', id: 'fXV', name: 'XV años rosa y dorado.jpg', mimeType: 'image/jpeg' },
+      { padre: 'cGal', id: 'fBoda', name: 'Boda_jardin.png', mimeType: 'image/png' },
+      { padre: 'cPromo', id: 'dPromo', name: 'Promo noviembre', mimeType: 'application/vnd.google-apps.document', texto: 'Túnel de luces a $1,500 del 1 al 30 de noviembre.' },
+      { padre: 'cPromo', id: 'fPromo', name: 'Tunel promo.jpg', mimeType: 'image/jpeg' },
+      { padre: 'cDivPaq', id: 'dPaq', name: 'Precios', mimeType: 'application/vnd.google-apps.document', texto: 'Paquete XV ahora cuesta $6,800.' },
+    ] };
+    reset(); drv.limpiarCacheDrive();
+    r = await pagina({ contenido: '1' });
+    ok(r.code === 200 && r.body.galeria.length === 2 && r.body.galeria[0].nombre === 'XV años rosa y dorado' && r.body.galeria[1].nombre === 'Boda jardin'
+      && r.body.galeria[0].url === '/api/dima-chat?foto=fXV' && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
+      && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
+      'drive: la página recibe la galería y las promociones (sin los documentos internos)');
+
+    // DiMa lee los documentos (con subcarpetas), sabe de las promociones y puede mostrar las fotos.
+    reset();
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [
+      { type: 'tool_use', id: 'tu_drive', name: 'mostrar_fotos', input: { ids: ['drive:fPromo'] } },
+    ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Este mes el túnel de luces está en promoción. ¿Para qué fecha?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: '¿Tienen promociones?' }] });
+    const pd = llamadasClaude[0];
+    const enumFotos = pd.tools.find(t => t.name === 'mostrar_fotos').input_schema.properties.ids.items.enum;
+    ok(pd.system.includes('INFORMACIÓN ACTUALIZADA DE LA GERENCIA') && pd.system.includes('## Divanna / Paquetes') && pd.system.includes('$6,800')
+      && pd.system.includes('Túnel de luces a $1,500') && pd.system.includes('las vigentes están en INFORMACIÓN ACTUALIZADA') && enumFotos.includes('drive:fXV') && enumFotos.includes('paquete-xv'),
+      'drive: DiMa recibe los documentos, las promociones y las fotos de la carpeta');
+    ok(r.code === 200 && r.body.fotos.includes('/api/dima-chat?foto=fPromo') && llamadasClaude[1].messages[2].content[0].content.includes('Tunel promo (Promociones)'),
+      'drive: DiMa muestra una foto de Drive y sabe de qué es');
+
+    // La foto se sirve como miniatura de 1600 px; nada fuera de la carpeta.
+    reset();
+    r = await pagina({ foto: 'fXV' });
+    ok(r.code === 200 && Buffer.isBuffer(r.body) && r.headers['Content-Type'] === 'image/jpeg' && miniaturas.pop().url.endsWith('fXV=s1600'), 'drive: la foto se sirve achicada desde Drive');
+    r = await pagina({ foto: 'hojaDivanna' });
+    ok(r.code === 404, 'drive: no se puede pedir un archivo que no está en la carpeta');
+
+    // Si Drive falla, el chat sigue con el catálogo del código.
+    process.env.GOOGLE_DRIVE_CARPETA = 'otra';
+    drivePrueba.falla = true;
+    reset(); drv.limpiarCacheDrive();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Con gusto, ¿qué evento tienes?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Hola' }] });
+    ok(r.code === 200 && llamadasClaude[0].system.includes('CATÁLOGO REAL') && !llamadasClaude[0].system.includes('INFORMACIÓN ACTUALIZADA'), 'drive: si Drive falla DiMa sigue con el catálogo');
+
+    delete process.env.GOOGLE_DRIVE_CARPETA;
+    drivePrueba = { falla: false, archivos: [] };
+    drv.limpiarCacheDrive();
   }
 })();

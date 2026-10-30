@@ -196,6 +196,19 @@
   }
   .galeria-grid img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease;}
   .galeria-grid a:hover img{transform:scale(1.05);}
+  /* Con fotos de la carpeta de Drive: mosaico automático, una de cada tres ancha. */
+  .galeria-grid.dinamica{grid-template-areas:none;grid-auto-flow:dense;}
+  .galeria-grid.dinamica a{grid-area:auto !important;}
+  .galeria-grid.dinamica a.ancha{grid-column:span 2;}
+
+  /* ---------- PROMOCIONES (solo si Diana subió alguna a Drive) ---------- */
+  #promociones[hidden]{display:none;}
+  .promo-textos{display:grid;gap:14px;margin-bottom:22px;}
+  .promo-textos p{margin:0;white-space:pre-line;border:1px solid var(--line);border-left:4px solid var(--maiz);border-radius:14px;padding:16px 18px;background:var(--ink-2);line-height:1.55;}
+  .promo-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+  .promo-fotos figure{margin:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--ink-2);}
+  .promo-fotos img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;}
+  .promo-fotos figcaption{padding:10px 14px;font-size:0.85rem;font-weight:700;}
   .galeria-grid figcaption{position:absolute;left:12px;bottom:12px;font-size:0.78rem;font-weight:700;background:rgba(12,11,16,0.7);backdrop-filter:blur(6px);padding:6px 10px;border-radius:100px;}
 
   /* ---------- COBERTURA ---------- */
@@ -578,6 +591,17 @@
       </article>
     </div>
     <p class="paq-nota" data-revelar>También hay paquetes completos para XV años ($6,000) y bodas ($6,500). Del 18 de diciembre al 1 de enero aplican precios de temporada y no hay paquetes regulares.</p>
+  </div>
+</section>
+
+<section id="promociones" hidden>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Promociones</span>
+      <h2>Lo que tenemos ahorita.</h2>
+    </div>
+    <div class="promo-textos" id="promoTextos"></div>
+    <div class="promo-fotos" id="promoFotos"></div>
   </div>
 </section>
 
@@ -1056,6 +1080,32 @@
         entrada.setSelectionRange(entrada.value.length, entrada.value.length);
       }
     }));
+
+    // Galería y promociones desde la carpeta de Google Drive de Diana (api/_drive.js).
+    // Si no hay nada o falla, se queda la galería fija y no sale Promociones.
+    fetch('/api/dima-chat?contenido=1').then(r => r.ok ? r.json() : null).then(d => {
+      if(!d) return;
+      const foto = (f, conEnlace) => {
+        const img = document.createElement('img');
+        img.src = f.url; img.alt = f.nombre; img.loading = 'lazy'; img.decoding = 'async';
+        const pie = document.createElement('figcaption'); pie.textContent = f.nombre;
+        const caja = document.createElement(conEnlace ? 'a' : 'figure');
+        if(conEnlace){ caja.href = f.url; caja.target = '_blank'; caja.rel = 'noopener'; }
+        caja.append(img, pie);
+        return caja;
+      };
+      const galeria = document.querySelector('.galeria-grid');
+      if(galeria && d.galeria && d.galeria.length){
+        galeria.replaceChildren(...d.galeria.map((f, i) => { const a = foto(f, true); if(i % 3 === 1) a.className = 'ancha'; return a; }));
+        galeria.classList.add('dinamica');
+      }
+      const p = d.promociones || {};
+      if((p.textos && p.textos.length) || (p.fotos && p.fotos.length)){
+        document.getElementById('promoTextos').replaceChildren(...(p.textos || []).map(t => { const e = document.createElement('p'); e.textContent = t; return e; }));
+        document.getElementById('promoFotos').replaceChildren(...(p.fotos || []).map(f => foto(f, false)));
+        document.getElementById('promociones').hidden = false;
+      }
+    }).catch(() => {});
 
     // Botón flotante en el celular: se esconde con el chat abierto, arriba del todo
     // (ya están los botones del hero) y en la sección de pedido.
