@@ -79,3 +79,41 @@ body.rol-asistente .ev-tab-btn[data-tab="tareas"]{ display:none; }
 @media (prefers-reduced-motion: reduce){
   .event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev, .ev-tab, .saliendo, .esqueleto .hueso{ animation:none !important; }
 }
+
+/* Ficha de identificación del evento y 💰 Dinero (app y dashboard, brigadas/dinero.js) */
+/* Ficha de identificación: lo único visible hasta que se toca. */
+.ev-ficha{display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; background:none; border:none; padding:0; color:var(--paper); font:inherit; cursor:pointer;}
+.ficha-fila{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.ficha-lugar{font-size:1.12rem; font-weight:800;}
+.ficha-sub{font-size:0.86rem; color:var(--muted);}
+.ficha-avisos{margin-left:auto;}
+.ficha-pago{font-size:0.82rem; font-weight:800; padding:4px 10px; border-radius:100px; background:rgba(255,107,107,0.14); color:#ff8f8f;}
+.ficha-pago.ok{background:rgba(127,174,90,0.18); color:#9fd27a;}
+.ficha-flecha{margin-left:auto; font-size:0.8rem; color:var(--muted); font-weight:700;}
+.event-card.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:4px;}
+.ev-detalle[hidden]{display:none;}
+/* 💰 Dinero del evento */
+.din-cliente{margin:12px 0 8px; font-size:0.92rem;}
+.din-cliente a{color:var(--maiz); font-weight:800; text-decoration:none;}
+.din-resumen{background:var(--ink); border-radius:12px; padding:10px 12px; margin:8px 0;}
+.din-fila{display:flex; justify-content:space-between; padding:4px 0; font-size:0.92rem;}
+.din-fila.falta b{color:#ff8f8f; font-size:1.05rem;}
+.din-fila.ok b{color:#9fd27a;}
+.din-lista{font-size:0.85rem; margin:10px 0; line-height:1.6;}
+.din-lista b{display:block; color:var(--muted);}
+.din-quitar{border:1px solid var(--line); background:none; color:var(--muted); border-radius:8px; padding:2px 8px; font:inherit; font-size:0.78rem; cursor:pointer;}
+.din-caja{margin:10px 0; border:1.5px solid var(--line); border-radius:12px; padding:10px 12px;}
+.din-caja summary{font-weight:800; cursor:pointer;}
+.din-caja label{display:block; margin-top:10px; font-size:0.85rem; color:var(--muted);}
+.din-caja select, .din-caja input{display:block; width:100%; margin-top:8px; padding:11px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+.din-caja input[hidden]{display:none;}
+.din-previa{margin-top:8px; font-weight:800; color:var(--maiz);}
+.din-btn{margin-top:10px; width:100%; padding:12px; border:none; border-radius:12px; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+.din-btn:disabled{opacity:.6;}
+.din-msg{margin-top:8px; font-size:0.82rem; color:var(--muted);}
+.ev-ficha .event-folio{font-size:0.78rem; color:var(--muted); font-family:monospace;}
+.evento-row.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:10px;}
+.din-seccion{margin-top:14px; padding-top:10px; border-top:1px solid var(--line);}
+.aviso-breve{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); opacity:0; pointer-events:none; z-index:200;
+  background:var(--ink-3, #1d1b23); color:var(--paper); border:1px solid var(--line); border-radius:12px; padding:12px 16px; max-width:90vw; font-weight:700; transition:all .25s;}
+.aviso-breve.show{opacity:1; transform:translateX(-50%) translateY(0);}

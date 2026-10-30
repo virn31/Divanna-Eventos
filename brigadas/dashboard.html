@@ -260,6 +260,7 @@
 </div>
 <script src="alertas.js"></script>
 <script src="calendario.js"></script>
+<script src="dinero.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   // Sesión compartida con /brigadas/ (mismo origen). Solo el rol Admin entra aquí.
@@ -661,9 +662,37 @@
     }
   }
 
+  // Cada evento se ve como ficha corta (estatus, folio, lugar, fecha, brigada,
+  // cliente y lo que falta por cobrar) y se abre al tocarla, igual que en la app.
+  const fichasAbiertas = new Set();
+  let eventosPintados = [];
+  // Aviso breve abajo de la pantalla (sin alert: no bloquea).
+  function avisoBreve(texto){
+    let t = document.getElementById('avisoBreve');
+    if(!t){ t = document.createElement('div'); t.id = 'avisoBreve'; t.className = 'aviso-breve'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+    t.textContent = texto;
+    t.classList.add('show');
+    clearTimeout(avisoBreve.timer);
+    avisoBreve.timer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+  DimaDinero.configurar({
+    api: (url, opciones) => api(url, opciones), esc, toast: avisoBreve,
+    recargar: () => loadDashboard(), esAdmin: () => true, eventos: () => eventosPintados,
+  });
+  function abrirFicha(b){
+    const fila = b.closest('.evento-row');
+    const abrir = !fichasAbiertas.has(b.dataset.ficha);
+    if(abrir) fichasAbiertas.add(b.dataset.ficha); else fichasAbiertas.delete(b.dataset.ficha);
+    fila.classList.toggle('abierta', abrir);
+    fila.querySelector('.ev-detalle').hidden = !abrir;
+    b.setAttribute('aria-expanded', abrir);
+    b.querySelector('.ficha-flecha').textContent = abrir ? 'Cerrar ▴' : 'Ver todo ▾';
+  }
+
   function renderEventos(eventos){
     // El polling cada 30s no debe borrar instrucciones a medio escribir.
-    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio]')) return;
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio], .din-caja :focus')) return;
+    eventosPintados = eventos;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
       return;
@@ -684,7 +713,14 @@
       const colorCss = `var(${visual.color})`;
 
       html += `
-        <div class="evento-row ${claseFila}" style="border-left-color:${colorCss};">
+        <div class="evento-row ${claseFila} ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" style="border-left-color:${colorCss};" data-din-ev="${esc(ev.id)}">
+          <button type="button" class="ev-ficha" data-ficha="${esc(ev.id)}" aria-expanded="${fichasAbiertas.has(ev.id)}">
+            <span class="ficha-fila"><span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${esc(ev.estatusLogistico)}</span><span class="event-folio">${esc(ev.folio)}</span>${[ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambioCliente && ev.cambioCliente.estado === 'pendiente' ? '✏️' : '', ev.disponibilidad && ev.disponibilidad.nivel === 'rojo' ? '🔴' : ev.disponibilidad && ev.disponibilidad.nivel === 'amarillo' ? '🟡' : ''].filter(Boolean).map(x => `<span class="ficha-avisos">${x}</span>`).join('')}</span>
+            <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
+            <span class="ficha-sub">${formatFecha(ev.fecha)}${ev.horaInicio ? ' · 🕒 ' + esc(ev.horaInicio) : ''} · ${esc(ev.negocio || '')} · 👷 ${esc(ev.brigadaNombre)}${ev.dinero && ev.dinero.cliente ? ' · 👤 ' + esc(ev.dinero.cliente) : ''}</span>
+            <span class="ficha-fila">${DimaDinero.etiqueta(ev.dinero)}<span class="ficha-flecha">${fichasAbiertas.has(ev.id) ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
+          </button>
+          <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="evento-top">
             <div>
               <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')} · ${esc(ev.folio)}</h3>
@@ -741,11 +777,17 @@
               <span class="instr-msg"></span>
             </div>
           </details>
+          ${ev.dinero ? `<div class="din-seccion"><b>💰 Dinero</b>${DimaDinero.bloque(ev)}</div>` : ''}
+          </div>
         </div>
       `;
     });
 
+    const cajasAbiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
+    cajasAbiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
+    mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
+    DimaDinero.conectar(mainContent);
 
     mainContent.querySelectorAll('.instr-texto').forEach(t => {
       t.addEventListener('input', () => { t.dataset.sucio = '1'; });
