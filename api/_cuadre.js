@@ -17,6 +17,7 @@ const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
+const { totalDelEvento } = require('./_cargos');
 
 const MODELO = 'claude-sonnet-5-5';
 let clienteIA = null;
@@ -86,7 +87,7 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
   const brigada = suyos.filter(c => c.fields.Recibido_Por !== 'Diana').reduce((t, c) => t + (Number(c.fields.Monto) || 0), 0);
   const brigadaSinAprobar = suyos.filter(c => c.fields.Recibido_Por !== 'Diana' && !aprobados.has((c.fields.Reporte || [])[0])).reduce((t, c) => t + (Number(c.fields.Monto) || 0), 0);
   const diana = suyos.filter(c => c.fields.Recibido_Por === 'Diana').reduce((t, c) => t + (Number(c.fields.Monto) || 0), 0);
-  const contratado = Number(f.Monto_Estimado_IA) || 0;
+  const contratado = totalDelEvento(f); // contratado + cargos extra (daños y faltantes)
   const descuento = Number(f.Descuento) || 0;
   const gastosEvento = gastos.filter(g => (g.fields.Evento_Relacionado || [])[0] === e.id).reduce((t, g) => t + (Number(g.fields.Monto) || 0), 0);
   return {

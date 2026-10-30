@@ -264,3 +264,17 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor: el recibo debe salir en cuanto hay anticipo y Diana necesita tiempo para dejar el papel.
 
 **Descartado:** mandar el recibo directo al cliente (no hay WhatsApp ni canal al cliente; lo reenvía el equipo), imagen en vez de PDF (el PDF sale directo de Sheets, sin librerías), y guardar la comanda sin confirmar (la letra a mano se lee mal a veces; un error crea un evento falso).
+
+## 2026-10-30 — Dinero del evento en la ficha de la app, daños y faltantes
+
+**Decisión:** en la app del equipo cada evento se ve primero como una ficha corta (negocio, folio, lugar, hora, cliente y lo que falta por cobrar) y al tocarla se abre todo. Una pestaña "💰 Dinero" muestra contratado, daños y faltantes, descuento, pagado y lo que falta, con el nombre y teléfono del cliente. Desde ahí se registra el cobro (anticipo, abono o liquidación) y se anotan daños o faltantes, que se suman al total al momento con `INVENTARIO.Precio_Reposicion` (si el artículo no tiene precio, quien lo anota escribe el monto y queda marcado para que Diana lo revise). Lo ven líder, encargada y gerente; el asistente y el staff no. El cobro de la brigada entra a su reporte del día (Diana lo aprueba al recibir el dinero); el de Diana o Víctor queda como pago a Diana con recibo por Telegram. Los cargos se guardan en `EVENTOS.Cargos_Extra` (JSON) y `Cargos_Extra_Total`, que se suma a lo contratado en el cuadre y en el recibo. Cada cargo avisa a los Admin por Telegram; lo quita Diana o quien lo anotó.
+
+**Por qué:** lo pidió Víctor: las brigadas entregan y cobran en efectivo en el momento, y deben poder marcar el pago y cobrar los daños sin llamar a Diana. Cambia la regla anterior de "la gerente sin precios ni pagos".
+
+**Descartado:** que el encargado escriba siempre el monto del daño (cada quien cobraría distinto), que el cobro cuente directo sin pasar por el reporte del día (Diana perdería el control del efectivo) y que también lo vea el asistente.
+
+## 2026-10-30 — Comanda por foto: forma de pago sin null
+
+**Decisión:** `forma_anticipo` en la herramienta `datos_comanda` es una lista de texto con "No se sabe" en vez de `['string', 'null']` con `null` en el enum.
+
+**Por qué:** la API de Claude rechaza ese esquema (error 400): la foto de la comanda fallaba siempre, en la app ("Error interno") y en Telegram. Hay una prueba que revisa que ningún enum lleve null.

@@ -514,6 +514,78 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await eventosApi({ method: 'GET', headers: auth(tokenLider), query: { brigada: 'recBRIGADA0000002' } }, res);
   ok(res.code === 200 && res.body.brigada.nombre === 'Edén' && !res.body.opciones, 'líder no puede ver otra brigada con ?brigada=');
 
+  // ---------- 💰 Dinero en la ficha del evento (api/_cargos.js) ----------
+  {
+    const EV_DIN = { id: 'recEVENTODINERO01', fields: { Folio_Evento: 'EVT-D1', Monto_Estimado_IA: 5000, Cargos_Extra_Total: 300, Descuento: 0, Cliente: ['recCLIENTE0000001'], COBROS: ['recCOBRODIN00001'], Brigada_Asignada: ['recBRIGADA0000001'],
+      Cargos_Extra: JSON.stringify([{ id: 'c1', descripcion: 'Silla Tiffany', cantidad: 2, precio: 150, total: 300, porId: LIDER.id, por: 'Juan' }]) } };
+    reset();
+    respuestas = [LIDER, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] },
+      { records: [{ id: 'recCOBRODIN00001', fields: { Evento: [EV_DIN.id], Monto: 2000, Forma: 'Efectivo', Fecha: '2026-10-30', Recibido_Por: 'Diana' } }] },
+      { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Perla', Telefono_WhatsApp: '+526671234567' } }] }];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenLider) }, res);
+    const din = res.body.eventos[0].dinero;
+    ok(res.code === 200 && res.body.colaborador.veDinero && din.total === 5300 && din.pagado === 2000 && din.resta === 3300 && din.cliente === 'Perla' && din.telefono === '6671234567' && din.cargosExtra[0].total === 300,
+      'dinero: el líder ve total (con daños), pagado, lo que falta y el cliente de su evento');
+
+    reset();
+    respuestas = [ASIST, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] }];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenAsist) }, res);
+    ok(res.code === 200 && !res.body.colaborador.veDinero && !('dinero' in res.body.eventos[0]) && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'dinero: el asistente no ve el dinero del evento');
+
+    reset();
+    respuestas = [ASIST];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenAsist), query: { vista: 'inventario' } }, res);
+    ok(res.code === 403, 'dinero: el asistente no pide la lista de artículos para daños');
+
+    // Daño con precio de reposición: se calcula solo y se avisa a los Admin.
+    process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';
+    reset();
+    respuestas = [LIDER, EV_DIN, { id: 'recINVTIFFANY0001', fields: { Item: 'Silla Tiffany', Precio_Reposicion: 150 } }, {}, { records: [{ id: ADMIN.id, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } }] }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', articuloId: 'recINVTIFFANY0001', cantidad: '3', nota: 'quebradas' } }, res);
+    const patchCargo = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+    ok(res.code === 200 && res.body.cargo.total === 450 && patchCargo.Cargos_Extra_Total === 750 && JSON.parse(patchCargo.Cargos_Extra).length === 2
+      && telegram.some(t => t.body.text && t.body.text.includes('3 × Silla Tiffany = $450') && t.body.text.includes('quebradas')),
+      'cargos: 3 sillas quebradas x $150 se suman al evento y Diana recibe el aviso');
+    delete process.env.TELEGRAM_BOT_TOKEN;
+
+    reset();
+    respuestas = [LIDER, EV_DIN, { id: 'recINVSINPRECIO01', fields: { Item: 'Tapete' } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', articuloId: 'recINVSINPRECIO01', cantidad: 1 } }, res);
+    ok(res.code === 400 && res.body.error.includes('no tiene precio') && !llamadas.some(l => l.method === 'PATCH'), 'cargos: sin precio de reposición pide el monto');
+
+    reset();
+    respuestas = [LIDER, EV_DIN, {}, { records: [] }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'Tapete manchado', cantidad: 1, monto: '$250' } }, res);
+    ok(res.code === 200 && res.body.cargo.total === 250 && res.body.cargo.sinPrecio, 'cargos: "Otro" con monto escrito a mano queda marcado para revisar');
+
+    reset();
+    respuestas = [ASIST];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenAsist), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'x', cantidad: 1, monto: 10 } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: el asistente no anota cargos');
+
+    reset();
+    respuestas = [LIDER, { ...EV_DIN, fields: { ...EV_DIN.fields, Brigada_Asignada: ['recBRIGADA0000009'] } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'x', cantidad: 1, monto: 10 } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: no se anotan en eventos de otra brigada');
+
+    reset();
+    respuestas = [LIDER, { ...EV_DIN, fields: { ...EV_DIN.fields, Cargos_Extra: JSON.stringify([{ id: 'c9', descripcion: 'Copa', cantidad: 1, total: 80, porId: 'recCOLAB000000099' }]) } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'quitar_cargo', cargoId: 'c9' } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: solo quien lo anotó (o Diana) lo quita');
+
+    const C = require(path.join(repo, 'api/_cargos.js'));
+    ok(C.totalDelEvento(EV_DIN.fields) === 5300, 'cargos: el total del evento suma lo contratado y los daños (cuadre y recibo)');
+  }
+
   const eventoBrigada = { fields: { Folio_Evento: 'EVT-1', Brigada_Asignada: ['recBRIGADA0000001'] } };
   reset();
   respuestas = [
@@ -1309,6 +1381,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }];
   res = await fin(tokenLider, { accion: 'cobro', fecha: hoyCln, eventoId: 'recEVENTOAJENO001', monto: '1000', forma: 'Efectivo' });
   ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reporte: no se puede registrar un cobro de un evento que no es suyo');
+
+  // Desde la ficha (💰 Dinero): el evento fue ayer (se cobró al recoger) y entra al reporte de hoy.
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [] }, BRIG_FIN, { ...EV_FIN, fields: { ...EV_FIN.fields, Fecha_Evento: '2026-10-29' } }, { records: [REP_FIN] }, { records: [{ id: 'recCOBRONUEVO0002' }] }];
+  res = await fin(tokenLider, { accion: 'cobro', desdeFicha: true, fecha: hoyCln, eventoId: EV_FIN.id, monto: '1500', forma: 'Transferencia' });
+  const cobroFicha = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && cobroFicha.body.records[0].fields.Evento[0] === EV_FIN.id && cobroFicha.body.records[0].fields.Monto === 1500 && cobroFicha.body.records[0].fields.Reporte[0] === REP_FIN.id,
+    'reporte: desde la ficha se cobra un evento de otro día y entra al reporte de hoy');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [] }, BRIG_FIN];
+  res = await fin(tokenLider, { accion: 'cobro', desdeFicha: true, fecha: hoyCln, eventoId: 'recEVENTOAJENO001', monto: '1000', forma: 'Efectivo' });
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reporte: desde la ficha tampoco se cobra un evento ajeno');
 
   reset();
   respuestas = [LIDER, { records: [REP_FIN] }, REP_FIN, { records: [GASTO_FIN] }, { records: [COBRO_FIN] }, {}, { records: [ADMIN_T] }, { records: [ADMIN_T] }, { records: [ADMIN] }, { records: [] }];

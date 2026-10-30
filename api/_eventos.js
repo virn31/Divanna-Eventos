@@ -8,6 +8,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
 const { leerCambio } = require('./_pedidos');
+const { dineroParaApp } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -135,8 +136,10 @@ async function alcanceBase(colaborador) {
 }
 
 // Eventos activos (no cerrados) de una lista de IDs, o de todos si ids = null.
-// soloHoy limita a los de la fecha de hoy en Culiacán.
-async function leerEventos(ids, { soloHoy = false } = {}) {
+// soloHoy limita a los de la fecha de hoy en Culiacán. conDinero agrega a cada
+// evento su dinero (total, pagado, falta, cargos extra) y el cliente: solo para
+// quien entrega y cobra (veDinero en api/_cargos.js).
+async function leerEventos(ids, { soloHoy = false, conDinero = false } = {}) {
   if (ids && ids.length === 0) return [];
   const condiciones = ['{Estado} != "Cerrado"'];
   if (ids) condiciones.push(`OR(${ids.map(id => `RECORD_ID()="${id}"`).join(',')})`);
@@ -145,7 +148,13 @@ async function leerEventos(ids, { soloHoy = false } = {}) {
   const data = await airtableGet(
     `${TABLES.EVENTOS}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc`
   );
-  return data.records.map(formatearEvento);
+  const eventos = data.records.map(formatearEvento);
+  if (conDinero && eventos.length) {
+    // Si no se puede leer el dinero, la app sigue con los eventos y lo dice.
+    const dinero = await dineroParaApp(data.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
+    eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
+  }
+  return eventos;
 }
 
 // Emergencias y alertas de seguridad activas hoy en eventos de OTRAS brigadas.
