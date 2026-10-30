@@ -1467,6 +1467,28 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && cuadrado.body.records[0].fields.Cuadre_Estado === 'Cuadrado' && cuadrado.body.records[0].fields.Cuadre_Notas.includes('le pagaron $2,000 (Efectivo)'),
     'cuadre: "me pagaron todo" registra el pago a Diana por lo que faltaba y el evento queda cuadrado');
 
+  // 💵 Registrar pago desde el calendario: el mismo pago a Diana, con anticipo o liquidación.
+  reset();
+  respuestas = [ADMIN, EQ1, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA002' }] }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: '$1,000', forma: 'Transferencia' } }, res);
+  const abono = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && abono.body.records[0].fields.Monto === 1000 && abono.body.records[0].fields.Recibido_Por === 'Diana' && abono.body.records[0].fields.Forma === 'Transferencia'
+    && res.body.texto.includes('Todavía falta $1,000'),
+    'calendario: 💵 Registrar pago anota el anticipo como pago a Diana y dice cuánto falta');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: 'todo', forma: 'Efectivo' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: la gerente no registra pagos');
+
+  reset();
+  respuestas = [ADMIN, { id: EQ1.id, fields: { ...EQ1.fields, Autorizacion_Diana: 'Pendiente' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: '500', forma: 'Efectivo' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: no se registran pagos de un pedido sin autorizar');
+
   reset();
   respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un día bonito. Te cuento con cariño: las cuentas de ayer no cuadraron en dos eventos. Va el detalle 👇' }] }];
@@ -2070,6 +2092,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(res.code === 200 && res.body.datos.clienteTelefono === '6961007116' && res.body.datos.servicios.includes('45 sillas Jardín') && res.body.datos.notas.includes('Nº 2000')
       && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')) && pedidoVision.messages[0].content[0].type === 'image' && pedidoVision.tools[0].strict === true,
       'comanda: en la app DiMa lee la foto y devuelve los datos del formulario con lo que falta');
+
+    // La API rechaza un enum con tipo ['string', 'null'] (error 400 en producción el 2026-10-30).
+    const com = require(path.join(repo, 'api/_comanda.js'));
+    const enumsMalos = [];
+    (function revisar(o, ruta) {
+      if (!o || typeof o !== 'object') return;
+      if (o.enum && (Array.isArray(o.type) || o.enum.includes(null))) enumsMalos.push(ruta);
+      for (const k of Object.keys(o)) revisar(o[k], ruta + '.' + k);
+    })(com.HERRAMIENTA.input_schema, 'input_schema');
+    ok(!enumsMalos.length, 'comanda: el esquema no tiene enum con null (la API lo rechaza) ' + enumsMalos.join(', '));
+
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'No se sabe' });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    ok(res.code === 200 && !res.body.datos.formaAnticipo && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')), 'comanda: "No se sabe" en la forma de pago queda vacío y se pregunta');
 
     reset();
     respuestas = [ADMIN];

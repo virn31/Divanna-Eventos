@@ -213,6 +213,7 @@ async function vistaMes(colaborador, mes) {
     llenos,
     llenosError,
     puedeEditar: esEditor(colaborador),
+    puedeCobrar: colaborador.rol === ROLES.ADMIN,
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
     catalogo: colaborador.rol === ROLES.ADMIN ? CLAVES.filter(k => k !== 'otro').map(k => ({ clave: k, nombre: `${PRODUCTOS[k].negocio === NEGOCIOS.VM ? 'VM · ' : 'DV · '}${PRODUCTOS[k].nombre}` })) : null,
