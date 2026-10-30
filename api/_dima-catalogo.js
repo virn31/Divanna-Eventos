@@ -11,18 +11,18 @@ const LINK_PAGINA_PRINCIPAL = 'https://divanna-eventos.vercel.app';
 // Política de pago de Divanna (decisión de Víctor, 2026-10-30). Mientras un monto
 // esté en null, DiMa explica la regla y dice que la gerencia confirma el monto.
 const HORAS_LIQUIDACION = 24;   // el total se cubre al menos 24 h antes del evento
-const ANTICIPO_DIVANNA = null;  // monto fijo en pesos (pendiente de Víctor)
-// Depósito en garantía del mobiliario según el tamaño del pedido (sin traslado):
-// [{ hasta: 3000, monto: 500 }, { hasta: Infinity, monto: 1000 }]. Pendiente de Víctor.
+const ANTICIPO_DIVANNA = 500;   // mínimo para asegurar la fecha (igual que El Vaso Maíz)
+// Depósito en garantía del mobiliario: un monto estándar para todo pedido con
+// mobiliario (Víctor, 2026-10-30). Pendiente la cifra.
 const DEPOSITO_MOBILIARIO = null;
+// Lo que cuesta reponer (Víctor, 2026-10-30): si se daña o falta algo se cobra a
+// este precio. El precio exacto por artículo vive en INVENTARIO.Precio_Reposicion.
+const EJEMPLOS_REPOSICION = 'una silla desde $700, una copa $100, una mesa $2,500';
 
 const pesos = (n) => `$${Number(n).toLocaleString('es-MX')}`;
 function textoDeposito() {
-  if (!DEPOSITO_MOBILIARIO) return 'el monto depende del tamaño del pedido y lo confirma la gerencia con la cotización formal (no des una cifra)';
-  return 'según el total del pedido: ' + DEPOSITO_MOBILIARIO.map((t, i) => {
-    const desde = i ? DEPOSITO_MOBILIARIO[i - 1].hasta : 0;
-    return t.hasta === Infinity ? `más de ${pesos(desde)} = ${pesos(t.monto)}` : `hasta ${pesos(t.hasta)} = ${pesos(t.monto)}`;
-  }).join('; ');
+  if (!DEPOSITO_MOBILIARIO) return 'es un monto estándar que confirma la gerencia con la cotización formal (no des una cifra)';
+  return `${pesos(DEPOSITO_MOBILIARIO)}, el mismo para cualquier pedido con mobiliario`;
 }
 
 // Catálogo de fotos de referencia de decoración (portafolio real, carpeta /referencias).
@@ -149,9 +149,9 @@ UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico
 Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
 POLÍTICA DE PAGO (dila desde la cotización, con naturalidad y una idea por mensaje; no la sueltes toda de golpe ni como regla de letra chiquita):
-- ANTICIPO: en El Vaso Maíz $500 fijo; en Divanna ${ANTICIPO_DIVANNA ? `${pesos(ANTICIPO_DIVANNA)} fijo` : 'lo confirma la gerencia con la cotización formal (no des una cifra)'}. El anticipo aparta la fecha.
+- ANTICIPO: en El Vaso Maíz $500 fijo; en Divanna un mínimo de ${pesos(ANTICIPO_DIVANNA)} para asegurar la fecha (puede dejar más si quiere). La fecha queda apartada con el anticipo, después de que la gerencia confirma la cotización.
 - LIQUIDACIÓN: el pago completo del evento se cubre a más tardar ${HORAS_LIQUIDACION} horas antes del evento. Si el cliente paga en efectivo, puede pasar a la oficina (con cita) o coordinarlo con el encargado de la brigada que le toca.
-- DEPÓSITO EN GARANTÍA (solo si el pedido lleva mobiliario o decoración de Divanna, no en snacks): ${textoDeposito()}. Se paga junto con la liquidación y se le regresa completo al recoger, si el mobiliario está completo y en buen estado; si falta o se daña algo, se descuenta de ahí. Preséntalo como algo normal que cuida a los dos, sin tono de desconfianza: "Para el mobiliario manejamos un depósito en garantía que se te regresa completo al recoger".
+- DEPÓSITO EN GARANTÍA (solo si el pedido lleva mobiliario o decoración de Divanna, no en snacks): ${textoDeposito()}. Se paga junto con la liquidación y se le regresa completo al recoger, si el mobiliario está completo y en buen estado; si falta o se daña algo, se descuenta de ahí, y si el daño pasa del depósito se cobra la diferencia a precio de reposición. Solo si el cliente pregunta por qué o cuánto cuesta un daño, dale ejemplos de lo que cuesta reponer: ${EJEMPLOS_REPOSICION}. Preséntalo como algo normal que cuida a los dos, sin tono de desconfianza: "Para el mobiliario manejamos un depósito en garantía que se te regresa completo al recoger".
 - QUIÉN ENTREGA EN LA RECOLECCIÓN: en pedidos con mobiliario pregunta, junto con los datos de contacto, quién va a estar en el lugar cuando el equipo pase a recoger (nombre y teléfono; puede ser el mismo cliente). Explícalo en una frase: alguien tiene que entregar el mobiliario y firmar que está completo. Guárdalo en responsable_recoleccion.
 - Cuándo decirlo: en el repaso de la cotización menciona el anticipo y que el total se liquida ${HORAS_LIQUIDACION} horas antes; en el siguiente mensaje (o cuando pregunte cómo pagar) el depósito del mobiliario. Si el cliente pregunta antes, contéstale directo.
 
