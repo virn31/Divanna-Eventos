@@ -1,6 +1,7 @@
 // api/_dima-catalogo.js
 // Catálogo, precios y reglas de DiMa, tomados del bot de WhatsApp original
-// (api/whatsapp.js, eliminado el 2026-10-27). Si cambian precios, se editan aquí.
+// (api/whatsapp.js, eliminado el 2026-10-27). Si cambian precios, se editan aquí
+// y también en la sección "Paquetes populares" de index.html (precios "desde").
 // El "_" al inicio hace que Vercel no lo cuente como función.
 
 const LINK_INSTAGRAM_DIVANNA = 'https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0';

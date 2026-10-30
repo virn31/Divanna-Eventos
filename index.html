@@ -68,11 +68,9 @@
   }
   .nav-toggle{display:none;background:none;border:none;color:var(--paper);font-size:1.6rem;cursor:pointer;}
 
-  /* ---------- HERO ---------- */
+  /* ---------- HERO (titular editorial grande) ---------- */
   .hero{
-    position:relative;
-    padding:96px 0 88px;
-    overflow:hidden;
+    padding:110px 0 56px;position:relative;overflow:hidden;
     background:
       radial-gradient(ellipse 900px 500px at 18% -10%, rgba(185,139,255,0.20), transparent 60%),
       radial-gradient(ellipse 700px 500px at 100% 10%, rgba(240,185,58,0.14), transparent 55%);
@@ -81,188 +79,170 @@
     display:inline-flex;align-items:center;gap:10px;
     border:1px solid var(--line);border-radius:100px;
     padding:7px 16px;font-size:0.82rem;color:var(--muted);
-    margin-bottom:28px;
+    margin-bottom:30px;
   }
   .hero-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--maiz);}
   .hero h1{
-    font-size:clamp(2.4rem, 5.6vw, 4.4rem);
-    line-height:1.04;
-    max-width:15ch;
+    font-size:clamp(2.9rem, 8.4vw, 7.4rem);
+    line-height:0.98;letter-spacing:-0.03em;
+    max-width:13ch;
   }
   .hero h1 em{
-    font-style:normal;
+    font-style:italic;font-weight:500;
     background:linear-gradient(90deg,var(--divanna),var(--maiz));
     -webkit-background-clip:text;background-clip:text;color:transparent;
   }
-  .hero-sub{
-    margin-top:26px;max-width:640px;
-    font-size:1.14rem;line-height:1.6;color:var(--muted);
-  }
+  .hero h1 .palabra{display:inline-block;}
+  .hero-pie{display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:end;margin-top:44px;}
+  @media (max-width:860px){.hero-pie{grid-template-columns:1fr;gap:28px;}}
+  .hero-sub{margin:0;max-width:560px;font-size:1.12rem;line-height:1.6;color:var(--muted);}
   .hero-sub b{color:var(--paper);font-weight:700;}
-  .hero-ctas{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px;}
+  .hero-ctas{display:flex;flex-wrap:wrap;gap:14px;justify-content:flex-end;}
+  @media (max-width:860px){.hero-ctas{justify-content:flex-start;}}
   .btn{
     display:inline-flex;align-items:center;gap:10px;
     padding:15px 26px;border-radius:100px;
     font-weight:700;font-size:0.95rem;
-    transition:transform .18s ease, box-shadow .18s ease;
-    border:1px solid transparent;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    border:1px solid transparent;cursor:pointer;font-family:inherit;
   }
   .btn:hover{transform:translateY(-2px);}
   .btn-primary{background:var(--maiz);color:var(--ink);box-shadow:0 8px 30px -8px rgba(240,185,58,0.55);}
-  .btn-ghost{border-color:var(--line);color:var(--paper);}
+  .btn-ghost{border-color:var(--line);color:var(--paper);background:transparent;}
   .btn-ghost:hover{border-color:var(--divanna);}
+  .cifras{display:grid;grid-template-columns:repeat(4,1fr);margin-top:64px;border-top:1px solid var(--line);}
+  @media (max-width:700px){.cifras{grid-template-columns:1fr 1fr;}}
+  .cifra{padding:22px 18px 0 0;}
+  .cifra .n{font-family:'Fraunces',serif;font-size:clamp(1.8rem,3.6vw,2.6rem);font-weight:600;line-height:1;}
+  .cifra .l{margin-top:8px;font-size:0.85rem;color:var(--muted);}
 
-  /* seal / signature element */
-  .seal-row{
-    margin-top:64px;display:flex;align-items:center;gap:26px;flex-wrap:wrap;
+  /* ---------- CINTA DE FOTOS (dos filas en sentidos contrarios) ---------- */
+  .cinta{padding:24px 0 8px;overflow:hidden;}
+  .cinta-fila{display:flex;gap:16px;width:max-content;animation:cinta 60s linear infinite;}
+  .cinta-fila + .cinta-fila{margin-top:16px;animation-direction:reverse;animation-duration:70s;}
+  .cinta:hover .cinta-fila{animation-play-state:paused;}
+  .cinta-fila img{height:clamp(170px,24vw,280px);width:auto;border-radius:18px;object-fit:cover;flex:none;border:1px solid var(--line);}
+  @keyframes cinta{to{transform:translateX(-50%);}}
+  @media (prefers-reduced-motion:reduce){
+    .cinta{overflow-x:auto;}
+    .cinta-fila{animation:none;}
   }
-  .seal{
-    position:relative;width:118px;height:118px;flex:none;
-    border-radius:50%;
-    border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;
-    background:var(--ink-2);
-  }
-  .seal svg{position:absolute;inset:0;width:100%;height:100%;animation:spin 26s linear infinite;}
-  .seal .num{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:700;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  @media (prefers-reduced-motion:reduce){.seal svg{animation:none;}}
-  .seal-copy{max-width:380px;color:var(--muted);font-size:0.95rem;line-height:1.55;}
-  .seal-copy b{color:var(--paper);}
 
   /* ---------- SECTION SHELL ---------- */
-  section{padding:96px 0;}
-  .section-head{max-width:640px;margin-bottom:56px;}
+  section{padding:104px 0;}
+  .section-head{max-width:720px;margin-bottom:56px;}
   .eyebrow{
     font-size:0.82rem;letter-spacing:0.08em;text-transform:uppercase;
     color:var(--muted);margin-bottom:14px;display:block;
   }
-  .section-head h2{font-size:clamp(1.8rem,3.4vw,2.6rem);line-height:1.15;}
-  .section-head p{margin-top:16px;color:var(--muted);font-size:1.05rem;line-height:1.6;}
+  .section-head h2{font-size:clamp(2rem,4.6vw,3.6rem);line-height:1.04;letter-spacing:-0.02em;}
+  .section-head p{margin-top:18px;color:var(--muted);font-size:1.05rem;line-height:1.6;}
 
-  /* ---------- BRAND CARDS ---------- */
-  .brands{padding-top:40px;}
-  .brand-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
-  @media (max-width:860px){.brand-grid{grid-template-columns:1fr;}}
-  .brand-card{
-    border-radius:22px;padding:44px 38px;position:relative;overflow:hidden;
-    border:1px solid var(--line);
+  /* ---------- SERVICIOS NUMERADOS ---------- */
+  .servicios{border-top:1px solid var(--line);}
+  .servicio{
+    display:grid;grid-template-columns:90px 1fr 260px;gap:32px;align-items:center;
+    padding:40px 0;border-bottom:1px solid var(--line);position:relative;
   }
-  .brand-card.dv{background:linear-gradient(160deg, rgba(185,139,255,0.10), rgba(12,11,16,0.4));}
-  .brand-card.vm{background:linear-gradient(160deg, rgba(240,185,58,0.10), rgba(12,11,16,0.4));}
-  .brand-logo-wrap{
-    height:64px;display:flex;align-items:center;margin-bottom:30px;
-  }
-  .brand-logo-wrap img{height:100%;width:auto;object-fit:contain;}
-  .brand-card h3{font-size:1.5rem;margin-bottom:6px;}
-  .brand-tag{font-size:0.9rem;color:var(--muted);margin-bottom:22px;display:block;}
-  .brand-card ul{list-style:none;margin:0 0 26px;padding:0;display:grid;gap:12px;}
-  .brand-card li{
-    display:flex;gap:12px;align-items:flex-start;
-    font-size:0.98rem;color:var(--muted);line-height:1.5;
-  }
-  .brand-card li::before{
-    content:"";width:6px;height:6px;border-radius:50%;margin-top:8px;flex:none;
-  }
-  .brand-card.dv li::before{background:var(--divanna);}
-  .brand-card.vm li::before{background:var(--maiz);}
-  .brand-note{
-    font-size:0.85rem;color:var(--muted);opacity:0.8;
-    border-top:1px solid var(--line);padding-top:16px;margin-top:4px;
-  }
-  .brand-links{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;}
-  .pill-link{
-    display:inline-flex;align-items:center;gap:8px;
-    border:1px solid var(--line);border-radius:100px;padding:9px 16px;
-    font-size:0.85rem;font-weight:600;transition:border-color .2s;
-  }
-  .brand-card.dv .pill-link:hover{border-color:var(--divanna);}
-  .brand-card.vm .pill-link:hover{border-color:var(--maiz);}
+  @media (max-width:860px){.servicio{grid-template-columns:1fr;gap:16px;padding:32px 0;}}
+  .servicio .num{font-family:'Fraunces',serif;font-size:1rem;color:var(--muted);align-self:start;padding-top:10px;}
+  .servicio h3{font-size:clamp(1.8rem,4vw,3rem);line-height:1.05;letter-spacing:-0.02em;transition:color .25s;}
+  .servicio.dv:hover h3{color:var(--divanna);}
+  .servicio.vm:hover h3{color:var(--maiz);}
+  .servicio.ci:hover h3{color:var(--maiz-husk);}
+  .servicio p{margin:12px 0 0;color:var(--muted);line-height:1.6;max-width:560px;}
+  .etiquetas{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .etiquetas span{font-size:0.8rem;border:1px solid var(--line);border-radius:100px;padding:6px 12px;color:var(--muted);}
+  .servicio-acc{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;}
+  .servicio-foto{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:18px;border:1px solid var(--line);transition:transform .5s ease;}
+  .servicio:hover .servicio-foto{transform:scale(1.03) rotate(-1deg);}
+  .servicio-logo{width:100%;aspect-ratio:4/5;border-radius:18px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:28px;}
+  .servicio-logo img{max-height:120px;width:auto;border-radius:14px;}
+  .servicio-logo.vm{background:radial-gradient(circle at 30% 20%, rgba(240,185,58,0.22), var(--ink-2) 70%);}
+  .servicio-logo.ci{background:radial-gradient(circle at 70% 20%, rgba(127,174,90,0.22), var(--ink-2) 70%);font-family:'Fraunces',serif;font-size:1.6rem;text-align:center;}
+  @media (max-width:860px){.servicio-foto,.servicio-logo{aspect-ratio:16/10;max-width:420px;}}
+  .link-sutil{font-size:0.88rem;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:2px;align-self:center;}
+  .link-sutil:hover{border-color:var(--paper);}
 
-  /* ---------- COMBINED VALUE ---------- */
-  .combo{
-    background:var(--ink-2);
-    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-  }
-  .combo-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:56px;align-items:center;}
-  @media (max-width:860px){.combo-grid{grid-template-columns:1fr;}}
-  .combo-list{display:grid;gap:18px;margin-top:8px;}
-  .combo-item{
-    display:flex;gap:16px;align-items:flex-start;
-    padding:18px 0;border-bottom:1px solid var(--line);
-  }
-  .combo-item:last-child{border-bottom:none;}
-  .combo-mark{
-    font-family:'Fraunces',serif;font-size:0.95rem;color:var(--ink);
-    background:linear-gradient(120deg,var(--divanna),var(--maiz));
-    width:34px;height:34px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;flex:none;font-weight:700;
-  }
-  .combo-item h4{font-family:'Manrope',sans-serif;font-weight:700;font-size:1.02rem;margin:0 0 4px;}
-  .combo-item p{margin:0;color:var(--muted);font-size:0.95rem;line-height:1.5;}
-  .combo-card{
-    border-radius:22px;border:1px solid var(--line);
-    background:var(--ink);padding:38px;
-  }
-  .combo-card .quote{
-    font-family:'Fraunces',serif;font-size:1.3rem;line-height:1.45;font-style:italic;
-  }
-  .combo-card .quote b{
-    font-style:normal;
-    background:linear-gradient(90deg,var(--divanna),var(--maiz));
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-  }
-  .combo-stats{display:flex;gap:0;margin-top:30px;border-top:1px solid var(--line);padding-top:26px;}
-  .combo-stat{flex:1;}
-  .combo-stat .n{font-family:'Fraunces',serif;font-size:1.9rem;font-weight:700;}
-  .combo-stat .l{font-size:0.82rem;color:var(--muted);margin-top:4px;}
+  /* ---------- PAQUETES "DESDE" ---------- */
+  .paquetes{background:var(--ink-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .paq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  @media (max-width:900px){.paq-grid{grid-template-columns:1fr 1fr;}}
+  @media (max-width:560px){.paq-grid{grid-template-columns:1fr;}}
+  .paq{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--ink);transition:transform .25s, border-color .25s;}
+  .paq:hover{transform:translateY(-4px);border-color:rgba(246,241,234,0.3);}
+  .paq img{width:100%;aspect-ratio:4/3;object-fit:cover;}
+  .paq-cuerpo{padding:22px;display:flex;flex-direction:column;gap:8px;flex:1;}
+  .paq-marca{font-size:0.75rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;}
+  .paq-marca.dv{color:var(--divanna);} .paq-marca.vm{color:var(--maiz);} .paq-marca.ci{color:var(--maiz-husk);}
+  .paq h3{font-size:1.3rem;line-height:1.2;}
+  .paq p{margin:0;color:var(--muted);font-size:0.92rem;line-height:1.5;flex:1;}
+  .paq-precio{font-family:'Fraunces',serif;font-size:1.7rem;font-weight:600;margin-top:6px;}
+  .paq-precio small{font-family:'Manrope',sans-serif;font-size:0.8rem;color:var(--muted);font-weight:600;}
+  .paq .btn{margin-top:10px;justify-content:center;}
+  .paq-texto{background:linear-gradient(160deg, rgba(240,185,58,0.10), var(--ink) 60%);}
+  .paq-texto.ci{background:linear-gradient(160deg, rgba(127,174,90,0.12), var(--ink) 60%);}
+  .paq-nota{margin-top:28px;color:var(--muted);font-size:0.9rem;}
 
-  /* ---------- BENEFITS ---------- */
-  .benefits-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;}
-  @media (max-width:760px){.benefits-grid{grid-template-columns:1fr 1fr;}}
-  @media (max-width:520px){.benefits-grid{grid-template-columns:1fr;}}
-  .benefit{background:var(--ink);padding:32px 28px;}
-  .benefit .k{font-family:'Fraunces',serif;font-size:1.5rem;color:var(--maiz);margin-bottom:14px;display:block;}
-  .benefit h4{font-size:1.02rem;font-weight:700;margin-bottom:8px;}
-  .benefit p{margin:0;font-size:0.92rem;color:var(--muted);line-height:1.5;}
+  /* ---------- GALERÍA ---------- */
+  /* Escritorio: mosaico fijo de 4x4 sin huecos. Celular: 2 columnas, las anchas ocupan la fila. */
+  .galeria-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:220px;gap:16px;
+    grid-template-areas:"xv cer cer baby" "xv ele vaq baby" "mes mes vaq cum" "lu lu vaq cum";}
+  .galeria-grid a{display:block;border-radius:18px;overflow:hidden;border:1px solid var(--line);position:relative;}
+  @media (max-width:820px){
+    .galeria-grid{grid-template-columns:repeat(2,1fr);grid-auto-rows:200px;grid-template-areas:none;}
+    .galeria-grid a{grid-area:auto !important;}
+    .galeria-grid a.ancha{grid-column:span 2;}
+  }
+  .galeria-grid img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease;}
+  .galeria-grid a:hover img{transform:scale(1.05);}
+  .galeria-grid figcaption{position:absolute;left:12px;bottom:12px;font-size:0.78rem;font-weight:700;background:rgba(12,11,16,0.7);backdrop-filter:blur(6px);padding:6px 10px;border-radius:100px;}
 
-  /* ---------- COVERAGE ---------- */
+  /* ---------- COBERTURA ---------- */
   .coverage{
     display:flex;align-items:center;gap:40px;
     border:1px solid var(--line);border-radius:22px;
     padding:44px;background:radial-gradient(ellipse at top left, rgba(185,139,255,0.08), transparent 60%);
   }
-  @media (max-width:700px){.coverage{flex-direction:column;text-align:center;gap:24px;}}
+  @media (max-width:700px){.coverage{flex-direction:column;text-align:center;gap:24px;padding:32px 24px;}}
   .coverage-radius{
     flex:none;width:132px;height:132px;border-radius:50%;
     border:1.5px dashed var(--divanna-dim);
     display:flex;align-items:center;justify-content:center;position:relative;
   }
-  .coverage-radius::before{
-    content:"";position:absolute;inset:18px;border-radius:50%;border:1px solid var(--line);
-  }
-  .coverage-radius .center{
-    width:10px;height:10px;border-radius:50%;background:var(--maiz);
-  }
-  .coverage h3{font-size:1.3rem;margin-bottom:10px;}
-  .coverage p{margin:0;color:var(--muted);line-height:1.6;max-width:520px;}
+  .coverage-radius::before{content:"";position:absolute;inset:18px;border-radius:50%;border:1px solid var(--line);}
+  .coverage-radius .center{width:10px;height:10px;border-radius:50%;background:var(--maiz);}
+  .coverage h3{font-size:1.5rem;margin-bottom:10px;}
+  .coverage p{margin:0;color:var(--muted);line-height:1.6;max-width:560px;}
+  #cobertura{padding-top:0;}
 
-  /* ---------- GALLERY ---------- */
-  .gallery-grid{
-    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  /* ---------- PREGUNTAS FRECUENTES ---------- */
+  .faq{max-width:860px;border-top:1px solid var(--line);}
+  .faq details{border-bottom:1px solid var(--line);}
+  .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px 0;font-family:'Fraunces',serif;font-size:clamp(1.1rem,2.2vw,1.4rem);}
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq summary::after{content:"+";font-family:'Manrope',sans-serif;font-size:1.5rem;color:var(--muted);transition:transform .25s;flex:none;}
+  .faq details[open] summary::after{transform:rotate(45deg);}
+  .faq details p{margin:0 0 24px;color:var(--muted);line-height:1.65;max-width:680px;}
+  .faq details p b{color:var(--paper);}
+
+  /* ---------- APARECER AL HACER SCROLL ---------- */
+  .js [data-revelar]{opacity:0;transform:translateY(28px);transition:opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1);}
+  .js [data-revelar].visible{opacity:1;transform:none;}
+  .js .hero h1 .palabra{opacity:0;transform:translateY(0.5em);transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1);}
+  .js .hero h1.visible .palabra{opacity:1;transform:none;}
+  @media (prefers-reduced-motion:reduce){
+    .js [data-revelar], .js .hero h1 .palabra{opacity:1;transform:none;transition:none;}
   }
-  @media (max-width:820px){.gallery-grid{grid-template-columns:repeat(2,1fr);}}
-  .gallery-item{
-    aspect-ratio:3/4;border-radius:16px;
-    background:var(--ink-2);
-    border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;
-    position:relative;overflow:hidden;
+
+  /* ---------- BOTÓN FLOTANTE (celular) ---------- */
+  .fab-cotizar{
+    display:none;position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;
+    background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:15px 24px;font:inherit;font-weight:800;font-size:0.98rem;
+    box-shadow:0 12px 34px -8px rgba(240,185,58,0.6);cursor:pointer;white-space:nowrap;transition:opacity .25s, transform .25s;
   }
-  .gallery-item span{
-    font-size:0.78rem;color:var(--muted);text-align:center;padding:0 16px;
-  }
-  .gallery-item.tall{grid-row:span 2;aspect-ratio:auto;}
+  .fab-cotizar.oculto{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(20px);}
+  @media (max-width:760px){.fab-cotizar{display:block;}}
 
   /* ---------- CLOSING ---------- */
   .closing{
@@ -380,7 +360,13 @@
   .music-bars i:nth-child(3){height:6px;animation-delay:.4s;}
   @keyframes bar{0%,100%{transform:scaleY(0.5);}50%{transform:scaleY(1.3);}}
   @media (prefers-reduced-motion:reduce){.music-bars i{animation:none;}}
+  /* En el celular el botón de música va a la izquierda: abajo al centro va "Cotiza con DiMa". */
+  @media (max-width:760px){.music-toggle{right:auto;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:46px;height:46px;}}
+  .footer-links{display:flex;flex-wrap:wrap;gap:18px;font-size:0.88rem;}
+  .footer-links a{color:var(--muted);} .footer-links a:hover{color:var(--paper);}
+  .footer-dir{font-size:0.82rem;color:var(--muted);margin-top:6px;}
 </style>
+<script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
 
@@ -390,10 +376,10 @@
       <span class="dv">divanna</span><span class="divider">×</span><span class="vm">vaso maíz</span>
     </div>
     <div class="nav-links" id="navLinks">
-      <a href="#divanna">Mobiliario</a>
-      <a href="#vasomaiz">Snacks</a>
-      <a href="#experiencia">Experiencia</a>
-      <a href="#cobertura">Cobertura</a>
+      <a href="#servicios">Servicios</a>
+      <a href="#paquetes">Paquetes</a>
+      <a href="#galeria">Galería</a>
+      <a href="#preguntas">Preguntas</a>
       <a href="#pedido" class="nav-cta" data-abrir-chat>Cotizar</a>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">☰</button>
@@ -409,152 +395,242 @@
   <span class="music-bars" aria-hidden="true"><i></i><i></i><i></i></span>
 </button>
 
+<button type="button" id="fabCotizar" class="fab-cotizar oculto" data-abrir-chat>💬 Cotiza con DiMa</button>
+
 <section class="hero">
   <div class="wrap">
     <span class="hero-eyebrow"><span class="dot"></span> Culiacán, Sinaloa &amp; alrededores</span>
-    <h1>Más de <em>3,000 eventos</em> respaldan nuestra experiencia</h1>
-    <p class="hero-sub">
-      <b>Divanna Eventos</b> renta mobiliario y artículos para eventos, mientras que
-      <b>El Vaso Maíz</b> ofrece snacks irresistibles para complementar tu celebración.
-      Dos marcas hermanas, un mismo estándar de confianza.
-    </p>
-    <div class="hero-ctas">
-      <a href="#pedido" class="btn btn-primary" data-abrir-chat>Haz aquí tu cotización</a>
-      <a href="#divanna" class="btn btn-ghost">Ver mobiliario</a>
-      <a href="#vasomaiz" class="btn btn-ghost">Ver snacks</a>
-    </div>
-
-    <div class="seal-row">
-      <div class="seal">
-        <svg viewBox="0 0 120 120"><path id="ring" fill="none" d="M60,10 a50,50 0 1,1 -0.1,0" /><text font-size="8" fill="#f6f1ea" opacity="0.55"><textPath href="#ring">EXPERIENCIA COMPROBABLE • TRAYECTORIA REAL • </textPath></text></svg>
-        <span class="num">3K+</span>
+    <h1 data-revelar-palabras>Montamos, decoramos y servimos <em>tu evento.</em></h1>
+    <div class="hero-pie">
+      <p class="hero-sub" data-revelar>
+        <b>Divanna Eventos</b> renta mobiliario y decoración, y <b>El Vaso Maíz</b> lleva los snacks que todos recuerdan.
+        Dos marcas hermanas con más de 3,000 eventos atendidos en Culiacán.
+      </p>
+      <div class="hero-ctas" data-revelar>
+        <a href="#pedido" class="btn btn-primary" data-abrir-chat>Cotiza con DiMa</a>
+        <a href="#paquetes" class="btn btn-ghost">Ver paquetes</a>
       </div>
-      <p class="seal-copy"><b>Trayectoria respaldada por resultados:</b> cada evento atendido queda registrado — no improvisamos montajes ni recetas, seguimos un estándar que ya probamos miles de veces.</p>
+    </div>
+    <div class="cifras" data-revelar>
+      <div class="cifra"><div class="n">3,000+</div><div class="l">eventos atendidos</div></div>
+      <div class="cifra"><div class="n">2</div><div class="l">marcas: mobiliario y snacks</div></div>
+      <div class="cifra"><div class="n">12 h</div><div class="l">máximo para confirmar tu cotización</div></div>
+      <div class="cifra"><div class="n">35 km</div><div class="l">de cobertura desde Culiacán</div></div>
     </div>
   </div>
 </section>
 
-<section class="brands" id="brands">
-  <div class="wrap">
-    <div class="section-head">
-      <span class="eyebrow">Dos marcas, un mismo grupo</span>
-      <h2>Cada una hace una cosa, y la hace bien</h2>
-      <p>Divanna Eventos y El Vaso Maíz son empresas hermanas, no una agencia de coordinación. Cada marca tiene un enfoque claro para que sepas exactamente qué estás contratando.</p>
-    </div>
+<div class="cinta" aria-label="Fotos de montajes reales">
+  <div class="cinta-fila">
+    <img src="img/home/arco-rosa-dorado.jpg" alt="Arco con globos rosa y dorado" loading="lazy" decoding="async">
+    <img src="img/home/tunel-luces.jpg" alt="Túnel de luces de 4 metros" loading="lazy" decoding="async">
+    <img src="img/home/baby-shower.jpg" alt="Decoración de baby shower en tonos pastel" loading="lazy" decoding="async">
+    <img src="img/home/mesa-honor.jpg" alt="Mesa de honor con velas" loading="lazy" decoding="async">
+    <img src="img/home/xv-rojo.jpg" alt="Decoración de XV años en rojo, negro y dorado" loading="lazy" decoding="async">
+    <img src="img/home/arco-cerezos.jpg" alt="Arco de cerezos blancos" loading="lazy" decoding="async">
+    <img src="img/home/arco-rosa-dorado.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/tunel-luces.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/baby-shower.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/mesa-honor.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/xv-rojo.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/arco-cerezos.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+  </div>
+  <div class="cinta-fila">
+    <img src="img/home/elegante-cafe.jpg" alt="Decoración elegante en café y dorado" loading="lazy" decoding="async">
+    <img src="img/home/mesas-lila.jpg" alt="Mesas decoradas en lila" loading="lazy" decoding="async">
+    <img src="img/home/vaquero.jpg" alt="Decoración temática vaquera" loading="lazy" decoding="async">
+    <img src="img/home/tunel-cerezos.jpg" alt="Túnel de arcos de cerezos con luces LED" loading="lazy" decoding="async">
+    <img src="img/home/cumple-rojo-negro.jpg" alt="Decoración de cumpleaños en rojo, negro y dorado" loading="lazy" decoding="async">
+    <img src="img/home/elegante-cafe.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/mesas-lila.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/vaquero.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/tunel-cerezos.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+    <img src="img/home/cumple-rojo-negro.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+  </div>
+</div>
 
-    <div class="brand-grid">
-      <article class="brand-card dv" id="divanna">
-        <div class="brand-logo-wrap"><img src="divanna-logo.png" alt="Divanna Eventos"></div>
-        <h3>Divanna Eventos</h3>
-        <span class="brand-tag">Renta de mobiliario y artículos para eventos</span>
-        <ul>
-          <li>Mesas y sillas para cualquier tamaño de evento</li>
-          <li>Mobiliario y artículos de decoración para renta</li>
-          <li>Montaje y apoyo logístico del equipo rentado</li>
-          <li>Soluciones para que tu evento luzca impecable</li>
-        </ul>
-        <div class="brand-note">Divanna Eventos renta mobiliario y equipo — no coordina ni organiza eventos.</div>
-        <div class="brand-links">
-          <a class="pill-link" href="https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0" target="_blank" rel="noopener">Ver Instagram →</a>
+<section id="servicios">
+  <div class="wrap">
+    <div class="section-head" data-revelar>
+      <span class="eyebrow">Lo que hacemos</span>
+      <h2>Todo lo que tu evento necesita, en un solo chat.</h2>
+    </div>
+    <div class="servicios">
+      <article class="servicio dv" id="divanna" data-revelar>
+        <span class="num">01</span>
+        <div>
+          <h3>Mobiliario y decoración</h3>
+          <p><b>Divanna Eventos</b> lleva y monta mesas, sillas, mantelería, cristalería y la decoración de tu evento: arcos de cerezos, túneles de luces, mesas de honor, letreros LED y montajes temáticos.</p>
+          <div class="etiquetas"><span>Sillas Tiffany, Antonella y Jardín</span><span>Cristalería</span><span>Arcos y túneles</span><span>XV años y bodas</span></div>
+          <div class="servicio-acc">
+            <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero cotizar mobiliario y decoración para mi evento.">Cotizar mobiliario →</button>
+            <a class="link-sutil" href="https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0" target="_blank" rel="noopener">Instagram de Divanna</a>
+          </div>
+        </div>
+        <img class="servicio-foto" src="img/home/mesa-honor.jpg" alt="Mesa de honor montada por Divanna Eventos" loading="lazy" decoding="async">
+      </article>
+      <article class="servicio vm" id="vasomaiz" data-revelar>
+        <span class="num">02</span>
+        <div>
+          <h3>Snacks para eventos</h3>
+          <p><b>El Vaso Maíz</b> monta su barra en tu evento y prepara todo al momento: fresas con crema, esquites, cevichurros, papas locas, tostilocos, raspados y más. Los paquetes incluyen 2 horas de servicio.</p>
+          <div class="etiquetas"><span>Paquetes de 55 a 120 piezas</span><span>Sabritas preparadas</span><span>Raspados</span><span>Elote forrado</span></div>
+          <div class="servicio-acc">
+            <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.">Cotizar snacks →</button>
+            <a class="link-sutil" href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Instagram de El Vaso Maíz</a>
+          </div>
+        </div>
+        <div class="servicio-logo vm"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" loading="lazy" decoding="async"></div>
+      </article>
+      <article class="servicio ci" id="casa-isabella" data-revelar>
+        <span class="num">03</span>
+        <div>
+          <h3>Casa Isabella</h3>
+          <p>Nuestro salón con alberca en la colonia Guadalupe Victoria, para hasta 80 personas. Incluye asador, hielera, bocina, mobiliario con mantel básico y 5 horas de evento.</p>
+          <div class="etiquetas"><span>Alberca</span><span>Hasta 80 personas</span><span>5 horas</span></div>
+          <div class="servicio-acc">
+            <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero información para rentar Casa Isabella.">Apartar fecha →</button>
+          </div>
+        </div>
+        <div class="servicio-logo ci">Casa<br>Isabella</div>
+      </article>
+      <article class="servicio" data-revelar>
+        <span class="num">04</span>
+        <div>
+          <h3>Cotiza con DiMa</h3>
+          <p>DiMa es nuestra asistente: le cuentas tu evento y en minutos te da un estimado de mobiliario, decoración y snacks juntos. El equipo revisa disponibilidad y te confirma en un máximo de 12 horas.</p>
+          <div class="servicio-acc">
+            <button type="button" class="btn btn-primary" data-abrir-chat>Hablar con DiMa</button>
+          </div>
+        </div>
+        <img class="servicio-foto" src="img/home/arco-rosa-dorado.jpg" alt="Decoración de cumpleaños con arco de globos" loading="lazy" decoding="async">
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- Precios tomados de api/_dima-catalogo.js: si cambian allá, actualizarlos aquí. -->
+<section class="paquetes" id="paquetes">
+  <div class="wrap">
+    <div class="section-head" data-revelar>
+      <span class="eyebrow">Paquetes populares</span>
+      <h2>Precios claros desde el principio.</h2>
+      <p>Elige uno como punto de partida y DiMa lo ajusta a tu número de invitados, colores y fecha.</p>
+    </div>
+    <div class="paq-grid">
+      <article class="paq" data-revelar>
+        <img src="img/home/arco-rosa-dorado.jpg" alt="Aro decorado con globos y letrero LED" loading="lazy" decoding="async">
+        <div class="paq-cuerpo">
+          <span class="paq-marca dv">Divanna Eventos</span>
+          <h3>Decoración + 2 mesas para 20 personas</h3>
+          <p>Aro o mampara, globos en 3 colores, letrero LED, mesita para pastel, tapete y reflector, con 2 mesas decoradas.</p>
+          <div class="paq-precio">$2,900</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesa el paquete de decoración + 2 mesas para 20 personas ($2,900).">Cotizar este paquete</button>
         </div>
       </article>
-
-      <article class="brand-card vm" id="vasomaiz">
-        <div class="brand-logo-wrap"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:14px;"></div>
-        <h3>El Vaso Maíz</h3>
-        <span class="brand-tag">Snacks para eventos</span>
-        <ul>
-          <li>Barras de snacks montadas en tu evento</li>
-          <li>Elotes en vaso preparados al momento</li>
-          <li>Papas preparadas y antojitos mexicanos</li>
-          <li>Paquetes para complementar tu celebración</li>
-        </ul>
-        <div class="brand-note">El Vaso Maíz se dedica a snacks para eventos — no ofrece renta de mobiliario.</div>
-        <div class="brand-links">
-          <a class="pill-link" href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Ver Instagram →</a>
+      <article class="paq" data-revelar>
+        <img src="img/home/mesas-lila.jpg" alt="Mesas decoradas con mantel de color y copas" loading="lazy" decoding="async">
+        <div class="paq-cuerpo">
+          <span class="paq-marca dv">Divanna Eventos</span>
+          <h3>Mesas decoradas para 50 personas</h3>
+          <p>5 mesas con mantel de color, sillas Jardín, plato base, copa, servilletas y montaje. También con sillas Tiffany o Antonella.</p>
+          <div class="paq-precio"><small>desde</small> $2,500</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesan las mesas decoradas para 50 personas.">Cotizar este paquete</button>
+        </div>
+      </article>
+      <article class="paq" data-revelar>
+        <img src="img/home/tunel-luces.jpg" alt="Túnel de luces de 4 metros" loading="lazy" decoding="async">
+        <div class="paq-cuerpo">
+          <span class="paq-marca dv">Divanna Eventos</span>
+          <h3>Túnel de luces de 4 m</h3>
+          <p>Una entrada que se queda en todas las fotos. También con marco de cerezos.</p>
+          <div class="paq-precio">$1,900</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesa el túnel de luces de 4 metros ($1,900).">Cotizar</button>
+        </div>
+      </article>
+      <article class="paq" data-revelar>
+        <img src="img/home/arco-cerezos.jpg" alt="Arco de cerezos blancos" loading="lazy" decoding="async">
+        <div class="paq-cuerpo">
+          <span class="paq-marca dv">Divanna Eventos</span>
+          <h3>Arco de cerezos</h3>
+          <p>En blanco, rosa o rojo. Tres arcos por $3,000.</p>
+          <div class="paq-precio">$1,200</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesa el arco de cerezos.">Cotizar</button>
+        </div>
+      </article>
+      <article class="paq paq-texto" data-revelar>
+        <div class="paq-cuerpo">
+          <span class="paq-marca vm">El Vaso Maíz</span>
+          <h3>Paquete 1 · 55 piezas</h3>
+          <p>10 fresas con crema, 15 cevichurros, 10 papas locas y 20 mitades de chimichanga, con 2 horas de servicio, salsas, chamoy y limones. Hay paquetes de hasta 120 piezas.</p>
+          <div class="paq-precio">$1,500</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesan los paquetes de snacks de El Vaso Maíz.">Ver los 5 paquetes</button>
+        </div>
+      </article>
+      <article class="paq paq-texto ci" data-revelar>
+        <div class="paq-cuerpo">
+          <span class="paq-marca ci">Casa Isabella</span>
+          <h3>Salón con alberca, 30 personas</h3>
+          <p>De lunes a jueves; viernes a domingo $2,500. Cada mesa extra de 10 personas se suma, hasta 80 personas.</p>
+          <div class="paq-precio"><small>desde</small> $1,500</div>
+          <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero información para rentar Casa Isabella.">Apartar fecha</button>
         </div>
       </article>
     </div>
+    <p class="paq-nota" data-revelar>También hay paquetes completos para XV años ($6,000) y bodas ($6,500). Del 18 de diciembre al 1 de enero aplican precios de temporada y no hay paquetes regulares.</p>
   </div>
 </section>
 
-<section class="combo" id="experiencia">
-  <div class="wrap combo-grid">
-    <div>
-      <span class="eyebrow">Por qué juntas rinden más</span>
-      <h2>Una solución más completa para tu evento</h2>
-      <div class="combo-list">
-        <div class="combo-item">
-          <span class="combo-mark">1</span>
-          <div><h4>Mobiliario para el evento</h4><p>Todo lo necesario para el montaje, de la mano de Divanna Eventos.</p></div>
-        </div>
-        <div class="combo-item">
-          <span class="combo-mark">2</span>
-          <div><h4>Snacks para los invitados</h4><p>El Vaso Maíz complementa la experiencia con antojitos servidos en el momento.</p></div>
-        </div>
-        <div class="combo-item">
-          <span class="combo-mark">3</span>
-          <div><h4>Atención personalizada</h4><p>Cotiza ambos servicios en un solo chat, sin vueltas.</p></div>
-        </div>
-        <div class="combo-item">
-          <span class="combo-mark">4</span>
-          <div><h4>Mayor comodidad</h4><p>Coordina mobiliario y snacks con dos marcas que ya se conocen entre sí.</p></div>
-        </div>
-      </div>
-    </div>
-    <div class="combo-card">
-      <p class="quote">"Cada evento que atendemos <b>suma a una trayectoria</b> que ya lleva más de tres mil celebraciones — eso no se improvisa."</p>
-      <div class="combo-stats">
-        <div class="combo-stat"><div class="n">3,000+</div><div class="l">Eventos atendidos</div></div>
-        <div class="combo-stat"><div class="n">2</div><div class="l">Marcas especializadas</div></div>
-        <div class="combo-stat"><div class="n">35km</div><div class="l">Radio de cobertura</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="benefits">
+<section id="galeria">
   <div class="wrap">
-    <div class="section-head">
-      <span class="eyebrow">Lo que puedes esperar</span>
-      <h2>Servicio claro, sin confusión</h2>
+    <div class="section-head" data-revelar>
+      <span class="eyebrow">Galería</span>
+      <h2>Eventos reales, montados por nosotros.</h2>
     </div>
-    <div class="benefits-grid">
-      <div class="benefit"><span class="k">✓</span><h4>Experiencia comprobada</h4><p>Más de 3,000 eventos ya atendidos entre ambas marcas.</p></div>
-      <div class="benefit"><span class="k">⚡</span><h4>Cotización rápida</h4><p>Platica con DiMa, nuestra asistente, y en minutos tienes un estimado de tu evento.</p></div>
-      <div class="benefit"><span class="k">🪑</span><h4>Renta confiable de mobiliario</h4><p>Equipo en buen estado, montado a tiempo.</p></div>
-      <div class="benefit"><span class="k">🌽</span><h4>Snacks ideales para eventos</h4><p>Preparados el mismo día de tu celebración.</p></div>
-      <div class="benefit"><span class="k">◎</span><h4>Servicio sin confusión</h4><p>Cada marca hace una cosa concreta — sabes qué esperar de cada una.</p></div>
-      <div class="benefit"><span class="k">📍</span><h4>Cobertura definida</h4><p>Ciudad de Culiacán sin traslado; foráneos con costo de traslado claro.</p></div>
+    <div class="galeria-grid" data-revelar>
+      <a style="grid-area:xv" href="img/home/xv-rojo.jpg" target="_blank" rel="noopener"><img src="img/home/xv-rojo.jpg" alt="Decoración de XV años en rojo, negro y dorado" loading="lazy" decoding="async"><figcaption>XV años</figcaption></a>
+      <a class="ancha" style="grid-area:cer" href="img/home/tunel-cerezos.jpg" target="_blank" rel="noopener"><img src="img/home/tunel-cerezos.jpg" alt="Túnel de arcos de cerezos con luces LED" loading="lazy" decoding="async"><figcaption>Túnel de cerezos</figcaption></a>
+      <a style="grid-area:baby" href="img/home/baby-shower.jpg" target="_blank" rel="noopener"><img src="img/home/baby-shower.jpg" alt="Decoración de baby shower en tonos pastel" loading="lazy" decoding="async"><figcaption>Baby shower</figcaption></a>
+      <a style="grid-area:ele" href="img/home/elegante-cafe.jpg" target="_blank" rel="noopener"><img src="img/home/elegante-cafe.jpg" alt="Decoración elegante en café y dorado" loading="lazy" decoding="async"><figcaption>Cumpleaños elegante</figcaption></a>
+      <a style="grid-area:vaq" href="img/home/vaquero.jpg" target="_blank" rel="noopener"><img src="img/home/vaquero.jpg" alt="Decoración temática vaquera" loading="lazy" decoding="async"><figcaption>Temática vaquera</figcaption></a>
+      <a class="ancha" style="grid-area:mes" href="img/home/mesa-honor.jpg" target="_blank" rel="noopener"><img src="img/home/mesa-honor.jpg" alt="Mesa de honor con velas" loading="lazy" decoding="async"><figcaption>Mesa de honor</figcaption></a>
+      <a style="grid-area:cum" href="img/home/cumple-rojo-negro.jpg" target="_blank" rel="noopener"><img src="img/home/cumple-rojo-negro.jpg" alt="Decoración de cumpleaños en rojo, negro y dorado" loading="lazy" decoding="async"><figcaption>Cumpleaños</figcaption></a>
+      <a class="ancha" style="grid-area:lu" href="img/home/tunel-luces.jpg" target="_blank" rel="noopener"><img src="img/home/tunel-luces.jpg" alt="Túnel de luces" loading="lazy" decoding="async"><figcaption>Túnel de luces</figcaption></a>
     </div>
   </div>
 </section>
 
 <section id="cobertura">
   <div class="wrap">
-    <div class="coverage">
+    <div class="coverage" data-revelar>
       <div class="coverage-radius"><div class="center"></div></div>
       <div>
-        <h3>Zona de cobertura</h3>
-        <p>Atendemos dentro de un radio máximo de <b style="color:var(--paper)">35 km desde la salida de Culiacán</b>. En la ciudad no cobramos traslado; los eventos foráneos (sindicaturas, Navolato y alrededores) llevan costo de traslado y los valida nuestro equipo de logística. Por seguridad y costos, por ahora no damos servicio más lejos. Cuéntale a DiMa dónde será tu evento.</p>
+        <h3>Llegamos hasta 35 km desde Culiacán</h3>
+        <p>Dentro de la ciudad no cobramos traslado. En sindicaturas, Navolato y alrededores el traslado tiene un costo que te confirma nuestro equipo de logística. Cuéntale a DiMa dónde será tu evento.</p>
       </div>
     </div>
   </div>
 </section>
 
-<section class="gallery">
+<section id="preguntas">
   <div class="wrap">
-    <div class="section-head">
-      <span class="eyebrow">Galería</span>
-      <h2>Eventos reales, resultados reales</h2>
-      <p>Estamos preparando la galería fotográfica con montajes y snacks de eventos recientes.</p>
+    <div class="section-head" data-revelar>
+      <span class="eyebrow">Preguntas frecuentes</span>
+      <h2>Lo que más nos preguntan.</h2>
     </div>
-    <div class="gallery-grid">
-      <div class="gallery-item tall"><span>Montaje de mobiliario<br>— próximamente</span></div>
-      <div class="gallery-item"><span>Decoración de evento<br>— próximamente</span></div>
-      <div class="gallery-item"><span>Barra de snacks<br>— próximamente</span></div>
-      <div class="gallery-item"><span>Elotes en vaso<br>— próximamente</span></div>
-      <div class="gallery-item"><span>Evento atendido<br>— próximamente</span></div>
+    <div class="faq" data-revelar>
+      <details><summary>¿En cuánto tiempo me confirman la cotización?</summary>
+        <p>DiMa te da un estimado en el chat. Nuestro equipo revisa la disponibilidad de tu fecha y te confirma la cotización en <b>un máximo de 12 horas</b>.</p></details>
+      <details><summary>¿Cómo aparto mi fecha?</summary>
+        <p>Con un anticipo. Cuando confirmamos tu cotización te mandamos el monto y los datos de pago por transferencia o depósito; también puedes dejarlo en nuestro local, con cita. En El Vaso Maíz el anticipo es de <b>$500</b> para cualquier paquete.</p></details>
+      <details><summary>¿Cobran traslado?</summary>
+        <p>Dentro de la ciudad de Culiacán, no. Fuera de la ciudad (sindicaturas, Navolato, playas) sí, y te lo confirma el equipo de logística. Damos servicio hasta <b>35 km</b> desde la salida de Culiacán.</p></details>
+      <details><summary>¿Puedo cambiar o agregar algo a mi pedido?</summary>
+        <p>Sí. Abajo, en <b>"¿Ya tienes número de pedido?"</b>, escribe tu número de pedido y tu teléfono y DiMa toma los cambios. Pídelos con al menos <b>24 horas</b> de anticipación.</p></details>
+      <details><summary>¿Los precios cambian en diciembre?</summary>
+        <p>Del <b>18 de diciembre al 1 de enero</b> es temporada alta: aplican precios de temporada y no hay paquetes regulares. DiMa te cotiza con esos precios si tu fecha cae ahí.</p></details>
+      <details><summary>¿Tienen local donde pueda ver los paquetes?</summary>
+        <p>Sí, en Enrique González Martínez 3926, colonia Emiliano Zapata, Culiacán. Atendemos de lunes a sábado de 4 a 9 pm, <b>con cita previa</b>: pídela a DiMa.</p></details>
     </div>
   </div>
 </section>
@@ -631,11 +707,21 @@
 
 <footer>
   <div class="wrap footer-row">
-    <div class="footer-brands">
-      <img src="divanna-logo.png" alt="Divanna Eventos">
-      <img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:6px;">
+    <div>
+      <div class="footer-brands">
+        <img src="divanna-logo.png" alt="Divanna Eventos" loading="lazy">
+        <img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:6px;" loading="lazy">
+      </div>
+      <div class="footer-dir">Enrique González Martínez 3926, col. Emiliano Zapata, Culiacán · Lunes a sábado de 4 a 9 pm, con cita</div>
     </div>
-    <div class="footer-meta">© 2026 Divanna Eventos &amp; El Vaso Maíz · Culiacán, Sinaloa</div>
+    <div>
+      <div class="footer-links">
+        <a href="https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0" target="_blank" rel="noopener">Instagram Divanna</a>
+        <a href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Instagram El Vaso Maíz</a>
+        <a href="#pedido" data-abrir-chat>Cotizar</a>
+      </div>
+      <div class="footer-meta" style="margin-top:8px;">© 2026 Divanna Eventos &amp; El Vaso Maíz · Culiacán, Sinaloa</div>
+    </div>
   </div>
 </footer>
 
@@ -928,6 +1014,64 @@
   }
   document.addEventListener('click', firstInteractionPlay, { once:true });
   document.addEventListener('touchstart', firstInteractionPlay, { once:true });
+</script>
+<script>
+  // ---------- Homepage: aparecer al hacer scroll, botón flotante y preguntas listas ----------
+  (function(){
+    // Titular: cada palabra aparece una tras otra (se respeta el <em>).
+    document.querySelectorAll('[data-revelar-palabras]').forEach(h => {
+      let i = 0;
+      (function partir(nodo){
+        [...nodo.childNodes].forEach(n => {
+          if(n.nodeType === 3){
+            const frag = document.createDocumentFragment();
+            n.textContent.split(/(\s+)/).forEach(t => {
+              if(!t) return;
+              if(/^\s+$/.test(t)){ frag.appendChild(document.createTextNode(t)); return; }
+              const s = document.createElement('span');
+              s.className = 'palabra'; s.textContent = t; s.style.transitionDelay = (i++ * 70) + 'ms';
+              frag.appendChild(s);
+            });
+            n.replaceWith(frag);
+          } else if(n.nodeType === 1) partir(n);
+        });
+      })(h);
+    });
+
+    const revelar = document.querySelectorAll('[data-revelar], [data-revelar-palabras]');
+    if(!('IntersectionObserver' in window)){ revelar.forEach(el => el.classList.add('visible')); }
+    else {
+      const io = new IntersectionObserver(entradas => entradas.forEach(e => {
+        if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); }
+      }), { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+      revelar.forEach(el => io.observe(el));
+    }
+
+    // Los botones de un paquete abren el chat con la pregunta ya escrita (no se envía sola).
+    document.querySelectorAll('[data-pregunta]').forEach(el => el.addEventListener('click', () => {
+      const entrada = document.getElementById('dimaInput');
+      if(entrada && !entrada.value.trim()){
+        entrada.value = el.dataset.pregunta;
+        entrada.dispatchEvent(new Event('input'));
+        entrada.setSelectionRange(entrada.value.length, entrada.value.length);
+      }
+    }));
+
+    // Botón flotante en el celular: se esconde con el chat abierto, arriba del todo
+    // (ya están los botones del hero) y en la sección de pedido.
+    const fab = document.getElementById('fabCotizar');
+    const chat = document.getElementById('dimaChat');
+    if(fab && chat){
+      let enHero = true, enPedido = false;
+      const pintar = () => fab.classList.toggle('oculto', enHero || enPedido || !chat.hidden);
+      if('IntersectionObserver' in window){
+        new IntersectionObserver(([e]) => { enHero = e.isIntersecting; pintar(); }, { threshold: 0.2 }).observe(document.querySelector('.hero-ctas'));
+        new IntersectionObserver(([e]) => { enPedido = e.isIntersecting; pintar(); }).observe(document.getElementById('pedido'));
+      } else { enHero = false; }
+      new MutationObserver(pintar).observe(chat, { attributes: true, attributeFilter: ['hidden'] });
+      pintar();
+    }
+  })();
 </script>
 </body>
 </html>

@@ -278,3 +278,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decisión:** `forma_anticipo` en la herramienta `datos_comanda` es una lista de texto con "No se sabe" en vez de `['string', 'null']` con `null` en el enum.
 
 **Por qué:** la API de Claude rechaza ese esquema (error 400): la foto de la comanda fallaba siempre, en la app ("Error interno") y en Telegram. Hay una prueba que revisa que ningún enum lleve null.
+
+## 2026-10-30 — Homepage nuevo inspirado en DuoFankaar
+
+**Decisión:** titular editorial grande, cinta de fotos en dos filas, servicios numerados (mobiliario, snacks, Casa Isabella, DiMa), paquetes con precio "desde", galería real, preguntas frecuentes y botón flotante "Cotiza con DiMa" en el celular. Las fotos salen de `referencias/` recortadas sin texto ni teléfonos (`img/home/`, 19–77 KB cada una); no se usan los volantes con WhatsApp ni la foto con el nombre de un niño. Los botones de cada paquete abren el chat con la pregunta escrita (no se envía sola). El chat, "Agregar a mi pedido" y el formulario no cambian.
+
+**Por qué:** lo pidió Víctor con la referencia https://www.awwwards.com/duofankaar/ y las observaciones de la revisión (galería vacía, sin botón de cotizar a la mano, sin precios, "3,000 eventos" repetido, tono defensivo, Casa Isabella ausente, sin preguntas frecuentes).
+
+**Descartado:** GSAP u otra librería de animación (sin paso de compilación; bastan CSS e IntersectionObserver, y se respeta "reducir movimiento"), pantalla de carga (frena al cliente) y testimonios (no hay reales que mostrar).
