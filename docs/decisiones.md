@@ -303,3 +303,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 
 **Descartado:** decir toda la política en un solo mensaje (suena a letra chiquita), cobrar el depósito en efectivo al montar (decisión de Víctor: va con la liquidación) y un campo nuevo en Airtable para quien recibe en la recolección (en las instrucciones ya lo ven la brigada y `/hoy`).
 
+## 2026-10-30 — Daños: perdido al 100%, daño menor al 10%, y DiMa los calcula por Telegram
+
+**Decisión:** lo roto, perdido o que ya no sirve se cobra al 100% del precio de reposición (`INVENTARIO.Precio_Reposicion`); el daño menor (mancha, rayón, se limpia o se repara) al 10%. La brigada puede anotarlo platicando con DiMa por Telegram (`/daño EVT-… qué pasó`): DiMa reconoce el evento y los artículos, el servidor hace la cuenta y muestra el desglose con ✅ Registrar / ❌ Cancelar. El borrador vive en `EVENTOS.Cargos_Extra` marcado `pendiente` (sin campos nuevos en Airtable) y no suma al total hasta confirmarse. En la app, 💰 Dinero pide "¿Qué pasó?" (completo o daño menor).
+
+**Por qué:** lo pidió Víctor: "la brigada debe mandar un mensaje a DiMa, hacer el cálculo rápido y dar un monto". El 10% lo propuso Víctor; se aplicó solo al daño menor porque a todo daño cobraría $10 por una copa rota.
+
+**Descartado:** que DiMa calcule el monto (el modelo puede equivocarse en cuentas; el servidor usa el precio de inventario), registrar sin confirmar (un artículo mal reconocido se cobraría al cliente) y una tabla nueva para los borradores (no se podía crear el campo desde aquí y el JSON ya existía).

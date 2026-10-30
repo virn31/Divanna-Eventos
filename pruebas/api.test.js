@@ -1108,7 +1108,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 777) }, res);
   let tgIn = telegram.find(t => t.metodo === 'sendMessage');
-  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:reporte,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff y el reporte del día');
+  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:reporte,in:danos,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff, el reporte del día y daños');
 
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
@@ -2401,5 +2401,72 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const evRec = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
     ok(r.code === 200 && evRec.Instrucciones_Equipo.includes('Montar a las 3 pm') && evRec.Instrucciones_Equipo.includes('Entrega el mobiliario en la recolección: Su hermano Juan, 6671112233'),
       'política: quién entrega el mobiliario en la recolección llega a las instrucciones de la brigada');
+  }
+  // ---------- /daño por Telegram y daño menor al 10% (api/_danos.js, api/_cargos.js) ----------
+  {
+    const hoyD = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const LIDER_D = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+    const INV_D = { records: [
+      { id: 'recINVCOPA0000001', fields: { Item: 'Copa globo', Categoria: 'Copas', Precio_Reposicion: 100 } },
+      { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Categoria: 'Manteles', Precio_Reposicion: 400 } },
+      { id: 'recINVTAPETE00001', fields: { Item: 'Tapete', Categoria: 'Decoración' } },
+    ] };
+    const EV_D = { id: 'recEVDANO00000001', fields: { Folio_Evento: 'EVT-500', Fecha_Evento: hoyD, Negocio: 'Divanna Eventos', Brigada_Asignada: ['recBRIGADA0000001'], Cargos_Extra: '' } };
+    const tgD = (texto) => ({ message: { message_id: 30, chat: { id: 222, type: 'private' }, text: texto } });
+
+    reset();
+    respuestas = [{ records: [LIDER_D] }, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_D.id] } }, INV_D, { records: [EV_D] }, EV_D, {}];
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_d', name: 'anotar_danos', input: { folio: 'EVT-500', duda: null, renglones: [
+      { articulo: 'recINVCOPA0000001', descripcion: 'Copa globo', cantidad: 3, gravedad: 'perdido', nota: 'rotas' },
+      { articulo: 'recINVMANTEL00001', descripcion: 'Mantel', cantidad: 1, gravedad: 'menor', nota: 'mancha de vino' },
+      { articulo: 'recINVTAPETE00001', descripcion: 'Tapete', cantidad: 1, gravedad: 'perdido', nota: null },
+    ] } }] }];
+    let res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: tgD('/daño EVT-500 se rompieron 3 copas, el mantel quedó manchado y se perdió el tapete') }, res);
+    const parcheD = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    const borrador = parcheD ? JSON.parse(parcheD.body.records[0].fields.Cargos_Extra) : [];
+    const msgD = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    const botonD = msgD && msgD.body.reply_markup ? msgD.body.reply_markup.inline_keyboard[0][0].callback_data : '';
+    ok(borrador.length === 3 && borrador.every(c => c.pendiente && c.lote) && parcheD.body.records[0].fields.Cargos_Extra_Total === 0
+      && borrador[0].total === 300 && borrador[1].total === 40 && borrador[2].sinPrecio
+      && msgD.body.text.includes('daño menor, 10%') && msgD.body.text.includes('Total: $340') && msgD.body.text.includes('sin precio') && /^dn:s:recEVDANO00000001:[a-f0-9]{8}$/.test(botonD)
+      && llamadasClaude[0].tools[0].input_schema.properties.folio.enum.includes('EVT-500'),
+      '/daño: DiMa arma el borrador (perdido al 100%, daño menor al 10%, sin precio marcado) y no suma hasta confirmar');
+
+    // ✅ Registrar: deja de ser borrador, suma al total y avisa a Diana.
+    reset();
+    respuestas = [{ records: [LIDER_D] }, { ...EV_D, fields: { ...EV_D.fields, Cargos_Extra: JSON.stringify(borrador) } }, {}, { records: [{ id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '111' } }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbD', data: botonD, message: { message_id: 31, chat: { id: 222, type: 'private' }, text: msgD.body.text } } } }, res);
+    const parcheR = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    const registrados = parcheR ? JSON.parse(parcheR.body.records[0].fields.Cargos_Extra) : [];
+    ok(registrados.length === 3 && registrados.every(c => !c.pendiente) && parcheR.body.records[0].fields.Cargos_Extra_Total === 340
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('✅ Registrado'))
+      && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('Daños y faltantes en EVT-500') && t.body.text.includes('sin precio')),
+      '/daño: con ✅ Registrar se suma a lo que debe el cliente y Diana recibe el aviso');
+
+    // ❌ Cancelar quita el borrador sin tocar los cargos que ya estaban.
+    reset();
+    const previo = { id: 'abc123abc123', descripcion: 'Silla', cantidad: 1, precio: 700, total: 700, porId: 'x' };
+    respuestas = [{ records: [LIDER_D] }, { ...EV_D, fields: { ...EV_D.fields, Cargos_Extra: JSON.stringify([previo, ...borrador]) } }, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbX', data: botonD.replace('dn:s:', 'dn:x:'), message: { message_id: 31, chat: { id: 222, type: 'private' }, text: msgD.body.text } } } }, res);
+    const parcheX = llamadas.find(l => l.method === 'PATCH');
+    ok(parcheX && JSON.parse(parcheX.body.records[0].fields.Cargos_Extra).length === 1 && parcheX.body.records[0].fields.Cargos_Extra_Total === 700
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Descartado')), '/daño: ❌ Cancelar borra solo el borrador');
+
+    // El asistente no anota daños.
+    reset();
+    respuestas = [{ records: [{ ...LIDER_D, fields: { ...LIDER_D.fields, Rol: 'Asistente' } }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: tgD('/dano se rompió una copa') }, res);
+    ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('Los daños los anotan')), '/daño: el asistente no puede anotar daños');
+
+    // En la app: daño menor al 10% del precio de reposición.
+    const { agregarCargo } = require(path.join(repo, 'api/_cargos.js'));
+    reset();
+    respuestas = [EV_D, { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Precio_Reposicion: 400 } }, {}, { records: [] }];
+    const rApp = await agregarCargo({ id: 'recCOLAB000000001', nombre: 'Diana', rol: 'Admin' }, { eventoId: EV_D.id, articuloId: 'recINVMANTEL00001', cantidad: 2, gravedad: 'menor' });
+    ok(rApp.ok && rApp.cargo.total === 80 && rApp.cargo.gravedad === 'menor', 'cargos: en la app el daño menor se cobra al 10% del precio de reposición');
   }
 })();

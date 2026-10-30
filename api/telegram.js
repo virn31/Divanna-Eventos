@@ -8,6 +8,7 @@
 //   /instrucciones  manual del equipo por temas, con botones (api/_instrucciones.js)
 //   /curso    capacitación por lecciones (api/_curso.js); Admin ve el avance del equipo
 //   /mensaje  mensaje directo a Diana y Víctor, con respuesta por el bot (api/_mensajes.js)
+//   /daño (o /dano)  daños y faltantes de un evento: DiMa calcula y se registra con ✅ (api/_danos.js)
 // La gerente de El Vaso Maíz y los Admin platican con DiMa escribiendo sin comando
 // (api/_dima-equipo.js).
 //   /staff    coordinadora (o Admin): invitar a las chicas de El Vaso Maíz a un evento
@@ -32,6 +33,8 @@ const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = r
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
 const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
+const { reportarDanos, botonDanos } = require('./_danos');
+const { veDinero } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -107,6 +110,7 @@ function ayuda(colaborador) {
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
+  if (veDinero(colaborador)) comandos.push('/daño — anotar lo que se rompió o faltó en un evento');
   comandos.push('/salir — desvincular este Telegram');
   const puesto = colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
   return `${colaborador.nombre} (${puesto})\n\n${comandos.join('\n')}\n\n` +
@@ -192,6 +196,7 @@ async function configurarBot() {
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
+      { command: 'dano', description: 'Anotar daños o faltantes de un evento' },
       { command: 'ayuda', description: 'Qué puedo hacer' },
       { command: 'salir', description: 'Desvincular este Telegram' },
     ],
@@ -221,6 +226,13 @@ async function atenderBoton(cb) {
     const r = await Comanda.atenderBoton(accion, id, colaborador);
     if (r.texto) await editarTelegram(chatId, mensajeId, cb.message.text || '');
     await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
+    return;
+  }
+  if (tipo === 'dn') {
+    // Borrador de /daño: Registrar (s) o Cancelar (x), dn:<acción>:<evento>:<lote>.
+    const r = await botonDanos(colaborador, accion, id, sel);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
     return;
   }
   if (tipo === 'inv' && (accion === 's' || accion === 'n')) {
@@ -370,6 +382,10 @@ async function responder(mensaje) {
       if (colaborador.rol === ROLES.STAFF) return ayuda(colaborador);
       return colaborador.rol === ROLES.ADMIN ? avanceEquipo() : cursoDe(colaborador, await puedeCoordinar(colaborador));
     case '/mensaje': return comandoMensaje(chatId, colaborador, argumentos.join(' '));
+    case '/daño':
+    case '/dano':
+      await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+      return reportarDanos(colaborador, texto.slice(primera.length).trim());
     case '/eventos': return listaEventos(colaborador, false);
     case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();

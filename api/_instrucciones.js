@@ -95,6 +95,17 @@ const TEMAS = {
       '4. Toca "📨 Enviar a Diana". Ella lo aprueba o te pide una aclaración (te llega aquí); si pide aclaración, corrígelo y vuelve a enviarlo.\n\n' +
       'Puedes hacer el de hoy o el de ayer. Ya aprobado no se puede cambiar.',
   },
+  danos: {
+    boton: '🧾 Daños y faltantes',
+    texto: () =>
+      '🧾 Daños y faltantes (al recoger)\n\n' +
+      'Si algo se rompió, se perdió o quedó dañado, avísale a DiMa aquí mismo con /daño, el folio y qué pasó. Por ejemplo:\n' +
+      '/daño EVT-123 se rompieron 3 copas globo y un mantel quedó manchado\n\n' +
+      '• Lo roto, perdido o que ya no sirve se cobra completo; el daño menor (mancha, rayón) al 10% del precio.\n' +
+      '• DiMa te muestra la cuenta. Toca "✅ Registrar" si está bien o "❌ Cancelar" para volver a escribirlo.\n' +
+      '• Al registrarlo se suma a lo que debe el cliente y Diana queda avisada.\n\n' +
+      'También se puede en la app: en el evento, 💰 Dinero → "Anotar daño o faltante".',
+  },
   invitaciones: {
     boton: '📨 Mis invitaciones',
     texto: () =>
@@ -124,7 +135,8 @@ const TEMAS = {
 function temasDe(colaborador, coordina) {
   if (colaborador.rol === ROLES.STAFF) return ['invitaciones', 'problemas'];
   const reporta = colaborador.rol === ROLES.LIDER || colaborador.rol === ROLES.ENCARGADA;
-  return ['app', 'eventos', 'alertas', ...(reporta ? ['reporte'] : []), ...(colaborador.gerente ? ['gerente'] : []), ...(coordina ? ['staff'] : []), 'mensajes', 'problemas'];
+  const cobraDanos = reporta || colaborador.rol === ROLES.ADMIN;
+  return ['app', 'eventos', 'alertas', ...(reporta ? ['reporte'] : []), ...(cobraDanos ? ['danos'] : []), ...(colaborador.gerente ? ['gerente'] : []), ...(coordina ? ['staff'] : []), 'mensajes', 'problemas'];
 }
 
 function menu(temas, actual = null) {

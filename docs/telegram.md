@@ -107,3 +107,7 @@ Diana y Víctor (Admin) ven a todas las chicas; Ángela, a las que tienen Coordi
 
 **Activar los botones (una sola vez, después de publicar):** Diana o Víctor escriben
 `/configurar` en el bot. Responde "✅ Listo" cuando el webhook ya acepta los botones.
+
+## Daños y faltantes (`/daño` o `/dano`)
+
+Líder, encargada, gerente y Admin (`veDinero`). DiMa (Claude, herramienta `anotar_danos`, `strict`) reconoce el evento (sus eventos de los últimos 5 días y mañana, o el folio escrito) y los artículos de INVENTARIO; el monto lo calcula el servidor con `Precio_Reposicion`: perdido al 100%, daño menor al 10% (`PORCENTAJE_DANO_MENOR` en `api/_cargos.js`). El borrador queda en `EVENTOS.Cargos_Extra` con `pendiente` y `lote` (no suma al total) y el mensaje trae `dn:s|x:<evento>:<lote>`. Registrar lo confirma, suma a `Cargos_Extra_Total` y avisa a los Admin; Cancelar lo borra. Solo quien lo anotó o un Admin. Artículos sin precio quedan marcados para que Diana ponga el monto. La lista de comandos (`dano`) se actualiza con `/configurar`.
