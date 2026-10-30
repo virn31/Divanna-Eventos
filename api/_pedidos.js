@@ -352,7 +352,22 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
   return { eventoId: r.id, autorizado, urgente, negocio: r.fields.Negocio || '', fecha: r.fields.Fecha_Evento || '', campos: r.fields };
 }
 
+// Notas sin la plática con DiMa, para mostrar en la app: la conversación sigue
+// guardada completa en EVENTOS.Notas, pero en pantalla basta el resumen del
+// pedido. Cada "Conversación:" llega hasta el siguiente "--- Cambio ..." o al final.
+function notasSinConversacion(notas) {
+  const fuera = [];
+  let enPlatica = false;
+  for (const linea of String(notas || '').split('\n')) {
+    if (/^Conversación( con DiMa)?:\s*$/.test(linea)) { enPlatica = true; continue; }
+    if (/^--- Cambio /.test(linea)) enPlatica = false;
+    if (!enPlatica) fuera.push(linea);
+  }
+  return fuera.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 module.exports = {
+  notasSinConversacion,
   HORAS_RESPUESTA,
   validarPedido,
   camposAgenda,

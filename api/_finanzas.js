@@ -345,7 +345,18 @@ async function agregarCobro(colaborador, body) {
   const foto = validarFoto(body.foto);
   if (!foto.ok) return { error: foto.error };
   const eventos = await eventosDelDia(colaborador, fecha);
-  const ev = eventos.find(e => e.id === body.eventoId);
+  let ev = eventos.find(e => e.id === body.eventoId);
+  // Desde la ficha del evento (💰 Dinero) se cobra también un evento de otro día
+  // (anticipo antes, o al recoger al día siguiente): entra al reporte de hoy.
+  if (!ev && body.desdeFicha && ID.test(body.eventoId || '')) {
+    const { eventoIds } = await alcanceDe(colaborador);
+    if ((eventoIds || []).includes(body.eventoId)) {
+      const r = await airtable(`${TABLES.EVENTOS}/${body.eventoId}`);
+      const vm = r.fields.Negocio === NEGOCIOS.VM || Number(r.fields.Piezas_Vaso_Maiz) > 0;
+      ev = { id: r.id, folio: r.fields.Folio_Evento || '', negocio: vm && r.fields.Negocio !== NEGOCIOS.DV ? NEGOCIOS.VM : (r.fields.Negocio || NEGOCIOS.DV) };
+      eventos.push(ev);
+    }
+  }
   if (!ev) return { error: 'Elige de qué evento es el cobro (solo tus eventos de ese día).' };
   const { reporte, error } = await reporteEditable(colaborador, fecha, eventos);
   if (error) return { error };

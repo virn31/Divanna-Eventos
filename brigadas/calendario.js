@@ -91,7 +91,7 @@ window.DimaCalendario = (function(){
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
-        ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button><button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
+        ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button>${datos.puedeCobrar ? `<button data-cal="pre-pago" data-id="${e(ev.id)}">💵 Registrar pago</button>` : ''}<button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
         <div class="cal-zona"></div>
       </div>`;
   }
@@ -318,6 +318,16 @@ window.DimaCalendario = (function(){
         <button data-cal="guardar">Guardar y avisar al equipo</button><div class="cal-msg"></div></div>`;
       return;
     }
+    if(accion === 'pre-pago'){
+      zona.innerHTML = `<div class="cal-form">
+        <label class="cal-sub">¿Qué pagó el cliente? <select class="cal-pago-tipo"><option value="abono">Anticipo o abono</option><option value="todo">Liquidó todo lo que faltaba</option></select></label>
+        <input class="cal-pago-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
+        <label class="cal-sub">Forma de pago <select class="cal-pago-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
+        <button data-cal="pago">Guardar pago y mandar recibo</button><div class="cal-msg"></div></div>`;
+      const tipo = zona.querySelector('.cal-pago-tipo'), monto = zona.querySelector('.cal-pago-monto');
+      tipo.addEventListener('change', () => { monto.hidden = tipo.value === 'todo'; });
+      return;
+    }
     if(accion === 'pre-cancelar'){
       zona.innerHTML = `<div class="cal-form"><input class="cal-motivo" maxlength="300" placeholder="Motivo de la cancelación">
         <button class="peligro" data-cal="cancelar">Sí, cancelar ${e(evento.folio)} y avisar al equipo</button><div class="cal-msg"></div></div>`;
@@ -336,6 +346,11 @@ window.DimaCalendario = (function(){
         d = await post({ accion: 'bloquear_dia', fecha: panel.querySelector('#calBloqFecha').value, negocio: panel.querySelector('#calBloqNeg').value, motivo: panel.querySelector('#calBloqMotivo').value });
       } else if(accion === 'desbloquear'){
         d = await post({ accion: 'desbloquear_dia', bloqueoId: b.dataset.id });
+      } else if(accion === 'pago'){
+        const todo = zona.querySelector('.cal-pago-tipo').value === 'todo';
+        d = await post({ accion: 'registrar_pago', eventoId: evento.id, monto: todo ? 'todo' : zona.querySelector('.cal-pago-monto').value, forma: zona.querySelector('.cal-pago-forma').value });
+        msg.textContent = d.texto;
+        return;
       } else if(accion === 'sincronizar'){
         d = await post({ accion: 'calendario_sincronizar' });
         msg.innerHTML = `📆 Pasados a Google (Calendar y Sheets): ${d.pasados}.${d.faltan ? ` Faltan ${d.faltan}: toca otra vez.` : ' Ya están todos.'}${(d.errores || []).length ? '<br>⚠️ ' + d.errores.map(e).join('<br>⚠️ ') : ''}`;

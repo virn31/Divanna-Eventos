@@ -16,6 +16,7 @@ const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('.
 const { staffParaApp } = require('./_staff');
 const { vistaMes } = require('./_calendario');
 const { opcionesProduccion: opcionesDeProduccion } = require('./_produccion');
+const { veDinero, inventarioParaCargos } = require('./_cargos');
 
 const ID_REGISTRO = /^rec[A-Za-z0-9]{14}$/;
 
@@ -45,9 +46,15 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Artículos para anotar un daño o faltante (se pide al abrir ese formulario).
+    if ((req.query || {}).vista === 'inventario') {
+      if (!veDinero(colaborador)) { res.status(403).json({ error: 'Solo el líder o la encargada anotan daños y faltantes.' }); return; }
+      res.status(200).json({ articulos: await inventarioParaCargos() });
+      return;
+    }
     const { brigada, eventoIds } = await alcanceDe(alcanceSolicitado(colaborador, req.query || {}));
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
-    const eventos = await leerEventos(eventoIds);
+    const eventos = await leerEventos(eventoIds, { conDinero: veDinero(colaborador) });
     // La gerente también ve e invita al staff de sus eventos. Si no se puede
     // leer, se dice (staffError) en vez de mostrar la lista vacía.
     let staffEventos = null, staffError = false, opcionesProduccion = null;
@@ -57,7 +64,7 @@ module.exports = async (req, res) => {
     }
 
     res.status(200).json({
-      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente },
+      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, veDinero: veDinero(colaborador) },
       brigada,
       eventos,
       alertasEquipo,

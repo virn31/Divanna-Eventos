@@ -22,6 +22,8 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { textoEnterado } = require('./_eventos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
+const { agregarCargo, quitarCargo } = require('./_cargos');
+
 const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
 };
@@ -105,6 +107,13 @@ module.exports = async (req, res) => {
     }
     if (colaborador.rol === ROLES.ASISTENTE && !TIPOS_ASISTENTE.includes(tipo)) {
       res.status(403).json({ error: 'Este cambio lo hace el líder de la brigada.' });
+      return;
+    }
+    // Daños y faltantes que se le cobran al cliente (api/_cargos.js).
+    if (tipo === 'cargo_extra' || tipo === 'quitar_cargo') {
+      const r = tipo === 'cargo_extra' ? await agregarCargo(colaborador, req.body) : await quitarCargo(colaborador, req.body);
+      if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
+      res.status(200).json({ success: true, ...r });
       return;
     }
 

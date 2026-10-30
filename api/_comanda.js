@@ -78,7 +78,8 @@ const HERRAMIENTA = {
       lineas: { type: 'array', items: { type: 'string' }, description: 'Cada artículo como va en la lista de carga: "45 sillas Jardín", "4 manteles básicos beige".' },
       total: { ...nulo('number'), description: 'Total del pedido escrito en la comanda.' },
       anticipo: nulo('number'),
-      forma_anticipo: { type: ['string', 'null'], enum: [...FORMAS, null] },
+      // La API no acepta enum con tipo ['string', 'null']: "No se sabe" hace de null (aCaptura lo deja vacío).
+      forma_anticipo: { type: 'string', enum: [...FORMAS, 'No se sabe'], description: 'Forma de pago del anticipo; "No se sabe" si no está escrita.' },
       numero_recibo: { ...nulo('string'), description: 'Número o folio impreso o escrito en el papel.' },
       notas: { ...nulo('string'), description: 'Otros datos útiles (fecha y hora de entrega, colores, indicaciones).' },
       dudas: { type: 'array', items: { type: 'string' }, description: 'Lo que no se lee bien o hay que confirmar (tachones, números dudosos, datos que faltan).' },
@@ -292,4 +293,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
 }
 
-module.exports = { leer, aCaptura, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };
+module.exports = { HERRAMIENTA, leer, aCaptura, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };

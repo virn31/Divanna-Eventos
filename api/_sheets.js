@@ -20,6 +20,7 @@ const { google } = require('googleapis');
 const { esVasoMaiz } = require('./_sesion');
 const { PRODUCTOS, leerProductos, inventarioRequerido } = require('./_productos');
 const { enviarDocumento } = require('./_telegram');
+const { totalDelEvento, leerCargos } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = { EVENTOS: 'tblzLAin65BZPP2c6', CLIENTES: 'tblgViisKQRG9TVjh', COBROS: 'tblb8ADFukpm6nRZV' };
@@ -84,7 +85,7 @@ async function leerDatos(eventoId) {
       : [],
   ]);
   const pagado = cobros.reduce((t, c) => t + (Number(c.fields.Monto) || 0), 0);
-  const total = Number(f.Monto_Estimado_IA) || 0;
+  const total = totalDelEvento(f); // contratado + cargos extra (daños y faltantes)
   const tipo = ((f.Notas || '').match(/Tipo de evento: ([^\n]+)/) || [])[1] || '';
   let estado = 'Autorizado';
   if (f.Cancelado) estado = 'Cancelado';
@@ -107,8 +108,11 @@ async function leerDatos(eventoId) {
 // Renglones de artículos de un negocio: [articulo/cantidad, ...].
 function articulosDe(d, negocio) {
   const propios = d.productos.filter(p => (PRODUCTOS[p.clave].negocio || DV) === negocio);
+  // Daños y faltantes que anotó la brigada (api/_cargos.js): en la hoja del primer negocio.
+  const cargos = negocio === negociosDe(d.f)[0] ? leerCargos(d.f.Cargos_Extra) : [];
   if (negocio === VM) {
-    return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || '']);
+    return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || ''])
+      .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']));
   }
   // Divanna: como el recibo de papel, por artículo (mesas, sillas, manteles...).
   const lineas = Object.entries(inventarioRequerido(propios)).map(([cat, n]) => [cat, n, '']);
@@ -119,6 +123,7 @@ function articulosDe(d, negocio) {
   if (!lineas.length) {
     (d.f.Items_Detallados_Cotizacion || d.f.Checklist_Items || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => lineas.push([t, '', '']));
   }
+  for (const c of cargos) lineas.push([`Cargo extra: ${c.descripcion}`, c.cantidad, `$${c.total.toLocaleString('es-MX')}${c.nota ? ' · ' + c.nota : ''}`]);
   return lineas;
 }
 

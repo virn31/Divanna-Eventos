@@ -42,8 +42,9 @@ const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { confirmarCambio, descartarCambio } = require('./_cambios');
 const Comanda = require('./_comanda');
 const { enviarRecibo } = require('./_sheets');
-const { leerCambio } = require('./_pedidos');
+const { leerCambio, notasSinConversacion } = require('./_pedidos');
 const { porCobrarPeriodo } = require('./_finanzas');
+const { aclarar } = require('./_cuadre');
 const { cargarInventario, cargarPersonal, eventoParaAgenda, evaluarDisponibilidad, PERSONAL_BASE_VASO_MAIZ } = require('./_agenda');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -403,6 +404,7 @@ const ACCIONES_CALENDARIO = {
   capturar_evento: capturarConFoto,
   leer_comanda: Comanda.leerParaFormulario,
   enviar_recibo: reciboAPeticion,
+  registrar_pago: pagoAPeticion,
 };
 
 // ➕ Capturar evento; si vino de una foto de comanda, la foto se adjunta al evento.
@@ -422,6 +424,17 @@ async function reciboAPeticion(colaborador, body) {
   if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
   const r = await enviarRecibo(body.eventoId, `lo pidió ${colaborador.nombre}`);
   return r.ok ? { ok: true, enviados: r.enviados } : { error: r.error };
+}
+
+// 💵 Registrar pago (calendario, solo Diana y Víctor): anticipo, abono o liquidación
+// que recibió Diana. Es el mismo registro que "le pagaron a ella" del cuadre:
+// COBROS con Recibido_Por = Diana y recibo en PDF por Telegram. monto "todo" = lo que falta.
+async function pagoAPeticion(colaborador, body) {
+  if (colaborador.rol !== ROLES.ADMIN) return { error: 'Solo Diana y Víctor registran pagos.', codigo: 403 };
+  if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
+  const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
+  if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
+  return aclarar(colaborador, { eventoId: body.eventoId, tipo: 'pago', monto: body.monto, forma: body.forma });
 }
 
 module.exports = async (req, res) => {
@@ -536,7 +549,7 @@ module.exports = async (req, res) => {
         ...agendaParaVista(r.fields),
         // DiMa le promete al cliente respuesta en 12 h o menos desde que registra.
         limiteRespuesta: r.createdTime ? new Date(Date.parse(r.createdTime) + HORAS_RESPUESTA * 3600 * 1000).toISOString() : '',
-        notas: r.fields.Notas || '',
+        notas: notasSinConversacion(r.fields.Notas),
         clienteNombre: c.Nombre || '',
         clienteTelefono: c.Telefono_WhatsApp || '',
         clienteEmail: c.Email || '',

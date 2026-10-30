@@ -115,6 +115,36 @@
     padding:20px; margin-bottom:14px;
   }
   .event-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;}
+  /* Ficha de identificación: lo único visible hasta que se toca. */
+  .ev-ficha{display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; background:none; border:none; padding:0; color:var(--paper); font:inherit; cursor:pointer;}
+  .ficha-fila{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .ficha-lugar{font-size:1.12rem; font-weight:800;}
+  .ficha-sub{font-size:0.86rem; color:var(--muted);}
+  .ficha-avisos{margin-left:auto;}
+  .ficha-pago{font-size:0.82rem; font-weight:800; padding:4px 10px; border-radius:100px; background:rgba(255,107,107,0.14); color:#ff8f8f;}
+  .ficha-pago.ok{background:rgba(127,174,90,0.18); color:#9fd27a;}
+  .ficha-flecha{margin-left:auto; font-size:0.8rem; color:var(--muted); font-weight:700;}
+  .event-card.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:4px;}
+  .ev-detalle[hidden]{display:none;}
+  /* 💰 Dinero del evento */
+  .din-cliente{margin:12px 0 8px; font-size:0.92rem;}
+  .din-cliente a{color:var(--maiz); font-weight:800; text-decoration:none;}
+  .din-resumen{background:var(--ink); border-radius:12px; padding:10px 12px; margin:8px 0;}
+  .din-fila{display:flex; justify-content:space-between; padding:4px 0; font-size:0.92rem;}
+  .din-fila.falta b{color:#ff8f8f; font-size:1.05rem;}
+  .din-fila.ok b{color:#9fd27a;}
+  .din-lista{font-size:0.85rem; margin:10px 0; line-height:1.6;}
+  .din-lista b{display:block; color:var(--muted);}
+  .din-quitar{border:1px solid var(--line); background:none; color:var(--muted); border-radius:8px; padding:2px 8px; font:inherit; font-size:0.78rem; cursor:pointer;}
+  .din-caja{margin:10px 0; border:1.5px solid var(--line); border-radius:12px; padding:10px 12px;}
+  .din-caja summary{font-weight:800; cursor:pointer;}
+  .din-caja label{display:block; margin-top:10px; font-size:0.85rem; color:var(--muted);}
+  .din-caja select, .din-caja input{display:block; width:100%; margin-top:8px; padding:11px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+  .din-caja input[hidden]{display:none;}
+  .din-previa{margin-top:8px; font-weight:800; color:var(--maiz);}
+  .din-btn{margin-top:10px; width:100%; padding:12px; border:none; border-radius:12px; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .din-btn:disabled{opacity:.6;}
+  .din-msg{margin-top:8px; font-size:0.82rem; color:var(--muted);}
   .event-badge{
     display:inline-block; font-size:0.72rem; font-weight:800; letter-spacing:0.03em;
     padding:5px 11px; border-radius:100px; text-transform:uppercase;
@@ -618,7 +648,143 @@
     card.querySelectorAll('.ev-tab-btn').forEach(b => { const activa = b.dataset.tab === tab; b.classList.toggle('activa', activa); b.setAttribute('aria-selected', activa); });
   }
 
+  // ---------- Ficha de identificación + 💰 Dinero ----------
+  // Cada evento se ve como una ficha corta (folio, hora, lugar, cliente y lo que
+  // falta por cobrar); al tocarla se abre todo lo demás. Se recuerda cuáles
+  // estaban abiertas entre repintados. El dinero lo ven líder, encargada y
+  // gerente (api/_cargos.js); el asistente no.
+  const fichasAbiertas = new Set();
+  let inventarioCargos = null;
+  let eventosActuales = [];
+  const pesosApp = (n) => '$' + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('es-MX');
+
+  function fichaEvento(ev){
+    const d = ev.dinero && !ev.dinero.error ? ev.dinero : null;
+    const avisos = [ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambio && ev.cambio.estado === 'pendiente' ? '✏️' : ''].filter(Boolean).join(' ');
+    const dineroTxt = !d ? '' : d.total > 0 && d.resta <= 0 ? '<span class="ficha-pago ok">✅ Pagado</span>' : d.total > 0 ? `<span class="ficha-pago">Falta ${pesosApp(d.resta)}</span>` : '<span class="ficha-pago">Sin monto</span>';
+    const abierta = fichasAbiertas.has(ev.id);
+    return `<button type="button" class="ev-ficha" data-evento="${ev.id}" aria-expanded="${abierta}">
+        <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
+        <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
+        <span class="ficha-sub">${ev.horaInicio ? '🕒 ' + esc(ev.horaInicio) : '🕒 hora por confirmar'}${d && d.cliente ? ' · 👤 ' + esc(d.cliente) : ''}${ev.enteradoPor ? '' : ' · 🔔 sin confirmar'}</span>
+        <span class="ficha-fila">${dineroTxt}<span class="ficha-flecha">${abierta ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
+      </button>`;
+  }
+
+  function abrirFicha(b){
+    const card = b.closest('.event-card');
+    const abrir = !fichasAbiertas.has(card.dataset.id);
+    if(abrir) fichasAbiertas.add(card.dataset.id); else fichasAbiertas.delete(card.dataset.id);
+    card.classList.toggle('abierta', abrir);
+    card.querySelector('.ev-detalle').hidden = !abrir;
+    b.setAttribute('aria-expanded', abrir);
+    b.querySelector('.ficha-flecha').textContent = abrir ? 'Cerrar ▴' : 'Ver todo ▾';
+  }
+
+  function bloqueDinero(ev){
+    const d = ev.dinero;
+    if(d.error) return '<div class="event-services">⚠️ No se pudo leer el dinero de este evento. Toca actualizar.</div>';
+    const esAdmin = sesion && sesion.rol === 'Admin';
+    const fila = (t, v, cls = '') => `<div class="din-fila ${cls}"><span>${t}</span><b>${v}</b></div>`;
+    return `
+      ${d.cliente || d.telefono ? `<div class="din-cliente">👤 ${esc(d.cliente || 'Cliente')}${d.telefono ? ` · <a href="tel:${esc(d.telefono)}">📞 ${esc(d.telefono)}</a>` : ''}</div>` : ''}
+      <div class="din-resumen">
+        ${fila('Contratado', d.contratado ? pesosApp(d.contratado) : 'sin monto todavía')}
+        ${d.cargosExtraTotal ? fila('Daños y faltantes', '+ ' + pesosApp(d.cargosExtraTotal)) : ''}
+        ${d.descuento ? fila('Descuento', '− ' + pesosApp(d.descuento)) : ''}
+        ${fila('Pagado', pesosApp(d.pagado))}
+        ${fila('Falta por cobrar', pesosApp(d.resta), d.resta > 0 ? 'falta' : 'ok')}
+      </div>
+      ${d.cobros.length ? `<div class="din-lista"><b>Pagos</b>${d.cobros.map(c => `<div>${esc(c.fecha)} · ${pesosApp(c.monto)} · ${esc(c.forma)}${c.aDiana ? ' · a Diana' : ' · cobró la brigada'}</div>`).join('')}</div>` : ''}
+      ${d.cargosExtra.length ? `<div class="din-lista"><b>Daños y faltantes</b>${d.cargosExtra.map(c => `<div>${esc(c.cantidad)} × ${esc(c.descripcion)} = ${pesosApp(c.total)}${c.sinPrecio ? ' ⚠️ precio escrito a mano' : ''}${c.nota ? ` · ${esc(c.nota)}` : ''} <small>(${esc(c.por)})</small> <button type="button" class="din-quitar" data-din="quitar-cargo" data-cargo="${esc(c.id)}">Quitar</button></div>`).join('')}</div>` : ''}
+      <details class="din-caja" data-caja="cobro-${ev.id}"><summary>💵 Registrar cobro</summary>
+        <label>¿Qué pagó el cliente?<select class="din-cobro-tipo"><option value="abono">Anticipo o abono</option>${d.resta > 0 ? `<option value="todo">Liquidó todo (${pesosApp(d.resta)})</option>` : ''}</select></label>
+        <input class="din-cobro-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
+        <label>Forma de pago<select class="din-cobro-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
+        <button type="button" class="din-btn" data-din="cobro">Guardar cobro</button>
+        <div class="din-msg">${esAdmin ? 'Queda como pago a Diana y te llega el recibo por Telegram.' : 'Entra a tu reporte del día; Diana lo aprueba al recibir el dinero.'}</div>
+      </details>
+      <details class="din-caja" data-caja="cargo-${ev.id}"><summary>🧾 Anotar daño o faltante</summary>
+        <label>¿Qué artículo?<select class="din-tipo"><option value="">Elige el artículo…</option></select></label>
+        <input class="din-desc" maxlength="120" placeholder="Si no está en la lista: qué es (ej. tapete roto)" hidden>
+        <input class="din-cant" inputmode="numeric" placeholder="¿Cuántas piezas?">
+        <input class="din-monto-cargo" inputmode="decimal" placeholder="Cuánto se cobra en total (no tiene precio)" hidden>
+        <input class="din-nota" maxlength="300" placeholder="Comentario: silla quebrada, faltan copas…">
+        <div class="din-previa"></div>
+        <button type="button" class="din-btn" data-din="cargo">Guardar y sumar al cobro</button>
+        <div class="din-msg"></div>
+      </details>`;
+  }
+
+  // La lista de artículos se pide una vez, al abrir "Anotar daño o faltante".
+  async function llenarArticulos(card){
+    const sel = card.querySelector('.din-tipo');
+    if(!sel || sel.options.length > 1) return;
+    try {
+      if(!inventarioCargos) inventarioCargos = (await api('/api/brigada-eventos?vista=inventario')).articulos || [];
+      const ev = eventosActuales.find(x => x.id === card.dataset.id) || {};
+      const delEvento = new Set((ev.articulos || []).map(a => a.nombre));
+      const opcion = a => `<option value="${esc(a.id)}" data-precio="${a.precio || ''}">${esc(a.nombre)}${a.precio ? ' · ' + pesosApp(a.precio) + ' c/u' : ' · sin precio'}</option>`;
+      const propios = inventarioCargos.filter(a => delEvento.has(a.nombre));
+      sel.innerHTML = '<option value="">Elige el artículo…</option>'
+        + (propios.length ? `<optgroup label="De este evento">${propios.map(opcion).join('')}</optgroup>` : '')
+        + `<optgroup label="Todo el inventario">${inventarioCargos.map(opcion).join('')}</optgroup>`
+        + '<option value="otro">Otro (no está en la lista)</option>';
+    } catch(e){
+      if(e.message === 'sesion') return;
+      sel.insertAdjacentHTML('beforeend', '<option value="otro">Otro (no se pudo cargar la lista)</option>');
+    }
+  }
+
+  function vistaPreviaCargo(card){
+    const sel = card.querySelector('.din-tipo');
+    const opt = sel.options[sel.selectedIndex];
+    const precio = opt ? Number(opt.dataset.precio) || 0 : 0;
+    card.querySelector('.din-desc').hidden = sel.value !== 'otro';
+    card.querySelector('.din-monto-cargo').hidden = !sel.value || !!precio;
+    const cant = Number(card.querySelector('.din-cant').value) || 0;
+    card.querySelector('.din-previa').textContent = precio && cant ? `Se le cobra al cliente: ${cant} × ${pesosApp(precio)} = ${pesosApp(precio * cant)}` : '';
+  }
+
+  async function accionDinero(b){
+    const card = b.closest('.event-card');
+    const ev = eventosActuales.find(x => x.id === card.dataset.id);
+    if(!ev || !ev.dinero) return;
+    const caja = b.closest('details') || card;
+    const msg = caja.querySelector('.din-msg');
+    const valor = (cls) => (caja.querySelector(cls) || {}).value || '';
+    b.disabled = true;
+    try {
+      if(b.dataset.din === 'cobro'){
+        const todo = valor('.din-cobro-tipo') === 'todo';
+        const monto = todo ? String(ev.dinero.resta) : valor('.din-cobro-monto');
+        const d = sesion.rol === 'Admin'
+          ? await api('/api/dashboard-eventos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'registrar_pago', eventoId: ev.id, monto: todo ? 'todo' : monto, forma: valor('.din-cobro-forma') }) })
+          : await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'cobro', desdeFicha: true, fecha: hoyCln(), eventoId: ev.id, monto, forma: valor('.din-cobro-forma') }) });
+        showToast(d.texto || `Cobro de ${pesosApp(monto)} guardado en tu reporte del día`);
+      } else if(b.dataset.din === 'cargo'){
+        const tipo = valor('.din-tipo');
+        if(!tipo) throw new Error('Elige el artículo o "Otro".');
+        const d = await enviarEstatus({ eventoId: ev.id, tipo: 'cargo_extra', articuloId: tipo === 'otro' ? '' : tipo, descripcion: valor('.din-desc'), cantidad: valor('.din-cant'), monto: valor('.din-monto-cargo'), nota: valor('.din-nota') });
+        showToast(`Cargo de ${pesosApp(d.cargo.total)} sumado. Diana ya está avisada.`);
+      } else if(b.dataset.din === 'quitar-cargo'){
+        await enviarEstatus({ eventoId: ev.id, tipo: 'quitar_cargo', cargoId: b.dataset.cargo });
+        showToast('Cargo quitado');
+      }
+      // Se cierra la caja y se recarga para ver el dinero al día.
+      if(caja.tagName === 'DETAILS') caja.open = false;
+      ultimaFoto = null;
+      loadEventos(true);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      const texto = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.');
+      if(msg) msg.textContent = texto; else showToast(texto);
+      b.disabled = false;
+    }
+  }
+
   function renderEventos(eventos, alertasEquipo){
+    eventosActuales = eventos;
     const alertasHtml = renderAlertasEquipo(alertasEquipo);
     if(!eventos.length){
       mainContent.innerHTML = alertasHtml + `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
@@ -643,14 +809,9 @@
       const pct = Math.round((doneCount / stages.length) * 100);
 
       html += `
-        <div class="event-card" data-id="${ev.id}">
-          <div class="event-top">
-            <div>
-              <span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span>
-              <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')}</h3>
-              <div class="event-folio">${esc(ev.folio)}</div>
-            </div>
-          </div>
+        <div class="event-card ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" data-id="${ev.id}">
+          ${fichaEvento(ev)}
+          <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
             ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
             ${ev.personalRequerido ? `<span>🧑‍🍳 ${ev.personalRequerido} personas</span>` : ''}
@@ -666,7 +827,9 @@
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="resumen" role="tab">Resumen</button>
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="cargar" role="tab">Cargar${ev.checklistItems && ev.checklistItems.length ? ` <small>${ev.checklistItems.filter(i => i.marcado).length}/${ev.checklistItems.length}</small>` : ''}</button>
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="tareas" role="tab">Tareas <small>${doneCount}/${stages.length}</small></button>
+            ${ev.dinero ? `<button class="ev-tab-btn" data-evento="${ev.id}" data-tab="dinero" role="tab">💰 Dinero</button>` : ''}
           </div>
+          ${ev.dinero ? `<div class="ev-tab" data-tab="dinero">${bloqueDinero(ev)}</div>` : ''}
           <div class="ev-tab" data-tab="resumen">
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${lineaProduccion(ev)}
@@ -718,6 +881,7 @@
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
           ${(ev.emergencia || ev.zonaAlertaSeguridad) && linkUbicacion(ev) ? `<div class="motivo-tag">${linkUbicacion(ev).replace('<br>', '')}</div>` : ''}
+          </div>
         </div>
       `;
     });
@@ -725,8 +889,15 @@
     const abiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
     abiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
+    mainContent.querySelectorAll('details[data-caja^="cargo-"]').forEach(d => {
+      if(d.open) llenarArticulos(d.closest('.event-card'));
+      d.addEventListener('toggle', () => { if(d.open) llenarArticulos(d.closest('.event-card')); });
+    });
     // Ficha con pestañas: se recuerda la pestaña de cada evento entre repintados.
     mainContent.querySelectorAll('.event-card').forEach(card => mostrarPestana(card, pestanaPorEvento[card.dataset.id] || pestanaInicial()));
+    mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
+    mainContent.querySelectorAll('[data-din]').forEach(b => b.addEventListener('click', () => accionDinero(b)));
+    mainContent.querySelectorAll('.din-tipo, .din-cant').forEach(el => el.addEventListener('input', () => vistaPreviaCargo(el.closest('.event-card'))));
     mainContent.querySelectorAll('.ev-tab-btn').forEach(b => b.addEventListener('click', () => {
       pestanaPorEvento[b.dataset.evento] = b.dataset.tab;
       mostrarPestana(b.closest('.event-card'), b.dataset.tab);

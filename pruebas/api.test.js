@@ -203,11 +203,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'text', text: '¡Qué emoción! Mira este paquete.' },
-    { type: 'tool_use', name: 'mostrar_fotos', input: { ids: ['paquete-xv', 'paquetes-vasomaiz'] } },
-  ] }];
+    { type: 'tool_use', id: 'tu_fotos1', name: 'mostrar_fotos', input: { ids: ['paquete-xv', 'paquetes-vasomaiz'] } },
+  ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'El de XV incluye mampara y mesas. ¿Para cuántos invitados?' }] }];
   res = await chat({ historial });
   const p = llamadasClaude[0];
   ok(res.code === 200 && res.body.texto.includes('paquete') && res.body.fotos.includes('/referencias/paquete-xv-6000.jpg') && res.body.fotos.length === 4, 'chat: texto y fotos (XV + 3 de Vaso Maíz)');
+  const vuelta2 = llamadasClaude[1];
+  ok(llamadasClaude.length === 2 && res.body.texto.includes('¿Para cuántos invitados?') && vuelta2.messages[2].content[0].content.includes('Paquetes de El Vaso Maíz'),
+    'chat: después de mostrar fotos DiMa sabe de qué son y las comenta (ya no se queda trabada)');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', id: 'tu_fotos2', name: 'mostrar_fotos', input: { ids: ['paquetes-vasomaiz'] } },
+  ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Son las mismas que viste arriba. ¿Cuál te gustó?' }] }];
+  res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/paquetes-1-a-4.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
+  ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (paquetes 1 a 4)]')
+    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?'),
+    'chat: DiMa sabe qué fotos ya vio el cliente y no se las repite');
   ok(p.model === 'claude-sonnet-5-5' && p.fallbacks === 'default' && p.betas.includes('server-side-fallback-2026-07-01') && p.tool_choice.type === 'auto' && p.output_config.effort === 'low', 'chat: modelo, respaldo y tool_choice auto');
   ok(p.tools.every(t => t.strict === true) && p.system.includes('CATÁLOGO REAL') && !p.system.includes('4830'), 'chat: tools estrictos, catálogo sin datos de tarjeta');
   ok(p.messages.length === 1 && p.messages[0].role === 'user' && llamadas.length === 0, 'chat: solo texto en el historial, sin tocar Airtable');
@@ -501,6 +513,78 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await eventosApi({ method: 'GET', headers: auth(tokenLider), query: { brigada: 'recBRIGADA0000002' } }, res);
   ok(res.code === 200 && res.body.brigada.nombre === 'Edén' && !res.body.opciones, 'líder no puede ver otra brigada con ?brigada=');
+
+  // ---------- 💰 Dinero en la ficha del evento (api/_cargos.js) ----------
+  {
+    const EV_DIN = { id: 'recEVENTODINERO01', fields: { Folio_Evento: 'EVT-D1', Monto_Estimado_IA: 5000, Cargos_Extra_Total: 300, Descuento: 0, Cliente: ['recCLIENTE0000001'], COBROS: ['recCOBRODIN00001'], Brigada_Asignada: ['recBRIGADA0000001'],
+      Cargos_Extra: JSON.stringify([{ id: 'c1', descripcion: 'Silla Tiffany', cantidad: 2, precio: 150, total: 300, porId: LIDER.id, por: 'Juan' }]) } };
+    reset();
+    respuestas = [LIDER, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] },
+      { records: [{ id: 'recCOBRODIN00001', fields: { Evento: [EV_DIN.id], Monto: 2000, Forma: 'Efectivo', Fecha: '2026-10-30', Recibido_Por: 'Diana' } }] },
+      { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Perla', Telefono_WhatsApp: '+526671234567' } }] }];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenLider) }, res);
+    const din = res.body.eventos[0].dinero;
+    ok(res.code === 200 && res.body.colaborador.veDinero && din.total === 5300 && din.pagado === 2000 && din.resta === 3300 && din.cliente === 'Perla' && din.telefono === '6671234567' && din.cargosExtra[0].total === 300,
+      'dinero: el líder ve total (con daños), pagado, lo que falta y el cliente de su evento');
+
+    reset();
+    respuestas = [ASIST, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] }];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenAsist) }, res);
+    ok(res.code === 200 && !res.body.colaborador.veDinero && !('dinero' in res.body.eventos[0]) && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'dinero: el asistente no ve el dinero del evento');
+
+    reset();
+    respuestas = [ASIST];
+    res = resMock();
+    await eventosApi({ method: 'GET', headers: auth(tokenAsist), query: { vista: 'inventario' } }, res);
+    ok(res.code === 403, 'dinero: el asistente no pide la lista de artículos para daños');
+
+    // Daño con precio de reposición: se calcula solo y se avisa a los Admin.
+    process.env.TELEGRAM_BOT_TOKEN = 'token-de-prueba';
+    reset();
+    respuestas = [LIDER, EV_DIN, { id: 'recINVTIFFANY0001', fields: { Item: 'Silla Tiffany', Precio_Reposicion: 150 } }, {}, { records: [{ id: ADMIN.id, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } }] }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', articuloId: 'recINVTIFFANY0001', cantidad: '3', nota: 'quebradas' } }, res);
+    const patchCargo = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+    ok(res.code === 200 && res.body.cargo.total === 450 && patchCargo.Cargos_Extra_Total === 750 && JSON.parse(patchCargo.Cargos_Extra).length === 2
+      && telegram.some(t => t.body.text && t.body.text.includes('3 × Silla Tiffany = $450') && t.body.text.includes('quebradas')),
+      'cargos: 3 sillas quebradas x $150 se suman al evento y Diana recibe el aviso');
+    delete process.env.TELEGRAM_BOT_TOKEN;
+
+    reset();
+    respuestas = [LIDER, EV_DIN, { id: 'recINVSINPRECIO01', fields: { Item: 'Tapete' } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', articuloId: 'recINVSINPRECIO01', cantidad: 1 } }, res);
+    ok(res.code === 400 && res.body.error.includes('no tiene precio') && !llamadas.some(l => l.method === 'PATCH'), 'cargos: sin precio de reposición pide el monto');
+
+    reset();
+    respuestas = [LIDER, EV_DIN, {}, { records: [] }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'Tapete manchado', cantidad: 1, monto: '$250' } }, res);
+    ok(res.code === 200 && res.body.cargo.total === 250 && res.body.cargo.sinPrecio, 'cargos: "Otro" con monto escrito a mano queda marcado para revisar');
+
+    reset();
+    respuestas = [ASIST];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenAsist), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'x', cantidad: 1, monto: 10 } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: el asistente no anota cargos');
+
+    reset();
+    respuestas = [LIDER, { ...EV_DIN, fields: { ...EV_DIN.fields, Brigada_Asignada: ['recBRIGADA0000009'] } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'cargo_extra', descripcion: 'x', cantidad: 1, monto: 10 } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: no se anotan en eventos de otra brigada');
+
+    reset();
+    respuestas = [LIDER, { ...EV_DIN, fields: { ...EV_DIN.fields, Cargos_Extra: JSON.stringify([{ id: 'c9', descripcion: 'Copa', cantidad: 1, total: 80, porId: 'recCOLAB000000099' }]) } }];
+    res = resMock();
+    await estatus({ method: 'POST', headers: auth(tokenLider), body: { eventoId: EV_DIN.id, tipo: 'quitar_cargo', cargoId: 'c9' } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'cargos: solo quien lo anotó (o Diana) lo quita');
+
+    const C = require(path.join(repo, 'api/_cargos.js'));
+    ok(C.totalDelEvento(EV_DIN.fields) === 5300, 'cargos: el total del evento suma lo contratado y los daños (cuadre y recibo)');
+  }
 
   const eventoBrigada = { fields: { Folio_Evento: 'EVT-1', Brigada_Asignada: ['recBRIGADA0000001'] } };
   reset();
@@ -1298,6 +1382,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await fin(tokenLider, { accion: 'cobro', fecha: hoyCln, eventoId: 'recEVENTOAJENO001', monto: '1000', forma: 'Efectivo' });
   ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reporte: no se puede registrar un cobro de un evento que no es suyo');
 
+  // Desde la ficha (💰 Dinero): el evento fue ayer (se cobró al recoger) y entra al reporte de hoy.
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [] }, BRIG_FIN, { ...EV_FIN, fields: { ...EV_FIN.fields, Fecha_Evento: '2026-10-29' } }, { records: [REP_FIN] }, { records: [{ id: 'recCOBRONUEVO0002' }] }];
+  res = await fin(tokenLider, { accion: 'cobro', desdeFicha: true, fecha: hoyCln, eventoId: EV_FIN.id, monto: '1500', forma: 'Transferencia' });
+  const cobroFicha = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && cobroFicha.body.records[0].fields.Evento[0] === EV_FIN.id && cobroFicha.body.records[0].fields.Monto === 1500 && cobroFicha.body.records[0].fields.Reporte[0] === REP_FIN.id,
+    'reporte: desde la ficha se cobra un evento de otro día y entra al reporte de hoy');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [] }, BRIG_FIN];
+  res = await fin(tokenLider, { accion: 'cobro', desdeFicha: true, fecha: hoyCln, eventoId: 'recEVENTOAJENO001', monto: '1000', forma: 'Efectivo' });
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reporte: desde la ficha tampoco se cobra un evento ajeno');
+
   reset();
   respuestas = [LIDER, { records: [REP_FIN] }, REP_FIN, { records: [GASTO_FIN] }, { records: [COBRO_FIN] }, {}, { records: [ADMIN_T] }, { records: [ADMIN_T] }, { records: [ADMIN] }, { records: [] }];
   res = await fin(tokenLider, { accion: 'enviar', fecha: hoyCln });
@@ -1466,6 +1563,28 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && pagoDiana.body.records[0].fields.Monto === 2000 && pagoDiana.body.records[0].fields.Recibido_Por === 'Diana' && pagoDiana.body.records[0].fields.Forma === 'Efectivo'
     && cuadrado.body.records[0].fields.Cuadre_Estado === 'Cuadrado' && cuadrado.body.records[0].fields.Cuadre_Notas.includes('le pagaron $2,000 (Efectivo)'),
     'cuadre: "me pagaron todo" registra el pago a Diana por lo que faltaba y el evento queda cuadrado');
+
+  // 💵 Registrar pago desde el calendario: el mismo pago a Diana, con anticipo o liquidación.
+  reset();
+  respuestas = [ADMIN, EQ1, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA002' }] }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: '$1,000', forma: 'Transferencia' } }, res);
+  const abono = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(res.code === 200 && abono.body.records[0].fields.Monto === 1000 && abono.body.records[0].fields.Recibido_Por === 'Diana' && abono.body.records[0].fields.Forma === 'Transferencia'
+    && res.body.texto.includes('Todavía falta $1,000'),
+    'calendario: 💵 Registrar pago anota el anticipo como pago a Diana y dice cuánto falta');
+
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: 'todo', forma: 'Efectivo' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: la gerente no registra pagos');
+
+  reset();
+  respuestas = [ADMIN, { id: EQ1.id, fields: { ...EQ1.fields, Autorizacion_Diana: 'Pendiente' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'registrar_pago', eventoId: EQ1.id, monto: '500', forma: 'Efectivo' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: no se registran pagos de un pedido sin autorizar');
 
   reset();
   respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
@@ -2053,6 +2172,16 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok((await sh.enviarRecibo('recEVSHEETS00001')).error.includes('no está configurado') && !llamadas.length, 'recibo: sin Sheets configurado lo dice y no hace nada');
   }
 
+  // ---------- La app no muestra la plática con DiMa (sigue en EVENTOS.Notas) ----------
+  {
+    const { notasSinConversacion } = require(path.join(repo, 'api/_pedidos.js'));
+    const notas = 'Pedido armado con DiMa en la página web.\nTipo de evento: XV años\n\nConversación con DiMa:\nCliente: hola\nDiMa: ¡Hola!\n\nCliente: 50 sillas'
+      + '\n--- Cambio pedido por el cliente en el chat (30/10/26) ---\nAsí lo quiere ahora:\n60 sillas\nConversación:\nCliente: mejor 60\nDiMa: Listo';
+    const visto = notasSinConversacion(notas);
+    ok(visto.includes('Tipo de evento: XV años') && visto.includes('60 sillas') && visto.includes('--- Cambio pedido') && !visto.includes('Cliente:') && !visto.includes('DiMa: '),
+      'notas: la app ve el resumen y los cambios del pedido, sin la conversación con DiMa');
+  }
+
   // ---------- Comanda en papel → evento (api/_comanda.js) ----------
   {
     const LEIDA = { negocio: 'Divanna Eventos', cliente_nombre: 'Perla Ayon', cliente_telefono: '696 100 7116', fecha: '2026-11-27', hora: '17:00', horas_servicio: null, ubicacion: 'La Campiña', invitados: 45,
@@ -2070,6 +2199,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(res.code === 200 && res.body.datos.clienteTelefono === '6961007116' && res.body.datos.servicios.includes('45 sillas Jardín') && res.body.datos.notas.includes('Nº 2000')
       && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')) && pedidoVision.messages[0].content[0].type === 'image' && pedidoVision.tools[0].strict === true,
       'comanda: en la app DiMa lee la foto y devuelve los datos del formulario con lo que falta');
+
+    // La API rechaza un enum con tipo ['string', 'null'] (error 400 en producción el 2026-10-30).
+    const com = require(path.join(repo, 'api/_comanda.js'));
+    const enumsMalos = [];
+    (function revisar(o, ruta) {
+      if (!o || typeof o !== 'object') return;
+      if (o.enum && (Array.isArray(o.type) || o.enum.includes(null))) enumsMalos.push(ruta);
+      for (const k of Object.keys(o)) revisar(o[k], ruta + '.' + k);
+    })(com.HERRAMIENTA.input_schema, 'input_schema');
+    ok(!enumsMalos.length, 'comanda: el esquema no tiene enum con null (la API lo rechaza) ' + enumsMalos.join(', '));
+
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'No se sabe' });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    ok(res.code === 200 && !res.body.datos.formaAnticipo && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')), 'comanda: "No se sabe" en la forma de pago queda vacío y se pregunta');
 
     reset();
     respuestas = [ADMIN];
