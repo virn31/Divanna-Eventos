@@ -203,11 +203,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'text', text: '¡Qué emoción! Mira este paquete.' },
-    { type: 'tool_use', name: 'mostrar_fotos', input: { ids: ['paquete-xv', 'paquetes-vasomaiz'] } },
-  ] }];
+    { type: 'tool_use', id: 'tu_fotos1', name: 'mostrar_fotos', input: { ids: ['paquete-xv', 'paquetes-vasomaiz'] } },
+  ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'El de XV incluye mampara y mesas. ¿Para cuántos invitados?' }] }];
   res = await chat({ historial });
   const p = llamadasClaude[0];
   ok(res.code === 200 && res.body.texto.includes('paquete') && res.body.fotos.includes('/referencias/paquete-xv-6000.jpg') && res.body.fotos.length === 4, 'chat: texto y fotos (XV + 3 de Vaso Maíz)');
+  const vuelta2 = llamadasClaude[1];
+  ok(llamadasClaude.length === 2 && res.body.texto.includes('¿Para cuántos invitados?') && vuelta2.messages[2].content[0].content.includes('Paquetes de El Vaso Maíz'),
+    'chat: después de mostrar fotos DiMa sabe de qué son y las comenta (ya no se queda trabada)');
+
+  reset();
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'tool_use', id: 'tu_fotos2', name: 'mostrar_fotos', input: { ids: ['paquetes-vasomaiz'] } },
+  ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Son las mismas que viste arriba. ¿Cuál te gustó?' }] }];
+  res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/paquetes-1-a-4.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
+  ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (paquetes 1 a 4)]')
+    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?'),
+    'chat: DiMa sabe qué fotos ya vio el cliente y no se las repite');
   ok(p.model === 'claude-sonnet-5-5' && p.fallbacks === 'default' && p.betas.includes('server-side-fallback-2026-07-01') && p.tool_choice.type === 'auto' && p.output_config.effort === 'low', 'chat: modelo, respaldo y tool_choice auto');
   ok(p.tools.every(t => t.strict === true) && p.system.includes('CATÁLOGO REAL') && !p.system.includes('4830'), 'chat: tools estrictos, catálogo sin datos de tarjeta');
   ok(p.messages.length === 1 && p.messages[0].role === 'user' && llamadas.length === 0, 'chat: solo texto en el historial, sin tocar Airtable');

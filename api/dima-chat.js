@@ -233,7 +233,9 @@ function construirMensajes(historial) {
     const texto = h.texto.trim();
     if (!texto || texto.length > (h.rol === 'cliente' ? MAX_CARACTERES_MENSAJE : 4000)) return null;
     total += texto.length;
-    mensajes.push({ role: h.rol === 'cliente' ? 'user' : 'assistant', content: texto });
+    // Las fotos no viajan a la API, pero DiMa debe saber cuáles ya vio el cliente.
+    const vistas = h.rol === 'dima' ? temasDeFotos(h.fotos) : [];
+    mensajes.push({ role: h.rol === 'cliente' ? 'user' : 'assistant', content: vistas.length ? `${texto}\n[Fotos que le mostré: ${vistas.join('; ')}]` : texto });
   }
   if (total > MAX_CARACTERES_TOTAL || mensajes[0].role !== 'user' || mensajes[mensajes.length - 1].role !== 'user') return null;
   return mensajes;
@@ -266,6 +268,15 @@ function urlsDeFotos(ids) {
     else if (REFERENCIAS_DECORACION[id]) urls.push(`/referencias/${REFERENCIAS_DECORACION[id].archivo}`);
   }
   return [...new Set(urls)].slice(0, 6);
+}
+
+// De qué es cada foto, para que DiMa la comente y sepa cuáles ya vio el cliente.
+const TEMA_DE_FOTO = new Map([
+  ...Object.values(REFERENCIAS_DECORACION).map(r => [`/referencias/${r.archivo}`, r.tema]),
+  ...FOTOS_PAQUETES_VASOMAIZ.map(f => [`/${f}`, `Paquetes de El Vaso Maíz (${f.replace(/^paquetes\//, '').replace(/\.jpg$/, '').replace(/-/g, ' ')})`]),
+]);
+function temasDeFotos(urls) {
+  return Array.isArray(urls) ? [...new Set(urls.map(u => TEMA_DE_FOTO.get(u)).filter(Boolean))] : [];
 }
 
 // El navegador guarda el folio del pedido de esta conversación. Para que nadie
@@ -554,9 +565,11 @@ module.exports = async (req, res) => {
     let fotos = [];
     let folioNuevo = folioPrevio;
     let registrado = false;
+    // Fotos que el cliente ya vio en esta conversación (el navegador las guarda en el historial).
+    const yaVistas = new Set(historial.flatMap(h => (h && h.rol === 'dima' && Array.isArray(h.fotos)) ? h.fotos : []));
 
-    // Normalmente es una sola llamada. Solo si DiMa pide el aproximado de
-    // traslado se le devuelve el resultado y responde con él (máx. 3 vueltas).
+    // Normalmente es una sola llamada. Si DiMa pide el aproximado de traslado o
+    // muestra fotos, se le devuelve el resultado y sigue con él (máx. 3 vueltas).
     for (let vuelta = 0; vuelta < 3; vuelta++) {
       const respuesta = await client.beta.messages.create({
         model: MODELO,
@@ -572,7 +585,7 @@ module.exports = async (req, res) => {
         system: sistema,
         tools: TOOLS,
         tool_choice: { type: 'auto' },
-        messages: conversacion,
+        messages: [...conversacion],
       });
 
       if (respuesta.stop_reason === 'refusal') {
@@ -584,13 +597,22 @@ module.exports = async (req, res) => {
       }
 
       const resultados = [];
-      let pidioTraslado = false;
+      let pidioTraslado = false, pidioFotos = false;
       for (const bloque of respuesta.content) {
         if (bloque.type === 'text' && bloque.text.trim()) {
           partes.push(bloque.text.trim());
         } else if (bloque.type === 'tool_use' && bloque.name === 'mostrar_fotos') {
-          fotos = fotos.concat(urlsDeFotos(bloque.input.ids));
-          resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: 'Fotos mostradas al cliente.' });
+          // Antes se cortaba aquí y el cliente veía las fotos sin comentario (DiMa
+          // "se trababa"). Ahora DiMa recibe de qué son y sigue la plática.
+          pidioFotos = true;
+          const pedidas = urlsDeFotos(bloque.input.ids);
+          const nuevas = pedidas.filter(u => !yaVistas.has(u) && !fotos.includes(u));
+          fotos = fotos.concat(nuevas);
+          const repetidas = temasDeFotos(pedidas.filter(u => !nuevas.includes(u)));
+          resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content:
+            (nuevas.length ? `El cliente ya ve estas fotos: ${temasDeFotos(nuevas).join('; ')}.` : 'No se mostró ninguna foto nueva.')
+            + (repetidas.length ? ` Estas ya las había visto y no se repiten: ${repetidas.join('; ')}.` : '')
+            + ' Coméntalas en una o dos frases (qué incluye, desde cuánto según el catálogo) y sigue con la cotización con una pregunta. No vuelvas a llamar mostrar_fotos en esta respuesta.' });
         } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
           pidioTraslado = true;
           const t = await estimarTraslado(bloque.input.destino);
@@ -616,7 +638,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      if (!pidioTraslado || respuesta.stop_reason !== 'tool_use') break;
+      if (!(pidioTraslado || pidioFotos) || respuesta.stop_reason !== 'tool_use') break;
       conversacion.push({ role: 'assistant', content: respuesta.content });
       conversacion.push({ role: 'user', content: resultados });
     }
