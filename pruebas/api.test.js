@@ -688,6 +688,17 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'quiero agregar sillas' }], pedidoExistente: { folio: 'evt-777777', telefono: '667 999 0000' } });
   const avisoPedido = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
   ok(res.code === 200 && res.body.folio === 'EVT-777777' && res.body.folioFirma === firmar('EVT-777777') && avisoPedido.role === 'system' && avisoPedido.content.includes('Paquete 3') && avisoPedido.content.includes('ya confirmó'), 'chat: pedido existente verificado, DiMa recibe su contenido y el folio queda firmado');
+  ok(avisoPedido.content.includes('6679990000') && avisoPedido.content.includes('NO le vuelvas a pedir'), 'chat: al abrir un pedido DiMa recibe también el teléfono y no repide datos');
+
+  reset();
+  respuestas = [
+    { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Cliente: ['recCLIENTE0000009'], Fecha_Evento: '2026-12-01', Ubicacion: 'Las Quintas', Servicios_Solicitados: 'Paquete 3' } }] },
+    { id: 'recCLIENTE0000009', fields: { Nombre: 'Rosa', Telefono_WhatsApp: '+526679990000' } },
+  ];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¿De qué color las sillas?' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: 'quiero agregar sillas' }, { rol: 'dima', texto: 'Claro, ¿cuántas?' }, { rol: 'cliente', texto: '20' }], folio: 'EVT-777777', folioFirma: firmar('EVT-777777') });
+  const avisoSegundo = llamadasClaude[0].messages[llamadasClaude[0].messages.length - 1];
+  ok(res.code === 200 && avisoSegundo.role === 'system' && avisoSegundo.content.includes('Rosa') && avisoSegundo.content.includes('6679990000') && avisoSegundo.content.includes('Las Quintas') && avisoSegundo.content.includes('Paquete 3') && !avisoSegundo.content.includes('Recuérdale'), 'chat: en los mensajes siguientes (folio firmado) DiMa sigue teniendo los datos del pedido y no repite el recordatorio');
 
   reset();
   respuestas = [{ records: [] }, { records: [{ id: 'recEVENTO00000007', fields: { Folio_Evento: 'EVT-777777', Notas: 'previas', Instrucciones_Equipo: '' } }] }, {}];

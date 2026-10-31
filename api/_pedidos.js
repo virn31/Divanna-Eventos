@@ -225,13 +225,11 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   return { folio, disponibilidad };
 }
 
-// Pedido existente: el cliente da su folio y su teléfono para agregar o
-// cambiar algo. Devuelve el resumen del pedido solo si el teléfono coincide
-// con el del cliente del pedido (así nadie toca un pedido ajeno).
-async function verificarPedido(folio, telefono) {
+// Resumen de un pedido por folio, con el teléfono del cliente, o null. Solo
+// se usa con un folio ya verificado (firmado o con teléfono que coincide).
+async function leerPedido(folio) {
   const folioLimpio = String(folio || '').trim().toUpperCase();
-  const diezDigitos = String(telefono || '').replace(/\D/g, '').slice(-10);
-  if (!/^EVT-\d{6}$/.test(folioLimpio) || diezDigitos.length < 10) return null;
+  if (!/^EVT-\d{6}$/.test(folioLimpio)) return null;
 
   const formula = encodeURIComponent(`{Folio_Evento} = "${folioLimpio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
@@ -239,13 +237,13 @@ async function verificarPedido(folio, telefono) {
   const clienteId = r && (r.fields.Cliente || [])[0];
   if (!clienteId) return null;
   const cliente = await airtableRequest(`${TABLES.CLIENTES}/${clienteId}`);
-  if (String(cliente.fields.Telefono_WhatsApp || '').replace(/\D/g, '').slice(-10) !== diezDigitos) return null;
 
   const f = r.fields;
   return {
     id: r.id,
     folio: folioLimpio,
     nombre: cliente.fields.Nombre || '',
+    telefono: String(cliente.fields.Telefono_WhatsApp || '').replace(/\D/g, '').slice(-10),
     negocio: f.Negocio || '',
     fecha: f.Fecha_Evento || '',
     horaInicio: f.Hora_Inicio || '',
@@ -257,6 +255,16 @@ async function verificarPedido(folio, telefono) {
     fueraDeCiudad: !!f.Fuera_De_Ciudad,
     mensajeDiana: f.Mensaje_Para_Cliente && !f.Mensaje_Cliente_Entregado ? f.Mensaje_Para_Cliente : '',
   };
+}
+
+// Pedido existente: el cliente da su folio y su teléfono para agregar o
+// cambiar algo. Devuelve el resumen del pedido solo si el teléfono coincide
+// con el del cliente del pedido (así nadie toca un pedido ajeno).
+async function verificarPedido(folio, telefono) {
+  const diezDigitos = String(telefono || '').replace(/\D/g, '').slice(-10);
+  if (diezDigitos.length < 10) return null;
+  const pedido = await leerPedido(folio);
+  return pedido && pedido.telefono === diezDigitos ? pedido : null;
 }
 
 // Mensaje que Diana dejó para el cliente y que aún no se entrega, o null.
@@ -374,6 +382,7 @@ module.exports = {
   crearPedido,
   buscarClientePorTelefono,
   verificarPedido,
+  leerPedido,
   registrarCambioCliente,
   leerCambio,
   cambioUrgente,
