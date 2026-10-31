@@ -37,7 +37,7 @@ window.DimaDinero = (function(){
         ${fila('Falta por cobrar', pesos(d.resta), d.resta > 0 ? 'falta' : 'ok')}
       </div>
       ${d.cobros.length ? `<div class="din-lista"><b>Pagos</b>${d.cobros.map(c => `<div>${esc(c.fecha)} · ${pesos(c.monto)} · ${esc(c.forma)}${c.aDiana ? ' · a Diana' : ' · cobró la brigada'}</div>`).join('')}</div>` : ''}
-      ${d.cargosExtra.length ? `<div class="din-lista"><b>Daños y faltantes</b>${d.cargosExtra.map(c => `<div>${esc(c.cantidad)} × ${esc(c.descripcion)} = ${pesos(c.total)}${c.sinPrecio ? ' ⚠️ precio escrito a mano' : ''}${c.nota ? ` · ${esc(c.nota)}` : ''} <small>(${esc(c.por)})</small> <button type="button" class="din-quitar" data-din="quitar-cargo" data-cargo="${esc(c.id)}">Quitar</button></div>`).join('')}</div>` : ''}
+      ${d.cargosExtra.length ? `<div class="din-lista"><b>Daños y faltantes</b>${d.cargosExtra.map(c => `<div>${esc(c.cantidad)} × ${esc(c.descripcion)}${c.menor ? ' (daño menor, 10%)' : ''} = ${pesos(c.total)}${c.sinPrecio ? ' ⚠️ precio escrito a mano' : ''}${c.nota ? ` · ${esc(c.nota)}` : ''} <small>(${esc(c.por)})</small> <button type="button" class="din-quitar" data-din="quitar-cargo" data-cargo="${esc(c.id)}">Quitar</button></div>`).join('')}</div>` : ''}
       <details class="din-caja" data-caja="cobro-${esc(ev.id)}"><summary>💵 Registrar cobro</summary>
         <label>¿Qué pagó el cliente?<select class="din-cobro-tipo"><option value="abono">Anticipo o abono</option>${d.resta > 0 ? `<option value="todo">Liquidó todo (${pesos(d.resta)})</option>` : ''}</select></label>
         <input class="din-cobro-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
@@ -49,6 +49,7 @@ window.DimaDinero = (function(){
         <label>¿Qué artículo?<select class="din-tipo"><option value="">Elige el artículo…</option></select></label>
         <input class="din-desc" maxlength="120" placeholder="Si no está en la lista: qué es (ej. tapete roto)" hidden>
         <input class="din-cant" inputmode="numeric" placeholder="¿Cuántas piezas?">
+        <label>¿Qué pasó?<select class="din-grav"><option value="perdido">Se rompió, se perdió o ya no sirve (precio completo)</option><option value="menor">Daño menor: mancha o rayón (10% del precio)</option></select></label>
         <input class="din-monto-cargo" inputmode="decimal" placeholder="Cuánto se cobra en total (no tiene precio)" hidden>
         <input class="din-nota" maxlength="300" placeholder="Comentario: silla quebrada, faltan copas…">
         <div class="din-previa"></div>
@@ -88,7 +89,10 @@ window.DimaDinero = (function(){
     caja.querySelector('.din-desc').hidden = sel.value !== 'otro';
     caja.querySelector('.din-monto-cargo').hidden = !sel.value || !!precio;
     const cant = Number(caja.querySelector('.din-cant').value) || 0;
-    caja.querySelector('.din-previa').textContent = precio && cant ? `Se le cobra al cliente: ${cant} × ${pesos(precio)} = ${pesos(precio * cant)}` : '';
+    // Daño menor: 10% del precio de reposición (api/_cargos.js).
+    const menor = caja.querySelector('.din-grav').value === 'menor';
+    const total = Math.round(precio * cant * (menor ? 0.10 : 1) * 100) / 100;
+    caja.querySelector('.din-previa').textContent = precio && cant ? `Se le cobra al cliente: ${cant} × ${pesos(precio)}${menor ? ' × 10%' : ''} = ${pesos(total)}` : '';
   }
 
   const postJson = (url, cuerpo) => o.api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
@@ -111,7 +115,7 @@ window.DimaDinero = (function(){
       } else if(b.dataset.din === 'cargo'){
         const tipo = valor('.din-tipo');
         if(!tipo) throw new Error('Elige el artículo o "Otro".');
-        const d = await postJson('/api/brigada-estatus', { eventoId: ev.id, tipo: 'cargo_extra', articuloId: tipo === 'otro' ? '' : tipo, descripcion: valor('.din-desc'), cantidad: valor('.din-cant'), monto: valor('.din-monto-cargo'), nota: valor('.din-nota') });
+        const d = await postJson('/api/brigada-estatus', { eventoId: ev.id, tipo: 'cargo_extra', articuloId: tipo === 'otro' ? '' : tipo, descripcion: valor('.din-desc'), cantidad: valor('.din-cant'), monto: valor('.din-monto-cargo'), nota: valor('.din-nota'), gravedad: valor('.din-grav') });
         o.toast(`Cargo de ${pesos(d.cargo.total)} sumado${o.esAdmin() ? '' : '. Diana ya está avisada'}.`);
       } else if(b.dataset.din === 'quitar-cargo'){
         await postJson('/api/brigada-estatus', { eventoId: ev.id, tipo: 'quitar_cargo', cargoId: b.dataset.cargo });
@@ -130,7 +134,7 @@ window.DimaDinero = (function(){
 
   function conectar(raiz){
     raiz.querySelectorAll('[data-din]').forEach(b => b.addEventListener('click', () => accion(b)));
-    raiz.querySelectorAll('.din-tipo, .din-cant').forEach(el => el.addEventListener('input', () => vistaPrevia(el.closest('details'))));
+    raiz.querySelectorAll('.din-tipo, .din-cant, .din-grav').forEach(el => el.addEventListener('input', () => vistaPrevia(el.closest('details'))));
     raiz.querySelectorAll('details[data-caja^="cargo-"]').forEach(d => {
       if(d.open) llenarArticulos(d);
       d.addEventListener('toggle', () => { if(d.open) llenarArticulos(d); });

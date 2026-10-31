@@ -46,7 +46,8 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
-const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA } = require('./_dima-catalogo');
+const { contenidoDima, contenidoPagina, fotoDrive } = require('./_drive');
+const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA, HORAS_LIQUIDACION } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
@@ -87,6 +88,7 @@ const MENSAJE_LIMITE =
 
 const ID_FOTOS_VASOMAIZ = 'paquetes-vasomaiz';
 
+// Las fotos de la carpeta de Drive se suman al enum en cada mensaje (ver herramientas()).
 const TOOLS = [
   {
     name: 'mostrar_fotos',
@@ -154,15 +156,16 @@ const TOOLS = [
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
+        responsable_recoleccion: { type: ['string', 'null'], description: 'Nombre y teléfono de quien va a estar en el lugar para entregar el mobiliario cuando el equipo pase a recoger (puede ser el mismo cliente). null si el pedido no lleva mobiliario o no lo dio.' },
         preferencia_contacto: { type: 'string', enum: ['esperar_en_chat', 'mensaje', 'llamada', 'no_preguntado'], description: 'Cómo quiere el cliente recibir la respuesta de la cotización: esperar aquí en el chat, por mensaje o por llamada. "no_preguntado" si no aplica.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'preferencia_contacto'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'responsable_recoleccion', 'preferencia_contacto'],
       additionalProperties: false,
     },
   },
 ];
 
-function systemPrompt() {
+function systemPrompt(drive = { textos: '', fotos: [], hayPromociones: false }) {
   const hoy = new Date();
   const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(hoy);
   const hoyTexto = hoy.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mazatlan' });
@@ -202,25 +205,40 @@ TEMPORADA ALTA DE FIN DE AÑO (${textoTemporada()}): cuenta la fecha del EVENTO,
 - El costo de traslado NO sube en temporada: se mantiene igual (km x $10 x 4). Súmalo aparte, sin aplicarle el aumento.
 - Explícalo con sutileza y sin disculparte de más: es la temporada de más demanda del año, el equipo trabaja a tope y la tarifa es de temporada. Ej.: "Para esas fechas manejamos tarifa de temporada, porque es cuando más eventos atendemos en el año; te lo armo con esa tarifa."
 - Si el cliente puede mover su evento antes del ${TEMPORADA_ALTA.desde.dia} de diciembre, puedes mencionar de pasada que fuera de temporada aplican los paquetes regulares.
-- Las promociones especiales de diciembre se agregarán aparte; si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.
+${drive.hayPromociones
+  ? '- PROMOCIONES: las vigentes están en INFORMACIÓN ACTUALIZADA DE LA GERENCIA (al final). Revisa sus fechas contra la fecha de hoy y ofrece solo las vigentes; si no hay ninguna vigente, dile que la gerencia le comparte las que haya.'
+  : '- Si el cliente pregunta por promociones, dile que la gerencia le comparte las vigentes.'}
 
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
 FLUJO DE LA COTIZACIÓN:
 1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas. Con esos datos se llena la comanda y el recibo del cliente: procura tener también su nombre completo, la dirección exacta del evento (calle, número y colonia o salón) y, en cada producto, el modelo y color que eligió (va en la nota del producto). Pídelo con naturalidad, sin interrogatorio.
-2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente."
+2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente." Después, en su momento, la POLÍTICA DE PAGO del catálogo (anticipo, liquidación ${HORAS_LIQUIDACION} h antes y, si lleva mobiliario, el depósito en garantía).
 3. VENTA CRUZADA, una vez y antes de pedir datos de contacto: si el cliente solo ha hablado de un negocio, ofrécele el otro en una o dos frases, ligadas a su evento.
    - Si pidió snacks de El Vaso Maíz, ofrece el mobiliario (mesas, sillas, mantelería) y la decoración de Divanna (aro, mampara, arcos de cerezos).
    - Si pidió mobiliario o decoración, ofrece los snacks de El Vaso Maíz.
    Si dice que no, respétalo y sigue. Si dice que sí, súmalo a la misma cotización.
-4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido.
+4. Cuando el cliente confirme que así lo quiere, pídele su nombre y un teléfono de 10 dígitos (y su correo si quiere recibir la cotización por ahí) para registrar el pedido. Si lleva mobiliario, pregúntale también quién va a estar para entregarlo cuando pasemos a recoger.
 5. Con eso llama a registrar_pedido. Después dile que ya tenemos todos los datos de su evento, que el equipo revisa la disponibilidad y que en un lapso no mayor a ${HORAS_RESPUESTA} horas le confirmamos la cotización; lo contactan por teléfono para el anticipo y los datos de pago.
 - Si el cliente pide directamente "hazme la cotización", "así está bien", "adelante" o cualquier confirmación clara, haz la venta cruzada en una frase (si no la hiciste) y pasa a pedir sus datos.
 - Nunca digas que la fecha ya quedó apartada ni que hay disponibilidad confirmada: la apartan con el anticipo, después de que la gerencia confirma.
 - CAMBIOS AL PEDIDO: se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación al evento. Si el cliente pregunta o quiere cambiar algo, díselo con amabilidad. Con menos de ${HORAS_ANTICIPACION_CAMBIO} horas no se puede garantizar: si aun así lo quiere, regístralo y la gerencia lo revisa como urgente.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
-${CATALOGO}`;
+${CATALOGO}${informacionDrive(drive)}`;
+}
+
+// Lo que Diana tiene en la carpeta de Drive (api/_drive.js). Va al final del
+// prompt y manda sobre el catálogo del código.
+function informacionDrive(drive) {
+  if (!drive.textos && !drive.fotos.length) return '';
+  return `
+
+INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta de documentos; si algo de aquí contradice el catálogo de arriba -- precios, paquetes, temporadas, promociones --, MANDA LO DE AQUÍ. Respeta las fechas de vigencia que diga cada promoción o temporada. No inventes nada que no diga):
+${drive.textos || '(sin documentos)'}${drive.fotos.length ? `
+
+FOTOS QUE SUBIÓ LA GERENCIA (muéstralas con mostrar_fotos usando su id exacto, con las mismas reglas que las fotos de referencia):
+${drive.fotos.map(f => `- "${f.id}": ${f.tema}`).join('\n')}` : ''}`;
 }
 
 // Convierte el historial del navegador en mensajes de la API, validando tamaños.
@@ -261,10 +279,24 @@ function lugarForaneoMencionado(historial) {
   return LUGARES_FORANEOS.find(l => new RegExp(`(^|[^a-záéíóúñ])${l}([^a-záéíóúñ]|$)`).test(textoCliente)) || null;
 }
 
+function herramientas(fotosDrive) {
+  if (!fotosDrive.length) return TOOLS;
+  const [fotos, ...resto] = TOOLS;
+  const ids = fotos.input_schema.properties.ids;
+  return [{ ...fotos, input_schema: { ...fotos.input_schema, properties: { ids: { ...ids,
+    items: { ...ids.items, enum: [...ids.items.enum, ...fotosDrive.map(f => f.id)] },
+    description: `${ids.description} Los que empiezan con "drive:" son fotos que subió la gerencia (ver INFORMACIÓN ACTUALIZADA DE LA GERENCIA).` } } } }, ...resto];
+}
+
+// Fotos de la carpeta de Drive del mensaje en curso (id "drive:..." → url y tema).
+let FOTOS_DRIVE = [];
+
 function urlsDeFotos(ids) {
   const urls = [];
   for (const id of ids || []) {
-    if (id === ID_FOTOS_VASOMAIZ) urls.push(...FOTOS_PAQUETES_VASOMAIZ.map(f => `/${f}`));
+    const deDrive = FOTOS_DRIVE.find(f => f.id === id);
+    if (deDrive) urls.push(deDrive.url);
+    else if (id === ID_FOTOS_VASOMAIZ) urls.push(...FOTOS_PAQUETES_VASOMAIZ.map(f => `/${f}`));
     else if (REFERENCIAS_DECORACION[id]) urls.push(`/referencias/${REFERENCIAS_DECORACION[id].archivo}`);
   }
   return [...new Set(urls)].slice(0, 6);
@@ -276,7 +308,8 @@ const TEMA_DE_FOTO = new Map([
   ...FOTOS_PAQUETES_VASOMAIZ.map(f => [`/${f}`, `Paquetes de El Vaso Maíz (${f.replace(/^paquetes\//, '').replace(/\.jpg$/, '').replace(/-/g, ' ')})`]),
 ]);
 function temasDeFotos(urls) {
-  return Array.isArray(urls) ? [...new Set(urls.map(u => TEMA_DE_FOTO.get(u)).filter(Boolean))] : [];
+  const tema = (u) => TEMA_DE_FOTO.get(u) || (FOTOS_DRIVE.find(f => f.url === u) || {}).tema;
+  return Array.isArray(urls) ? [...new Set(urls.map(tema).filter(Boolean))] : [];
 }
 
 // El navegador guarda el folio del pedido de esta conversación. Para que nadie
@@ -310,7 +343,10 @@ async function registrarPedido(input, historial, folioPrevio) {
     servicios: input.servicios,
     montoEstimado: input.monto_estimado,
     fueraDeCiudad: input.fuera_de_ciudad,
-    indicaciones: input.indicaciones,
+    // Quién entrega el mobiliario en la recolección va con las indicaciones: la
+    // brigada lo ve en la app y en /hoy de Telegram.
+    indicaciones: [input.indicaciones, input.responsable_recoleccion ? `Entrega el mobiliario en la recolección: ${input.responsable_recoleccion}` : '']
+      .filter(Boolean).join('\n') || null,
     preferenciaContacto: input.preferencia_contacto,
     horaInicio: input.hora_inicio,
     horasServicio: input.horas_servicio,
@@ -429,7 +465,34 @@ async function chatEquipo(req, res) {
   }
 }
 
+// GET público: ?foto=<id> sirve una foto de la carpeta de Drive y ?contenido=1
+// da la galería y las promociones de la página. Se cachea en la CDN de Vercel.
+async function paraLaPagina(req, res) {
+  const { foto, contenido } = req.query || {};
+  try {
+    if (foto) {
+      const f = await fotoDrive(String(foto));
+      if (!f) { res.status(404).json({ error: 'No existe' }); return; }
+      res.setHeader('Content-Type', f.tipo);
+      res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
+      res.status(200).send(f.datos);
+      return;
+    }
+    if (contenido) {
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600');
+      res.status(200).json(await contenidoPagina());
+      return;
+    }
+  } catch (err) {
+    console.error('Error leyendo Drive para la página:', err.message);
+    res.status(502).json({ error: 'No se pudo leer' });
+    return;
+  }
+  res.status(405).json({ error: 'Method not allowed' });
+}
+
 module.exports = async (req, res) => {
+  if (req.method === 'GET') return paraLaPagina(req, res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if ((req.body || {}).modo === 'equipo') return chatEquipo(req, res);
 
@@ -459,6 +522,8 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const drive = await contenidoDima();
+  FOTOS_DRIVE = drive.fotos;
   const mensajes = construirMensajes(historial);
   if (!mensajes) {
     res.status(400).json({ error: 'La conversación es demasiado larga o no es válida. Recarga la página para empezar de nuevo.' });
@@ -559,7 +624,7 @@ module.exports = async (req, res) => {
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
-    const sistema = systemPrompt();
+    const sistema = systemPrompt(drive);
     const conversacion = [...mensajes];
     const partes = [];
     let fotos = [];
@@ -583,7 +648,7 @@ module.exports = async (req, res) => {
         // El catálogo es largo y no cambia en el día: se cachea entre mensajes.
         cache_control: { type: 'ephemeral' },
         system: sistema,
-        tools: TOOLS,
+        tools: herramientas(drive.fotos),
         tool_choice: { type: 'auto' },
         messages: [...conversacion],
       });
@@ -609,10 +674,16 @@ module.exports = async (req, res) => {
           const nuevas = pedidas.filter(u => !yaVistas.has(u) && !fotos.includes(u));
           fotos = fotos.concat(nuevas);
           const repetidas = temasDeFotos(pedidas.filter(u => !nuevas.includes(u)));
+          // Lo que DiMa escribió antes de las fotos sale en el mismo mensaje: si no
+          // lo sabe, lo vuelve a decir y repite la pregunta (pasó el 30-oct).
+          const yaEscrito = partes.join('\n\n');
           resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content:
             (nuevas.length ? `El cliente ya ve estas fotos: ${temasDeFotos(nuevas).join('; ')}.` : 'No se mostró ninguna foto nueva.')
             + (repetidas.length ? ` Estas ya las había visto y no se repiten: ${repetidas.join('; ')}.` : '')
-            + ' Coméntalas en una o dos frases (qué incluye, desde cuánto según el catálogo) y sigue con la cotización con una pregunta. No vuelvas a llamar mostrar_fotos en esta respuesta.' });
+            + (yaEscrito
+              ? ` En este mismo mensaje, arriba de las fotos, el cliente ya lee lo que escribiste: «${yaEscrito}». NO lo repitas: ni precios, ni explicaciones, ni preguntas que ya hiciste. Agrega a lo mucho una frase corta sobre lo que se ve en las fotos y que no hayas dicho; si ya preguntaste algo, no hagas otra pregunta.`
+              : ' Coméntalas en una o dos frases (qué incluye, desde cuánto según el catálogo) y sigue con la cotización con una pregunta.')
+            + ' No vuelvas a llamar mostrar_fotos en esta respuesta.' });
         } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
           pidioTraslado = true;
           const t = await estimarTraslado(bloque.input.destino);

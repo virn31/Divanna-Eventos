@@ -108,6 +108,14 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - Diana lo **aprueba** o **pide aclaración** (llega por Telegram) desde el dashboard; solo lo aprobado cuenta en el balance
   del lunes. Ahí también marca los **reembolsos** hechos. Ángela ve la administración de El Vaso Maíz.
 
+## Daños y faltantes (al recoger)
+
+- El líder, la encargada, la gerente o Diana y Víctor le escriben a DiMa por Telegram: **/daño** + folio + qué pasó
+  (ej. `/daño EVT-123 se rompieron 3 copas globo y un mantel quedó manchado`).
+- Lo **roto, perdido o que ya no sirve** se cobra completo; el **daño menor** (mancha, rayón) al **10%** del precio de reposición.
+- DiMa muestra la cuenta con **✅ Registrar** / **❌ Cancelar**. Al registrar se suma a lo que debe el cliente y Diana queda avisada.
+- También en la app: en el evento, **💰 Dinero → Anotar daño o faltante** (con "¿Qué pasó?": completo o daño menor).
+
 ## DiMa, curso y mensajes
 
 

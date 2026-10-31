@@ -36,6 +36,18 @@ Module._load = function (req, parent, ...rest) {
         get: async () => ({ data: { values: hojaPrueba.lista } }),
         update: async (p) => { googleSheets.push({ op: 'renglon', ...p }); return {}; },
       },
+    } }), drive: () => ({ files: {
+      list: async (p) => {
+        if (drivePrueba.falla) throw new Error('Drive caído');
+        const padre = /'([^']+)' in parents/.exec(p.q)[1];
+        return { data: { files: drivePrueba.archivos.filter(a => a.padre === padre) } };
+      },
+      export: async (p) => ({ data: drivePrueba.archivos.find(a => a.id === p.fileId).texto }),
+      get: async (p) => {
+        const a = drivePrueba.archivos.find(x => x.id === p.fileId);
+        if (p.alt === 'media') return { data: a.texto !== undefined ? a.texto : new Uint8Array([1, 2, 3]).buffer };
+        return { data: { mimeType: a.mimeType, size: '1000', thumbnailLink: 'https://lh3.googleusercontent.com/drive-thumb/' + a.id + '=s220' } };
+      },
     } }) } };
   }
   if (req === '@anthropic-ai/sdk') return { Anthropic: AnthropicMock };
@@ -55,6 +67,9 @@ const llamadas = [];
 const googleCal = [];
 const googleSheets = [];
 let hojaPrueba = { pestanas: [], lista: [] };
+// Carpeta de Drive simulada (api/_drive.js): archivos con su carpeta padre.
+let drivePrueba = { falla: false, archivos: [] };
+const miniaturas = [];
 let bloqueosPrueba = [];
 let bloqueoLeido = null;
 let llenosPrueba = []; // eventos autorizados que lee diasLlenos (días sin cupo)
@@ -63,6 +78,10 @@ const telegram = [];
 let mapaCaido = false;
 let telegramFalla = false;
 global.fetch = async (url, opts = {}) => {
+  if (url.startsWith('https://lh3.googleusercontent.com/drive-thumb/')) {
+    miniaturas.push({ url, auth: (opts.headers || {}).Authorization });
+    return { ok: true, status: 200, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array([9, 9, 9]).buffer };
+  }
   if (url.startsWith('https://nominatim.openstreetmap.org/') || url.startsWith('https://router.project-osrm.org/')) {
     if (mapaCaido) return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
     if (url.includes('nominatim')) {
@@ -211,6 +230,12 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const vuelta2 = llamadasClaude[1];
   ok(llamadasClaude.length === 2 && res.body.texto.includes('¿Para cuántos invitados?') && vuelta2.messages[2].content[0].content.includes('Paquetes de El Vaso Maíz'),
     'chat: después de mostrar fotos DiMa sabe de qué son y las comenta (ya no se queda trabada)');
+  const resultadoFotos = vuelta2.messages[2].content[0].content;
+  ok(resultadoFotos.includes('«¡Qué emoción! Mira este paquete.»') && resultadoFotos.includes('NO lo repitas'),
+    'chat: tras las fotos DiMa sabe lo que ya escribió en el mismo mensaje y no lo repite');
+  ok(/depósito en garantía/.test(p.system) && /pregunta cómo se paga[^\n]*ESA MISMA respuesta[^\n]*depósito/.test(p.system),
+    'chat: si preguntan cómo se paga, DiMa da anticipo, liquidación y depósito juntos');
+  ok(p.system.includes('EL VASO MAÍZ NO LLEVA DEPÓSITO'), 'chat: El Vaso Maíz no lleva depósito en garantía');
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
@@ -218,7 +243,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Son las mismas que viste arriba. ¿Cuál te gustó?' }] }];
   res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/paquetes-1-a-4.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
   ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (paquetes 1 a 4)]')
-    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?'),
+    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?')
+    && llamadasClaude[1].messages[4].content[0].content.includes('Coméntalas en una o dos frases'),
     'chat: DiMa sabe qué fotos ya vio el cliente y no se las repite');
   ok(p.model === 'claude-sonnet-5-5' && p.fallbacks === 'default' && p.betas.includes('server-side-fallback-2026-07-01') && p.tool_choice.type === 'auto' && p.output_config.effort === 'low', 'chat: modelo, respaldo y tool_choice auto');
   ok(p.tools.every(t => t.strict === true) && p.system.includes('CATÁLOGO REAL') && !p.system.includes('4830'), 'chat: tools estrictos, catálogo sin datos de tarjeta');
@@ -1089,7 +1115,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/instrucciones', 777) }, res);
   let tgIn = telegram.find(t => t.metodo === 'sendMessage');
-  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:reporte,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff y el reporte del día');
+  ok(tgIn.body.text.includes('Hola Ángela') && botonesDe(tgIn).join() === 'in:app,in:eventos,in:alertas,in:reporte,in:danos,in:staff,in:mensajes,in:problemas', 'instrucciones: la coordinadora ve todos los temas, con /staff, el reporte del día y daños');
 
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
@@ -2298,5 +2324,156 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 23, chat: { id: 222, type: 'private' }, photo: [{ file_id: 'x' }] } } }, res);
     ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('solo para Diana')), 'comanda: un líder no puede mandar comandas a leer');
+  }
+  // ---------- Carpeta de Google Drive (api/_drive.js) ----------
+  {
+    const drv = require(path.join(repo, 'api/_drive.js'));
+    const pagina = async (query) => { const r = resMock(); r.send = (b) => { r.body = b; return r; }; await chatApi({ method: 'GET', query }, r); return r; };
+
+    // Sin GOOGLE_DRIVE_CARPETA no hay nada y la página se queda como está.
+    reset(); drv.limpiarCacheDrive();
+    let r = await pagina({ contenido: '1' });
+    ok(r.code === 200 && r.body.galeria.length === 0 && r.body.promociones.textos.length === 0, 'drive: sin carpeta configurada la página no cambia');
+
+    process.env.GOOGLE_DRIVE_CARPETA = 'raiz';
+    drivePrueba = { falla: false, archivos: [
+      { padre: 'raiz', id: 'cGal', name: 'Galería', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'raiz', id: 'cPromo', name: 'Promociones', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'raiz', id: 'cDiv', name: 'Divanna', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'cDiv', id: 'cDivPaq', name: 'Paquetes', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'cGal', id: 'fXV', name: 'XV años rosa y dorado.jpg', mimeType: 'image/jpeg' },
+      { padre: 'cGal', id: 'fBoda', name: 'Boda_jardin.png', mimeType: 'image/png' },
+      { padre: 'cPromo', id: 'dPromo', name: 'Promo noviembre', mimeType: 'application/vnd.google-apps.document', texto: 'Túnel de luces a $1,500 del 1 al 30 de noviembre.' },
+      { padre: 'cPromo', id: 'fPromo', name: 'Tunel promo.jpg', mimeType: 'image/jpeg' },
+      { padre: 'cDivPaq', id: 'dPaq', name: 'Precios', mimeType: 'application/vnd.google-apps.document', texto: 'Paquete XV ahora cuesta $6,800.' },
+    ] };
+    reset(); drv.limpiarCacheDrive();
+    r = await pagina({ contenido: '1' });
+    ok(r.code === 200 && r.body.galeria.length === 2 && r.body.galeria[0].nombre === 'XV años rosa y dorado' && r.body.galeria[1].nombre === 'Boda jardin'
+      && r.body.galeria[0].url === '/api/dima-chat?foto=fXV' && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
+      && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
+      'drive: la página recibe la galería y las promociones (sin los documentos internos)');
+
+    // DiMa lee los documentos (con subcarpetas), sabe de las promociones y puede mostrar las fotos.
+    reset();
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [
+      { type: 'tool_use', id: 'tu_drive', name: 'mostrar_fotos', input: { ids: ['drive:fPromo'] } },
+    ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Este mes el túnel de luces está en promoción. ¿Para qué fecha?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: '¿Tienen promociones?' }] });
+    const pd = llamadasClaude[0];
+    const enumFotos = pd.tools.find(t => t.name === 'mostrar_fotos').input_schema.properties.ids.items.enum;
+    ok(pd.system.includes('INFORMACIÓN ACTUALIZADA DE LA GERENCIA') && pd.system.includes('## Divanna / Paquetes') && pd.system.includes('$6,800')
+      && pd.system.includes('Túnel de luces a $1,500') && pd.system.includes('las vigentes están en INFORMACIÓN ACTUALIZADA') && enumFotos.includes('drive:fXV') && enumFotos.includes('paquete-xv'),
+      'drive: DiMa recibe los documentos, las promociones y las fotos de la carpeta');
+    ok(r.code === 200 && r.body.fotos.includes('/api/dima-chat?foto=fPromo') && llamadasClaude[1].messages[2].content[0].content.includes('Tunel promo (Promociones)'),
+      'drive: DiMa muestra una foto de Drive y sabe de qué es');
+
+    // La foto se sirve como miniatura de 1600 px; nada fuera de la carpeta.
+    reset();
+    r = await pagina({ foto: 'fXV' });
+    ok(r.code === 200 && Buffer.isBuffer(r.body) && r.headers['Content-Type'] === 'image/jpeg' && miniaturas.pop().url.endsWith('fXV=s1600'), 'drive: la foto se sirve achicada desde Drive');
+    r = await pagina({ foto: 'hojaDivanna' });
+    ok(r.code === 404, 'drive: no se puede pedir un archivo que no está en la carpeta');
+
+    // Si Drive falla, el chat sigue con el catálogo del código.
+    process.env.GOOGLE_DRIVE_CARPETA = 'otra';
+    drivePrueba.falla = true;
+    reset(); drv.limpiarCacheDrive();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Con gusto, ¿qué evento tienes?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Hola' }] });
+    ok(r.code === 200 && llamadasClaude[0].system.includes('CATÁLOGO REAL') && !llamadasClaude[0].system.includes('INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta'), 'drive: si Drive falla DiMa sigue con el catálogo');
+
+    delete process.env.GOOGLE_DRIVE_CARPETA;
+    drivePrueba = { falla: false, archivos: [] };
+    drv.limpiarCacheDrive();
+  }
+  // ---------- Letreros genéricos, política de pago y recolección ----------
+  {
+    reset();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Claro, ¿para cuántos invitados?' }] }];
+    let r = await chat({ historial: [{ rol: 'cliente', texto: 'Quiero una mampara para el cumple de mi hija' }] });
+    const sis = llamadasClaude[0].system;
+    ok(r.code === 200 && sis.includes('letrero genérico del evento') && sis.includes('NO lleva el nombre del festejado') && sis.includes('Mampara con Lona Personalizada')
+      && sis.includes('diseño CIRCULAR') && sis.includes('encargado asignado') && !sis.includes('con nombre personalizado\''),
+      'política: DiMa sabe que el letrero es genérico y que nombre o personaje es lona personalizada con cargo extra');
+    ok(sis.includes('a más tardar 24 horas antes') && sis.includes('pasar a la oficina') && sis.includes('DEPÓSITO EN GARANTÍA') && sis.includes('$1,000, el mismo para cualquier pedido con mobiliario') && sis.includes('mínimo de $500 para asegurar la fecha') && sis.includes('una silla desde $700') && sis.includes('responsable_recoleccion'),
+      'política: DiMa explica liquidación 24 h antes, efectivo, depósito ($1,000 estándar) y pregunta quién entrega');
+
+    reset();
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [
+      { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Lupita', telefono: '6679990000', email: null, negocio: 'Divanna Eventos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '17:00', horas_servicio: 5, invitados: 50, ubicacion: 'Col. Chapultepec', servicios: 'Mesas para 50', productos: [{ clave: 'dv_paq50_jardin_basico', cantidad: 1, nota: null }], monto_estimado: 2500, fuera_de_ciudad: false, indicaciones: 'Montar a las 3 pm', responsable_recoleccion: 'Su hermano Juan, 6671112233', preferencia_contacto: 'no_preguntado' } },
+    ] }];
+    respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000009', fields: {} }] }, { records: [{}] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Lupita 6679990000, recoge mi hermano Juan 6671112233' }] });
+    const evRec = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+    ok(r.code === 200 && evRec.Instrucciones_Equipo.includes('Montar a las 3 pm') && evRec.Instrucciones_Equipo.includes('Entrega el mobiliario en la recolección: Su hermano Juan, 6671112233'),
+      'política: quién entrega el mobiliario en la recolección llega a las instrucciones de la brigada');
+  }
+  // ---------- /daño por Telegram y daño menor al 10% (api/_danos.js, api/_cargos.js) ----------
+  {
+    const hoyD = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const LIDER_D = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+    const INV_D = { records: [
+      { id: 'recINVCOPA0000001', fields: { Item: 'Copa globo', Categoria: 'Copas', Precio_Reposicion: 100 } },
+      { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Categoria: 'Manteles', Precio_Reposicion: 400 } },
+      { id: 'recINVTAPETE00001', fields: { Item: 'Tapete', Categoria: 'Decoración' } },
+    ] };
+    const EV_D = { id: 'recEVDANO00000001', fields: { Folio_Evento: 'EVT-500', Fecha_Evento: hoyD, Negocio: 'Divanna Eventos', Brigada_Asignada: ['recBRIGADA0000001'], Cargos_Extra: '' } };
+    const tgD = (texto) => ({ message: { message_id: 30, chat: { id: 222, type: 'private' }, text: texto } });
+
+    reset();
+    respuestas = [{ records: [LIDER_D] }, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_D.id] } }, INV_D, { records: [EV_D] }, EV_D, {}];
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_d', name: 'anotar_danos', input: { folio: 'EVT-500', duda: null, renglones: [
+      { articulo: 'recINVCOPA0000001', descripcion: 'Copa globo', cantidad: 3, gravedad: 'perdido', nota: 'rotas' },
+      { articulo: 'recINVMANTEL00001', descripcion: 'Mantel', cantidad: 1, gravedad: 'menor', nota: 'mancha de vino' },
+      { articulo: 'recINVTAPETE00001', descripcion: 'Tapete', cantidad: 1, gravedad: 'perdido', nota: null },
+    ] } }] }];
+    let res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: tgD('/daño EVT-500 se rompieron 3 copas, el mantel quedó manchado y se perdió el tapete') }, res);
+    const parcheD = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    const borrador = parcheD ? JSON.parse(parcheD.body.records[0].fields.Cargos_Extra) : [];
+    const msgD = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    const botonD = msgD && msgD.body.reply_markup ? msgD.body.reply_markup.inline_keyboard[0][0].callback_data : '';
+    ok(borrador.length === 3 && borrador.every(c => c.pendiente && c.lote) && parcheD.body.records[0].fields.Cargos_Extra_Total === 0
+      && borrador[0].total === 300 && borrador[1].total === 40 && borrador[2].sinPrecio
+      && msgD.body.text.includes('daño menor, 10%') && msgD.body.text.includes('Total: $340') && msgD.body.text.includes('sin precio') && /^dn:s:recEVDANO00000001:[a-f0-9]{8}$/.test(botonD)
+      && llamadasClaude[0].tools[0].input_schema.properties.folio.enum.includes('EVT-500'),
+      '/daño: DiMa arma el borrador (perdido al 100%, daño menor al 10%, sin precio marcado) y no suma hasta confirmar');
+
+    // ✅ Registrar: deja de ser borrador, suma al total y avisa a Diana.
+    reset();
+    respuestas = [{ records: [LIDER_D] }, { ...EV_D, fields: { ...EV_D.fields, Cargos_Extra: JSON.stringify(borrador) } }, {}, { records: [{ id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '111' } }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbD', data: botonD, message: { message_id: 31, chat: { id: 222, type: 'private' }, text: msgD.body.text } } } }, res);
+    const parcheR = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    const registrados = parcheR ? JSON.parse(parcheR.body.records[0].fields.Cargos_Extra) : [];
+    ok(registrados.length === 3 && registrados.every(c => !c.pendiente) && parcheR.body.records[0].fields.Cargos_Extra_Total === 340
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('✅ Registrado'))
+      && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('Daños y faltantes en EVT-500') && t.body.text.includes('sin precio')),
+      '/daño: con ✅ Registrar se suma a lo que debe el cliente y Diana recibe el aviso');
+
+    // ❌ Cancelar quita el borrador sin tocar los cargos que ya estaban.
+    reset();
+    const previo = { id: 'abc123abc123', descripcion: 'Silla', cantidad: 1, precio: 700, total: 700, porId: 'x' };
+    respuestas = [{ records: [LIDER_D] }, { ...EV_D, fields: { ...EV_D.fields, Cargos_Extra: JSON.stringify([previo, ...borrador]) } }, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbX', data: botonD.replace('dn:s:', 'dn:x:'), message: { message_id: 31, chat: { id: 222, type: 'private' }, text: msgD.body.text } } } }, res);
+    const parcheX = llamadas.find(l => l.method === 'PATCH');
+    ok(parcheX && JSON.parse(parcheX.body.records[0].fields.Cargos_Extra).length === 1 && parcheX.body.records[0].fields.Cargos_Extra_Total === 700
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Descartado')), '/daño: ❌ Cancelar borra solo el borrador');
+
+    // El asistente no anota daños.
+    reset();
+    respuestas = [{ records: [{ ...LIDER_D, fields: { ...LIDER_D.fields, Rol: 'Asistente' } }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: tgD('/dano se rompió una copa') }, res);
+    ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('Los daños los anotan')), '/daño: el asistente no puede anotar daños');
+
+    // En la app: daño menor al 10% del precio de reposición.
+    const { agregarCargo } = require(path.join(repo, 'api/_cargos.js'));
+    reset();
+    respuestas = [EV_D, { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Precio_Reposicion: 400 } }, {}, { records: [] }];
+    const rApp = await agregarCargo({ id: 'recCOLAB000000001', nombre: 'Diana', rol: 'Admin' }, { eventoId: EV_D.id, articuloId: 'recINVMANTEL00001', cantidad: 2, gravedad: 'menor' });
+    ok(rApp.ok && rApp.cargo.total === 80 && rApp.cargo.gravedad === 'menor', 'cargos: en la app el daño menor se cobra al 10% del precio de reposición');
   }
 })();

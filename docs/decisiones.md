@@ -286,3 +286,27 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor con la referencia https://www.awwwards.com/duofankaar/ y las observaciones de la revisión (galería vacía, sin botón de cotizar a la mano, sin precios, "3,000 eventos" repetido, tono defensivo, Casa Isabella ausente, sin preguntas frecuentes).
 
 **Descartado:** GSAP u otra librería de animación (sin paso de compilación; bastan CSS e IntersectionObserver, y se respeta "reducir movimiento"), pantalla de carga (frena al cliente) y testimonios (no hay reales que mostrar).
+
+## 2026-10-30 — Carpeta de Google Drive para que la página y DiMa estén al día
+
+**Decisión:** Diana mantiene una carpeta de Google Drive (`GOOGLE_DRIVE_CARPETA`, compartida como Lector con la cuenta de servicio, Google Drive API activa en `dima-os-513103`). Sin formato especial: cada subcarpeta es un tema (se lee un nivel más adentro); los Documentos de Google los lee DiMa tal cual y, si contradicen el catálogo del código, manda Drive (precios, paquetes, temporadas, promociones con sus fechas); en las fotos el nombre del archivo es la descripción y DiMa las puede mostrar. Las fotos de una carpeta con "galeria" en el nombre reemplazan la galería fija de la página, y lo de una carpeta "promo..." (textos y fotos) sale en una sección Promociones que solo aparece si hay algo. Todo vive en `api/_drive.js`, se cachea 10 minutos y, si Drive falla, el chat sigue con el catálogo del código. Se sirve desde `dima-chat` por GET (`?contenido=1`, `?foto=<id>`) porque ya están las 12 funciones; la foto sale como miniatura de 1600 px (el original de un celular puede pasar el límite de 4.5 MB de respuesta) y solo si está en la carpeta.
+
+**Por qué:** lo pidió Víctor: que Diana actualice paquetes, precios por temporada y promociones sin pedir un cambio de código.
+
+**Descartado:** una Hoja de Google con columnas (Diana tendría que respetar un formato y la página tampoco ganaba mucho), Airtable (Diana ya usa Drive para sus fotos), hacer pública la carpeta para enlazar las fotos directo (se expone todo lo que suba) y que la temporada alta del código (`_temporada.js`) se lea de Drive (sigue fija; un documento de temporada en Drive solo lo lee DiMa).
+
+## 2026-10-30 — Letreros genéricos, política de pago y depósito del mobiliario en la plática de DiMa
+
+**Decisión:** el letrero que incluyen el aro, la mampara lisa, el shimmer y los paquetes es genérico según el evento (Happy Birthday, XV Años, Baby Shower…), sin el nombre del festejado. Si el cliente quiere el nombre, un personaje o un diseño de su tema, DiMa lo ofrece como mejora con cargo extra (mampara con lona personalizada o lona aparte). Los personalizados son diseños circulares sobre el porta plato. Los detalles del diseño los coordina con el cliente el encargado asignado; DiMa anota en la nota del producto lo que el cliente ya dijo. Política de pago, dicha en su momento y con naturalidad: anticipo (El Vaso Maíz $500; Divanna mínimo $500 para asegurar la fecha), el total se liquida al menos 24 h antes (en efectivo, en la oficina o con el encargado de la brigada) y, si lleva mobiliario de Divanna, un depósito en garantía estándar de $1,000 que se paga con la liquidación y se regresa al recoger si todo está completo; si el daño pasa del depósito se cobra la diferencia a precio de reposición (ejemplos solo si el cliente pregunta: silla desde $700, copa $100, mesa $2,500). En pedidos con mobiliario DiMa pregunta quién va a estar para entregarlo en la recolección (`responsable_recoleccion`, se guarda en `Instrucciones_Equipo`). Los montos viven en `HORAS_LIQUIDACION`, `ANTICIPO_DIVANNA` y `DEPOSITO_MOBILIARIO` (`api/_dima-catalogo.js`); en null, DiMa dice que la gerencia confirma el monto.
+
+**Por qué:** lo pidió Víctor: DiMa prometía letreros con nombre, no explicaba las mamparas personalizadas y no decía la política de pago; además ya pasó que al recoger no había nadie que respondiera por el mobiliario.
+
+**Descartado:** decir toda la política en un solo mensaje (suena a letra chiquita), cobrar el depósito en efectivo al montar (decisión de Víctor: va con la liquidación) y un campo nuevo en Airtable para quien recibe en la recolección (en las instrucciones ya lo ven la brigada y `/hoy`).
+
+## 2026-10-30 — Daños: perdido al 100%, daño menor al 10%, y DiMa los calcula por Telegram
+
+**Decisión:** lo roto, perdido o que ya no sirve se cobra al 100% del precio de reposición (`INVENTARIO.Precio_Reposicion`); el daño menor (mancha, rayón, se limpia o se repara) al 10%. La brigada puede anotarlo platicando con DiMa por Telegram (`/daño EVT-… qué pasó`): DiMa reconoce el evento y los artículos, el servidor hace la cuenta y muestra el desglose con ✅ Registrar / ❌ Cancelar. El borrador vive en `EVENTOS.Cargos_Extra` marcado `pendiente` (sin campos nuevos en Airtable) y no suma al total hasta confirmarse. En la app, 💰 Dinero pide "¿Qué pasó?" (completo o daño menor).
+
+**Por qué:** lo pidió Víctor: "la brigada debe mandar un mensaje a DiMa, hacer el cálculo rápido y dar un monto". El 10% lo propuso Víctor; se aplicó solo al daño menor porque a todo daño cobraría $10 por una copa rota.
+
+**Descartado:** que DiMa calcule el monto (el modelo puede equivocarse en cuentas; el servidor usa el precio de inventario), registrar sin confirmar (un artículo mal reconocido se cobraría al cliente) y una tabla nueva para los borradores (no se podía crear el campo desde aquí y el JSON ya existía).

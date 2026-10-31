@@ -28,28 +28,30 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-30 (cierre) · **Rama de trabajo:** `main` (todo publicado; ramas del día `arreglos-apk` y `homepage` ya unidas) · **Producción:** `main` en `1dae774` + este cierre, despliegue verificado (caché `dima-brigadas-v23`). Rama aparte sin publicar: `entrenar-dima`. **335 pruebas pasan.**
+**Actualizado:** 2026-10-30 (noche) · **Rama de trabajo:** `carpeta-drive` (6 commits sobre `main`, pusheada, SIN merge, sin probar en real) · **Producción:** `main` en `b388265` (caché `dima-brigadas-v23`; en la rama ya es v24). Rama aparte sin publicar: `entrenar-dima`. **352 pruebas pasan.**
 
-**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs -e production -s 48h --json`); Claude no puede `vercel env add` ni `vercel redeploy`. Las variables marcadas sensitive salen como `[SENSITIVE]` en `vercel env pull` (por ejemplo `GOOGLE_CALENDAR_ID`): no se pueden leer. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en `Downloads\dima-os-513103-eb75c647cb3d.json` (nunca al repo); entra a las dos hojas (`Divanna_Pedidos`, `VasoMaiz_Pedidos`).
+**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs -e production -s 48h --json`); Claude no puede `vercel env add` ni `vercel redeploy`: se le da a Víctor el comando para `!`. Las variables sensitive salen `[SENSITIVE]` en `vercel env pull`. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en `Downloads\dima-os-513103-eb75c647cb3d.json` (nunca al repo).
 
-**Publicado hoy:**
-- **Comanda por foto** arreglada (app y Telegram daban error): la API rechazaba `forma_anticipo` con enum + null. Prueba que revisa el esquema.
-- **💵 Registrar pago** en el calendario (Diana y Víctor): anticipo, abono o liquidación como pago a Diana + recibo PDF.
-- **Ficha de identificación por evento** (app del equipo y dashboard de Diana): ficha corta que se abre al tocarla. **💰 Dinero** (líder, encargada, gerente, Admin; no asistente): total, pagado, falta, cliente y teléfono; registrar cobro (la brigada al reporte del día, también de otro día con `desdeFicha`; Admin con `registrar_pago`); **daños y faltantes** con `INVENTARIO.Precio_Reposicion` (o monto a mano marcado para revisar), suman al total del cuadre y del recibo, aviso a Admin por Telegram. Código: `api/_cargos.js`, `brigadas/dinero.js`. Campos nuevos: `INVENTARIO.Precio_Reposicion`, `EVENTOS.Cargos_Extra`, `EVENTOS.Cargos_Extra_Total`.
-- **DiMa ya no se traba después de mandar fotos**: sabe de qué es cada foto, la comenta y no repite las que el cliente ya vio.
-- **La conversación con DiMa ya no se muestra** en el dashboard (sigue en `EVENTOS.Notas`).
-- **Homepage nuevo** inspirado en DuoFankaar: titular grande, cinta de fotos, servicios numerados (con Casa Isabella), paquetes con precio "desde", galería real, preguntas frecuentes, botón flotante en celular. Fotos en `img/home/` recortadas sin texto ni teléfonos. Precios copiados de `_dima-catalogo.js` (si cambian, actualizar los dos).
+**En la rama `carpeta-drive` (tarde del 30 oct):**
+- **Carpeta de Google Drive** (`api/_drive.js`, guía para Diana en `docs/carpeta-drive.md`): DiMa lee los Documentos (mandan sobre el catálogo) y muestra fotos; la página saca Galería y Promociones de ahí. Caché 10 min; si Drive falla, catálogo del código.
+- **Letreros:** el incluido es genérico; nombre o personaje = lona personalizada con cargo extra.
+- **Política de pago:** anticipo de Divanna mínimo $500, liquidación 24 h antes, depósito en garantía del mobiliario **$1,000** (decidido por Víctor), se regresa al recoger; DiMa pregunta quién entrega en la recolección.
+- **26 fotos nuevas** de Víctor en `referencias/` (nombres y teléfonos pixelados).
+- **`/daño` por Telegram** (`api/_danos.js`): perdido 100%, daño menor 10% de `Precio_Reposicion`, borrador con ✅ Registrar / ❌ Cancelar.
+- **`/anuncio`**: Diana y Víctor escriben a todo el equipo (sin staff).
 
-**Limpieza para iniciar en real (30 oct):** los 5 eventos eran prueba (Víctor lo confirmó). EVT-182088, EVT-750236, EVT-413125 y EVT-581563 quedaron Cancelado + Autorización NO + Cerrado (EVT-358132 ya lo estaba), sin avisar al equipo. Se borraron sus 2 anticipos de prueba en COBROS. En las hojas, los renglones EVT-581563 y EVT-182088 dicen "Cancelado (prueba)". No se tocaron: reportes del día (parecen gastos reales), clientes de prueba, el renglón 2 de cada hoja ni las pestañas EVT-.
+**Drive, verificado 30 oct noche:** la Drive API ya responde con la llave de la cuenta de servicio, pero la cuenta **solo ve las hojas `Divanna_Pedidos` y `VasoMaiz_Pedidos`: ninguna carpeta está compartida con ella todavía**. Falta también `GOOGLE_DRIVE_CARPETA` en Vercel (no existe).
 
 **Pendientes de Víctor:**
-1. **Borrar en Google Calendar ("DiMa Eventos") los 4 eventos de prueba:** EVT-182088 (26 dic), EVT-750236 (20 dic), EVT-413125 (5 nov), EVT-581563 (15 dic). Claude no tiene el ID del calendario.
-2. Poner **precios de reposición** en INVENTARIO (`Precio_Reposicion`).
-3. Probar en el teléfono: daño/faltante, cobro desde la ficha, foto de comanda (Descartar si es prueba), recibo.
-4. Si quiere, borrar en las hojas las pestañas EVT-581563 y EVT-182088 y sus renglones, y en BALANCES el duplicado `rec374o2IWhy1bBph`.
-5. De antes: todos tocan "Activar alertas"; compartir "DiMa Eventos" con divannaeventos@gmail.com y Ángela.
+1. Compartir la carpeta de Drive (Lector o Editor) con la cuenta de servicio de arriba, exactamente ese correo.
+2. Poner `GOOGLE_DRIVE_CARPETA` en Vercel (Production y Preview) con el ID de la carpeta (lo de la URL después de `/folders/`): `vercel env add GOOGLE_DRIVE_CARPETA production`.
+3. Borrar en Google Calendar ("DiMa Eventos") los 4 eventos de prueba: EVT-182088, EVT-750236, EVT-413125, EVT-581563.
+4. Precios de reposición en `INVENTARIO.Precio_Reposicion` (sin ellos `/daño` y 💰 Dinero no calculan).
+5. Probar en el teléfono: daño/faltante, cobro desde la ficha, foto de comanda, recibo.
+6. Opcional: borrar pestañas EVT-581563 y EVT-182088 en las hojas y el duplicado `rec374o2IWhy1bBph` en BALANCES. De antes: todos tocan "Activar alertas"; compartir "DiMa Eventos" con divannaeventos@gmail.com y Ángela.
 
-**Siguiente (pedido de Víctor):**
-1. **Carpeta en Google Drive con subcarpetas** para que la página y DiMa sean dinámicas: paquetes actualizados, precios por temporada, promociones (con fechas) y galería. DECIDIDO: Google Drive (Diana sube sola). Antes: activar **Google Drive API** en `dima-os-513103` y compartir la carpeta como Editor con la cuenta de servicio. Propuesta de estructura: `divanna/paquetes`, `vaso-maiz/paquetes`, `casa-isabella`, `promociones`, `temporadas`, `galeria`. Ojo: no hay funciones libres (12 de 12); leerlo desde `dima-chat` o una acción existente, con caché.
-2. Fotos originales de El Vaso Maíz, Casa Isabella y montajes de Divanna (Instagram/Facebook no se pueden leer sin sesión; Chrome con la extensión estaba desconectado).
-3. Pendientes de antes: DiMa no repide datos al abrir un pedido existente; reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
+**Siguiente:**
+1. Con la carpeta compartida y la variable puesta: verificar con la llave local que la cuenta ve la carpeta y sus subcarpetas, probar en Preview (chat con DiMa + galería/promociones de la página) y, si Víctor lo pide, unir `carpeta-drive` a `main`.
+2. Anotar en `docs/decisiones.md` lo de Drive y la política de pago si falta.
+3. Fotos originales de El Vaso Maíz, Casa Isabella y montajes de Divanna.
+4. De antes: DiMa no repide datos al abrir un pedido existente; reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
