@@ -96,11 +96,11 @@ function mesas(personas, silla, mantel, conCubiertos) {
 
 const PRODUCTOS = {
   // ---------- El Vaso Maíz (piezas a preparar) ----------
-  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (55 pz)', negocio: VM, piezas: 55, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 10, 'Mitades de chimichanga': 20 } },
-  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (75 pz)', negocio: VM, piezas: 75, contenido: { 'Fresas con crema': 10, 'Esquites': 10, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
-  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (90 pz)', negocio: VM, piezas: 90, contenido: { 'Fresas con crema': 15, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
-  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
-  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (120 pz)', negocio: VM, piezas: 120, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (60 pz)', negocio: VM, piezas: 60, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (80 pz)', negocio: VM, piezas: 80, contenido: { 'Fresas con crema': 10, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (110 pz)', negocio: VM, piezas: 110, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (130 pz)', negocio: VM, piezas: 130, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 20, 'Vasos Tostilocos': 20, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
   vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1, contenido: { 'Sabritas preparadas': 1 } },
   vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Raspados': 1 } },
   vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Elotes forrados': 1 } },

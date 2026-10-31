@@ -94,15 +94,15 @@ const FOTOS_PAQUETES_VASOMAIZ = [
 ];
 
 const CATALOGO = `CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas — todos incluyen 2h de servicio + salsas/chamoy/limones/cubiertos/vaso 10oz; +$250 extra si el servicio continúa después de las 8pm):
-- Paquete 1 (55pz) = $1,500: 10 Fresas c/crema, 15 Cevichurros, 10 Papas Locas, 20 Mitades Chimichangas
-- Paquete 2 (75pz) = $2,100: 10 Fresas, 10 Esquites, 15 Cevichurros, 10 Papas Locas, 10 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 3 (90pz) = $2,700: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 4 (100pz) = $2,950: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
-- Paquete 5 (120pz) = $3,400: 20 Fresas, 20 Esquites, 20 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
+- Paquete 1 (60pz) = $1,750: 10 Fresas c/crema, 15 Cevichurros, 15 Papas Locas, 20 Mitades Chimichangas
+- Paquete 2 (80pz) = $2,350: 10 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 10 Vasos Tostilocos, 20 Mitades Chimichangas
+- Paquete 3 (100pz) = $2,950: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
+- Paquete 4 (110pz) = $3,200: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
+- Paquete 5 (130pz) = $3,900: 20 Fresas, 20 Esquites, 20 Cevichurros, 20 Papas Locas, 20 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
 Anticipo fijo de $500 (sin importar el paquete). Los datos de pago (transferencia/depósito) se le mandan al cliente con la cotización formal, después de que la gerencia la confirma -- nunca los des en el chat.
 
 OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
-- Sabritas Preparadas: 50 piezas = $1,850 (3 bases a elegir: Tostitos/Ruffles/Doritos/Chips verdes + 10 toppings)
+- Sabritas Preparadas: 50 piezas = $1,900 (3 bases a elegir entre Tostitos/Ruffles/Doritos/Chips verdes + 7 toppings a elegir entre churros, cacahuates, salchicha, pepino, jícama, rielito, gomitas, serpiente, aros de durazno, panditas, skwinkles, pulparindo, pica gomas, serpentina y manguitos; complementos: tajín, chamoy, salsa especial, soya, guacamaya, limón, clamato y servilletas; se sirve en vaso de 12oz)
 - Raspados: 50 = $1,250, 75 = $1,800, 100 = $2,300 (5 sabores a elegir)
 - Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con la gerencia)
 - Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
