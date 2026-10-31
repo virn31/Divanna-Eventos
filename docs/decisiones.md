@@ -318,3 +318,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor esperaba que Diana recibiera un mensaje cada mañana; antes solo salía cuando algo no cuadraba y, sin pendientes, no le llegaba nada.
 
 **Descartado:** dejarlo solo por excepción.
+
+## 2026-10-31 — DiMa lee las imágenes de Drive
+
+**Decisión:** cada imagen de la carpeta de Diana se lee una vez con Claude (visión): qué es y todo su texto (precios, piezas, fechas, condiciones). La lectura se guarda en la descripción del archivo en Drive con la marca `[Leído por DiMa · <md5>]`; si la imagen cambia (otro md5) se relee. Corre después de responder al cliente (`waitUntil`), 6 por vuelta. DiMa recibe la lectura como "Contiene:" de cada foto y manda sobre el catálogo, igual que un documento.
+
+**Por qué:** Víctor: "DiMa debe poder leer las imágenes; no puede solo tirar fotos sin saber qué contienen". Diana sube flyers de WhatsApp con precios y nombres sin sentido; DiMa los mandaba sin saber qué decían y daba precios viejos.
+
+**Descartado:** pedir a Diana que renombre o escriba documentos (no lo hace), leer en cada mensaje (lento y caro), guardar en Airtable (otra tabla; la descripción de Drive la ve y corrige Diana), cron diario (Hobby solo permite uno al día; tardaría hasta 24 h).

@@ -21,7 +21,7 @@ Se pueden hacer subcarpetas dentro de una subcarpeta (por ejemplo **Divanna / Pa
 
 - **Documentos:** Documentos de Google normales. Escribir como se le explicaría a una clienta: "Túnel de luces a $1,500 del 1 al 30 de noviembre". **Siempre poner fechas** en promociones y temporadas: DiMa solo ofrece lo vigente.
 - **Lo de la carpeta manda:** si un documento dice otro precio que el catálogo de DiMa, DiMa usa el del documento.
-- **Fotos:** el **nombre del archivo es la descripción** que ven la clienta y DiMa ("XV años rosa y dorado.jpg"). Sin teléfonos ni nombres de niños en la foto.
+- **Fotos y flyers:** DiMa **lee cada imagen** (lo que dice y lo que muestra: precios, piezas, fechas) unos minutos después de subirla, y guarda lo que leyó en la **descripción** del archivo (clic derecho → *Información del archivo* → *Detalles*; empieza con "[Leído por DiMa"). Ahí se puede revisar o corregir: si se borra esa marca y se escribe una descripción propia, DiMa usa esa y ya no lee la imagen. Si se reemplaza la imagen, DiMa la vuelve a leer. Lo que dice un flyer manda sobre el catálogo, igual que un documento: si una promoción ya no aplica, hay que quitar su imagen. El nombre del archivo es el título de la foto en la página.
 - Para quitar algo, se borra o se saca de la carpeta.
 - En la página aparecen solo las fotos de **Galería** y lo de **Promociones**. Lo demás solo lo lee DiMa.
 

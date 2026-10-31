@@ -48,6 +48,12 @@ Module._load = function (req, parent, ...rest) {
         if (p.alt === 'media') return { data: a.texto !== undefined ? a.texto : new Uint8Array([1, 2, 3]).buffer };
         return { data: { mimeType: a.mimeType, size: '1000', thumbnailLink: 'https://lh3.googleusercontent.com/drive-thumb/' + a.id + '=s220' } };
       },
+      update: async (p) => {
+        driveCambios.push(p);
+        const a = drivePrueba.archivos.find(x => x.id === p.fileId);
+        if (a) a.description = p.requestBody.description;
+        return { data: { id: p.fileId } };
+      },
     } }) } };
   }
   if (req === '@anthropic-ai/sdk') return { Anthropic: AnthropicMock };
@@ -69,6 +75,7 @@ const googleSheets = [];
 let hojaPrueba = { pestanas: [], lista: [] };
 // Carpeta de Drive simulada (api/_drive.js): archivos con su carpeta padre.
 let drivePrueba = { falla: false, archivos: [] };
+const driveCambios = [];
 const miniaturas = [];
 let bloqueosPrueba = [];
 let bloqueoLeido = null;
@@ -2392,6 +2399,38 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       'drive: DiMa recibe los documentos, las promociones y las fotos de la carpeta');
     ok(r.code === 200 && r.body.fotos.includes('/api/dima-chat?foto=fPromo') && llamadasClaude[1].messages[2].content[0].content.includes('Tunel promo (Promociones)'),
       'drive: DiMa muestra una foto de Drive y sabe de qué es');
+
+    // DiMa lee cada imagen una vez (Claude con visión) y guarda la lectura en la descripción del archivo en Drive.
+    drivePrueba.archivos.push(
+      { padre: 'cPromo', id: 'fFlyer', name: 'WhatsApp Image 2026-10-31.jpeg', mimeType: 'image/jpeg', md5Checksum: 'abcdef1234567890' },
+      { padre: 'cGal', id: 'fDiana', name: 'IMG_001.jpg', mimeType: 'image/jpeg', description: 'Mesa XV rosa y dorado' },
+    );
+    reset(); drv.limpiarCacheDrive(); driveCambios.length = 0;
+    const lecturaFlyer = 'Flyer de El Vaso Maíz.\nPaquete 1 (60 pzs) $1,750\nFechas: 18-19-24-26-31 Dic\nWhatsApp 667 402 7074';
+    respuestasClaude = [1, 2, 3, 4].map(() => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: lecturaFlyer }] }));
+    const rl = await drv.leerImagenesPendientes({ maximo: 10 });
+    const guardada = driveCambios.find(c => c.fileId === 'fFlyer');
+    ok(rl.leidas === 4 && rl.fallidas === 0 && llamadasClaude[0].messages[0].content[0].type === 'image' && llamadasClaude[0].messages[0].content[0].source.type === 'base64'
+      && guardada && guardada.requestBody.description.startsWith(drv.MARCA_LECTURA + 'abcdef12]\n') && guardada.requestBody.description.includes('$1,750')
+      && guardada.requestBody.description.includes('18-19-24-26-31') && !guardada.requestBody.description.includes('7074') && !driveCambios.some(c => c.fileId === 'fDiana'),
+      'drive: DiMa lee las imágenes con visión, guarda la lectura en Drive sin teléfonos y respeta la descripción que escribió Diana');
+
+    reset(); drv.limpiarCacheDrive();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'El Paquete 1 cuesta $1,750 y trae 60 piezas.' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: '¿Cuánto cuesta el paquete 1?' }] });
+    ok(llamadasClaude[0].system.includes('"drive:fFlyer": WhatsApp Image 2026 10 31 (Promociones)\n  Contiene: Flyer de El Vaso Maíz. | Paquete 1 (60 pzs) $1,750')
+      && llamadasClaude[0].system.includes('"drive:fDiana": Mesa XV rosa y dorado (Galería)') && llamadasClaude.length === 1,
+      'drive: DiMa sabe lo que dice cada imagen (sin volver a leerla) y usa la descripción de Diana como nombre');
+
+    // Si Diana cambia la imagen (otra huella), se vuelve a leer solo esa.
+    drivePrueba.archivos.find(a => a.id === 'fFlyer').md5Checksum = '99999999ffff';
+    reset(); drv.limpiarCacheDrive(); driveCambios.length = 0;
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Flyer nuevo: Paquete 1 $1,800' }] }];
+    const rl2 = await drv.leerImagenesPendientes({ maximo: 10 });
+    ok(rl2.leidas === 1 && driveCambios.length === 1 && driveCambios[0].fileId === 'fFlyer' && driveCambios[0].requestBody.description.startsWith(drv.MARCA_LECTURA + '99999999]'),
+      'drive: si la imagen cambia, DiMa la vuelve a leer');
+    drivePrueba.archivos = drivePrueba.archivos.filter(a => !['fFlyer', 'fDiana'].includes(a.id));
+    drivePrueba.archivos.forEach(a => { delete a.description; });
 
     // La foto se sirve como miniatura de 1600 px; nada fuera de la carpeta.
     reset();
