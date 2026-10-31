@@ -46,7 +46,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
-const { contenidoDima, contenidoPagina, fotoDrive } = require('./_drive');
+const { contenidoDima, contenidoPagina, fotoDrive, leerImagenesEnSegundoPlano } = require('./_drive');
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA, HORAS_LIQUIDACION } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
@@ -234,11 +234,11 @@ function informacionDrive(drive) {
   if (!drive.textos && !drive.fotos.length) return '';
   return `
 
-INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta de documentos; si algo de aquí contradice el catálogo de arriba -- precios, paquetes, temporadas, promociones --, MANDA LO DE AQUÍ. Respeta las fechas de vigencia que diga cada promoción o temporada. No inventes nada que no diga):
+INFORMACIÓN ACTUALIZADA DE LA GERENCIA (de su carpeta de documentos e imágenes; si algo de aquí, incluido lo que dicen las imágenes, contradice el catálogo de arriba -- precios, paquetes, temporadas, promociones --, MANDA LO DE AQUÍ. Respeta las fechas de vigencia que diga cada promoción o temporada. No inventes nada que no diga):
 ${drive.textos || '(sin documentos)'}${drive.fotos.length ? `
 
-FOTOS QUE SUBIÓ LA GERENCIA (muéstralas con mostrar_fotos usando su id exacto, con las mismas reglas que las fotos de referencia):
-${drive.fotos.map(f => `- "${f.id}": ${f.tema}`).join('\n')}` : ''}`;
+FOTOS QUE SUBIÓ LA GERENCIA (muéstralas con mostrar_fotos usando su id exacto, con las mismas reglas que las fotos de referencia). "Contiene" es lo que dice o muestra la imagen: úsalo para contestar (precios, piezas, fechas) y para elegir qué foto mandar. Si una foto no trae "Contiene", todavía no se ha leído y solo sabes su nombre:
+${drive.fotos.map(f => `- "${f.id}": ${f.tema}${f.lectura ? `\n  Contiene: ${f.lectura.replace(/\n+/g, ' | ')}` : ''}`).join('\n')}` : ''}`;
 }
 
 // Convierte el historial del navegador en mensajes de la API, validando tamaños.
@@ -481,6 +481,7 @@ async function paraLaPagina(req, res) {
     if (contenido) {
       res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600');
       res.status(200).json(await contenidoPagina());
+      leerImagenesEnSegundoPlano();
       return;
     }
   } catch (err) {
@@ -524,6 +525,7 @@ module.exports = async (req, res) => {
 
   const drive = await contenidoDima();
   FOTOS_DRIVE = drive.fotos;
+  leerImagenesEnSegundoPlano();
   const mensajes = construirMensajes(historial);
   if (!mensajes) {
     res.status(400).json({ error: 'La conversación es demasiado larga o no es válida. Recarga la página para empezar de nuevo.' });
