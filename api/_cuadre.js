@@ -94,6 +94,7 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
     id: e.id,
     folio: f.Folio_Evento || '',
     fecha: f.Fecha_Evento || '',
+    hora: f.Hora_Inicio || '',
     negocio: f.Negocio || '',
     clienteId: (f.Cliente || [])[0] || '',
     brigadaId: (f.Brigada_Asignada || [])[0] || '',
@@ -198,7 +199,17 @@ async function vistaCuadre() {
     .filter(c => c.pendiente > TOLERANCIA || c.cancelados || c.margen < 0)
     .sort((a, b) => b.pendiente - a.pendiente || b.cancelados - a.cancelados)
     .slice(0, 15);
-  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, efectivo: efectivoDe(d) };
+  // Para el buenos días: eventos de hoy y mañana, y lo que falta por cobrar.
+  const manana = new Date(`${d.hoy}T12:00:00Z`);
+  manana.setUTCDate(manana.getUTCDate() + 1);
+  const fechaManana = manana.toISOString().slice(0, 10);
+  const vigentes = d.eventos.filter(e => !e.cancelado);
+  const porHora = (a, b) => (a.hora || '').localeCompare(b.hora || '');
+  const hoyEv = vigentes.filter(e => e.fecha === d.hoy).sort(porHora).map(conCliente);
+  const mananaEv = vigentes.filter(e => e.fecha === fechaManana).sort(porHora).map(conCliente);
+  const pendientes = vigentes.filter(e => e.saldo > TOLERANCIA && e.estado !== ESTADOS.OTRO);
+  const porCobrar = { eventos: pendientes.length, total: redondo(pendientes.reduce((t, e) => t + e.saldo, 0)) };
+  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, efectivo: efectivoDe(d), hoy: hoyEv, manana: mananaEv, porCobrar };
 }
 
 // Resumen para DiMa (solo Admin).
@@ -334,7 +345,9 @@ async function saludoDelDia(nombre, cuantos) {
       messages: [{ role: 'user', content:
         `Escríbele a ${nombre} un mensaje de buenos días por Telegram. Dos partes, en 3 a 5 frases en total:\n` +
         `1) Rompe el hielo con cariño (deséale un gran día, dile que estás lista para seguir trabajando). Varía la forma, que no suene a plantilla.\n` +
-        `2) Ponte seria sin perder el tono amistoso: dile que al revisar las cuentas de ayer no cuadraron ${cuantos === 1 ? 'en un evento' : `en ${cuantos} eventos`}, que llevar la administración sana evita fugas y que enseguida le pasas el detalle.\n` +
+        (cuantos
+          ? `2) Ponte seria sin perder el tono amistoso: dile que al revisar las cuentas de ayer no cuadraron ${cuantos === 1 ? 'en un evento' : `en ${cuantos} eventos`}, que llevar la administración sana evita fugas y que enseguida le pasas el detalle.\n`
+          : '2) Dile que enseguida le pasas el resumen del día (eventos y cuentas).\n') +
         'Reglas: NO pongas montos, cifras, folios, nombres de clientes ni de brigadas (el detalle va aparte). No culpes a nadie. Máximo 450 caracteres. Uno o dos emojis como mucho.' }],
     });
     const texto = ((r && r.content) || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
@@ -343,7 +356,26 @@ async function saludoDelDia(nombre, cuantos) {
   } catch (err) {
     console.error('DiMa: no se pudo escribir el saludo del cuadre:', err.message);
   }
-  return azar(SALUDOS_RESPALDO)(nombre, cuantos);
+  return cuantos ? azar(SALUDOS_RESPALDO)(nombre, cuantos) : azar(SALUDOS_SIN_PENDIENTES)(nombre);
+}
+
+const SALUDOS_SIN_PENDIENTES = [
+  (n) => `¡Buenos días, ${n}! ☀️ Que hoy sea un gran día. Aquí estoy lista para seguir trabajando contigo; te paso el resumen del día 👇`,
+  (n) => `Hola ${n} 💜 ¿cómo amaneciste? Te mando un abrazo para empezar con todo. Va el resumen de hoy 👇`,
+  (n) => `¡Hola, ${n}! 🌸 Que tengas un día precioso. Aquí sigo al pendiente de todo; te dejo cómo vamos 👇`,
+];
+
+// Resumen del buenos días (los números los pone el sistema, no DiMa).
+function textoResumen(v, cuantos) {
+  const linea = (e) => `• ${e.hora ? e.hora + ' · ' : ''}${e.folio}${e.cliente ? ' · ' + e.cliente : ''}${e.negocio ? ' (' + e.negocio + ')' : ''}${e.saldo > TOLERANCIA ? ' · falta ' + pesos(e.saldo) : ''}`;
+  const bloque = (titulo, lista) => lista.length ? `${titulo} (${lista.length}):\n${lista.map(linea).join('\n')}` : `${titulo}: sin eventos.`;
+  return [
+    '📋 Resumen del día',
+    bloque('Hoy', v.hoy),
+    bloque('Mañana', v.manana),
+    v.porCobrar.eventos ? `💰 Falta por cobrar: ${pesos(v.porCobrar.total)} en ${v.porCobrar.eventos === 1 ? '1 evento' : v.porCobrar.eventos + ' eventos'}.` : '💰 No hay nada pendiente por cobrar.',
+    cuantos ? `🔍 ${cuantos === 1 ? 'Un evento no cuadra' : cuantos + ' eventos no cuadran'}; te los paso abajo.` : '✅ Las cuentas cuadran.',
+  ].join('\n\n');
 }
 
 // Detalle de un evento, en plática (los números los pone el sistema).
@@ -367,16 +399,21 @@ async function adminsConTelegram() {
     .map(r => ({ id: r.id, nombre: primerNombre(r.fields.Nombre), chatId: r.fields.Telegram_Chat_ID }));
 }
 
-// Eventos que ya pasaron, no cuadran y no se han preguntado: saludo + un mensaje por evento.
+// Buenos días diario a Diana y Víctor: saludo + resumen (eventos de hoy y
+// mañana, lo que falta por cobrar) y, si hay eventos que ya pasaron, no
+// cuadran y no se han preguntado, un mensaje por evento con botones.
 async function preguntasDelDia() {
   const v = await vistaCuadre();
   const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
-  if (!nuevos.length) return { pendientes: v.porAclarar.length, preguntados: 0 };
   const admins = await adminsConTelegram();
+  if (!admins.length) console.error('Buenos días: ningún Admin activo tiene Telegram vinculado');
   const entregados = new Set();
+  let saludados = 0;
   for (const a of admins) {
     const hola = await enviarTelegram(a.chatId, await saludoDelDia(a.nombre, nuevos.length));
-    if (!hola.ok) { console.error('Cuadre: no se pudo saludar a', a.nombre, hola.status); continue; }
+    if (!hola.ok) { console.error('Buenos días: no se pudo saludar a', a.nombre, hola.status); continue; }
+    saludados++;
+    await enviarTelegram(a.chatId, textoResumen(v, nuevos.length));
     for (const e of nuevos) {
       const r = await enviarTelegram(a.chatId, textoEvento(e), botonesEvento(e.id));
       if (r.ok) entregados.add(e.id);
@@ -385,7 +422,7 @@ async function preguntasDelDia() {
   for (const e of nuevos.filter(x => entregados.has(x.id))) {
     await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: e.id, fields: { Cuadre_Preguntado: hoyCuliacan(), Cuadre_Estado: ESTADOS.POR_ACLARAR } }] }) });
   }
-  return { pendientes: v.porAclarar.length, preguntados: entregados.size };
+  return { pendientes: v.porAclarar.length, preguntados: entregados.size, saludados };
 }
 
 // Lunes: efectivo sin destino.

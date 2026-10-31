@@ -310,3 +310,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** lo pidió Víctor: "la brigada debe mandar un mensaje a DiMa, hacer el cálculo rápido y dar un monto". El 10% lo propuso Víctor; se aplicó solo al daño menor porque a todo daño cobraría $10 por una copa rota.
 
 **Descartado:** que DiMa calcule el monto (el modelo puede equivocarse en cuentas; el servidor usa el precio de inventario), registrar sin confirmar (un artículo mal reconocido se cobraría al cliente) y una tabla nueva para los borradores (no se podía crear el campo desde aquí y el JSON ya existía).
+
+## 2026-10-31 — Buenos días diario a Diana
+
+**Decisión:** el cron de las 8:00 manda todos los días a los Admin con Telegram un saludo (escrito por DiMa, sin cifras) y un resumen con números del sistema: eventos de hoy y mañana (hora, folio, cliente, negocio, lo que falta), total por cobrar y si las cuentas cuadran. Si hay eventos que no cuadran, siguen las preguntas con botones como antes.
+
+**Por qué:** Víctor esperaba que Diana recibiera un mensaje cada mañana; antes solo salía cuando algo no cuadraba y, sin pendientes, no le llegaba nada.
+
+**Descartado:** dejarlo solo por excepción.

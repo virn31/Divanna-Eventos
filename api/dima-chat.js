@@ -19,7 +19,7 @@
 
 const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
+const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, leerPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
 const { avisarCambioPedido } = require('./_cambios');
 const { bloqueosProximos, llenosProximos } = require('./_calendario');
 
@@ -546,34 +546,42 @@ module.exports = async (req, res) => {
   const avisos = [];
   let mensajeAEntregar = null;
 
-  // Cliente que vuelve con su folio y teléfono para agregar o cambiar algo.
-  if (pedidoExistente && !folioPrevio) {
-    const pedido = await verificarPedido(pedidoExistente.folio, pedidoExistente.telefono).catch(() => null);
+  // Pedido de esta conversación. Cliente que vuelve con su folio y teléfono:
+  // se verifica en su primer mensaje. En los siguientes (folio firmado) se
+  // vuelve a leer en cada mensaje, porque el navegador solo manda el texto y
+  // sin esto DiMa olvidaba los datos del pedido y los volvía a pedir.
+  let pedido = null;
+  const recienAbierto = !!(pedidoExistente && !folioPrevio);
+  if (recienAbierto) {
+    pedido = await verificarPedido(pedidoExistente.folio, pedidoExistente.telefono).catch(() => null);
     if (!pedido) {
       res.status(400).json({ error: 'No encontramos ese número de pedido con ese teléfono. Revisa los dos datos o escríbenos desde el chat normal.' });
       return;
     }
     folioPrevio = pedido.folio;
+  } else if (folioPrevio) {
+    pedido = await leerPedido(folioPrevio).catch(() => null);
+  }
+  if (pedido) {
     if (pedido.mensajeDiana) {
       mensajeAEntregar = { id: pedido.id, mensaje: pedido.mensajeDiana };
     }
+    const urgente = cambioUrgente(pedido.fecha, pedido.horaInicio);
     avisos.push(
       `El cliente ya tiene el pedido ${pedido.folio} registrado a nombre de ${pedido.nombre || 'el cliente'}` +
+      `${pedido.telefono ? ', teléfono ' + pedido.telefono : ''}` +
       ` (${pedido.negocio || 'negocio sin especificar'}, ${pedido.fecha}${pedido.horaInicio ? ' a las ' + pedido.horaInicio : ''}, ${pedido.ubicacion || 'ubicación sin especificar'}` +
       `${pedido.invitados ? ', ' + pedido.invitados + ' invitados' : ''}${pedido.fueraDeCiudad ? ', fuera de la ciudad' : ''}).\n` +
       `Lo que lleva:\n${pedido.servicios}\n` +
       (pedido.instrucciones ? `Indicaciones ya guardadas:\n${pedido.instrucciones}\n` : '') +
       (pedido.autorizado ? 'La gerencia ya confirmó esta cotización: cualquier cambio lo vuelve a revisar.\n' : 'La gerencia todavía no confirma la cotización.\n') +
-      (cambioUrgente(pedido.fecha, pedido.horaInicio)
-        ? `IMPORTANTE: faltan menos de ${HORAS_ANTICIPACION_CAMBIO} horas para el evento. Dile al inicio, con amabilidad, que los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación y que ya no podemos garantizarlo; si aun así quiere el cambio, regístralo (se pasa como urgente a la gerencia).\n`
-        : `Recuérdale con amabilidad que los cambios de pedido se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.\n`) +
-      'Lo que pida ahora son agregados o cambios a ESE pedido. No pidas otra vez sus datos de contacto. Cuando tengas claro el cambio, llama registrar_pedido con los datos completos ya actualizados (nombre y teléfono del pedido).'
+      (!recienAbierto
+        ? (urgente ? `Faltan menos de ${HORAS_ANTICIPACION_CAMBIO} horas para el evento: cualquier cambio se pasa como urgente.\n` : '')
+        : urgente
+          ? `IMPORTANTE: faltan menos de ${HORAS_ANTICIPACION_CAMBIO} horas para el evento. Dile al inicio, con amabilidad, que los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación y que ya no podemos garantizarlo; si aun así quiere el cambio, regístralo (se pasa como urgente a la gerencia).\n`
+          : `Recuérdale con amabilidad que los cambios de pedido se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.\n`) +
+      'Lo que pida ahora son agregados o cambios a ESE pedido. Ya tienes todos sus datos: NO le vuelvas a pedir nombre, teléfono, fecha, lugar, invitados ni lo que ya lleva; pregunta solo lo que cambia. Cuando tengas claro el cambio, llama registrar_pedido con los datos de arriba y lo que cambió (mismo nombre y teléfono del pedido).'
     );
-  }
-
-  // Cliente que sigue en la misma conversación con su pedido ya registrado.
-  if (folioPrevio && !mensajeAEntregar && !pedidoExistente) {
-    mensajeAEntregar = await mensajeDianaPendiente(folioPrevio).catch(() => null);
   }
   if (mensajeAEntregar) {
     avisos.push(`El equipo dejó este mensaje para el cliente sobre su pedido ${folioPrevio}. Entrégaselo al inicio de tu respuesta, sin cambiar montos, fechas ni condiciones, y sin decir quién lo escribió por su nombre:\n"${mensajeAEntregar.mensaje}"`);
