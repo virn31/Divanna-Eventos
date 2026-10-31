@@ -55,10 +55,28 @@
     display:flex;align-items:center;justify-content:space-between;
     height:72px;
   }
-  .brandmark{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:1.05rem;}
-  .brandmark .divider{color:var(--muted);font-weight:300;}
-  .brandmark .dv{color:var(--divanna);}
-  .brandmark .vm{color:var(--maiz);}
+  /* Logos de las dos marcas separados por una línea dorada. El de Divanna trae
+     fondo negro: con "screen" el negro desaparece y queda solo el neón. */
+  .brandmark{display:flex;align-items:center;gap:16px;}
+  .brandmark img{width:auto;}
+  .brandmark .logo-dv{height:42px;mix-blend-mode:screen;}
+  .brandmark .logo-vm{height:58px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.45));}
+  .brandmark .divider{width:1px;height:40px;background:linear-gradient(transparent, var(--maiz), transparent);opacity:0.8;}
+  /* En computadora el encabezado crece para que los logos luzcan; en celular se
+     queda en 72px porque el menú desplegable se abre justo debajo. */
+  @media (min-width:761px){
+    nav.wrap{height:92px;}
+    .brandmark{gap:20px;}
+    .brandmark .logo-dv{height:56px;}
+    .brandmark .logo-vm{height:76px;}
+    .brandmark .divider{height:52px;}
+  }
+  @media (max-width:420px){
+    .brandmark{gap:10px;}
+    .brandmark .logo-dv{height:32px;}
+    .brandmark .logo-vm{height:46px;}
+    .brandmark .divider{height:30px;}
+  }
   .nav-links{display:flex;gap:28px;align-items:center;}
   .nav-links a{font-size:0.92rem;color:var(--muted);transition:color .2s;}
   .nav-links a:hover{color:var(--paper);}
@@ -385,9 +403,11 @@
 
 <header>
   <nav class="wrap">
-    <div class="brandmark">
-      <span class="dv">divanna</span><span class="divider">×</span><span class="vm">vaso maíz</span>
-    </div>
+    <a href="#" class="brandmark" aria-label="Divanna Eventos y El Vaso Maíz, inicio">
+      <img class="logo-dv" src="img/logos/logo-divanna-neon.png" alt="Divanna Eventos" width="345" height="120">
+      <span class="divider" aria-hidden="true"></span>
+      <img class="logo-vm" src="img/logos/logo-vasomaiz.png" alt="El Vaso Maíz" width="207" height="160">
+    </a>
     <div class="nav-links" id="navLinks">
       <a href="#servicios">Servicios</a>
       <a href="#paquetes">Paquetes</a>
