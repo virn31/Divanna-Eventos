@@ -2385,6 +2385,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && r.body.galeria[0].url === '/api/dima-chat?foto=fXV' && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
       && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
       'drive: la página recibe la galería y las promociones (sin los documentos internos)');
+    ok(drv.pieDeFoto('WhatsApp Image 2026 10 31 at 10.27.12 (1)') === '' && drv.pieDeFoto('IMG 20261031 123') === ''
+      && drv.pieDeFoto('Captura de pantalla 2026 10 31') === '' && drv.pieDeFoto('Mesa navideña 10 personas') === 'Mesa navideña 10 personas'
+      && drv.pieDeFoto('Paquete 2024') === 'Paquete 2024',
+      'drive: los nombres de WhatsApp/cámara no salen como pie de foto en la página');
 
     // DiMa lee los documentos (con subcarpetas), sabe de las promociones y puede mostrar las fotos.
     reset();

@@ -1111,11 +1111,12 @@
       if(!d) return;
       const foto = (f, conEnlace) => {
         const img = document.createElement('img');
-        img.src = f.url; img.alt = f.nombre; img.loading = 'lazy'; img.decoding = 'async';
-        const pie = document.createElement('figcaption'); pie.textContent = f.nombre;
+        img.src = f.url; img.alt = f.nombre || 'Foto de Divanna Eventos'; img.loading = 'lazy'; img.decoding = 'async';
         const caja = document.createElement(conEnlace ? 'a' : 'figure');
         if(conEnlace){ caja.href = f.url; caja.target = '_blank'; caja.rel = 'noopener'; }
-        caja.append(img, pie);
+        caja.append(img);
+        // Sin pie cuando el nombre era de WhatsApp/cámara (api/_drive.js lo manda vacío).
+        if(f.nombre){ const pie = document.createElement('figcaption'); pie.textContent = f.nombre; caja.append(pie); }
         return caja;
       };
       const galeria = document.querySelector('.galeria-grid');

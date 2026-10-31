@@ -158,12 +158,18 @@ async function contenidoDrive() {
 
 const esGaleria = (s) => normal(s.nombre).includes('galeria');
 const esPromocion = (s) => normal(s.nombre).includes('promo');
+// Nombres que pone el teléfono o WhatsApp ("WhatsApp Image 2026 10 31 at 10.27.12 (1)",
+// "IMG 20261031", "Captura de pantalla..."): no describen nada, así que en la página
+// la foto sale sin pie. DiMa sí sabe qué es porque lee la imagen.
+// Genérico = prefijo de cámara/app seguido solo de números, fechas y signos.
+const NOMBRE_GENERICO = /^(whats ?app (image|video)|img|image|imagen|dsc|pxl|photo|screenshot|captura de pantalla|telegram)?[\s\d.,:()at-]*$/i;
+const pieDeFoto = (nombre) => (NOMBRE_GENERICO.test(nombre || '') ? '' : nombre);
 const urlFoto = (id) => `/api/dima-chat?foto=${encodeURIComponent(id)}`;
 
 // Lo que ve la página (sin los textos internos que no son promociones).
 async function contenidoPagina() {
   const { secciones } = await contenidoDrive();
-  const fotos = (filtro) => secciones.filter(filtro).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), nombre: f.nombre }));
+  const fotos = (filtro) => secciones.filter(filtro).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), nombre: pieDeFoto(f.nombre) }));
   return {
     galeria: fotos(esGaleria),
     promociones: {
@@ -283,4 +289,4 @@ function leerImagenesEnSegundoPlano() {
 // Para las pruebas.
 function limpiarCacheDrive() { cache = { datos: null, hora: 0 }; }
 
-module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, MARCA_LECTURA };
+module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, pieDeFoto, MARCA_LECTURA };
