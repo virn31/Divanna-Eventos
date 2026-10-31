@@ -28,7 +28,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-10-30 (noche, publicado) · **Rama de trabajo:** `main` (`carpeta-drive` ya unida, merge `fee6bfd`) · **Producción:** `main` en `fee6bfd`, verificada en divanna-eventos.vercel.app (caché `dima-brigadas-v24`). Rama aparte sin publicar: `entrenar-dima`. **355 pruebas pasan.**
+**Actualizado:** 2026-10-30 (cierre de la noche) · **Rama de trabajo:** `main` (todo publicado; `carpeta-drive` y `homepage-logos` ya unidas) · **Producción:** `main` en `03ee9e4` + este cierre, verificada en divanna-eventos.vercel.app (caché `dima-brigadas-v24`). Rama aparte sin publicar: `entrenar-dima`. **355 pruebas pasan.**
 
 **Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>` entra a Previews protegidos; `vercel redeploy <url> --target preview` sí se puede). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor (con `--value "..." --yes`, porque `!` no es interactivo). Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en `Downloadsdima-os-513103-eb75c647cb3d.json` (nunca al repo).
 
@@ -36,6 +36,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - **Carpeta de Google Drive EN PRODUCCIÓN:** "DiMa – Página y catálogo" de divannaeventos@gmail.com, ID `1AB1H_wSA-hhbHR29D0hwkEi4kpnlx1rK` (= `GOOGLE_DRIVE_CARPETA` en Production y Preview), compartida como Lector con la cuenta de servicio. Subcarpetas: decoraciones (20 fotos), Galería, Temporadas, Promociones, Paquetes Casa Isabella, Paquetes Vaso Maíz, " Divanna" (con espacio al inicio). Verificado: producción sirve las fotos y DiMa las muestra en el chat. Galería y Promociones de la página siguen vacías hasta que Diana suba algo. Ojo: con un ID equivocado Drive devuelve vacío SIN error; para verificar, pedir una foto con `?foto=<id>`.
 - **DiMa ya no se repite tras mandar fotos** (venía de 1dae774, los clientes lo veían): recibe lo que ya escribió en el mismo mensaje.
 - **Política de pago:** anticipo Divanna mínimo $500, liquidación 24 h antes, depósito en garantía $1,000 solo Divanna (**El Vaso Maíz NO lleva depósito**, verificado en prod). Si preguntan cómo se paga, DiMa da las tres cosas juntas.
+- **Logos en el encabezado del homepage** (`03ee9e4`): neón de Divanna + línea dorada + mascota de El Vaso Maíz, como la composición "Eventos con sabor y estilo_VEVENT" de Víctor. Archivos optimizados en `img/logos/` (~60 KB c/u; originales en `OneDriveDesktopotos-homepagelogos`). El neón trae fondo negro: se quita con `mix-blend-mode:screen`. Encabezado 92 px en computadora, 72 px en celular (el menú ☰ se abre justo debajo: no cambiar sin mover `top:72px`). Capturas con Edge headless: no baja de ~500 px de ancho, para celular meter la página en un iframe de 375 px.
 - Letreros genéricos vs lona personalizada (en lona personalizada el letrero se cobra aparte: regla del catálogo, correcta), 26 fotos nuevas, `/daño` por Telegram, `/anuncio`.
 
 **Pendientes de Víctor:**
