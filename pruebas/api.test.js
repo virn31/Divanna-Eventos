@@ -235,6 +235,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     'chat: tras las fotos DiMa sabe lo que ya escribió en el mismo mensaje y no lo repite');
   ok(/depósito en garantía/.test(p.system) && /pregunta cómo se paga[^\n]*ESA MISMA respuesta[^\n]*depósito/.test(p.system),
     'chat: si preguntan cómo se paga, DiMa da anticipo, liquidación y depósito juntos');
+  ok(p.system.includes('EL VASO MAÍZ NO LLEVA DEPÓSITO'), 'chat: El Vaso Maíz no lleva depósito en garantía');
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
