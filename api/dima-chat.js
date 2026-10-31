@@ -674,10 +674,16 @@ module.exports = async (req, res) => {
           const nuevas = pedidas.filter(u => !yaVistas.has(u) && !fotos.includes(u));
           fotos = fotos.concat(nuevas);
           const repetidas = temasDeFotos(pedidas.filter(u => !nuevas.includes(u)));
+          // Lo que DiMa escribió antes de las fotos sale en el mismo mensaje: si no
+          // lo sabe, lo vuelve a decir y repite la pregunta (pasó el 30-oct).
+          const yaEscrito = partes.join('\n\n');
           resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content:
             (nuevas.length ? `El cliente ya ve estas fotos: ${temasDeFotos(nuevas).join('; ')}.` : 'No se mostró ninguna foto nueva.')
             + (repetidas.length ? ` Estas ya las había visto y no se repiten: ${repetidas.join('; ')}.` : '')
-            + ' Coméntalas en una o dos frases (qué incluye, desde cuánto según el catálogo) y sigue con la cotización con una pregunta. No vuelvas a llamar mostrar_fotos en esta respuesta.' });
+            + (yaEscrito
+              ? ` En este mismo mensaje, arriba de las fotos, el cliente ya lee lo que escribiste: «${yaEscrito}». NO lo repitas: ni precios, ni explicaciones, ni preguntas que ya hiciste. Agrega a lo mucho una frase corta sobre lo que se ve en las fotos y que no hayas dicho; si ya preguntaste algo, no hagas otra pregunta.`
+              : ' Coméntalas en una o dos frases (qué incluye, desde cuánto según el catálogo) y sigue con la cotización con una pregunta.')
+            + ' No vuelvas a llamar mostrar_fotos en esta respuesta.' });
         } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
           pidioTraslado = true;
           const t = await estimarTraslado(bloque.input.destino);

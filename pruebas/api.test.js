@@ -230,6 +230,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const vuelta2 = llamadasClaude[1];
   ok(llamadasClaude.length === 2 && res.body.texto.includes('¿Para cuántos invitados?') && vuelta2.messages[2].content[0].content.includes('Paquetes de El Vaso Maíz'),
     'chat: después de mostrar fotos DiMa sabe de qué son y las comenta (ya no se queda trabada)');
+  const resultadoFotos = vuelta2.messages[2].content[0].content;
+  ok(resultadoFotos.includes('«¡Qué emoción! Mira este paquete.»') && resultadoFotos.includes('NO lo repitas'),
+    'chat: tras las fotos DiMa sabe lo que ya escribió en el mismo mensaje y no lo repite');
+  ok(/depósito en garantía/.test(p.system) && /pregunta cómo se paga[^\n]*ESA MISMA respuesta[^\n]*depósito/.test(p.system),
+    'chat: si preguntan cómo se paga, DiMa da anticipo, liquidación y depósito juntos');
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
@@ -237,7 +242,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Son las mismas que viste arriba. ¿Cuál te gustó?' }] }];
   res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/paquetes-1-a-4.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
   ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (paquetes 1 a 4)]')
-    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?'),
+    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?')
+    && llamadasClaude[1].messages[4].content[0].content.includes('Coméntalas en una o dos frases'),
     'chat: DiMa sabe qué fotos ya vio el cliente y no se las repite');
   ok(p.model === 'claude-sonnet-5-5' && p.fallbacks === 'default' && p.betas.includes('server-side-fallback-2026-07-01') && p.tool_choice.type === 'auto' && p.output_config.effort === 'low', 'chat: modelo, respaldo y tool_choice auto');
   ok(p.tools.every(t => t.strict === true) && p.system.includes('CATÁLOGO REAL') && !p.system.includes('4830'), 'chat: tools estrictos, catálogo sin datos de tarjeta');
