@@ -278,8 +278,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(esquema.required.includes('hora_inicio') && esquema.required.includes('productos') && esquema.properties.productos.items.properties.clave.enum.includes('dv_paq50_antonella'), 'agenda: DiMa debe mandar hora y productos con claves del catálogo');
   ok(llamadasClaude[0].system.includes('a qué hora empieza'), 'agenda: DiMa pregunta la hora del evento');
   ok(evAgenda.Hora_Inicio === '18:00' && evAgenda.Horas_Servicio === 2 && JSON.parse(evAgenda.Productos).length === 2, 'agenda: guarda hora y productos (descarta claves desconocidas)');
-  ok(evAgenda.Piezas_Vaso_Maiz === 120 && evAgenda.Personal_Requerido === 4 && evAgenda.Resumen_Capacidad.includes('10 Mesa') && evAgenda.Resumen_Capacidad.includes('100 Silla Antonella'), 'agenda: 120 piezas en 2 h = 4 personas; 2 paquetes de 50 = 10 mesas y 100 sillas');
-  ok(correos.some(c => c.text.includes('a las 18:00') && c.text.includes('3 a 4 personas')), 'agenda: el correo a Diana trae la hora y el personal');
+  ok(evAgenda.Piezas_Vaso_Maiz === 130 && evAgenda.Personal_Requerido === 5 && evAgenda.Resumen_Capacidad.includes('10 Mesa') && evAgenda.Resumen_Capacidad.includes('100 Silla Antonella'), 'agenda: 130 piezas en 2 h = 5 personas; 2 paquetes de 50 = 10 mesas y 100 sillas');
+  ok(correos.some(c => c.text.includes('a las 18:00') && c.text.includes('4 a 5 personas')), 'agenda: el correo a Diana trae la hora y el personal');
 
   // ---------- Capacidad (api/_productos.js) ----------
   const prod = require(path.join(repo, 'api/_productos.js'));
@@ -481,7 +481,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'autorizar', monto: '3000', items: 'Paquete 3', horaInicio: '17:30', horasServicio: '3', productos: [{ clave: 'vm_paquete_3', cantidad: 1, nota: null }] } }, res);
   const patchAgenda = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
-  ok(res.code === 200 && patchAgenda.Hora_Inicio === '17:30' && patchAgenda.Horas_Servicio === 3 && patchAgenda.Piezas_Vaso_Maiz === 90 && patchAgenda.Personal_Requerido === 2, 'admin autoriza con hora y productos: 90 piezas en 3 h = 2 personas');
+  ok(res.code === 200 && patchAgenda.Hora_Inicio === '17:30' && patchAgenda.Horas_Servicio === 3 && patchAgenda.Piezas_Vaso_Maiz === 100 && patchAgenda.Personal_Requerido === 3, 'admin autoriza con hora y productos: 100 piezas en 3 h = 3 personas');
   reset();
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, {}];
   res = resMock();
@@ -1253,7 +1253,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const marcaPrevio = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
   ok(res.code === 200 && avisoPrevio && avisoPrevio.body.text.startsWith('Hola Lucía 👋 esta es la producción que necesitamos para el')
     && avisoPrevio.body.text.includes('• Fresas con crema: 15') && avisoPrevio.body.text.includes('• Raspados: 50') && avisoPrevio.body.text.includes('10 pieza(s) suelta(s) de EVT-PR1: fresas extra')
-    && avisoPrevio.body.text.includes('Total: 150 piezas') && avisoPrevio.body.text.includes('📌 Sin picante para niños') && avisoPrevio.body.text.includes('verifica el inventario y repórtame las necesidades de insumos'),
+    && avisoPrevio.body.text.includes('Total: 160 piezas') && avisoPrevio.body.text.includes('📌 Sin picante para niños') && avisoPrevio.body.text.includes('verifica el inventario y repórtame las necesidades de insumos'),
     'producción: dos días antes le llega al encargado la lista desglosada (paquetes, piezas sueltas con su nota) y las instrucciones');
   ok(botonesDe(avisoPrevio).join() === `pr:o:previo:${enDias(2)},pr:f:previo:${enDias(2)}` && !avisoPrevio.body.text.includes('$')
     && marcaPrevio && marcaPrevio.body.records[0].fields.Produccion_Avisos.startsWith(`previo:${CHICA_G.id} `),
@@ -1357,7 +1357,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
   const aplicado = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
   const avisoLider = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '222');
-  ok(res.code === 200 && aplicado.Servicios_Solicitados === 'Paquete 5 y 50 raspados' && aplicado.Hora_Inicio === '19:00' && aplicado.Piezas_Vaso_Maiz === 170
+  ok(res.code === 200 && aplicado.Servicios_Solicitados === 'Paquete 5 y 50 raspados' && aplicado.Hora_Inicio === '19:00' && aplicado.Piezas_Vaso_Maiz === 180
     && JSON.parse(aplicado.Cambio_Cliente).estado === 'confirmado' && aplicado.Enterado_Por === '' && aplicado.Instrucciones_Equipo === 'Del cliente: Llegar por la puerta lateral',
     'cambio: al confirmar se aplica (servicios, hora, productos, indicaciones) y el equipo vuelve a confirmar "Enterado"');
   ok(avisoLider && avisoLider.body.text.startsWith('🔄 Cambió el pedido EVT-CM1') && avisoLider.body.text.includes('Paquete 5 y 50 raspados') && !avisoLider.body.text.includes('4650') && !avisoLider.body.text.includes('$')
@@ -1805,7 +1805,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     montoContratado: '$4,500', anticipo: '1000', formaAnticipo: 'Transferencia' } }, res);
   const evCap = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
   const antCap = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
-  ok(res.code === 200 && evCap.Autorizacion_Diana === 'SI' && evCap.Monto_Estimado_IA === 4500 && evCap.Checklist_Items === 'Paquete 3\nRaspados' && evCap.Piezas_Vaso_Maiz === 90
+  ok(res.code === 200 && evCap.Autorizacion_Diana === 'SI' && evCap.Monto_Estimado_IA === 4500 && evCap.Checklist_Items === 'Paquete 3\nRaspados' && evCap.Piezas_Vaso_Maiz === 100
     && evCap.Cliente[0] === 'recCLIENTENUEVO01' && res.body.clienteNuevo === true,
     'capturar: la gerente captura un evento de El Vaso Maíz ya autorizado, con checklist y producción');
   ok(antCap && antCap.body.records[0].fields.Monto === 1000 && antCap.body.records[0].fields.Recibido_Por === 'Diana' && antCap.body.records[0].fields.Forma === 'Transferencia'
