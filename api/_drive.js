@@ -4,7 +4,7 @@
 //
 // Cómo la llena Diana (sin formato especial):
 // - Cada subcarpeta es un tema ("Promociones", "Paquetes Divanna", "Galeria"...).
-//   Se lee hasta un nivel más adentro ("Divanna / Paquetes").
+//   Se leen hasta 4 niveles adentro ("Divanna / promociones / navidad 2026").
 // - Los Documentos de Google (o archivos .txt) de cada carpeta los lee DiMa tal
 //   cual. Si contradicen el catálogo del código, manda lo de Drive.
 // - Las fotos: el nombre del archivo es su descripción ("XV años rosa y dorado").
@@ -25,6 +25,7 @@ const MINUTOS_CACHE = 10;
 const ESPERA_MAX_MS = 5000;
 const MAX_FOTOS = 80;
 const MAX_DOCUMENTOS = 15;
+const MAX_NIVEL = 4;
 const MAX_CARACTERES_DOC = 6000;
 const CARPETA = 'application/vnd.google-apps.folder';
 const DOCUMENTO = 'application/vnd.google-apps.document';
@@ -70,7 +71,8 @@ async function textoDe(drive, archivo) {
   return String(r.data || '').replace(/^﻿/, '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_CARACTERES_DOC);
 }
 
-// Recorre la carpeta raíz y un nivel de subcarpetas. Devuelve
+// Recorre la carpeta raíz y sus subcarpetas hasta MAX_NIVEL de profundidad
+// (las subcarpetas en paralelo, para no pasar del tiempo límite). Devuelve
 // { secciones: [{ nombre, textos: [{ nombre, texto }], fotos: [{ id, nombre }] }] }.
 async function leerCarpeta() {
   const drive = driveGoogle();
@@ -80,9 +82,10 @@ async function leerCarpeta() {
   async function recorrer(carpetaId, nombre, nivel) {
     const archivos = await listar(drive, carpetaId);
     const seccion = { nombre, textos: [], fotos: [] };
+    const subcarpetas = [];
     for (const a of archivos) {
       if (a.mimeType === CARPETA) {
-        if (nivel < 2) await recorrer(a.id, nombre ? `${nombre} / ${a.name}` : a.name, nivel + 1);
+        if (nivel < MAX_NIVEL) subcarpetas.push(recorrer(a.id, nombre ? `${nombre} / ${a.name.trim()}` : a.name.trim(), nivel + 1));
       } else if (/^image\//.test(a.mimeType) && fotos < MAX_FOTOS) {
         fotos++;
         seccion.fotos.push({ id: a.id, nombre: (a.description || '').trim() || sinExtension(a.name) });
@@ -93,6 +96,7 @@ async function leerCarpeta() {
       }
     }
     if (seccion.textos.length || seccion.fotos.length) secciones.push({ ...seccion, nombre: nombre || 'General' });
+    await Promise.all(subcarpetas);
   }
 
   await recorrer(process.env.GOOGLE_DRIVE_CARPETA, '', 0);
