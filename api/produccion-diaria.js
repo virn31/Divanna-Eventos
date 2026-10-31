@@ -1,6 +1,7 @@
 // api/produccion-diaria.js
-// (También corre el cuadre por excepción de api/_cuadre.js: preguntas a Diana por
-// eventos que no cuadran y, los lunes, por el efectivo sin destino.)
+// (También manda el buenos días diario a Diana y Víctor de api/_cuadre.js: resumen
+// del día y preguntas por eventos que no cuadran; los lunes, el efectivo sin destino.
+// El buenos días sí se repite si el cron se corre dos veces el mismo día.)
 // Cron diario (vercel.json, 8:00 de Culiacán = 15:00 UTC): manda por Telegram
 // la lista de producción de El Vaso Maíz a cada encargado de producción, dos
 // días antes del evento y el mismo día (lógica en api/_produccion.js). No

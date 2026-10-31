@@ -1666,6 +1666,20 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const saludoResp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
   ok(saludoResp && saludoResp.body.text.includes('Diana') && !saludoResp.body.text.includes('$') && !saludoResp.body.text.includes('EVT-'),
     'cuadre: si el saludo trae cifras o folios se descarta y sale uno de respaldo');
+  const resumenQ = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111').find(t => t.body.text.startsWith('📋 Resumen del día'));
+  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
+
+  // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
+  reset();
+  const EHOY = { id: 'recEVCUADREHOY001', fields: { Folio_Evento: 'EVT-H1', Fecha_Evento: hoyCln, Hora_Inicio: '17:00', Monto_Estimado_IA: 3000, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: [CLI1] } };
+  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un gran día. Te paso el resumen 👇' }] }];
+  const rSin = await Qmod.preguntasDelDia();
+  const sinPend = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
+  ok(rSin.saludados === 1 && rSin.preguntados === 0 && sinPend.length === 2 && sinPend[0].body.text.startsWith('¡Buenos días, Diana!')
+    && !llamadasClaude[0].messages[0].content.includes('no cuadraron')
+    && sinPend[1].body.text.includes('17:00 · EVT-H1 · Pepe') && sinPend[1].body.text.includes('Falta por cobrar: $3,000 en 1 evento') && sinPend[1].body.text.includes('✅ Las cuentas cuadran'),
+    'buenos días: sin pendientes del cuadre, Diana recibe igual el saludo y el resumen del día');
 
   const botonQ = (dato) => ({ callback_query: { id: 'cbQ', data: dato, message: { message_id: 80, chat: { id: 111, type: 'private' }, text: 'EVT-Q1 no cuadra' } } });
   reset();
