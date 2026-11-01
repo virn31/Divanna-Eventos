@@ -185,14 +185,24 @@ function preguntaPromo(f) {
 // Galería: las fotos sueltas en "Galería" van al mosaico principal; cada subcarpeta
 // ("Galería / casa isabella") es un bloque aparte con su título ("Casa Isabella").
 // Más niveles adentro se juntan en el bloque de su primera subcarpeta.
-const tituloBonito = (t) => t.trim().toLowerCase().replace(/(^|\s)(\p{L})/gu, (m, esp, letra) => esp + letra.toUpperCase());
+// Los negocios se reconocen aunque Diana escriba el nombre junto o sin acentos
+// ("elvasomaiz", "casa isabella"): título bien escrito y pregunta de ese negocio.
+const sinEspacios = (t) => normal(t).replace(/[^a-z0-9]/g, '');
+const esVasoMaiz = (t) => sinEspacios(t).includes('vasomaiz');
+const esCasaIsabella = (t) => sinEspacios(t).includes('isabella');
+const tituloBonito = (t) => {
+  if (esVasoMaiz(t)) return 'El Vaso Maíz';
+  if (esCasaIsabella(t)) return 'Casa Isabella';
+  return t.trim().toLowerCase().replace(/(^|\s)(\p{L})/gu, (m, esp, letra) => esp + letra.toUpperCase());
+};
 function tituloGaleria(nombreSeccion) {
   const partes = nombreSeccion.split(' / ');
   const i = partes.findIndex(p => normal(p).includes('galeria'));
   return partes[i + 1] ? tituloBonito(partes[i + 1]) : '';
 }
 function preguntaGaleria(f, titulo) {
-  if (normal(titulo).includes('isabella')) return 'Hola, quiero información para rentar Casa Isabella.';
+  if (esCasaIsabella(titulo)) return 'Hola, quiero información para rentar Casa Isabella.';
+  if (esVasoMaiz(titulo)) return 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.';
   const tema = temaDeFoto(f);
   return tema ? `Hola, me gustaría cotizar algo como esto: ${tema}.` : 'Hola, me gustaría cotizar algo como lo de su galería.';
 }

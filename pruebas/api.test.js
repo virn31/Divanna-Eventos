@@ -2377,17 +2377,20 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       { padre: 'cGal', id: 'fBoda', name: 'Boda_jardin.png', mimeType: 'image/png' },
       { padre: 'cGal', id: 'cGalCI', name: 'casa isabella', mimeType: 'application/vnd.google-apps.folder' },
       { padre: 'cGalCI', id: 'fCI', name: 'WhatsApp Image 2026-11-01 at 14.18.52.jpeg', mimeType: 'image/jpeg' },
+      { padre: 'cGal', id: 'cGalVM', name: 'elvasomaiz', mimeType: 'application/vnd.google-apps.folder' },
+      { padre: 'cGalVM', id: 'fVM', name: 'WhatsApp Image 2026-11-01 at 14.29.11.jpeg', mimeType: 'image/jpeg' },
       { padre: 'cPromo', id: 'dPromo', name: 'Promo noviembre', mimeType: 'application/vnd.google-apps.document', texto: 'Túnel de luces a $1,500 del 1 al 30 de noviembre.' },
       { padre: 'cPromo', id: 'fPromo', name: 'Tunel promo.jpg', mimeType: 'image/jpeg' },
       { padre: 'cDivPaq', id: 'dPaq', name: 'Precios', mimeType: 'application/vnd.google-apps.document', texto: 'Paquete XV ahora cuesta $6,800.' },
     ] };
     reset(); drv.limpiarCacheDrive();
     r = await pagina({ contenido: '1' });
-    const [galPrincipal, galCI] = r.body.galerias;
-    ok(r.code === 200 && r.body.galerias.length === 2 && galPrincipal.titulo === '' && galPrincipal.fotos.length === 2
+    const [galPrincipal, galCI, galVM] = r.body.galerias;
+    ok(r.code === 200 && r.body.galerias.length === 3 && galPrincipal.titulo === '' && galPrincipal.fotos.length === 2
       && galPrincipal.fotos[0].pregunta === 'Hola, me gustaría cotizar algo como esto: XV años rosa y dorado.' && !('nombre' in galPrincipal.fotos[0])
       && galPrincipal.fotos[0].url === '/api/dima-chat?foto=fXV'
       && galCI.titulo === 'Casa Isabella' && galCI.fotos.length === 1 && galCI.fotos[0].pregunta === 'Hola, quiero información para rentar Casa Isabella.'
+      && galVM.titulo === 'El Vaso Maíz' && galVM.fotos[0].pregunta === 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.'
       && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
       && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
       'drive: la página recibe la galería y las promociones (sin los documentos internos)');
@@ -2398,7 +2401,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(!('nombre' in r.body.promociones.fotos[0]) && r.body.promociones.fotos[0].pregunta === 'Hola, me interesa esta promoción: Tunel promo.',
       'drive: las promociones no llevan pie de foto, llevan la pregunta para el botón Cotizar');
     // La subcarpeta de Casa Isabella solo se usa para la prueba de la galería.
-    drivePrueba.archivos = drivePrueba.archivos.filter(a => !['cGalCI', 'fCI'].includes(a.id));
+    drivePrueba.archivos = drivePrueba.archivos.filter(a => !['cGalCI', 'fCI', 'cGalVM', 'fVM'].includes(a.id));
 
     // DiMa lee los documentos (con subcarpetas), sabe de las promociones y puede mostrar las fotos.
     reset();
