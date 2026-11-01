@@ -227,6 +227,7 @@
   .promo-fotos figure{margin:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--ink-2);}
   .promo-fotos img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;}
   .promo-fotos figcaption{padding:10px 14px;font-size:0.85rem;font-weight:700;}
+  .promo-fotos .promo-cotizar{display:block;width:calc(100% - 28px);margin:12px 14px 14px;text-align:center;}
   .galeria-grid figcaption{position:absolute;left:12px;bottom:12px;font-size:0.78rem;font-weight:700;background:rgba(12,11,16,0.7);backdrop-filter:blur(6px);padding:6px 10px;border-radius:100px;}
 
   /* ---------- COBERTURA ---------- */
@@ -1127,7 +1128,25 @@
       const p = d.promociones || {};
       if((p.textos && p.textos.length) || (p.fotos && p.fotos.length)){
         document.getElementById('promoTextos').replaceChildren(...(p.textos || []).map(t => { const e = document.createElement('p'); e.textContent = t; return e; }));
-        document.getElementById('promoFotos').replaceChildren(...(p.fotos || []).map(f => foto(f, false)));
+        // Cada promoción: la imagen y un botón que abre el chat con la promoción ya escrita (no se envía sola).
+        document.getElementById('promoFotos').replaceChildren(...(p.fotos || []).map(f => {
+          const caja = document.createElement('figure');
+          const img = document.createElement('img');
+          img.src = f.url; img.alt = 'Promoción de Divanna Eventos y El Vaso Maíz'; img.loading = 'lazy'; img.decoding = 'async';
+          const boton = document.createElement('button');
+          boton.type = 'button'; boton.className = 'btn btn-primary promo-cotizar'; boton.textContent = 'Cotizar →';
+          boton.addEventListener('click', e => {
+            abrirChat(e);
+            const entrada = document.getElementById('dimaInput');
+            if(entrada && !entrada.value.trim() && f.pregunta){
+              entrada.value = f.pregunta;
+              entrada.dispatchEvent(new Event('input'));
+              entrada.setSelectionRange(entrada.value.length, entrada.value.length);
+            }
+          });
+          caja.append(img, boton);
+          return caja;
+        }));
         document.getElementById('promociones').hidden = false;
       }
     }).catch(() => {});

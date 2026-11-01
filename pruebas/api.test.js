@@ -2389,6 +2389,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && drv.pieDeFoto('Captura de pantalla 2026 10 31') === '' && drv.pieDeFoto('Mesa navideña 10 personas') === 'Mesa navideña 10 personas'
       && drv.pieDeFoto('Paquete 2024') === 'Paquete 2024',
       'drive: los nombres de WhatsApp/cámara no salen como pie de foto en la página');
+    ok(!('nombre' in r.body.promociones.fotos[0]) && r.body.promociones.fotos[0].pregunta === 'Hola, me interesa esta promoción: Tunel promo.',
+      'drive: las promociones no llevan pie de foto, llevan la pregunta para el botón Cotizar');
 
     // DiMa lee los documentos (con subcarpetas), sabe de las promociones y puede mostrar las fotos.
     reset();

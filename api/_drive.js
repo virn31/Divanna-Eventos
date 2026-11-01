@@ -166,14 +166,29 @@ const NOMBRE_GENERICO = /^(whats ?app (image|video)|img|image|imagen|dsc|pxl|pho
 const pieDeFoto = (nombre) => (NOMBRE_GENERICO.test(nombre || '') ? '' : nombre);
 const urlFoto = (id) => `/api/dima-chat?foto=${encodeURIComponent(id)}`;
 
+// Texto que el botón "Cotizar" de una promoción deja escrito en el chat, para que
+// DiMa sepa de cuál se trata: la primera línea de lo que DiMa leyó en la imagen
+// ("Flyer de promoción navideña de ... mesa para 10 personas con decoración"); si
+// aún no se lee, el nombre que puso Diana; si tampoco hay, una pregunta general.
+function preguntaPromo(f) {
+  const linea = (f.lectura || '').split('\n').map(l => l.replace(/^\s*1\)\s*/, '').trim()).find(Boolean) || '';
+  // "Flyer de promoción ... de Divanna Eventos: paquete de mesa para 10" → lo de después de ":".
+  const despues = linea.includes(': ') ? linea.slice(linea.indexOf(': ') + 2).trim() : '';
+  const tema = (despues || linea || pieDeFoto(f.nombre)).replace(/[.:]+$/, '');
+  if (!tema) return 'Hola, me interesa una de sus promociones.';
+  return `Hola, me interesa esta promoción: ${tema.length > 160 ? `${tema.slice(0, 157)}...` : tema}.`;
+}
+
 // Lo que ve la página (sin los textos internos que no son promociones).
+// Las promociones no llevan pie de foto: llevan botón para cotizar (pregunta).
 async function contenidoPagina() {
   const { secciones } = await contenidoDrive();
   const fotos = (filtro) => secciones.filter(filtro).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), nombre: pieDeFoto(f.nombre) }));
+  const promos = secciones.filter(esPromocion).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), pregunta: preguntaPromo(f) }));
   return {
     galeria: fotos(esGaleria),
     promociones: {
-      fotos: fotos(esPromocion),
+      fotos: promos,
       textos: secciones.filter(esPromocion).flatMap(s => s.textos.map(t => t.texto)),
     },
   };
