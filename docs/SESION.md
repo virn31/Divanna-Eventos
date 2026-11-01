@@ -28,7 +28,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-01 (tarde) · **Rama de trabajo:** `main` (todo publicado; `pie-fotos-genericas` y `portarretratos` ya unidas) · **Producción:** `main` en `ddb8c00` + este cierre. Rama aparte sin publicar: `entrenar-dima`. **365 pruebas pasan.**
+**Actualizado:** 2026-11-01 (tarde) · **Rama de trabajo:** `main` (todo publicado; `pie-fotos-genericas` y `portarretratos` ya unidas) · **Producción:** `main` en `743d112` + este cierre. Rama aparte sin publicar: `entrenar-dima`. **369 pruebas pasan.**
 
 **Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima` (`drive.js` árbol, `lecturas.js`, `mover-carpeta.js`, `bajar-fotos.js`, `probar-promos.js`/`probar-portarretrato.js` para probar la página en Edge con Drive simulado). Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
 
@@ -46,6 +46,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 3. De antes: precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; probar en el teléfono `/daño`, cobro desde la ficha, foto de comanda y recibo; "Activar alertas".
 
 **Al cerrar (2026-11-01, se retoma en enero 2027):**
+- Último cambio (743d112): **🗑️ Borrar evento** en el dashboard (solo Diana y Víctor), al final de cada ficha y de cada pedido. Víctor veía eventos que no deben existir: él o Diana los borran (Revisar → escribir el folio → borrar). Probado con pruebas y en Edge con API simulada; NO probado contra Airtable real.
 - Revisión final: homepage ✅ (precios nuevos, portarretratos, galería, Drive), app/APK ✅ en servidor (no probada en teléfono), Telegram 🟡 envía bien (cron 8:00 sin errores, webhook rechaza sin secreto) pero falta que Víctor mande `/hoy` a @dimaclnbot para confirmar que recibe.
 - `OneDriveDesktopDIVANNA HOMEPAGEkeysairtable dima os.txt` está VACÍO (0 bytes desde el 9-jul; también antrhopic.txt y github.txt): las herramientas locales de Airtable no funcionan hasta que Víctor pegue ahí el token. Producción no se afecta (usa el de Vercel).
 - Al volver: `git pull`, `npm install`, `npm test` (365) y revisar `vercel logs`; revisar si Diana subió fotos nuevas a Drive y si las promociones de Navidad siguen vigentes (temporada alta 18-dic al 1-ene).
