@@ -179,6 +179,12 @@
   .servicio-logo.vm{background:radial-gradient(circle at 30% 20%, rgba(240,185,58,0.22), var(--ink-2) 70%);}
   .servicio-logo.ci{background:radial-gradient(circle at 70% 20%, rgba(127,174,90,0.22), var(--ink-2) 70%);font-family:'Fraunces',serif;font-size:1.6rem;text-align:center;}
   @media (max-width:860px){.servicio-foto,.servicio-logo{aspect-ratio:16/10;max-width:420px;}}
+  /* Portarretrato (02 y 03): fotos de su carpeta de Galería en Drive, al azar, con fundido. */
+  .servicio-logo.portarretrato{position:relative;overflow:hidden;padding:0;background:var(--ink-2);}
+  .portarretrato .pr-foto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.2s ease;border-radius:0;max-height:none;}
+  .portarretrato .pr-foto.visible{opacity:1;}
+  .portarretrato .pr-sello{position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(12,11,16,0.72);backdrop-filter:blur(6px);border-radius:100px;padding:6px 12px;font-family:'Fraunces',serif;font-size:0.95rem;line-height:1;display:flex;align-items:center;}
+  .portarretrato .pr-sello img{height:34px;max-height:34px;border-radius:8px;}
   .link-sutil{font-size:0.88rem;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:2px;align-self:center;}
   .link-sutil:hover{border-color:var(--paper);}
 
@@ -518,7 +524,7 @@
             <a class="link-sutil" href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Instagram de El Vaso Maíz</a>
           </div>
         </div>
-        <div class="servicio-logo vm"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" loading="lazy" decoding="async"></div>
+        <div class="servicio-logo vm" data-portarretrato="El Vaso Maíz"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" loading="lazy" decoding="async"></div>
       </article>
       <article class="servicio ci" id="casa-isabella" data-revelar>
         <span class="num">03</span>
@@ -530,7 +536,7 @@
             <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero información para rentar Casa Isabella.">Apartar fecha →</button>
           </div>
         </div>
-        <div class="servicio-logo ci">Casa<br>Isabella</div>
+        <div class="servicio-logo ci" data-portarretrato="Casa Isabella">Casa<br>Isabella</div>
       </article>
       <article class="servicio" data-revelar>
         <span class="num">04</span>
@@ -596,7 +602,8 @@
           <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesa el arco de cerezos.">Cotizar</button>
         </div>
       </article>
-      <article class="paq paq-texto" data-revelar>
+      <article class="paq" data-revelar>
+        <img src="img/home/vasomaiz-fresas-vasos.jpg" alt="Vasos de fresas con crema de El Vaso Maíz" loading="lazy" decoding="async" style="object-position:center 62%">
         <div class="paq-cuerpo">
           <span class="paq-marca vm">El Vaso Maíz</span>
           <h3>Paquete 1 · 60 piezas</h3>
@@ -605,7 +612,8 @@
           <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Me interesan los paquetes de snacks de El Vaso Maíz.">Ver los 5 paquetes</button>
         </div>
       </article>
-      <article class="paq paq-texto ci" data-revelar>
+      <article class="paq" data-revelar>
+        <img src="img/home/casa-isabella-alberca.jpg" alt="Alberca de Casa Isabella con mesa montada" loading="lazy" decoding="async">
         <div class="paq-cuerpo">
           <span class="paq-marca ci">Casa Isabella</span>
           <h3>Salón con alberca, 30 personas</h3>
@@ -1157,6 +1165,29 @@
         bloque.append(titulo, grid);
         return bloque;
       }));
+      // Portarretratos de 02 (El Vaso Maíz) y 03 (Casa Isabella): fotos de su carpeta de
+      // Galería, en orden al azar, una cada 4 s con fundido; sin flyers con precios.
+      // Dos capas: mientras se ve una, la otra carga la siguiente. Si no hay fotos, se queda el logo.
+      document.querySelectorAll('[data-portarretrato]').forEach(marco => {
+        const g = galerias.find(x => x.titulo === marco.dataset.portarretrato);
+        const urls = g ? g.fotos.filter(f => !f.conPrecios).map(f => f.url) : [];
+        for(let i = urls.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [urls[i], urls[j]] = [urls[j], urls[i]]; }
+        if(!urls.length) return;
+        const sello = document.createElement('div'); sello.className = 'pr-sello';
+        const logo = marco.querySelector('img');
+        if(logo) sello.append(logo); else sello.textContent = marco.dataset.portarretrato;
+        const capas = [0, 1].map(() => { const im = document.createElement('img'); im.className = 'pr-foto'; im.alt = `Fotos de ${marco.dataset.portarretrato}`; im.decoding = 'async'; return im; });
+        marco.replaceChildren(...capas, sello);
+        marco.classList.add('portarretrato');
+        let n = 0, activa = 0;
+        const mostrar = () => {
+          const capa = capas[activa];
+          capa.onload = () => { capa.classList.add('visible'); capas[1 - activa].classList.remove('visible'); activa = 1 - activa; };
+          capa.src = urls[n % urls.length]; n++;
+        };
+        mostrar();
+        if(urls.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(() => { if(!document.hidden) mostrar(); }, 4000);
+      });
       const p = d.promociones || {};
       if((p.textos && p.textos.length) || (p.fotos && p.fotos.length)){
         document.getElementById('promoTextos').replaceChildren(...(p.textos || []).map(t => { const e = document.createElement('p'); e.textContent = t; return e; }));

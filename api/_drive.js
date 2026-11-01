@@ -206,13 +206,22 @@ function preguntaGaleria(f, titulo) {
   const tema = temaDeFoto(f);
   return tema ? `Hola, me gustaría cotizar algo como esto: ${tema}.` : 'Hola, me gustaría cotizar algo como lo de su galería.';
 }
+// conPrecios: la lectura trae precios ("$1,800"), o sea que es un flyer. El
+// portarretrato de la página los salta (traen texto y teléfonos encima).
+// Una foto repetida (misma huella) se manda una sola vez.
 function galerias(secciones) {
   const grupos = new Map();
   for (const s of secciones.filter(esGaleria)) {
     const titulo = tituloGaleria(s.nombre);
-    if (!grupos.has(titulo)) grupos.set(titulo, []);
-    grupos.get(titulo).push(...s.fotos.map(f => ({ url: urlFoto(f.id), pregunta: preguntaGaleria(f, titulo) })));
+    if (!grupos.has(titulo)) grupos.set(titulo, { fotos: [], huellas: new Set() });
+    const grupo = grupos.get(titulo);
+    for (const f of s.fotos) {
+      if (f.huella && grupo.huellas.has(f.huella)) continue;
+      grupo.huellas.add(f.huella);
+      grupo.fotos.push({ url: urlFoto(f.id), pregunta: preguntaGaleria(f, titulo), conPrecios: /\$\s?\d/.test(f.lectura || '') });
+    }
   }
+  for (const [titulo, grupo] of grupos) grupos.set(titulo, grupo.fotos);
   return [...grupos].filter(([, fotos]) => fotos.length).map(([titulo, fotos]) => ({ titulo, fotos }));
 }
 
@@ -266,6 +275,7 @@ const ia = () => (clienteIA = clienteIA || new Anthropic());
 const leyendo = new Set(); // ids que esta instancia ya está leyendo
 
 const INSTRUCCIONES_LECTURA = `Lees imágenes de la carpeta de la gerencia de Divanna Eventos (mobiliario y decoración) y El Vaso Maíz (snacks para eventos), en Culiacán, para que DiMa, la asistente de ventas, sepa qué contienen.
+Casa Isabella (salón con alberca en la colonia Guadalupe Victoria) es el salón de Divanna Eventos: sus flyers y fotos son propios, no de la competencia.
 Escribe en español, texto plano sin markdown, máximo ${MAX_CARACTERES_LECTURA} caracteres:
 1) En una línea, qué es: flyer de paquetes, promoción, lista de precios, foto de un montaje, etc., y de qué negocio.
 2) Si trae texto, transcríbelo COMPLETO y tal cual: nombres de paquetes, precios, piezas y cantidades, lo que incluye, sabores u opciones, fechas de vigencia, horarios, cargos extra y condiciones. Agrupa cada paquete en su renglón.
