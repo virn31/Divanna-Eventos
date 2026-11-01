@@ -45,5 +45,10 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 2. Los 2 flyers de Casa Isabella se leyeron como "de la competencia"; ya se corrigió la instrucción, pero las lecturas viejas siguen hasta que cambie la imagen (borrar su descripción en Drive para que se relean).
 3. De antes: precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; probar en el teléfono `/daño`, cobro desde la ficha, foto de comanda y recibo; "Activar alertas".
 
+**Al cerrar (2026-11-01, se retoma en enero 2027):**
+- Revisión final: homepage ✅ (precios nuevos, portarretratos, galería, Drive), app/APK ✅ en servidor (no probada en teléfono), Telegram 🟡 envía bien (cron 8:00 sin errores, webhook rechaza sin secreto) pero falta que Víctor mande `/hoy` a @dimaclnbot para confirmar que recibe.
+- `OneDriveDesktopDIVANNA HOMEPAGEkeysairtable dima os.txt` está VACÍO (0 bytes desde el 9-jul; también antrhopic.txt y github.txt): las herramientas locales de Airtable no funcionan hasta que Víctor pegue ahí el token. Producción no se afecta (usa el de Vercel).
+- Al volver: `git pull`, `npm install`, `npm test` (365) y revisar `vercel logs`; revisar si Diana subió fotos nuevas a Drive y si las promociones de Navidad siguen vigentes (temporada alta 18-dic al 1-ene).
+
 **Siguiente:**
 2. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
