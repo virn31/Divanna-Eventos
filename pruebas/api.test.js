@@ -2390,6 +2390,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && galPrincipal.fotos[0].pregunta === 'Hola, me gustaría cotizar algo como esto: XV años rosa y dorado.' && !('nombre' in galPrincipal.fotos[0])
       && galPrincipal.fotos[0].url === '/api/dima-chat?foto=fXV'
       && galCI.titulo === 'Casa Isabella' && galCI.fotos.length === 1 && galCI.fotos[0].pregunta === 'Hola, quiero información para rentar Casa Isabella.'
+      && galCI.fotos[0].conPrecios === false
       && galVM.titulo === 'El Vaso Maíz' && galVM.fotos[0].pregunta === 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.'
       && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
       && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
