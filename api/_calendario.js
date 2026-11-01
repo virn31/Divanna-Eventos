@@ -357,6 +357,56 @@ async function cancelar(colaborador, body) {
   return { ok: true, ...avisos, google };
 }
 
+// 🗑️ Borrar (solo Diana y Víctor; pedido de Víctor 2026-11-01): para eventos que
+// no debían existir (pruebas, duplicados, capturas por error). Cancelar deja el
+// expediente; borrar lo quita: primero lo saca de Google Calendar y marca
+// "Cancelado" su renglón en la hoja (si estaba), luego borra sus cobros y sus
+// invitaciones de staff, y al final el evento. No avisa al equipo.
+// Los gastos y las fotos de comanda ligados se quedan (son dinero o papeles
+// reales): Airtable solo les quita el vínculo. El cliente también se queda.
+// Con revisar: true solo dice qué se borraría. Para borrar hay que escribir el folio.
+const TABLAS_LIGADAS = { COBROS: 'tblb8ADFukpm6nRZV', STAFF_EVENTO: TABLES.STAFF_EVENTO };
+// Solo se piden campos que existen en esa tabla (un nombre que no existe da error 422).
+async function ligadosA(tabla, eventoId, campos = ['Evento']) {
+  return (await todas(`${tabla}?${campos.map(c => `fields%5B%5D=${c}`).join('&')}`)).filter(r => (r.fields.Evento || []).includes(eventoId));
+}
+async function borrarRegistros(tabla, ids) {
+  for (let i = 0; i < ids.length; i += 10) {
+    await airtable(`${tabla}?${ids.slice(i, i + 10).map(id => `records%5B%5D=${id}`).join('&')}`, { method: 'DELETE' });
+  }
+}
+async function borrar(colaborador, body) {
+  if (colaborador.rol !== ROLES.ADMIN) return { error: 'Solo Diana y Víctor pueden borrar eventos.', codigo: 403 };
+  if (!ID.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
+  const f = (await airtable(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
+  const folio = f.Folio_Evento || 'BORRAR';
+  const [cobros, staff] = await Promise.all([ligadosA(TABLAS_LIGADAS.COBROS, body.eventoId, ['Evento', 'Monto']), ligadosA(TABLAS_LIGADAS.STAFF_EVENTO, body.eventoId)]);
+  const resumen = {
+    folio,
+    cobros: cobros.length,
+    montoCobros: cobros.reduce((t, c) => t + (Number(c.fields.Monto) || 0), 0),
+    staff: staff.length,
+    enGoogle: !!f.Google_Evento_ID,
+    enSheets: !!f.En_Sheets,
+  };
+  if (body.revisar) return { ok: true, revisar: resumen };
+  if (String(body.confirmar || '').trim().toUpperCase() !== folio.toUpperCase()) return { error: `Para borrar escribe exactamente ${folio}.` };
+
+  // 1) Fuera de Google: se marca cancelado y se sincroniza solo lo que sí estaba.
+  const avisosGoogle = [];
+  if (resumen.enGoogle || resumen.enSheets) {
+    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: body.eventoId, fields: { Cancelado: true, Autorizacion_Diana: 'NO', Estado: 'Cerrado' } }] }) });
+    if (resumen.enGoogle) { const c = await sincronizarCalendario(body.eventoId); if (!c.ok) avisosGoogle.push(`${c.error} (bórralo a mano en Google Calendar)`); }
+    if (resumen.enSheets) { const s = await sincronizarSheets(body.eventoId); if (!s.ok) avisosGoogle.push(`Hoja de Google: ${s.error}`); }
+  }
+  // 2) Lo que solo existe por este evento; 3) el evento.
+  await borrarRegistros(TABLAS_LIGADAS.COBROS, cobros.map(r => r.id));
+  await borrarRegistros(TABLAS_LIGADAS.STAFF_EVENTO, staff.map(r => r.id));
+  await borrarRegistros(TABLES.EVENTOS, [body.eventoId]);
+  console.log(`Evento ${folio} (${body.eventoId}) BORRADO por ${colaborador.nombre}: ${resumen.cobros} cobros, ${resumen.staff} invitaciones.`);
+  return { ok: true, borrado: resumen, avisosGoogle };
+}
+
 async function bloquear(colaborador, body) {
   const negocio = body.negocio;
   if (![NEGOCIOS.DV, NEGOCIOS.VM, NEGOCIOS.AMBOS].includes(negocio)) return { error: 'Elige el negocio.' };
@@ -559,6 +609,7 @@ module.exports = {
   bloqueosProximos,
   mover,
   cancelar,
+  borrar,
   bloquear,
   desbloquear,
   aGoogle,

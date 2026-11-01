@@ -1765,6 +1765,44 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && googleCal.some(g => g.op === 'delete' && g.eventId === 'gcalVIEJO'),
     'calendario: cancelar marca el expediente (sin borrarlo), avisa al equipo y lo quita de Google');
 
+  // 🗑️ Borrar evento (solo Diana y Víctor): revisar, confirmar con el folio, Google, cobros, staff y evento.
+  const COBRO_BORRAR = { id: 'recCOBROBORRAR001', fields: { Evento: [EV_CAL.id], Monto: 500 } };
+  const COBRO_OTRO = { id: 'recCOBROOTRO00001', fields: { Evento: ['recOTROEVENTO0001'], Monto: 900 } };
+  const STAFF_BORRAR = { id: 'recSTAFFBORRAR001', fields: { Evento: [EV_CAL.id] } };
+  const EV_BORRAR = { ...EV_CAL, fields: { ...EV_CAL.fields, Google_Evento_ID: 'gcalBORRAR' } };
+  reset();
+  respuestas = [GERENTE];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'borrar_evento', eventoId: EV_CAL.id, revisar: true } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'DELETE'), 'borrar: la gerente no puede borrar eventos');
+
+  reset();
+  respuestas = [ADMIN, EV_BORRAR, { records: [COBRO_BORRAR, COBRO_OTRO] }, { records: [STAFF_BORRAR] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'borrar_evento', eventoId: EV_CAL.id, revisar: true } }, res);
+  const rev = res.body.revisar || {};
+  ok(res.code === 200 && rev.folio === 'EVT-CL1' && rev.cobros === 1 && rev.montoCobros === 500 && rev.staff === 1 && rev.enGoogle === true
+    && !llamadas.some(l => ['DELETE', 'PATCH'].includes(l.method)) && !googleCal.length
+    && llamadas.some(l => l.url.includes('tblvTVcC3NMt5ddjr') && !l.url.includes('Monto')),
+    'borrar: "revisar" dice qué se borraría (solo sus cobros y staff) sin tocar nada');
+
+  reset();
+  respuestas = [ADMIN, EV_BORRAR, { records: [COBRO_BORRAR] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'borrar_evento', eventoId: EV_CAL.id, confirmar: 'EVT-OTRO' } }, res);
+  ok(res.code === 400 && res.body.error.includes('EVT-CL1') && !llamadas.some(l => ['DELETE', 'PATCH'].includes(l.method)), 'borrar: sin el folio correcto no borra nada');
+
+  reset();
+  respuestas = [ADMIN, EV_BORRAR, { records: [COBRO_BORRAR, COBRO_OTRO] }, { records: [STAFF_BORRAR] }, {},
+    { ...EV_BORRAR, fields: { ...EV_BORRAR.fields, Cancelado: true, Autorizacion_Diana: 'NO' } }, {}, {}, {}, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'borrar_evento', eventoId: EV_CAL.id, confirmar: 'evt-cl1' } }, res);
+  const borrados = llamadas.filter(l => l.method === 'DELETE').map(l => l.url);
+  ok(res.code === 200 && res.body.borrado.folio === 'EVT-CL1' && googleCal.some(g => g.op === 'delete' && g.eventId === 'gcalBORRAR')
+    && borrados.length === 3 && borrados[0].includes('tblb8ADFukpm6nRZV') && borrados[0].includes(COBRO_BORRAR.id) && !borrados[0].includes(COBRO_OTRO.id)
+    && borrados[1].includes(STAFF_BORRAR.id) && borrados[2].includes('tblzLAin65BZPP2c6') && borrados[2].includes(EV_CAL.id) && !telegram.length,
+    'borrar: lo quita de Google, borra sus cobros, su staff y el evento, sin avisar al equipo');
+
   reset();
   respuestas = [ADMIN, EV_CAL];
   res = resMock();
