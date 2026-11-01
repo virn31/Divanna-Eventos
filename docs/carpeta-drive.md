@@ -8,7 +8,7 @@ Una carpeta principal (por ejemplo **DiMa – Página**) con subcarpetas. Los no
 
 | Subcarpeta | Qué va adentro | Dónde se usa |
 |---|---|---|
-| **Galería** | Fotos de eventos montados | Galería de la página (reemplaza las fotos fijas) y DiMa las puede enseñar |
+| **Galería** | Fotos de eventos montados. Cada subcarpeta (ej. **Galería / Casa Isabella**) sale en la página como un bloque aparte con ese título | Galería de la página (las fotos sueltas reemplazan las fotos fijas; las subcarpetas se agregan abajo) y DiMa las puede enseñar |
 | **Promociones** | Un documento por promoción, con fechas, y su foto si tiene | Sección "Promociones" de la página (solo aparece si hay algo) y DiMa |
 | **Paquetes Divanna** | Documento con paquetes y precios actualizados, y sus fotos | DiMa |
 | **Paquetes El Vaso Maíz** | Igual | DiMa |
@@ -21,7 +21,7 @@ Se pueden hacer subcarpetas dentro de una subcarpeta (por ejemplo **Divanna / Pa
 
 - **Documentos:** Documentos de Google normales. Escribir como se le explicaría a una clienta: "Túnel de luces a $1,500 del 1 al 30 de noviembre". **Siempre poner fechas** en promociones y temporadas: DiMa solo ofrece lo vigente.
 - **Lo de la carpeta manda:** si un documento dice otro precio que el catálogo de DiMa, DiMa usa el del documento.
-- **Fotos y flyers:** DiMa **lee cada imagen** (lo que dice y lo que muestra: precios, piezas, fechas) unos minutos después de subirla, y guarda lo que leyó en la **descripción** del archivo (clic derecho → *Información del archivo* → *Detalles*; empieza con "[Leído por DiMa"). Ahí se puede revisar o corregir: si se borra esa marca y se escribe una descripción propia, DiMa usa esa y ya no lee la imagen. Si se reemplaza la imagen, DiMa la vuelve a leer. Lo que dice un flyer manda sobre el catálogo, igual que un documento: si una promoción ya no aplica, hay que quitar su imagen. El nombre del archivo es el título de la foto en la página.
+- **Fotos y flyers:** DiMa **lee cada imagen** (lo que dice y lo que muestra: precios, piezas, fechas) unos minutos después de subirla, y guarda lo que leyó en la **descripción** del archivo (clic derecho → *Información del archivo* → *Detalles*; empieza con "[Leído por DiMa"). Ahí se puede revisar o corregir: si se borra esa marca y se escribe una descripción propia, DiMa usa esa y ya no lee la imagen. Si se reemplaza la imagen, DiMa la vuelve a leer. Lo que dice un flyer manda sobre el catálogo, igual que un documento: si una promoción ya no aplica, hay que quitar su imagen. En la página las fotos no llevan título: cada una lleva el botón **Cotizar**, que abre el chat con DiMa con la pregunta ya escrita (en promociones, lo que DiMa leyó del flyer; en Galería / Casa Isabella, la renta del salón).
 - Para quitar algo, se borra o se saca de la carpeta.
 - En la página aparecen solo las fotos de **Galería** y lo de **Promociones**. Lo demás solo lo lee DiMa.
 

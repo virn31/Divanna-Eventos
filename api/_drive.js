@@ -170,23 +170,49 @@ const urlFoto = (id) => `/api/dima-chat?foto=${encodeURIComponent(id)}`;
 // DiMa sepa de cuál se trata: la primera línea de lo que DiMa leyó en la imagen
 // ("Flyer de promoción navideña de ... mesa para 10 personas con decoración"); si
 // aún no se lee, el nombre que puso Diana; si tampoco hay, una pregunta general.
-function preguntaPromo(f) {
+function temaDeFoto(f) {
   const linea = (f.lectura || '').split('\n').map(l => l.replace(/^\s*1\)\s*/, '').trim()).find(Boolean) || '';
   // "Flyer de promoción ... de Divanna Eventos: paquete de mesa para 10" → lo de después de ":".
   const despues = linea.includes(': ') ? linea.slice(linea.indexOf(': ') + 2).trim() : '';
   const tema = (despues || linea || pieDeFoto(f.nombre)).replace(/[.:]+$/, '');
-  if (!tema) return 'Hola, me interesa una de sus promociones.';
-  return `Hola, me interesa esta promoción: ${tema.length > 160 ? `${tema.slice(0, 157)}...` : tema}.`;
+  return tema.length > 160 ? `${tema.slice(0, 157)}...` : tema;
+}
+function preguntaPromo(f) {
+  const tema = temaDeFoto(f);
+  return tema ? `Hola, me interesa esta promoción: ${tema}.` : 'Hola, me interesa una de sus promociones.';
+}
+
+// Galería: las fotos sueltas en "Galería" van al mosaico principal; cada subcarpeta
+// ("Galería / casa isabella") es un bloque aparte con su título ("Casa Isabella").
+// Más niveles adentro se juntan en el bloque de su primera subcarpeta.
+const tituloBonito = (t) => t.trim().toLowerCase().replace(/(^|\s)(\p{L})/gu, (m, esp, letra) => esp + letra.toUpperCase());
+function tituloGaleria(nombreSeccion) {
+  const partes = nombreSeccion.split(' / ');
+  const i = partes.findIndex(p => normal(p).includes('galeria'));
+  return partes[i + 1] ? tituloBonito(partes[i + 1]) : '';
+}
+function preguntaGaleria(f, titulo) {
+  if (normal(titulo).includes('isabella')) return 'Hola, quiero información para rentar Casa Isabella.';
+  const tema = temaDeFoto(f);
+  return tema ? `Hola, me gustaría cotizar algo como esto: ${tema}.` : 'Hola, me gustaría cotizar algo como lo de su galería.';
+}
+function galerias(secciones) {
+  const grupos = new Map();
+  for (const s of secciones.filter(esGaleria)) {
+    const titulo = tituloGaleria(s.nombre);
+    if (!grupos.has(titulo)) grupos.set(titulo, []);
+    grupos.get(titulo).push(...s.fotos.map(f => ({ url: urlFoto(f.id), pregunta: preguntaGaleria(f, titulo) })));
+  }
+  return [...grupos].filter(([, fotos]) => fotos.length).map(([titulo, fotos]) => ({ titulo, fotos }));
 }
 
 // Lo que ve la página (sin los textos internos que no son promociones).
-// Las promociones no llevan pie de foto: llevan botón para cotizar (pregunta).
+// Ninguna foto lleva pie: cada una lleva botón "Cotizar" con su pregunta.
 async function contenidoPagina() {
   const { secciones } = await contenidoDrive();
-  const fotos = (filtro) => secciones.filter(filtro).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), nombre: pieDeFoto(f.nombre) }));
   const promos = secciones.filter(esPromocion).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), pregunta: preguntaPromo(f) }));
   return {
-    galeria: fotos(esGaleria),
+    galerias: galerias(secciones),
     promociones: {
       fotos: promos,
       textos: secciones.filter(esPromocion).flatMap(s => s.textos.map(t => t.texto)),
