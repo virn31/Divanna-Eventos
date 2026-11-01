@@ -2401,6 +2401,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       'drive: los nombres de WhatsApp/cámara no salen como pie de foto en la página');
     ok(!('nombre' in r.body.promociones.fotos[0]) && r.body.promociones.fotos[0].pregunta === 'Hola, me interesa esta promoción: Tunel promo.',
       'drive: las promociones no llevan pie de foto, llevan la pregunta para el botón Cotizar');
+    const { CATALOGO } = require(path.join(repo, 'api/_dima-catalogo.js'));
+    ok(CATALOGO.includes('30 personas = $1,800') && CATALOGO.includes('30 personas = $3,000 y 50 personas = $4,000') && CATALOGO.includes('SIN mantel') && !CATALOGO.includes('$1,500 entre semana'),
+      'catálogo: precios de Casa Isabella como en los flyers (lunes a jueves $1,800 sin mantel; fin de semana $3,000 / $4,000)');
     // La subcarpeta de Casa Isabella solo se usa para la prueba de la galería.
     drivePrueba.archivos = drivePrueba.archivos.filter(a => !['cGalCI', 'fCI', 'cGalVM', 'fVM'].includes(a.id));
 

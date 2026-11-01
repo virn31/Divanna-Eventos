@@ -326,3 +326,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "DiMa debe poder leer las imágenes; no puede solo tirar fotos sin saber qué contienen". Diana sube flyers de WhatsApp con precios y nombres sin sentido; DiMa los mandaba sin saber qué decían y daba precios viejos.
 
 **Descartado:** pedir a Diana que renombre o escriba documentos (no lo hace), leer en cada mensaje (lento y caro), guardar en Airtable (otra tabla; la descripción de Drive la ve y corrige Diana), cron diario (Hobby solo permite uno al día; tardaría hasta 24 h).
+
+## 2026-11-01 — Precios de Casa Isabella: los de los flyers
+
+**Decisión:** de lunes a jueves, 30 personas $1,800 (3 mesas y 30 sillas, sin mantel, salida máxima 10 pm, mesa extra $400). Viernes a domingo, 30 personas $3,000 y 50 personas $4,000, con mantel básico (mesa extra $500). Se mantiene el tope de $4,500 para 70 a 80 personas. Están en `api/_dima-catalogo.js` y en la tarjeta de la página.
+
+**Por qué:** Víctor: "los precios buenos son los del flyer". Los flyers de Diana en Drive decían $1,800 / $3,000 / $4,000 y el catálogo $1,500 / $2,500. Como lo de Drive manda sobre el catálogo, DiMa y la página podían dar precios distintos.
+
+**Descartado:** dejar solo el flyer en Drive (la página seguía diciendo "desde $1,500"). El tope de $4,500 y la mesa extra de $500 en fin de semana no vienen en los flyers: se conservaron del catálogo anterior (cuadran con 50 personas = $4,000) y quedan por confirmar.

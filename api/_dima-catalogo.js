@@ -135,8 +135,11 @@ LETREROS, MAMPARAS Y PERSONALIZADOS (MUY IMPORTANTE, aquí se confunden los clie
 
 CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el cliente pregunta por rentar un salón/lugar para su evento, esto es lo que se ofrece):
 - Ubicación: Col. Guadalupe Victoria, Culiacán. Capacidad máxima: 80 personas.
-- Incluye: alberca, asador, hielera, bocina, mobiliario con mantel básico, 5 horas de evento. NO tiene área refrigerada.
-- Tarifa: 30 personas = $1,500 entre semana (Lun-Jue) / $2,500 fin de semana (Vie-Dom). Cada mesa extra de 10 personas = +$400 entre semana / +$500 fin de semana. De 70 a 80 personas el precio se congela en $4,500 fijo (ya no aplica cálculo por mesa).
+- Incluye siempre: alberca, asador, hielera, bocina y 5 horas de evento. NO tiene área refrigerada.
+- DE LUNES A JUEVES: 30 personas = $1,800 (3 mesas y 30 sillas, SIN mantel; si quiere mantel se agrega del catálogo de Divanna, $50 por mesa). Cada mesa extra de 10 personas = +$400. Salida a más tardar a las 10 pm.
+- VIERNES, SÁBADO Y DOMINGO: 30 personas = $3,000 y 50 personas = $4,000, con mobiliario con mantel básico. Cada mesa extra de 10 personas = +$500 (por eso 50 personas = $4,000).
+- Tope: de 70 a 80 personas el salón no pasa de $4,500 (ya no aplica cálculo por mesa).
+(Precios de los flyers de Casa Isabella, confirmados por Víctor el 2026-11-01.)
 - Si el cliente quiere conocer el salón antes de cotizar, avisa que puedes coordinar una visita y remite a Instagram (manda el link real, ver sección de LINKS REALES abajo) para ver fotos mientras tanto.
 
 PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio; NO aplican en TEMPORADA ALTA de fin de año, ver la regla de temporada alta):
