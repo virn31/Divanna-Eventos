@@ -158,16 +158,73 @@ async function contenidoDrive() {
 
 const esGaleria = (s) => normal(s.nombre).includes('galeria');
 const esPromocion = (s) => normal(s.nombre).includes('promo');
+// Nombres que pone el teléfono o WhatsApp ("WhatsApp Image 2026 10 31 at 10.27.12 (1)",
+// "IMG 20261031", "Captura de pantalla..."): no describen nada, así que en la página
+// la foto sale sin pie. DiMa sí sabe qué es porque lee la imagen.
+// Genérico = prefijo de cámara/app seguido solo de números, fechas y signos.
+const NOMBRE_GENERICO = /^(whats ?app (image|video)|img|image|imagen|dsc|pxl|photo|screenshot|captura de pantalla|telegram)?[\s\d.,:()at-]*$/i;
+const pieDeFoto = (nombre) => (NOMBRE_GENERICO.test(nombre || '') ? '' : nombre);
 const urlFoto = (id) => `/api/dima-chat?foto=${encodeURIComponent(id)}`;
 
+// Texto que el botón "Cotizar" de una promoción deja escrito en el chat, para que
+// DiMa sepa de cuál se trata: la primera línea de lo que DiMa leyó en la imagen
+// ("Flyer de promoción navideña de ... mesa para 10 personas con decoración"); si
+// aún no se lee, el nombre que puso Diana; si tampoco hay, una pregunta general.
+function temaDeFoto(f) {
+  const linea = (f.lectura || '').split('\n').map(l => l.replace(/^\s*1\)\s*/, '').trim()).find(Boolean) || '';
+  // "Flyer de promoción ... de Divanna Eventos: paquete de mesa para 10" → lo de después de ":".
+  const despues = linea.includes(': ') ? linea.slice(linea.indexOf(': ') + 2).trim() : '';
+  const tema = (despues || linea || pieDeFoto(f.nombre)).replace(/[.:]+$/, '');
+  return tema.length > 160 ? `${tema.slice(0, 157)}...` : tema;
+}
+function preguntaPromo(f) {
+  const tema = temaDeFoto(f);
+  return tema ? `Hola, me interesa esta promoción: ${tema}.` : 'Hola, me interesa una de sus promociones.';
+}
+
+// Galería: las fotos sueltas en "Galería" van al mosaico principal; cada subcarpeta
+// ("Galería / casa isabella") es un bloque aparte con su título ("Casa Isabella").
+// Más niveles adentro se juntan en el bloque de su primera subcarpeta.
+// Los negocios se reconocen aunque Diana escriba el nombre junto o sin acentos
+// ("elvasomaiz", "casa isabella"): título bien escrito y pregunta de ese negocio.
+const sinEspacios = (t) => normal(t).replace(/[^a-z0-9]/g, '');
+const esVasoMaiz = (t) => sinEspacios(t).includes('vasomaiz');
+const esCasaIsabella = (t) => sinEspacios(t).includes('isabella');
+const tituloBonito = (t) => {
+  if (esVasoMaiz(t)) return 'El Vaso Maíz';
+  if (esCasaIsabella(t)) return 'Casa Isabella';
+  return t.trim().toLowerCase().replace(/(^|\s)(\p{L})/gu, (m, esp, letra) => esp + letra.toUpperCase());
+};
+function tituloGaleria(nombreSeccion) {
+  const partes = nombreSeccion.split(' / ');
+  const i = partes.findIndex(p => normal(p).includes('galeria'));
+  return partes[i + 1] ? tituloBonito(partes[i + 1]) : '';
+}
+function preguntaGaleria(f, titulo) {
+  if (esCasaIsabella(titulo)) return 'Hola, quiero información para rentar Casa Isabella.';
+  if (esVasoMaiz(titulo)) return 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.';
+  const tema = temaDeFoto(f);
+  return tema ? `Hola, me gustaría cotizar algo como esto: ${tema}.` : 'Hola, me gustaría cotizar algo como lo de su galería.';
+}
+function galerias(secciones) {
+  const grupos = new Map();
+  for (const s of secciones.filter(esGaleria)) {
+    const titulo = tituloGaleria(s.nombre);
+    if (!grupos.has(titulo)) grupos.set(titulo, []);
+    grupos.get(titulo).push(...s.fotos.map(f => ({ url: urlFoto(f.id), pregunta: preguntaGaleria(f, titulo) })));
+  }
+  return [...grupos].filter(([, fotos]) => fotos.length).map(([titulo, fotos]) => ({ titulo, fotos }));
+}
+
 // Lo que ve la página (sin los textos internos que no son promociones).
+// Ninguna foto lleva pie: cada una lleva botón "Cotizar" con su pregunta.
 async function contenidoPagina() {
   const { secciones } = await contenidoDrive();
-  const fotos = (filtro) => secciones.filter(filtro).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), nombre: f.nombre }));
+  const promos = secciones.filter(esPromocion).flatMap(s => s.fotos).map(f => ({ url: urlFoto(f.id), pregunta: preguntaPromo(f) }));
   return {
-    galeria: fotos(esGaleria),
+    galerias: galerias(secciones),
     promociones: {
-      fotos: fotos(esPromocion),
+      fotos: promos,
       textos: secciones.filter(esPromocion).flatMap(s => s.textos.map(t => t.texto)),
     },
   };
@@ -283,4 +340,4 @@ function leerImagenesEnSegundoPlano() {
 // Para las pruebas.
 function limpiarCacheDrive() { cache = { datos: null, hora: 0 }; }
 
-module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, MARCA_LECTURA };
+module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, pieDeFoto, MARCA_LECTURA };
