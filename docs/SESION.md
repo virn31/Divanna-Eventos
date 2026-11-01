@@ -28,7 +28,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-01 (tarde) · **Rama de trabajo:** `main` (todo publicado; `pie-fotos-genericas` y `portarretratos` ya unidas) · **Producción:** `main` en `07e22aa` + este cierre. Rama aparte sin publicar: `entrenar-dima`. **364 pruebas pasan.**
+**Actualizado:** 2026-11-01 (tarde) · **Rama de trabajo:** `main` (todo publicado; `pie-fotos-genericas` y `portarretratos` ya unidas) · **Producción:** `main` en `ddb8c00` + este cierre. Rama aparte sin publicar: `entrenar-dima`. **365 pruebas pasan.**
 
 **Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima` (`drive.js` árbol, `lecturas.js`, `mover-carpeta.js`, `bajar-fotos.js`, `probar-promos.js`/`probar-portarretrato.js` para probar la página en Edge con Drive simulado). Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
 
@@ -41,10 +41,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Prompts para generar imágenes de El Vaso Maíz: `Downloads\Prompts imagenes El Vaso Maiz.txt` (no subirlas a carpetas que DiMa enseña como producto real).
 
 **Pendientes de Víctor:**
-1. **Precios de Casa Isabella en conflicto:** los flyers en Drive (Galería / casa isabella) dicen 30 personas $1,800 lunes a jueves, y viernes a domingo 30 personas $3,000 / 50 personas $4,000. El catálogo (`_dima-catalogo.js`) y la tarjeta de la página dicen $1,500 / $2,500. Lo de Drive manda sobre el catálogo, así que DiMa puede estar cotizando con el flyer. Decidir cuál vale y alinear catálogo + página (o quitar el flyer viejo de Drive).
+1. ~~Precios de Casa Isabella~~ RESUELTO 2026-11-01 (ddb8c00): valen los de los flyers (L-J $1,800 sin mantel, salida 10 pm, mesa extra $400; V-D $3,000 / 50 personas $4,000). Por confirmar: mesa extra de fin de semana ($500) y tope de $4,500 para 70 a 80 personas, que no vienen en los flyers.
 2. Los 2 flyers de Casa Isabella se leyeron como "de la competencia"; ya se corrigió la instrucción, pero las lecturas viejas siguen hasta que cambie la imagen (borrar su descripción en Drive para que se relean).
 3. De antes: precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; probar en el teléfono `/daño`, cobro desde la ficha, foto de comanda y recibo; "Activar alertas".
 
 **Siguiente:**
-1. Resolver los precios de Casa Isabella (punto 1).
 2. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
