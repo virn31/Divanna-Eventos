@@ -399,6 +399,7 @@ async function resolverPedido(req, res, colaborador) {
 const ACCIONES_CALENDARIO = {
   calendario_mover: C.mover,
   calendario_cancelar: C.cancelar,
+  borrar_evento: C.borrar,
   bloquear_dia: C.bloquear,
   desbloquear_dia: C.desbloquear,
   calendario_sincronizar: C.sincronizarPendientes,

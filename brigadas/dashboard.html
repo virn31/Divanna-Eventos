@@ -125,6 +125,12 @@
   .pedido-actions button{flex:1; min-width:130px; padding:13px; border-radius:12px; font-weight:800; font-size:0.92rem; cursor:pointer;}
   .btn-autorizar{background:var(--good); color:var(--ink); border:none;}
   .btn-rechazar{background:transparent; color:var(--bad); border:1.5px solid var(--bad);}
+  .borrar-ev{margin-top:14px; border-top:1px dashed var(--line); padding-top:10px;}
+  .borrar-ev summary{cursor:pointer; color:var(--bad); font-weight:700; font-size:0.9rem;}
+  .borrar-ev button{margin-top:10px; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; background:transparent; color:var(--bad); border:1.5px solid var(--bad);}
+  .borrar-ev .borrar-si{background:var(--bad); color:#fff;}
+  .borrar-ev .borrar-folio{display:block; margin-top:10px; width:100%; max-width:260px; padding:10px; border-radius:10px; border:1px solid var(--line); background:transparent; color:inherit; font:inherit;}
+  .borrar-ev .borrar-msg{margin-top:8px; font-size:0.88rem;}
   .pedido-actions button:disabled{opacity:0.5; cursor:default;}
   .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
   .pedido-contacto a{color:var(--divanna);}
@@ -284,6 +290,49 @@
     if(res.status === 401 || res.status === 403){ salir(); throw new Error('sesion'); }
     if(!res.ok) throw new Error(data.error || 'Error');
     return data;
+  }
+
+  // 🗑️ Borrar evento (solo Diana y Víctor; borrar_evento en api/_calendario.js).
+  // Para eventos que no debían existir. Primero "Revisar" dice qué se borra
+  // (cobros, staff, Google); luego hay que escribir el folio para confirmar.
+  function bloqueBorrar(id){
+    return `<details class="borrar-ev" data-borrar="${esc(id)}">
+      <summary>🗑️ Borrar evento</summary>
+      <div class="evento-sub">Solo para eventos que <b>no debían existir</b> (pruebas, duplicados, capturas por error). Desaparece de la app, del calendario y de Google, junto con sus cobros. Para un evento real que ya no va, usa <b>❌ Cancelar evento</b> en el calendario.</div>
+      <button type="button" class="borrar-revisar">Revisar qué se borra</button>
+      <div class="borrar-paso2" hidden></div>
+      <div class="borrar-msg"></div>
+    </details>`;
+  }
+  function conectarBorrar(contenedor){
+    contenedor.querySelectorAll('.borrar-ev').forEach(caja => {
+      const id = caja.dataset.borrar, msg = caja.querySelector('.borrar-msg'), paso2 = caja.querySelector('.borrar-paso2');
+      const pedir = (cuerpo) => api('/api/dashboard-eventos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'borrar_evento', eventoId: id, ...cuerpo }) });
+      caja.querySelector('.borrar-revisar').addEventListener('click', async () => {
+        msg.textContent = 'Revisando…';
+        try {
+          const r = (await pedir({ revisar: true })).revisar;
+          const lista = [
+            r.cobros ? `${r.cobros} cobro${r.cobros > 1 ? 's' : ''} por $${Number(r.montoCobros).toLocaleString('es-MX')}` : 'sin cobros',
+            r.staff ? `${r.staff} invitación${r.staff > 1 ? 'es' : ''} de staff` : '',
+            r.enGoogle ? 'su evento en Google Calendar' : '',
+            r.enSheets ? 'su renglón en la hoja queda como Cancelado' : '',
+          ].filter(Boolean).join(' · ');
+          paso2.innerHTML = `<div class="evento-sub">Se borra <b>${esc(r.folio)}</b>: ${esc(lista)}.${r.cobros ? ' <b>Ojo: esos cobros dejan de contar en el cuadre.</b>' : ''}</div>
+            <input class="borrar-folio" placeholder="Escribe ${esc(r.folio)} para confirmar" autocomplete="off">
+            <button type="button" class="borrar-si">🗑️ Sí, borrar para siempre</button>`;
+          paso2.hidden = false; msg.textContent = '';
+          paso2.querySelector('.borrar-si').addEventListener('click', async (e) => {
+            e.target.disabled = true; msg.textContent = 'Borrando…';
+            try {
+              const d = await pedir({ confirmar: paso2.querySelector('.borrar-folio').value });
+              msg.textContent = `✅ ${d.borrado.folio} borrado.${d.avisosGoogle && d.avisosGoogle.length ? ' Ojo: ' + d.avisosGoogle.join(' · ') : ''}`;
+              setTimeout(loadDashboard, d.avisosGoogle && d.avisosGoogle.length ? 6000 : 1200);
+            } catch(err){ if(err.message !== 'sesion'){ msg.textContent = '⚠️ ' + err.message; e.target.disabled = false; } }
+          });
+        } catch(err){ if(err.message !== 'sesion') msg.textContent = '⚠️ ' + err.message; }
+      });
+    });
   }
 
   const mainContent = $('mainContent');
@@ -778,6 +827,7 @@
             </div>
           </details>
           ${ev.dinero ? `<div class="din-seccion"><b>💰 Dinero</b>${DimaDinero.bloque(ev)}</div>` : ''}
+          ${bloqueBorrar(ev.id)}
           </div>
         </div>
       `;
@@ -788,6 +838,7 @@
     cajasAbiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
     mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
     DimaDinero.conectar(mainContent);
+    conectarBorrar(mainContent);
 
     mainContent.querySelectorAll('.instr-texto').forEach(t => {
       t.addEventListener('input', () => { t.dataset.sucio = '1'; });
@@ -974,10 +1025,12 @@
             <button class="btn-rechazar" data-accion="rechazar">Rechazar</button>
           </div>
           <div class="pedido-msg"></div>
+          ${bloqueBorrar(p.id)}
         </div>
       `).join('');
 
     conectarMensajeCliente(pedidosContent);
+    conectarBorrar(pedidosContent);
     conectarAgenda(pedidosContent);
     pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
       btn.addEventListener('click', () => resolverPedido(btn));

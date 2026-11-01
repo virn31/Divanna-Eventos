@@ -334,3 +334,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "los precios buenos son los del flyer". Los flyers de Diana en Drive decían $1,800 / $3,000 / $4,000 y el catálogo $1,500 / $2,500. Como lo de Drive manda sobre el catálogo, DiMa y la página podían dar precios distintos.
 
 **Descartado:** dejar solo el flyer en Drive (la página seguía diciendo "desde $1,500"). El tope de $4,500 y la mesa extra de $500 en fin de semana no vienen en los flyers: se conservaron del catálogo anterior (cuadran con 50 personas = $4,000) y quedan por confirmar.
+
+## 2026-11-01 — Borrar eventos desde el dashboard (solo Diana y Víctor)
+
+**Decisión:** botón "🗑️ Borrar evento" al final de cada ficha y de cada pedido por cotizar. Primero "Revisar qué se borra" (cobros y monto, staff, Google); para confirmar hay que escribir el folio. Lo quita de Google Calendar, marca Cancelado su renglón en la hoja de Google, borra sus cobros e invitaciones de staff y el evento. No avisa al equipo. Gastos, fotos de comanda y el cliente se quedan (Airtable solo les quita el vínculo).
+
+**Por qué:** Víctor: "en este momento visualizo eventos que no deben de existir, debe todo estar limpio". Cancelar deja el expediente (sigue en el cuadre y en las listas); para pruebas y duplicados hacía falta quitarlos de verdad.
+
+**Descartado:** borrar sin confirmar (un toque equivocado borra un evento real con su dinero); borrar también gastos (son dinero real gastado aunque el evento sobrara); dejarlo a la gerente (solo Admin).
