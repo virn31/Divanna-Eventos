@@ -57,6 +57,15 @@ Para quitar la alerta se vuelve a tocar el mismo botón. Con la app abierta la u
 A cada una le llegan los datos (sin montos), la hora de llegada y **Sí puedo / No puedo**. Las respuestas le
 llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completarse, "Equipo completo".
 
+**Etapas del staff (por Telegram):** cuando el encargado de producción toca **🚀 Listo para staff**, a cada chica
+que confirmó le llegan los botones **Saliendo del almacén → En camino → Llegamos al lugar → Evento en curso →
+Evento terminado** (= Cerrado). Basta con que una los toque; solo avanzan, nunca regresan. Si confirma después,
+le llegan al confirmar. No se puede salir del almacén si en la app faltan artículos por marcar como cargados.
+
+**🆘 SOS (todos, por Telegram):** botón fijo abajo del chat ("🆘 SOS (manda tu ubicación)", también con `/sos`).
+Le llega a todo el equipo (Telegram, push y correo a Diana y Víctor) con la ubicación; si quien lo manda tiene un
+evento hoy, el evento queda en emergencia. Después puede escribir qué pasa y también le llega a todos.
+
 | Marca | Significa |
 | --- | --- |
 | ✅ | Confirmó |
@@ -76,6 +85,9 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - En **Asignar** también elige al **🍳 Encargado de producción**. Dos días antes le llega por Telegram la lista
   de producción del día (para revisar inventario y reportar insumos) y el mismo día otra para confirmar
   ingredientes. Sus respuestas le llegan a la gerente con copia a Diana y Víctor, y se ven en el evento.
+- En **Asignar** también elige el **👩‍🍳 Equipo de producción** (1, 2 o más; pueden estar también en el staff). El
+  encargado entra solo al equipo. Solo el encargado tiene **🚀 Listo para staff** en la lista del día: al tocarlo,
+  al staff confirmado le llegan por Telegram los botones de sus etapas y lo que marquen se ve en el estatus.
 - No ve precios ni pagos de los pedidos.
 
 ## Comandas en papel y recibos (Diana, Víctor y la gerente)
@@ -140,6 +152,7 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 | `/mensaje` | Mensaje directo a Diana y Víctor |
 | `/staff` | Dar de alta e invitar a las chicas (coordinadora, Admin) |
 | `/alertas` | Emergencias y alertas de seguridad de hoy |
+| `/sos` | Emergencia: deja abajo el botón 🆘 que manda tu ubicación a todo el equipo (todos) |
 | `/ayuda` | Lo que puede hacer cada quien |
 | `/salir` | Desvincular este Telegram |
 

@@ -1296,7 +1296,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
   const avisoHoy = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555');
   ok(avisoHoy && avisoHoy.body.text.startsWith('Hola Lucía 👋 esta es la producción del día de hoy') && avisoHoy.body.text.includes('confirma si tenemos todos los ingredientes')
-    && botonesDe(avisoHoy).join() === `pr:o:dia:${hoyCln},pr:f:dia:${hoyCln}`, 'producción: el mismo día le llega la producción de hoy para confirmar ingredientes');
+    && botonesDe(avisoHoy).join() === `pr:o:dia:${hoyCln},pr:f:dia:${hoyCln},pl:${EV_HOY.id}`, 'producción: el mismo día le llega la producción de hoy para confirmar ingredientes, con "Listo para staff"');
 
   reset();
   respuestas = [{ records: [{ ...EV_PROD, fields: { ...EV_PROD.fields, Encargado_Produccion: [CHICA_SIN_TG.id] } }] }, CHICA_SIN_TG, { records: [] }, { records: [] },
@@ -1368,6 +1368,151 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: ZOE_OTRA.id } }, res);
   ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'producción: no se puede poner de encargado a alguien fuera de las opciones');
+
+  // ---------- Equipo de producción, "Listo para staff", etapas del staff y 🆘 SOS (api/_etapas.js) ----------
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }, { records: [GERENTE, ENCARG, CHICA_G] }, {}, { records: [ADMIN_T] }, CHICA_G, { records: [CHICA_G, ENCARG] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id, equipoProduccionIds: [ENCARG.id] } }, res);
+  const patchEquipo = llamadas.find(l => l.method === 'PATCH');
+  const avisoEquipo = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('equipo de producción de EVT-PR2'));
+  ok(res.code === 200 && patchEquipo && JSON.stringify(patchEquipo.body.records[0].fields.Equipo_Produccion) === JSON.stringify([ENCARG.id, CHICA_G.id])
+    && JSON.stringify(res.body.equipoProduccion.enviados) === JSON.stringify(['Lucía']) && res.body.equipoProduccion.fallidos[0].nombre === 'Ana'
+    && avisoEquipo && avisoEquipo.body.text.includes('Tú eres el encargado') && avisoEquipo.body.reply_markup.keyboard[0][0].request_location === true,
+    'etapas: la gerente elige el equipo de producción; el encargado entra solo, le llega su aviso con el botón 🆘 y se reporta a quien no tiene Telegram');
+
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id, equipoProduccionIds: [ZOE_OTRA.id] } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'etapas: no se puede poner en el equipo de producción a alguien fuera de las opciones');
+
+  const ROSA = { id: 'recCOLABROSA00001', fields: { Nombre: 'Rosa', Rol: 'Staff', Activo: true, Coordinadora: [GERENTE.id], Telegram_Chat_ID: '321' } };
+  const EV_ET = { id: 'recEVENTOETAPA001', fields: { Folio_Evento: 'EVT-ET1', Fecha_Evento: hoyCln, Hora_Inicio: '18:00', Ubicacion: 'Las Quintas', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI',
+    Encargado_Produccion: [CHICA_G.id], Equipo_Produccion: [CHICA_G.id], Estatus_Logistico: 'Preparando' } };
+  const EV_ET_LISTO = { ...EV_ET, fields: { ...EV_ET.fields, Produccion_Lista: '2026-11-02T22:00:00.000Z' } };
+  const INV_ROSA = { id: 'recINVITAROSA0001', fields: { Evento: [EV_ET.id], Colaborador: [ROSA.id], Estado: 'Confirmó', Fecha_Evento: hoyCln } };
+  const botonEt = (dato, chatId) => ({ callback_query: { id: 'cbE', data: dato, message: { message_id: 90, chat: { id: chatId, type: 'private' }, text: 'Etapas' } } });
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, EV_ET, {}, { records: [INV_ROSA] }, { records: [ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 555) }, res);
+  const patchListo = llamadas.find(l => l.method === 'PATCH');
+  const etapasRosa = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '321');
+  ok(patchListo && patchListo.body.records[0].fields.Produccion_Lista && patchListo.body.records[0].fields.Produccion_Respuesta.includes('🚀 Lucía: listo para staff')
+    && etapasRosa && etapasRosa.body.text.includes('la producción de EVT-ET1 ya está lista (avisó Lucía)')
+    && etapasRosa.body.reply_markup.inline_keyboard.map(f => f[0].callback_data).join() === [0, 1, 2, 3, 4].map(i => `et:${i}:${EV_ET.id}`).join()
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 555 && t.body.text.includes('Avisaste al staff de EVT-ET1: Rosa')),
+    'etapas: el encargado toca "Listo para staff", queda la hora y al staff confirmado le llegan los botones de sus etapas');
+
+  reset();
+  respuestas = [{ records: [ZOE_OTRA] }, EV_ET];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 557) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Solo el encargado')),
+    'etapas: solo el encargado de producción puede avisar "Listo para staff"');
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, EV_ET_LISTO];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 555) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Ya avisaste al staff')),
+    'etapas: "Listo para staff" no se manda dos veces');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET_LISTO, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  const patchEtapa = llamadas.find(l => l.method === 'PATCH');
+  const editEtapa = telegram.find(t => t.metodo === 'editMessageText');
+  ok(patchEtapa && patchEtapa.body.records[0].fields.Estatus_Logistico === 'Salió del almacén' && patchEtapa.body.records[0].fields.Timestamp_Salida
+    && editEtapa && editEtapa.body.text.includes('lo marcó Rosa') && editEtapa.body.reply_markup.inline_keyboard[0][0].callback_data === `et:1:${EV_ET.id}`,
+    'etapas: el staff marca "Saliendo del almacén", se guarda en el estatus que ve la gerente y le quedan las etapas siguientes');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('espera a que producción avise')),
+    'etapas: el staff no puede marcar etapas antes de que producción avise que está listo');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Estatus_Logistico: 'Llegó al lugar' } }, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:1:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Llegó al lugar')),
+    'etapas: una etapa que ya pasó (la marcó otra del staff) no se regresa');
+
+  reset();
+  respuestas = [{ records: [ZOE_OTRA] }, EV_ET_LISTO, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 557) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('no lo tienes confirmado')),
+    'etapas: quien no confirmó el evento no puede marcar sus etapas');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Checklist_Items: 'Vasos\nFresas', Checklist_Items_Marcados: '[0]' } }, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Faltan artículos')),
+    'etapas: igual que en la app, no se sale del almacén con artículos sin marcar como cargados');
+
+  // Confirmar un evento cuya producción ya está lista: le llegan de una vez sus etapas y el botón 🆘.
+  const INV_ROSA_PEND = { id: 'recINVITAROSA0002', fields: { Evento: [EV_ET.id], Colaborador: [ROSA.id], Invito: [GERENTE.id], Estado: 'Invitada', Fecha_Evento: hoyCln } };
+  reset();
+  respuestas = [{ records: [ROSA] }, INV_ROSA_PEND, EV_ET_LISTO, { records: [] }, { records: [EV_ET_LISTO] }, {}, GERENTE, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`inv:s:${INV_ROSA_PEND.id}`, 321) }, res);
+  const aRosa = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === 321);
+  ok(aRosa.some(t => t.body.reply_markup && t.body.reply_markup.keyboard && t.body.reply_markup.keyboard[0][0].request_location)
+    && aRosa.some(t => t.body.text.includes('ya está lista') && t.body.reply_markup.inline_keyboard[0][0].callback_data === `et:0:${EV_ET.id}`),
+    'etapas: quien confirma después de "Listo para staff" recibe sus botones de etapas y el botón 🆘');
+
+  // 🆘 SOS: el botón de abajo manda la ubicación. Le llega a todo el equipo y el evento de hoy queda en emergencia.
+  const fetchBase = global.fetch;
+  reset();
+  global.fetch = async (url, opts = {}) => {
+    const u = decodeURIComponent(String(url));
+    if (!u.startsWith('https://api.airtable.com/')) return fetchBase(url, opts);
+    llamadas.push({ url: u, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+    const r = opts.method && opts.method !== 'GET' ? {}
+      : u.includes('{Telegram_Chat_ID} = "321"') ? { records: [ROSA] }
+      : u.includes('tblvTVcC3NMt5ddjr') ? { records: [INV_ROSA] }
+      : u.includes('tblzLAin65BZPP2c6') ? { records: [EV_ET_LISTO] }
+      : u.includes('tblHdz4vqUIlIdkwc') ? { records: [ROSA, CHICA_G, ADMIN_T] }
+      : { records: [] };
+    return { ok: true, status: 200, json: async () => r, text: async () => '' };
+  };
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 95, chat: { id: 321, type: 'private' }, location: { latitude: 24.8, longitude: -107.39, horizontal_accuracy: 12 } } } }, res);
+  const marcaSos = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Emergencia);
+  const sosLucia = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('🆘 SOS de Rosa'));
+  ok(marcaSos && marcaSos.body.records[0].id === EV_ET.id && marcaSos.body.records[0].fields.Ubicacion_Alerta === '24.8,-107.39'
+    && sosLucia && sosLucia.body.text.includes('EVT-ET1') && sosLucia.body.text.includes('maps.google.com/?q=24.8,-107.39')
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '111' && t.body.text.includes('🆘 SOS de Rosa'))
+    && !telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '321' && t.body.text.includes('🆘 SOS de Rosa'))
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 321 && t.body.text.startsWith('🆘 Tu SOS ya salió.') && t.body.reply_markup.force_reply)
+    && correos.some(c => String(c.subject).includes('SOS - Rosa')),
+    'sos: con el botón 🆘 la ubicación le llega a todo el equipo (menos a quien lo manda), por correo a Diana y Víctor, y el evento de hoy queda en emergencia');
+
+  reset();
+  const motivoSos = msg('se ponchó la llanta en la Obregón', 321);
+  motivoSos.message.reply_to_message = { from: { is_bot: true }, text: '🆘 Tu SOS ya salió.\nSi puedes, escribe aquí qué está pasando y se lo mando a todos.' };
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: motivoSos }, res);
+  ok(telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('Rosa agrega sobre su SOS (EVT-ET1)') && t.body.text.includes('se ponchó la llanta'))
+    && llamadas.some(l => l.method === 'PATCH' && String(l.body.records[0].fields.Motivo_Emergencia).includes('se ponchó la llanta')),
+    'sos: lo que escribe después le llega a todo el equipo y queda como motivo de la emergencia');
+  global.fetch = fetchBase;
+
+  reset();
+  respuestas = [{ records: [ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/sos', 321) }, res);
+  ok(telegram.some(t => t.metodo === 'sendMessage' && t.body.reply_markup && t.body.reply_markup.keyboard && t.body.reply_markup.keyboard[0][0].request_location)
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.reply_markup && t.body.reply_markup.inline_keyboard && t.body.reply_markup.inline_keyboard[0][0].callback_data === 'sos:x'),
+    'sos: /sos deja el botón 🆘 abajo y ofrece mandarlo sin ubicación');
 
   // ---------- Diana confirma o descarta el cambio del cliente ----------
   const CAMBIO_PEND = { estado: 'pendiente', pedidoEl: '2026-10-29T18:00:00Z', urgente: false, antes: 'Paquete 3', servicios: 'Paquete 5 y 50 raspados',

@@ -28,7 +28,14 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-01 (tarde) · **Rama de trabajo:** `main` (todo publicado; `pie-fotos-genericas` y `portarretratos` ya unidas) · **Producción:** `main` en `743d112` + este cierre. Rama aparte sin publicar: `entrenar-dima`. **369 pruebas pasan.**
+**Actualizado:** 2026-11-02 (noche) · **Rama de trabajo:** `produccion-staff-etapas` (sin publicar; sale de `main` en `976fc33`) · **Producción:** `main` en `976fc33`, sin cambios hoy. Otra rama sin publicar: `entrenar-dima`. **398 pruebas pasan** en la rama.
+
+**Sesión 2026-11-02, rama `produccion-staff-etapas` (para Ángela, El Vaso Maíz). Detalle en `docs/decisiones.md` (2026-11-02):**
+- En "Asignar" (app de la gerente y dashboard de Diana) se elige el **equipo de producción** (1, 2 o más) además del encargado; una persona puede estar en producción y en staff.
+- Solo el encargado tiene **🚀 Listo para staff** (lista del día): al staff confirmado le llegan por Telegram los botones de etapas (Salió del almacén → En camino → Llegó al lugar → Evento en curso → Evento terminado = Cerrado). Cualquiera del staff marca; queda en `Estatus_Logistico` y Ángela lo ve en la app (sin avisos por Telegram).
+- **🆘 SOS** para todos por Telegram (botón fijo con ubicación, `/sos`); mismo aviso que la emergencia de la app (`api/_alertas.js`). Código nuevo: `api/_etapas.js`.
+- **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
+- Al volver: crear los campos → probar en Preview con el teléfono (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot (para que salga `/sos`) → decidir si se manda a todos un mensaje con el botón 🆘 (hoy solo lo reciben al usar `/sos`, confirmar o entrar a producción).
 
 **Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima` (`drive.js` árbol, `lecturas.js`, `mover-carpeta.js`, `bajar-fotos.js`, `probar-promos.js`/`probar-portarretrato.js` para probar la página en Edge con Drive simulado). Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
 

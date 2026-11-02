@@ -585,10 +585,13 @@
   }
 
   // Encargado de producción y su última respuesta.
+  // Con el equipo de producción y si el encargado ya avisó "Listo para staff".
   function lineaProduccion(ev){
-    if(!ev.produccionId) return '';
-    const p = (opcionesProduccion || []).find(x => x.id === ev.produccionId);
-    return `<div class="motivo">🍳 Producción: <b>${esc(p ? p.nombre : 'asignada')}</b> · ${esc(ev.produccionRespuesta || 'todavía no responde')}</div>`;
+    if(!ev.produccionId && !(ev.equipoProduccionIds || []).length) return '';
+    const nombre = (id) => ((opcionesProduccion || []).find(x => x.id === id) || {}).nombre || 'asignado';
+    const equipo = (ev.equipoProduccionIds || []).filter(id => id !== ev.produccionId).map(nombre);
+    const lista = ev.produccionLista ? `🚀 lista para staff desde las ${new Date(ev.produccionLista).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}` : '⏳ aún no avisa que está lista';
+    return `<div class="motivo">🍳 Producción: <b>${esc(ev.produccionId ? nombre(ev.produccionId) : 'sin encargado')}</b>${equipo.length ? ' + ' + esc(equipo.join(', ')) : ''} · ${esc(lista)} · ${esc(ev.produccionRespuesta || 'todavía no responde')}</div>`;
   }
 
   // Plazo de 12 h que DiMa le prometió al cliente.
@@ -879,7 +882,9 @@
           ? encargadas.map(c => `<label class="asig-check"><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${ev.encargadaIds.includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')
           : '<div class="ag-label">No hay encargadas activas en COLABORADORES.</div>'}
         ${ev.vasoMaiz || ev.produccionId ? (opcionesProduccion ? `
-          <label class="ag-label">🍳 Encargado de producción (le llega la lista por Telegram 2 días antes y el mismo día)</label>
+          <label class="ag-label">👩‍🍳 Equipo de producción (1, 2 o más; puede estar también en el staff)</label>
+          ${opcionesProduccion.map(p => `<label class="asig-check"><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
+          <label class="ag-label">🍳 Encargado de producción (entra solo al equipo; le llega la lista por Telegram 2 días antes y el mismo día, y solo esa persona avisa "🚀 Listo para staff")</label>
           <select class="asig-produccion">
             <option value="">Sin encargado de producción</option>
             ${opcionesProduccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
@@ -915,14 +920,19 @@
           brigadaId: caja.querySelector('.asig-brigada').value,
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
           // Solo si está el selector (eventos de El Vaso Maíz y lista leída): si no, no se toca.
-          ...(caja.querySelector('.asig-produccion') ? { produccionId: caja.querySelector('.asig-produccion').value } : {}),
+          ...(caja.querySelector('.asig-produccion') ? {
+            produccionId: caja.querySelector('.asig-produccion').value,
+            equipoProduccionIds: [...caja.querySelectorAll('.asig-equipo:checked')].map(c => c.value),
+          } : {}),
         }),
       });
       delete caja.dataset.sucio;
-      const p = data.produccion;
+      const p = data.produccion, e = data.equipoProduccion;
       msg.textContent = textoAvisosAsignacion(data)
         + (p && p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
-        + (p && p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
+        + (p && p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '')
+        + (e && e.enviados.length ? ` 👩‍🍳 Equipo de producción avisado: ${e.enviados.join(', ')}.` : '')
+        + (e && e.fallidos.length ? ` ⚠️ No le llegó al equipo de producción: ${e.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
       // Si algo no se entregó, el mensaje se queda a la vista (no se repinta).
       if(!(data.erroresAvisos || []).length && !(data.sinTelegram || []).length) setTimeout(loadDashboard, 800);
     } catch(e){

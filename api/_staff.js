@@ -71,6 +71,8 @@ function aEvento(r) {
     instrucciones: f.Instrucciones_Equipo || '',
     piezas: f.Piezas_Vaso_Maiz || 0,
     personal: f.Personal_Requerido || 0,
+    // Hora en que el encargado de producción tocó "Listo para staff" (api/_etapas.js).
+    produccionLista: f.Produccion_Lista || '',
   };
 }
 
@@ -436,6 +438,8 @@ async function responderInvitacion(colaborador, invitacionId, si) {
   }
 
   return {
+    // Si la producción ya estaba lista, telegram.js le manda de una vez sus botones de etapas.
+    eventoConfirmado: si ? ev : null,
     aviso: si ? '¡Gracias! Quedó confirmado.' : 'Gracias por avisar.',
     textoFinal: si ? '✅ Confirmaste. ¡Gracias! Lo verás en /eventos.' : '❌ Respondiste que no puedes. ¡Gracias por avisar!',
   };

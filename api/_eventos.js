@@ -63,6 +63,9 @@ function formatearEvento(r) {
     // Encargado de producción de El Vaso Maíz y su última respuesta (api/_produccion.js).
     produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
     produccionRespuesta: (r.fields.Produccion_Respuesta || '').trim().split('\n').pop() || '',
+    // Equipo de producción y hora en que el encargado avisó "Listo para staff" (api/_etapas.js).
+    equipoProduccionIds: r.fields.Equipo_Produccion || [],
+    produccionLista: r.fields.Produccion_Lista || '',
     // Cambio que pidió el cliente (pendiente o ya confirmado por Diana), sin montos.
     cambio: cambioParaApp(r.fields.Cambio_Cliente),
     fecha: r.fields.Fecha_Evento || '',
