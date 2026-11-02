@@ -758,6 +758,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patchMsg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && patchMsg.Mensaje_Para_Cliente === 'Sí llegamos, traslado $500' && patchMsg.Mensaje_Cliente_Entregado === false, 'dashboard: Diana deja un mensaje para el cliente');
 
+  // ✏️ Editar evento y cliente a mano (sin fecha ni lugar nuevos no se toca Google).
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Cliente: ['recCLIENTE0000009'] } }, {}, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'editar', clienteNombre: 'Rosa Pérez', clienteTelefono: '667 123 4567', clienteEmail: 'rosa@correo.com', invitados: '80', fueraDeCiudad: false } }, res);
+  const patches = llamadas.filter(l => l.method === 'PATCH');
+  const patchCli = patches.find(l => l.url.includes('tblgViisKQRG9TVjh')).body.records[0];
+  const patchEv = patches.find(l => l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(res.code === 200 && patchCli.id === 'recCLIENTE0000009' && patchCli.fields.Telefono_WhatsApp === '+526671234567' && patchCli.fields.Nombre === 'Rosa Pérez' && patchEv.Invitados === 80 && patchEv.Fuera_De_Ciudad === false && !('Ubicacion' in patchEv), 'dashboard: Diana edita teléfono, nombre e invitados del evento a mano');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'editar', clienteTelefono: '12345' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH' || l.method === 'POST'), 'dashboard: teléfono incompleto no se guarda');
+
   reset();
   respuestas = [{ records: [{ id: 'recEVENTO00000001', fields: { Mensaje_Para_Cliente: 'Sí llegamos, traslado $500' } }] }, {}];
   res = await chat({ accion: 'revisar', folio: 'EVT-123456', folioFirma: firmar('EVT-123456') });
