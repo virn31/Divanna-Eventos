@@ -350,3 +350,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** el 2-nov las fotos de comandas dejaron de leerse y el bot solo decía "intenta más tarde"; en los logs el motivo real era falta de saldo. Nadie se entera hasta que alguien se queja, y mientras tanto tampoco cotiza el chat de la página.
 
 **Descartado:** guardar la hora del último aviso en Airtable (una escritura más por cada falla; el aviso por instancia basta); avisar también a la gerente (no maneja la cuenta). La solución de fondo es activar la recarga automática en console.anthropic.com.
+
+## 2026-11-02 — Comanda por Telegram: se guarda sin la forma de pago del anticipo
+
+**Decisión:** en Telegram el botón ✅ Guardar evento ya no espera la forma de pago del anticipo. Si la comanda no la dice, el evento se guarda sin registrar el cobro y el anticipo queda en las notas del evento ("falta registrarlo en la app con 💵 Registrar pago"); el recibo sale cuando se registre en la app. DiMa ya no pone la forma de pago en "dudas". En el formulario de la app se sigue pidiendo.
+
+**Por qué:** Víctor: "me pregunta el anticipo como fue si deposito efectivo o transferencia, eso no importa en ese momento, eso se hace en la apk". Sin la forma solo salía Descartar y había que mandar una corrección (otra llamada a Claude) solo para eso.
+
+**Descartado:** registrar el cobro con forma vacía (el cuadre separa efectivo de transferencia y quedaría un cobro sin clasificar).

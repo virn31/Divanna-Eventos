@@ -2389,6 +2389,33 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && telegram.filter(t => t.metodo === 'sendMessage').pop().body.text.includes('✅ Evento'),
       'comanda: al tocar Guardar crea el evento autorizado, el anticipo y le pega la foto');
 
+    // Sin forma de pago del anticipo: en Telegram igual sale ✅ Guardar (la forma se registra en la app).
+    reset();
+    respuestas = [{ records: [DIANA_TG] }, { records: [{ id: 'recCOMANDA0000002' }] }, {}];
+    respuestasClaude = claudeLee();
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 30, chat: { id: 111, type: 'private' }, photo: [{ file_id: 'grande' }] } } }, res);
+    const borradorSinForma = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    ok(JSON.stringify(borradorSinForma.body.reply_markup).includes('cm:g:recCOMANDA0000002') && !borradorSinForma.body.text.includes('cómo pagó')
+      && llamadasClaude[0].system.includes('NO lo pongas en "dudas"'),
+      'comanda: en Telegram sale Guardar aunque no diga cómo se pagó el anticipo');
+
+    // Guardar sin forma: se crea el evento, no se registra cobro y el anticipo queda anotado para la app.
+    const DATOS_SIN_FORMA = require(path.join(repo, 'api/_comanda.js')).aCaptura(LEIDA);
+    reset();
+    respuestas = [{ records: [DIANA_TG] },
+      { id: 'recCOMANDA0000002', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_SIN_FORMA) } },
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND2', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00002' }] },
+      { id: 'recEVCOMANDA00002', fields: { Folio_Evento: 'EVT-CMD2', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb10', data: 'cm:g:recCOMANDA0000002', message: { message_id: 31, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
+    const evSinForma = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+    const finalSinForma = telegram.filter(t => t.metodo === 'sendMessage').pop().body.text;
+    ok(evSinForma.Autorizacion_Diana === 'SI' && evSinForma.Notas.includes('Anticipo según la comanda: $500')
+      && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'))
+      && finalSinForma.includes('✅ Evento') && finalSinForma.includes('Registrar pago'),
+      'comanda: Guardar sin forma de pago crea el evento y deja el anticipo para registrarlo en la app');
+
     reset();
     respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
     res = resMock();
