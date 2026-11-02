@@ -14,6 +14,7 @@ const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
   BRIGADAS: 'tblwqJrIaC1MsMGNL',
   EVENTOS: 'tblzLAin65BZPP2c6',
+  CLIENTES: 'tblgViisKQRG9TVjh',
 };
 // Vínculo inverso COLABORADORES -> EVENTOS (lado del campo EVENTOS.Encargada).
 const CAMPO_EVENTOS_DE_ENCARGADA = 'fld52PrtsNA4CnRw2';
@@ -135,6 +136,19 @@ async function alcanceBase(colaborador) {
   };
 }
 
+// Nombre, teléfono y correo de los clientes de los eventos (de 90 en 90 por el
+// máximo de 100 registros por página de Airtable).
+async function clientesDe(registros) {
+  const ids = [...new Set(registros.map(r => (r.fields.Cliente || [])[0]).filter(Boolean))];
+  const mapa = {};
+  for (let i = 0; i < ids.length; i += 90) {
+    const formula = encodeURIComponent(`OR(${ids.slice(i, i + 90).map(id => `RECORD_ID()="${id}"`).join(',')})`);
+    const data = await airtableGet(`${TABLES.CLIENTES}?filterByFormula=${formula}&fields%5B%5D=Nombre&fields%5B%5D=Telefono_WhatsApp&fields%5B%5D=Email`);
+    data.records.forEach(c => { mapa[c.id] = c.fields; });
+  }
+  return mapa;
+}
+
 // Eventos activos (no cerrados) de una lista de IDs, o de todos si ids = null.
 // soloHoy limita a los de la fecha de hoy en Culiacán. conDinero agrega a cada
 // evento su dinero (total, pagado, falta, cargos extra) y el cliente: solo para
@@ -149,6 +163,15 @@ async function leerEventos(ids, { soloHoy = false, conDinero = false } = {}) {
     `${TABLES.EVENTOS}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc`
   );
   const eventos = data.records.map(formatearEvento);
+  // Todos ven nombre, teléfono y correo del cliente: el encargado lo atiende de
+  // principio a fin. Si no se puede leer, la app sigue sin esos datos.
+  const clientes = await clientesDe(data.records).catch(err => { console.error('No se pudieron leer los clientes:', err.message); return {}; });
+  eventos.forEach((ev, i) => {
+    const c = clientes[(data.records[i].fields.Cliente || [])[0]] || {};
+    ev.clienteNombre = c.Nombre || '';
+    ev.clienteTelefono = c.Telefono_WhatsApp || '';
+    ev.clienteEmail = c.Email || '';
+  });
   if (conDinero && eventos.length) {
     // Si no se puede leer el dinero, la app sigue con los eventos y lo dice.
     const dinero = await dineroParaApp(data.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });

@@ -571,6 +571,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       Cargos_Extra: JSON.stringify([{ id: 'c1', descripcion: 'Silla Tiffany', cantidad: 2, precio: 150, total: 300, porId: LIDER.id, por: 'Juan' }]) } };
     reset();
     respuestas = [LIDER, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] },
+      { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Perla', Telefono_WhatsApp: '+526671234567', Email: 'perla@correo.com' } }] },
       { records: [{ id: 'recCOBRODIN00001', fields: { Evento: [EV_DIN.id], Monto: 2000, Forma: 'Efectivo', Fecha: '2026-10-30', Recibido_Por: 'Diana' } }] },
       { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Perla', Telefono_WhatsApp: '+526671234567' } }] }];
     res = resMock();
@@ -578,6 +579,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const din = res.body.eventos[0].dinero;
     ok(res.code === 200 && res.body.colaborador.veDinero && din.total === 5300 && din.pagado === 2000 && din.resta === 3300 && din.cliente === 'Perla' && din.telefono === '6671234567' && din.cargosExtra[0].total === 300,
       'dinero: el líder ve total (con daños), pagado, lo que falta y el cliente de su evento');
+    ok(res.body.eventos[0].clienteTelefono === '+526671234567' && res.body.eventos[0].clienteNombre === 'Perla' && res.body.eventos[0].clienteEmail === 'perla@correo.com',
+      'app: el encargado ve nombre, teléfono y correo del cliente de su evento');
 
     reset();
     respuestas = [ASIST, { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Edén', EVENTOS: [EV_DIN.id] } }, { records: [] }, { records: [EV_DIN] }];
@@ -757,6 +760,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'mensaje_cliente', mensaje: 'Sí llegamos, traslado $500' } }, res);
   const patchMsg = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && patchMsg.Mensaje_Para_Cliente === 'Sí llegamos, traslado $500' && patchMsg.Mensaje_Cliente_Entregado === false, 'dashboard: Diana deja un mensaje para el cliente');
+
+  // ✏️ Editar evento y cliente a mano (sin fecha ni lugar nuevos no se toca Google).
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Cliente: ['recCLIENTE0000009'] } }, {}, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'editar', clienteNombre: 'Rosa Pérez', clienteTelefono: '667 123 4567', clienteEmail: 'rosa@correo.com', invitados: '80', fueraDeCiudad: false } }, res);
+  const patches = llamadas.filter(l => l.method === 'PATCH');
+  const patchCli = patches.find(l => l.url.includes('tblgViisKQRG9TVjh')).body.records[0];
+  const patchEv = patches.find(l => l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
+  ok(res.code === 200 && patchCli.id === 'recCLIENTE0000009' && patchCli.fields.Telefono_WhatsApp === '+526671234567' && patchCli.fields.Nombre === 'Rosa Pérez' && patchEv.Invitados === 80 && patchEv.Fuera_De_Ciudad === false && !('Ubicacion' in patchEv), 'dashboard: Diana edita teléfono, nombre e invitados del evento a mano');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'editar', clienteTelefono: '12345' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH' || l.method === 'POST'), 'dashboard: teléfono incompleto no se guarda');
 
   reset();
   respuestas = [{ records: [{ id: 'recEVENTO00000001', fields: { Mensaje_Para_Cliente: 'Sí llegamos, traslado $500' } }] }, {}];
@@ -1261,6 +1279,17 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_STAFF.id, accion: 'invitar_staff', colaboradorIds: [] } }, res);
   ok(res.code === 400 && !telegram.length, 'gerente: invitar sin elegir a nadie no manda nada');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000DV01', fields: { Folio_Evento: 'EVT-DV1', Negocio: 'Divanna Eventos', Cliente: ['recCLIENTE0000009'] } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000DV01', accion: 'editar', clienteTelefono: '6671234567' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'gerente: no edita eventos que no son de El Vaso Maíz');
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Cliente: ['recCLIENTE0000009'] } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM01', accion: 'editar', clienteTelefono: '6671234567' } }, res);
+  ok(res.code === 200 && llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Telefono_WhatsApp === '+526671234567', 'gerente: edita el teléfono del cliente en un evento de El Vaso Maíz');
 
   // ---------- Encargado de producción de El Vaso Maíz ----------
   const hoyCln = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());

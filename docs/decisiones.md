@@ -396,3 +396,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Decisión:** los manteles quedan 24 h en lavado después de las 12 del día siguiente al evento (`HORAS_LAVADO_MANTEL = 24`). Ej.: evento el sábado → disponibles el lunes a las 12. Al marcar la recolección se liberan igual que el mobiliario.
 
 **Por qué:** Víctor: "los manteles déjalos en 24 horas de lavado" (antes 48 h; en el cambio anterior quedaron en 0).
+
+## 2026-11-02 — Teléfono del cliente para todos y ✏️ Editar evento
+
+**Decisión:** en la app todos los roles ven nombre, teléfono (toca para llamar) y correo del cliente de sus eventos (`api/_eventos.js`, `bloqueCliente`). Diana y Víctor (dashboard) y la gerente de El Vaso Maíz (solo eventos de El Vaso Maíz) tienen **✏️ Editar evento y cliente**: nombre, teléfono, correo, ubicación, fecha, invitados y fuera de la ciudad (`accion: 'editar'` en `api/dashboard-eventos.js`). Fecha o lugar nuevos se pasan a Google Calendar.
+
+**Por qué:** Víctor: "cada encargado de brigada se contactará con el cliente de principio a fin"; los datos llegaban incompletos y no había cómo corregirlos a mano.
+
+**Alternativa:** dejar el teléfono solo a quien cobra (`veDinero`). Ojo: nombre/teléfono/correo son del registro de CLIENTES; cambiarlos en un evento los cambia en todos los eventos de ese cliente.
