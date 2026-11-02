@@ -405,9 +405,21 @@ const ACCIONES_CALENDARIO = {
   calendario_sincronizar: C.sincronizarPendientes,
   capturar_evento: capturarConFoto,
   leer_comanda: Comanda.leerParaFormulario,
+  falla_foto: fallaFoto,
   enviar_recibo: reciboAPeticion,
   registrar_pago: pagoAPeticion,
 };
+
+// 📷 El teléfono no pudo abrir o mandar la foto de una comanda: solo se anota en
+// los registros de Vercel para saber qué falla (tipo de foto, teléfono, etapa).
+async function fallaFoto(colaborador, body) {
+  const a = body.archivo || {};
+  console.error('Comanda por foto falló en el teléfono:', JSON.stringify({
+    quien: colaborador.nombre, etapa: String(body.etapa || '').slice(0, 20), detalle: String(body.detalle || '').slice(0, 500),
+    tipo: String(a.tipo || '').slice(0, 40), tamano: Number(a.tamano) || 0, navegador: String(body.navegador || '').slice(0, 160),
+  }));
+  return { ok: true };
+}
 
 // ➕ Capturar evento; si vino de una foto de comanda, la foto se adjunta al evento.
 async function capturarConFoto(colaborador, body) {

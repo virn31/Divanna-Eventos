@@ -2337,6 +2337,29 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(doble.length === 1 && doble[0].clave === 'dv_mesa_mantel' && conExtra.find(p => p.clave === 'dv_mantel').cantidad === 2,
       'comanda: los manteles de las mesas no se cuentan otra vez como "Mantel extra"');
 
+    // Claude saturado: se reintenta y la foto se lee igual.
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = [Object.assign(new Error('Overloaded'), { status: 529 }), ...claudeLee()];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    ok(res.code === 200 && llamadasClaude.length === 2 && res.body.datos.clienteNombre === 'Perla Ayon', 'comanda: si Claude está saturado se reintenta y la foto se lee');
+
+    // Un error que no es pasajero no se reintenta y el teléfono recibe un mensaje claro (no "Error interno").
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = [Object.assign(new Error('invalid image'), { status: 400 })];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
+    ok(res.code === 502 && llamadasClaude.length === 1 && /no pudo leer la foto/.test(res.body.error), 'comanda: si Claude falla, la app recibe un mensaje claro y no se reintenta un error de la petición');
+
+    // Las fallas del teléfono (no pudo abrir o mandar la foto) se anotan y contestan 200.
+    reset();
+    respuestas = [ADMIN];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'falla_foto', etapa: 'abrir', detalle: 'conBitmap: x', archivo: { tipo: 'image/heic', tamano: 1 } } }, res);
+    ok(res.code === 200 && llamadasClaude.length === 0, 'comanda: el teléfono puede reportar que no pudo abrir la foto');
+
     reset();
     respuestas = [ADMIN];
     respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'No se sabe' });

@@ -366,3 +366,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** un recibo salió con 20 manteles en vez de 10: en la comanda se escribió "10" en el espacio de Mantel y DiMa lo sumó como "Mantel extra" encima de las 10 mesas con mantel. Víctor: "en el área de mantel debe decir el tipo y color no el número de manteles".
 
 **Descartado:** contar manteles aparte de las mesas (se duplican con las mesas y paquetes que ya los traen).
+
+## 2026-11-02 — Comanda por foto: que no se caiga al abrir o mandar la foto
+
+**Decisión:** en la app la foto se prepara por tres caminos (createImageBitmap → <img> → la foto tal cual si es JPG/PNG/WebP de menos de 3 MB) y se manda con límite de 70 s y un reintento si se cae la señal o el servidor da 5xx. Lo que falla en el teléfono se anota en los registros de Vercel (`accion: falla_foto`). En el servidor, Claude tiene un límite de 50 s (Vercel corta a los 60) y se reintenta si la falla es pasajera (529, 5xx, red); si no se puede leer, la app y Telegram reciben un mensaje claro y Diana y Víctor un aviso por Telegram (máx. uno por hora). Imágenes mandadas como archivo en formato que Claude no lee (HEIC) se rechazan con explicación.
+
+**Por qué:** Víctor: "la apk me dice que no puede leer la foto… que se mantenga siempre funcional". En los registros no llegó ninguna foto al servidor: fallaba en el teléfono (Android 10) antes de mandarla, y el mensaje genérico no decía por qué.
+
+**Descartado:** subir la foto original sin achicar (fotos de cámara pasan el límite de 4.5 MB de Vercel).

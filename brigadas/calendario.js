@@ -202,22 +202,78 @@ window.DimaCalendario = (function(){
     caja.querySelector('#calNFoto').addEventListener('change', (ev) => leerFoto(ev.target.files[0]));
   }
 
-  // 📷 Foto de la comanda: se achica en el teléfono, DiMa la lee y llena el formulario.
+  // 📷 Foto de la comanda: se achica en el teléfono (máx. 1600 px, JPG), DiMa la lee y llena el formulario.
+  // En Android a veces no se puede abrir la foto (fotos enormes de la cámara, poca memoria,
+  // formatos raros), por eso hay tres caminos: createImageBitmap → <img> → la foto tal cual.
   let fotoComanda = null;
-  function achicar(archivo){
+  const MAX_LADO = 1600, MAX_ENVIO = 3 * 1024 * 1024; // Vercel acepta hasta 4.5 MB por petición
+  function aJpeg(fuente, ancho, alto){
+    const escala = Math.min(1, MAX_LADO / Math.max(ancho, alto));
+    const lienzo = document.createElement('canvas');
+    lienzo.width = Math.max(1, Math.round(ancho * escala)); lienzo.height = Math.max(1, Math.round(alto * escala));
+    lienzo.getContext('2d').drawImage(fuente, 0, 0, lienzo.width, lienzo.height);
+    for(const calidad of [0.85, 0.7, 0.55]){
+      const base64 = lienzo.toDataURL('image/jpeg', calidad).split(',')[1] || '';
+      if(base64.length > 1000 && base64.length * 0.75 <= MAX_ENVIO) return { base64, tipo: 'image/jpeg', nombre: 'comanda.jpg' };
+    }
+    throw new Error('el lienzo salió vacío');
+  }
+  async function conBitmap(archivo){
+    if(!window.createImageBitmap) throw new Error('sin createImageBitmap');
+    const bm = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+    try { return aJpeg(bm, bm.width, bm.height); } finally { if(bm.close) bm.close(); }
+  }
+  function conImagen(archivo){
     return new Promise((ok, mal) => {
       const img = new Image();
-      img.onload = () => {
-        const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
-        const lienzo = document.createElement('canvas');
-        lienzo.width = Math.round(img.width * escala); lienzo.height = Math.round(img.height * escala);
-        lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
-        URL.revokeObjectURL(img.src);
-        ok({ base64: lienzo.toDataURL('image/jpeg', 0.85).split(',')[1], tipo: 'image/jpeg', nombre: 'comanda.jpg' });
-      };
-      img.onerror = () => mal(new Error('No pude abrir la foto.'));
-      img.src = URL.createObjectURL(archivo);
+      const url = URL.createObjectURL(archivo);
+      img.onload = () => { try { ok(aJpeg(img, img.naturalWidth, img.naturalHeight)); } catch(err){ mal(err); } finally { URL.revokeObjectURL(url); } };
+      img.onerror = () => { URL.revokeObjectURL(url); mal(new Error('el navegador no pudo abrirla')); };
+      img.src = url;
     });
+  }
+  function talCual(archivo){
+    return new Promise((ok, mal) => {
+      if(!/^image\/(jpeg|png|webp)$/.test(archivo.type) || archivo.size > MAX_ENVIO) return mal(new Error('formato o tamaño no aceptado'));
+      const lector = new FileReader();
+      lector.onload = () => ok({ base64: String(lector.result).split(',')[1] || '', tipo: archivo.type, nombre: archivo.name || 'comanda.jpg' });
+      lector.onerror = () => mal(new Error('no se pudo leer el archivo'));
+      lector.readAsDataURL(archivo);
+    });
+  }
+  async function achicar(archivo){
+    if(!archivo.size) throw new Error('La foto llegó vacía. Vuelve a tomarla, o tómala con la cámara y elígela de la galería.');
+    const fallas = [];
+    for(const camino of [conBitmap, conImagen, talCual]){
+      try { return await camino(archivo); } catch(err){ fallas.push(camino.name + ': ' + (err && err.message)); }
+    }
+    reportarFalla('abrir', fallas.join(' | '), archivo);
+    if(/hei[cf]/i.test(archivo.type + archivo.name)) throw new Error('La foto está en formato HEIC y no la puedo abrir. Ponle a la cámara formato JPG, o mándala por Telegram como foto.');
+    throw new Error('No pude abrir la foto en este teléfono. Toma una captura de pantalla de la foto y elige la captura, o mándala por Telegram.');
+  }
+  // Las fallas del teléfono se anotan en los registros del servidor para poder corregirlas.
+  function reportarFalla(etapa, detalle, archivo){
+    post({ accion: 'falla_foto', etapa, detalle: String(detalle).slice(0, 500),
+      archivo: archivo ? { tipo: archivo.type, tamano: archivo.size } : null, navegador: navigator.userAgent.slice(0, 160) }).catch(() => {});
+  }
+  // Manda la foto; si se cae la señal o el servidor tarda, lo intenta una vez más.
+  async function mandarFoto(foto, msg){
+    for(let intento = 1; ; intento++){
+      try {
+        return await post({ accion: 'leer_comanda', imagen: foto }, { signal: AbortSignal.timeout ? AbortSignal.timeout(70000) : undefined });
+      } catch(err){
+        const red = err instanceof TypeError || (err && (err.name === 'TimeoutError' || err.name === 'AbortError' || err.status >= 500));
+        if(!red || err.message === 'sesion') throw err;
+        if(intento >= 2){
+          reportarFalla('mandar', (err.name || '') + ' ' + (err.status || '') + ' ' + err.message);
+          if(err.status >= 500 && err.message && err.message !== 'fail') throw err;
+          throw new Error(err.name === 'TimeoutError' || err.name === 'AbortError'
+            ? 'DiMa tardó demasiado en leer la foto. Intenta de nuevo en un minuto.'
+            : 'Se cortó la conexión al mandar la foto. Revisa tu señal e intenta de nuevo.');
+        }
+        msg.textContent = '📶 No se pudo mandar la foto, lo intento otra vez…';
+      }
+    }
   }
   async function leerFoto(archivo){
     const e = o.esc;
@@ -226,7 +282,7 @@ window.DimaCalendario = (function(){
     msg.textContent = '📷 DiMa está leyendo la comanda… (unos segundos)';
     try {
       const foto = await achicar(archivo);
-      const r = await post({ accion: 'leer_comanda', imagen: foto });
+      const r = await mandarFoto(foto, msg);
       const d = r.datos;
       const poner = (id, valor) => { const el = panel.querySelector('#' + id); if(el && valor !== '' && valor != null) el.value = valor; };
       poner('calNNombre', d.clienteNombre); poner('calNTel', d.clienteTelefono); poner('calNFecha', d.fecha); poner('calNHora', d.hora);
@@ -279,8 +335,8 @@ window.DimaCalendario = (function(){
     }
   }
 
-  async function post(cuerpo){
-    return o.api('/api/dashboard-eventos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+  async function post(cuerpo, extra = {}){
+    return o.api('/api/dashboard-eventos', { ...extra, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
   }
 
   async function clic(ev){

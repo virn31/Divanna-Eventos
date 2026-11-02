@@ -419,7 +419,12 @@
       cerrarSesion(data.error || 'Tu sesión expiró, vuelve a entrar.');
       throw new Error('sesion');
     }
-    if(!res.ok) throw new Error(data.error || 'fail');
+    if(!res.ok){
+      // Sin JSON (413, 504 de Vercel…) el mensaje sale del código de estado.
+      const err = new Error(data.error || (res.status === 413 ? 'La foto pesa demasiado para mandarla.' : res.status >= 500 ? 'El servidor no respondió bien, intenta de nuevo.' : 'fail'));
+      err.status = res.status;
+      throw err;
+    }
     return data;
   }
 

@@ -288,7 +288,11 @@
     });
     const data = await res.json().catch(() => ({}));
     if(res.status === 401 || res.status === 403){ salir(); throw new Error('sesion'); }
-    if(!res.ok) throw new Error(data.error || 'Error');
+    if(!res.ok){
+      const err = new Error(data.error || (res.status === 413 ? 'La foto pesa demasiado para mandarla.' : res.status >= 500 ? 'El servidor no respondió bien, intenta de nuevo.' : 'Error'));
+      err.status = res.status;
+      throw err;
+    }
     return data;
   }
 

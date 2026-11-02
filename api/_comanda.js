@@ -15,7 +15,7 @@ const { Anthropic } = require('@anthropic-ai/sdk');
 const { PRODUCTOS, CLAVES } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
 const { ROLES } = require('./_sesion');
-const { telegramApi } = require('./_telegram');
+const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
 
 const MODELO = 'claude-sonnet-5-5';
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -26,6 +26,42 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const MARCA = '🧾 Comanda leída';
 
 const client = new Anthropic();
+
+// Vercel corta la función a los 60 s (vercel.json). La llamada a Claude tiene que
+// terminar antes para contestar un mensaje claro y no un 504 sin explicación.
+// Si Claude falla por algo pasajero (saturado, 5xx, red), se reintenta mientras
+// quede tiempo; un error de la petición (400, sin saldo) no se reintenta.
+const LIMITE_CLAUDE_MS = 50000;
+async function llamarClaude(params) {
+  const inicio = Date.now();
+  for (let intento = 1; ; intento++) {
+    const resta = LIMITE_CLAUDE_MS - (Date.now() - inicio);
+    try {
+      return await client.beta.messages.create(params, { timeout: resta, maxRetries: 0 });
+    } catch (err) {
+      const pasajero = !err.status || err.status === 408 || err.status === 429 || err.status >= 500;
+      if (!pasajero || intento >= 3 || LIMITE_CLAUDE_MS - (Date.now() - inicio) < 20000) throw err;
+      console.error(`Comanda: Claude falló (intento ${intento}), reintento:`, err.status || '', err.message);
+      await new Promise(r => setTimeout(r, 800 * intento));
+    }
+  }
+}
+
+// Si leer comandas deja de funcionar, Diana y Víctor se enteran por Telegram
+// (máximo un aviso por hora por instancia). Nunca lanza error.
+let ultimoAvisoFalla = 0;
+async function avisarFalla(origen, err) {
+  console.error(`Comanda: no se pudo leer (${origen}):`, err && (err.status || ''), err && err.message);
+  if (Date.now() - ultimoAvisoFalla < 60 * 60 * 1000) return;
+  ultimoAvisoFalla = Date.now();
+  await enviarTelegramEquipo({
+    roles: [ROLES.ADMIN],
+    texto: `⚠️ Falló la lectura de una comanda por foto (${origen}).
+Detalle: ${String((err && err.message) || err).slice(0, 300)}
+
+Si se repite, revisen los registros de Vercel.`,
+  }).catch(e => console.error('No se pudo avisar la falla de comandas:', e.message));
+}
 
 async function airtable(path, options = {}) {
   const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${path}`, {
@@ -179,7 +215,7 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '' })
   if (previo) texto += `\nLo que ya habías leído (JSON): ${JSON.stringify(previo).slice(0, 6000)}`;
   if (correccion) texto += `\nCorrección de Diana (tiene prioridad sobre lo leído): ${String(correccion).slice(0, 1000)}\nDevuelve todos los datos ya corregidos; quita de "dudas" lo que la corrección resolvió.`;
   contenido.push({ type: 'text', text: texto });
-  const respuesta = await client.beta.messages.create({
+  const respuesta = await llamarClaude({
     model: MODELO,
     max_tokens: 4000,
     output_config: { effort: 'medium' },
@@ -200,7 +236,14 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '' })
 async function leerParaFormulario(colaborador, body) {
   if (!puedeLeer(colaborador)) return { error: 'Solo Diana, Víctor y la gerente capturan eventos.', codigo: 403 };
   if (!fotoValida(body.imagen)) return { error: 'Manda una foto (JPG o PNG) de menos de 5 MB.' };
-  const r = await leer({ foto: body.imagen, pista: body.pista });
+  let r;
+  try {
+    r = await leer({ foto: body.imagen, pista: body.pista });
+  } catch (err) {
+    if (esSinSaldo(err)) throw err; // dashboard-eventos avisa y contesta el mensaje de saldo
+    await avisarFalla('app', err);
+    return { error: 'DiMa no pudo leer la foto en este momento. Intenta de nuevo en un minuto; si sigue, llena el formulario a mano.', codigo: 502 };
+  }
   if (r.error) return r;
   if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz.');
   return { ok: true, datos: r.datos, faltan: faltantes(r.datos) };
@@ -245,6 +288,7 @@ async function descargarFotoTelegram(mensaje) {
   const doc = mensaje.document && /^image\//.test(mensaje.document.mime_type || '') ? mensaje.document : null;
   const foto = doc || (mensaje.photo || []).slice(-1)[0];
   if (!foto) return null;
+  if (doc && !/^image\/(jpeg|png|webp)$/.test(doc.mime_type)) throw new Error('viene como archivo en un formato que no leo. Mándala como foto (con el ícono de la cámara o la galería), no como archivo.');
   if (foto.file_size && foto.file_size > MAX_BYTES) throw new Error('La foto pesa más de 5 MB.');
   const info = await telegramApi('getFile', { file_id: foto.file_id });
   const ruta = info.data && info.data.result && info.data.result.file_path;
@@ -267,7 +311,14 @@ async function atenderFoto(mensaje, colaborador) {
   let foto;
   try { foto = await descargarFotoTelegram(mensaje); } catch (err) { return { texto: `No pude abrir la foto: ${err.message}` }; }
   if (!foto) return { texto: 'No encontré la foto. Mándala otra vez, por favor.' };
-  const r = await leer({ foto, pista: mensaje.caption || '' });
+  let r;
+  try {
+    r = await leer({ foto, pista: mensaje.caption || '' });
+  } catch (err) {
+    if (esSinSaldo(err)) throw err; // telegram.js avisa y contesta el mensaje de saldo
+    await avisarFalla('Telegram', err);
+    return { texto: 'No pude leer la comanda en este momento. Mándala otra vez en un minuto; si sigue, captúrala en la app.' };
+  }
   if (r.error) return { texto: r.error };
   if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz (corrígelo si es de El Vaso Maíz).');
   const creado = await airtable(TABLA, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
@@ -332,4 +383,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
 }
 
-module.exports = { HERRAMIENTA, leer, aCaptura, sinMantelesDobles, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };
+module.exports = { HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };
