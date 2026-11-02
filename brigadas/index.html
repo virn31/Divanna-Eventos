@@ -194,6 +194,10 @@
   .asignar-box label{display:flex; align-items:center; gap:8px; margin-top:8px;}
   .asignar-box .asig-guardar{width:100%; margin-top:10px; padding:11px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
   .asignar-box .asig-msg{margin-top:8px; color:var(--muted); font-size:0.8rem;}
+  .asignar-box input:not([type=checkbox]), .asignar-box textarea{width:100%; margin-top:4px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .editar-box .ed-label{display:block; margin-top:10px; color:var(--muted); font-size:0.78rem;}
+  .cliente-box{margin-top:12px; padding:10px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.9rem; display:flex; flex-wrap:wrap; gap:6px 14px;}
+  .cliente-box a{color:var(--maiz); font-weight:800; text-decoration:none;}
 
   /* ---------- CANAL CON DiMa (gerente) ---------- */
   .dima-fab{
@@ -454,6 +458,71 @@
       </details>`;
   }
 
+  // 👤 Cliente del evento: todos lo ven (el encargado lo atiende de principio a fin).
+  function bloqueCliente(ev){
+    const dig = String(ev.clienteTelefono || '').replace(/\D/g, '');
+    return `<div class="cliente-box">
+        <span>👤 <b>${esc(ev.clienteNombre || 'Cliente sin nombre')}</b></span>
+        <span>📞 ${dig ? `<a href="tel:+${dig}">${esc(ev.clienteTelefono)}</a>` : 'sin teléfono'}</span>
+        ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
+      </div>`;
+  }
+
+  // ✏️ Editar evento y cliente (solo la gerente, en eventos de El Vaso Maíz).
+  function bloqueEditar(ev){
+    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
+    return `
+      <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
+        <summary>✏️ Editar evento y cliente</summary>
+        <label class="ed-label">Nombre del cliente</label>
+        <input type="text" class="ed-nombre" maxlength="200" value="${esc(ev.clienteNombre)}">
+        <label class="ed-label">Teléfono (10 dígitos)</label>
+        <input type="tel" class="ed-tel" inputmode="tel" maxlength="20" placeholder="6671234567" value="${esc(tel)}">
+        <label class="ed-label">Correo</label>
+        <input type="email" class="ed-email" maxlength="200" value="${esc(ev.clienteEmail)}">
+        <label class="ed-label">Ubicación / dirección del evento</label>
+        <textarea class="ed-ubicacion" maxlength="500" rows="2">${esc(ev.ubicacion)}</textarea>
+        <label class="ed-label">Fecha</label>
+        <input type="date" class="ed-fecha" value="${esc(String(ev.fecha || '').slice(0, 10))}">
+        <label class="ed-label">Invitados</label>
+        <input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${ev.invitados ? esc(ev.invitados) : ''}">
+        <label><input type="checkbox" class="ed-fuera" ${ev.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <button class="asig-guardar ed-guardar" data-evento="${esc(ev.id)}">Guardar cambios</button>
+        <div class="asig-msg ed-msg"></div>
+      </details>`;
+  }
+
+  async function guardarEdicion(btn){
+    const caja = btn.closest('.editar-box');
+    const msg = caja.querySelector('.ed-msg');
+    const v = sel => caja.querySelector(sel).value.trim();
+    if(!v('.ed-fecha')){ msg.textContent = 'Falta la fecha.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.evento, accion: 'editar',
+          clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
+          ubicacion: v('.ed-ubicacion'), fecha: v('.ed-fecha'), invitados: v('.ed-invitados'),
+          fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+        }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = 'Guardado.';
+      ultimaFoto = null;
+      setTimeout(() => loadEventos(true), 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // Staff de El Vaso Maíz por evento (solo la gerente): lo mismo que /staff en Telegram.
   let staffEventos = null;
   let staffError = false;
@@ -709,9 +778,11 @@
           </div>
           ${ev.dinero ? `<div class="ev-tab" data-tab="dinero">${DimaDinero.bloque(ev)}</div>` : ''}
           <div class="ev-tab" data-tab="resumen">
+          ${bloqueCliente(ev)}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
           ${lineaProduccion(ev)}
           ${bloqueAsignar(ev)}
+          ${bloqueEditar(ev)}
           ${bloqueStaff(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
           <div class="estatus-row">
@@ -793,9 +864,14 @@
       btn.addEventListener('click', () => manejarAlerta(btn));
     });
 
-    document.querySelectorAll('.asig-guardar').forEach(btn => {
+    document.querySelectorAll('.asig-guardar:not(.ed-guardar)').forEach(btn => {
       btn.addEventListener('click', () => guardarAsignacion(btn));
     });
+    mainContent.querySelectorAll('.editar-box').forEach(caja => {
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      caja.addEventListener('change', () => { caja.dataset.sucio = '1'; });
+    });
+    mainContent.querySelectorAll('.ed-guardar').forEach(btn => btn.addEventListener('click', () => guardarEdicion(btn)));
 
     document.querySelectorAll('.enterado-btn').forEach(btn => {
       btn.addEventListener('click', () => marcarEnterado(btn));
@@ -1078,6 +1154,8 @@
       actualizarSeguimiento(data.eventos);
       const foto = JSON.stringify([data.eventos, data.alertasEquipo, data.staffEventos || null]);
       if(silencioso && foto === ultimaFoto) return;
+      // No se borra lo que la gerente está escribiendo en ✏️ Editar.
+      if(silencioso && mainContent.querySelector('.editar-box[data-sucio], .editar-box :focus')) return;
       ultimaFoto = foto;
       const rolTexto = data.colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
       opcionesAsignar = data.opcionesAsignar || null;

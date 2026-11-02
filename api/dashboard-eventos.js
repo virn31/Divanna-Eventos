@@ -259,6 +259,11 @@ async function resolverPedido(req, res, colaborador) {
   const inventario = Array.isArray((req.body || {}).articulos) ? await cargarInventario() : [];
 
   if (accion === 'editar') {
+    // La gerente edita solo eventos de El Vaso Maíz (igual que al asignar).
+    if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) {
+      res.status(403).json({ error: 'Solo puedes editar eventos de El Vaso Maíz.' });
+      return;
+    }
     const r = await editarEvento(eventoId, f, req.body || {});
     if (r.error) { res.status(400).json({ error: r.error }); return; }
     res.status(200).json({ success: true, google: r.google });
@@ -528,8 +533,8 @@ module.exports = async (req, res) => {
         res.status(200).json({ success: true, ...r });
         return;
       }
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar o invitar staff.
-      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff'].includes((req.body || {}).accion))) {
+      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar, invitar staff o editar.
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
       }
