@@ -43,7 +43,7 @@ function fechasLibres(fecha, libre) {
   return salida.sort();
 }
 const { enviarCorreoEquipo } = require('./_google-integrations');
-const { enviarTelegramEquipo } = require('./_telegram');
+const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo } = require('./_telegram');
 const { ROLES, requerirSesion } = require('./_sesion');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 const { contenidoDima, contenidoPagina, fotoDrive, leerImagenesEnSegundoPlano } = require('./_drive');
@@ -739,6 +739,8 @@ module.exports = async (req, res) => {
       limite: mensajesCliente >= MAX_MENSAJES_CLIENTE,
     });
   } catch (err) {
+    // Sin saldo: al cliente le sale el mismo mensaje de siempre (con el formulario); se avisa al equipo.
+    if (esSinSaldo(err)) await avisarSinSaldo('chat de cotización de la página');
     if (err instanceof Anthropic.RateLimitError) {
       console.error('DiMa: límite de uso de la API de Claude', err.message);
     } else if (err instanceof Anthropic.APIError) {

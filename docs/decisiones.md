@@ -342,3 +342,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "en este momento visualizo eventos que no deben de existir, debe todo estar limpio". Cancelar deja el expediente (sigue en el cuadre y en las listas); para pruebas y duplicados hacía falta quitarlos de verdad.
 
 **Descartado:** borrar sin confirmar (un toque equivocado borra un evento real con su dinero); borrar también gastos (son dinero real gastado aunque el evento sobrara); dejarlo a la gerente (solo Admin).
+
+## 2026-11-02 — Aviso cuando DiMa se queda sin saldo en Anthropic
+
+**Decisión:** si la API de Claude contesta "credit balance is too low", el bot ya no dice "intenta de nuevo en un momento": explica que DiMa se quedó sin saldo y que ya se avisó. A Diana y Víctor (Admin) les llega un Telegram con qué deja de funcionar y dónde recargar, máximo uno por hora por instancia. Aplica en el bot (fotos, mensajes, botones), en "Leer comanda" de la app y en el chat de la página (ahí el cliente ve el mensaje de siempre con el formulario; solo se avisa al equipo). Helper `esSinSaldo` / `avisarSinSaldo` en `api/_telegram.js`.
+
+**Por qué:** el 2-nov las fotos de comandas dejaron de leerse y el bot solo decía "intenta más tarde"; en los logs el motivo real era falta de saldo. Nadie se entera hasta que alguien se queja, y mientras tanto tampoco cotiza el chat de la página.
+
+**Descartado:** guardar la hora del último aviso en Airtable (una escritura más por cada falla; el aviso por instancia basta); avisar también a la gerente (no maneja la cuenta). La solución de fondo es activar la recarga automática en console.anthropic.com.
