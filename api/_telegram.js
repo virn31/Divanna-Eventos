@@ -154,6 +154,34 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
   }
 }
 
+// ---------- Aviso: la cuenta de Claude (Anthropic) se quedó sin saldo ----------
+// Anthropic contesta 400 "Your credit balance is too low..." y no hay una clase
+// de error propia para eso, por eso se revisa el texto. Cuando pasa, se avisa a
+// Diana y Víctor (Admin) por Telegram, máximo una vez por hora por instancia
+// para no llenarles el chat. Nunca lanza error.
+const AVISO_SIN_SALDO_CADA_MS = 60 * 60 * 1000;
+const MENSAJE_SIN_SALDO_EQUIPO = '🔋 DiMa se quedó sin saldo para usar la IA. Ya les avisé a Diana y Víctor; en cuanto se recargue vuelve a funcionar.';
+let ultimoAvisoSinSaldo = 0;
+
+function esSinSaldo(err) {
+  return !!err && err.status === 400 && /credit balance is too low/i.test(String(err.message || ''));
+}
+
+async function avisarSinSaldo(origen) {
+  if (Date.now() - ultimoAvisoSinSaldo < AVISO_SIN_SALDO_CADA_MS) return;
+  ultimoAvisoSinSaldo = Date.now();
+  try {
+    await enviarTelegramEquipo({
+      roles: [ROLES.ADMIN],
+      texto: `⚠️ DiMa se quedó SIN SALDO en Anthropic (falló: ${origen}).\n\n`
+        + 'Mientras no se recargue NO funcionan: lectura de comandas por foto, el chat de cotización de la página, DiMa del equipo y /daño.\n\n'
+        +'Recarga en console.anthropic.com → Settings → Billing y activa la recarga automática para que no vuelva a pasar.',
+    });
+  } catch (err) {
+    console.error('No se pudo avisar la falta de saldo:', err.message);
+  }
+}
+
 module.exports = {
   telegramConfigurado,
   telegramApi,
@@ -165,4 +193,7 @@ module.exports = {
   colaboradorPorChat,
   guardarChat,
   enviarTelegramEquipo,
+  esSinSaldo,
+  avisarSinSaldo,
+  MENSAJE_SIN_SALDO_EQUIPO,
 };

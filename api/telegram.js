@@ -21,7 +21,7 @@
 
 const { ROLES, iniciarSesion } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
-const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo } = require('./_telegram');
+const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const {
   puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
   pedirAlta, esRespuestaAlta, agregarStaff, activarStaff, enlaceActivacion,
@@ -438,7 +438,8 @@ module.exports = async (req, res) => {
       else await responderBoton(boton.id);
     } catch (err) {
       console.error('Error en botón de telegram:', err);
-      await responderBoton(boton.id, 'Tuve un problema. Intenta de nuevo en un momento.', true).catch(() => {});
+      if (esSinSaldo(err)) await avisarSinSaldo('botón del bot de Telegram');
+      await responderBoton(boton.id, esSinSaldo(err) ? MENSAJE_SIN_SALDO_EQUIPO : 'Tuve un problema. Intenta de nuevo en un momento.', true).catch(() => {});
     }
     res.status(200).json({ ok: true });
     return;
@@ -470,7 +471,8 @@ module.exports = async (req, res) => {
     }
   } catch (err) {
     console.error('Error en telegram:', err);
-    await enviarTelegram(mensaje.chat.id, 'Tuve un problema para responder. Intenta de nuevo en un momento.').catch(() => {});
+    if (esSinSaldo(err)) await avisarSinSaldo(Comanda.esFotoComanda(mensaje) ? 'foto de comanda en Telegram' : 'mensaje en Telegram');
+    await enviarTelegram(mensaje.chat.id, esSinSaldo(err) ? MENSAJE_SIN_SALDO_EQUIPO : 'Tuve un problema para responder. Intenta de nuevo en un momento.').catch(() => {});
   }
   res.status(200).json({ ok: true });
 };

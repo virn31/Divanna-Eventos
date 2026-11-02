@@ -32,7 +32,7 @@ const C = require('./_calendario');
 const { sincronizarEvento } = C;
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
-const { enviarTelegramEquipo } = require('./_telegram');
+const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
@@ -462,6 +462,11 @@ module.exports = async (req, res) => {
       await resolverPedido(req, res, colaborador);
     } catch (err) {
       console.error('Error resolviendo pedido:', err);
+      if (esSinSaldo(err)) {
+        await avisarSinSaldo('leer comanda en la app');
+        res.status(503).json({ error: MENSAJE_SIN_SALDO_EQUIPO });
+        return;
+      }
       res.status(500).json({ error: 'Error interno, intenta de nuevo' });
     }
     return;

@@ -12,7 +12,7 @@ class APIError extends Error {}
 class RateLimitError extends APIError {}
 class AnthropicMock {
   constructor() {
-    this.beta = { messages: { create: async (params) => { llamadasClaude.push(params); return respuestasClaude.shift(); } } };
+    this.beta = { messages: { create: async (params) => { llamadasClaude.push(params); const r = respuestasClaude.shift(); if (r instanceof Error) throw r; return r; } } };
   }
 }
 AnthropicMock.APIError = APIError;
@@ -2394,6 +2394,28 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 23, chat: { id: 222, type: 'private' }, photo: [{ file_id: 'x' }] } } }, res);
     ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('solo para Diana')), 'comanda: un líder no puede mandar comandas a leer');
+
+    // Sin saldo en Anthropic: a quien manda la foto se le dice qué pasa (no "intenta más tarde") y se avisa a los Admin una sola vez.
+    const sinSaldo = () => Object.assign(new APIError('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}'), { status: 400 });
+    const fotoDiana = { message: { message_id: 24, chat: { id: 111, type: 'private' }, photo: [{ file_id: 'grande' }] } };
+    reset();
+    respuestas = [{ records: [DIANA_TG] }, { records: [DIANA_TG, { id: 'recCOLAB000000009', fields: { Nombre: 'Víctor', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '999' } }, { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
+    respuestasClaude = [sinSaldo()];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: fotoDiana }, res);
+    const avisosSaldo = telegram.filter(t => t.metodo === 'sendMessage' && t.body.text.includes('SIN SALDO'));
+    ok(res.code === 200 && avisosSaldo.length === 2 && avisosSaldo.every(t => ['111', '999'].includes(String(t.body.chat_id)))
+      && avisosSaldo[0].body.text.includes('console.anthropic.com')
+      && telegram.some(t => t.metodo === 'sendMessage' && String(t.body.chat_id) === '111' && t.body.text.includes('sin saldo para usar la IA'))
+      && !telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('Intenta de nuevo')),
+      'comanda: sin saldo en Anthropic se explica en el chat y se avisa solo a Diana y Víctor');
+    reset();
+    respuestas = [{ records: [DIANA_TG] }];
+    respuestasClaude = [sinSaldo()];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: fotoDiana }, res);
+    ok(!telegram.some(t => t.body && String(t.body.text || '').includes('SIN SALDO')) && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('sin saldo para usar la IA')),
+      'comanda: el aviso de falta de saldo no se repite a cada foto');
   }
   // ---------- Carpeta de Google Drive (api/_drive.js) ----------
   {
