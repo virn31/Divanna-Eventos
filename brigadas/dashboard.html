@@ -747,7 +747,7 @@
 
   function renderEventos(eventos){
     // El polling cada 30s no debe borrar instrucciones a medio escribir.
-    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio], .din-caja :focus')) return;
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio], .editar :focus, .editar[data-sucio], .din-caja :focus')) return;
     eventosPintados = eventos;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
@@ -793,6 +793,11 @@
               ${ev.preferenciaContacto ? `<span class="badge badge-pref">📞 ${PREF_TEXTO[ev.preferenciaContacto] || esc(ev.preferenciaContacto)}</span>` : ''}
             </div>
           </div>
+          <div class="meta-line pedido-contacto">
+            <span>👤 ${esc(ev.clienteNombre || 'Cliente sin nombre')}</span>
+            ${ev.clienteTelefono ? `<span>📞 ${telLink(ev.clienteTelefono)}</span>` : '<span>📞 sin teléfono</span>'}
+            ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
+          </div>
           <div class="meta-line">
             ${ev.horaInicio ? `<span>🕒 ${esc(ev.horaInicio)}</span>` : ''}
             ${ev.invitados ? `<span>👥 ${ev.invitados} invitados</span>` : ''}
@@ -834,6 +839,7 @@
             </div>
           </details>
           ${ev.dinero ? `<div class="din-seccion"><b>💰 Dinero</b>${DimaDinero.bloque(ev)}</div>` : ''}
+          ${bloqueEditar(ev)}
           ${bloqueBorrar(ev.id)}
           </div>
         </div>
@@ -846,11 +852,12 @@
     mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
     DimaDinero.conectar(mainContent);
     conectarBorrar(mainContent);
+    conectarEditar(mainContent);
 
     mainContent.querySelectorAll('.instr-texto').forEach(t => {
       t.addEventListener('input', () => { t.dataset.sucio = '1'; });
     });
-    mainContent.querySelectorAll('.instr .instr-guardar').forEach(b => {
+    mainContent.querySelectorAll('.instr:not(.editar) .instr-guardar').forEach(b => {
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
     conectarMensajeCliente(mainContent);
@@ -984,6 +991,72 @@
     }
   }
 
+  // ✏️ Editar a mano los datos del evento y del cliente (lugar, fecha, invitados,
+  // nombre, teléfono, correo). La hora y los productos van en "Hora y productos".
+  function bloqueEditar(item){
+    const tel = String(item.clienteTelefono || '').replace(/\D/g, '').slice(-10);
+    return `
+      <details class="instr editar" data-caja="editar-${esc(item.id)}">
+        <summary>✏️ Editar evento y cliente</summary>
+        <label class="ag-label">Nombre del cliente</label>
+        <input type="text" class="ed-nombre" maxlength="200" value="${esc(item.clienteNombre)}">
+        <label class="ag-label">Teléfono (10 dígitos)</label>
+        <input type="tel" class="ed-tel" inputmode="tel" maxlength="20" placeholder="6671234567" value="${esc(tel)}">
+        <label class="ag-label">Correo</label>
+        <input type="email" class="ed-email" maxlength="200" value="${esc(item.clienteEmail)}">
+        <label class="ag-label">Ubicación / dirección del evento</label>
+        <textarea class="ed-ubicacion" maxlength="500" placeholder="Calle, número, colonia, salón…">${esc(item.ubicacion)}</textarea>
+        <div class="agenda-grid">
+          <div><label class="ag-label">Fecha</label><input type="date" class="ed-fecha" value="${esc(String(item.fecha || '').slice(0, 10))}"></div>
+          <div><label class="ag-label">Invitados</label><input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${item.invitados ? esc(item.invitados) : ''}"></div>
+        </div>
+        <label class="ag-label"><input type="checkbox" class="ed-fuera" ${item.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <div class="instr-fila">
+          <button type="button" class="instr-guardar ed-guardar" data-id="${esc(item.id)}">Guardar cambios</button>
+          <span class="instr-msg ed-msg"></span>
+        </div>
+      </details>`;
+  }
+
+  function conectarEditar(contenedor){
+    contenedor.querySelectorAll('.editar').forEach(caja => {
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      caja.addEventListener('change', () => { caja.dataset.sucio = '1'; });
+    });
+    contenedor.querySelectorAll('.ed-guardar').forEach(b => b.addEventListener('click', () => guardarEdicion(b)));
+  }
+
+  async function guardarEdicion(btn){
+    const caja = btn.closest('.editar');
+    const msg = caja.querySelector('.ed-msg');
+    const v = sel => caja.querySelector(sel).value.trim();
+    const fecha = v('.ed-fecha');
+    if(!fecha){ msg.textContent = 'Falta la fecha.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.id, accion: 'editar',
+          clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
+          ubicacion: v('.ed-ubicacion'), fecha, invitados: v('.ed-invitados'),
+          fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+        }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = 'Guardado.';
+      pedidosFirma = '';
+      setTimeout(loadDashboard, 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function telLink(tel){
     const digitos = String(tel || '').replace(/\D/g, '');
     return digitos ? `<a href="tel:+${digitos}">${esc(tel.replace('whatsapp:', ''))}</a>` : '';
@@ -995,7 +1068,7 @@
     // Incluye el último cambio del cliente: si cambia el pedido, se vuelve a pintar.
     const firma = pedidos.map(p => `${p.id}:${p.cambioCliente ? p.cambioCliente.pedidoEl : ''}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
     if(firma === pedidosFirma) return;
-    if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio]')) return;
+    if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio], .editar[data-sucio]')) return;
     pedidosFirma = firma;
 
     if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
@@ -1039,12 +1112,14 @@
             <button class="btn-rechazar" data-accion="rechazar">Rechazar</button>
           </div>
           <div class="pedido-msg"></div>
+          ${bloqueEditar(p)}
           ${bloqueBorrar(p.id)}
         </div>
       `).join('');
 
     conectarMensajeCliente(pedidosContent);
     conectarBorrar(pedidosContent);
+    conectarEditar(pedidosContent);
     conectarAgenda(pedidosContent);
     pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
       btn.addEventListener('click', () => resolverPedido(btn));

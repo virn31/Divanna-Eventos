@@ -28,35 +28,27 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-02 (noche) · **Rama de trabajo:** `produccion-staff-etapas` (sin publicar; sale de `main` en `976fc33`) · **Producción:** `main` en `976fc33`, sin cambios hoy. Otra rama sin publicar: `entrenar-dima`. **398 pruebas pasan** en la rama.
+**Actualizado:** 2026-11-02 (cierre) · **Rama de trabajo:** `produccion-staff-etapas` (sin publicar; ya trae todo lo de `main`) · **Producción:** `main` en `1f38c60`. Otra rama sin publicar: `entrenar-dima`. **403 pruebas pasan** en la rama.
 
-**Sesión 2026-11-02, rama `produccion-staff-etapas` (para Ángela, El Vaso Maíz). Detalle en `docs/decisiones.md` (2026-11-02):**
-- En "Asignar" (app de la gerente y dashboard de Diana) se elige el **equipo de producción** (1, 2 o más) además del encargado; una persona puede estar en producción y en staff.
-- Solo el encargado tiene **🚀 Listo para staff** (lista del día): al staff confirmado le llegan por Telegram los botones de etapas (Salió del almacén → En camino → Llegó al lugar → Evento en curso → Evento terminado = Cerrado). Cualquiera del staff marca; queda en `Estatus_Logistico` y Ángela lo ve en la app (sin avisos por Telegram).
-- **🆘 SOS** para todos por Telegram (botón fijo con ubicación, `/sos`); mismo aviso que la emergencia de la app (`api/_alertas.js`). Código nuevo: `api/_etapas.js`.
+**Publicado hoy (2026-11-02), `main` 1f38c60 (rama `editar-evento-cliente`):**
+- En la app **todos** (líder, asistente, encargada, gerente) ven nombre, teléfono (toca para llamar) y correo del cliente al inicio de Resumen: el encargado atiende al cliente de principio a fin.
+- **✏️ Editar evento y cliente** (nombre, teléfono, correo, ubicación, fecha, invitados, fuera de la ciudad): Diana y Víctor en el dashboard (eventos y pedidos); Ángela en la app, solo eventos de El Vaso Maíz. Fecha o lugar nuevos se pasan a Google Calendar. Ojo: nombre/teléfono/correo son del registro de CLIENTES (cambian en todos los eventos de ese cliente).
+- Verificado que producción sirve la versión nueva (caché v27). No probado en teléfono ni contra Airtable real. Revertir: `git revert -m 1 1f38c60`.
+- El staff (solo Telegram) no ve el teléfono del cliente; Víctor no lo pidió.
+
+**Rama `produccion-staff-etapas` (para Ángela, El Vaso Maíz; detalle en `docs/decisiones.md` 2026-11-02):**
+- Equipo de producción en "Asignar"; solo el encargado tiene **🚀 Listo para staff**; etapas por Telegram para el staff (`Estatus_Logistico`); **🆘 SOS** por Telegram (`/sos`, `api/_etapas.js`).
+- Ya se le unió `main` (caché subida a **v28** para no chocar con la v27 publicada).
 - **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
-- Al volver: crear los campos → probar en Preview con el teléfono (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot (para que salga `/sos`) → decidir si se manda a todos un mensaje con el botón 🆘 (hoy solo lo reciben al usar `/sos`, confirmar o entrar a producción).
+
+**Siguiente, en orden:**
+1. Víctor/Diana prueban en el teléfono el teléfono del cliente y ✏️ Editar (cerrar y abrir la APK si no aparece).
+2. Crear los 2 campos de Airtable → probar `produccion-staff-etapas` en Preview (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot → decidir si se manda a todos el botón 🆘.
+3. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
 
 **Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima` (`drive.js` árbol, `lecturas.js`, `mover-carpeta.js`, `bajar-fotos.js`, `probar-promos.js`/`probar-portarretrato.js` para probar la página en Edge con Drive simulado). Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
-
-**Publicado el 31-oct y 1-nov:**
-- Drive se lee hasta 4 niveles; DiMa **lee cada imagen** con visión y guarda la lectura en la descripción del archivo; precios vigentes de El Vaso Maíz (lista de Diana del 31-oct).
-- **Página sin nombres de archivo:** promociones ("Lo que tenemos ahorita.") y galería llevan solo el botón **Cotizar →**, que abre el chat con la pregunta escrita (sale de la lectura de DiMa).
-- **Galería por bloques:** cada subcarpeta de Drive "Galería" es un bloque con título. Se movieron "casa isabella" (14 fotos) y "elvasomaiz" (10) de la raíz a Galería. Verificado en producción.
-- **Portarretratos:** las tarjetas 02 (El Vaso Maíz) y 03 (Casa Isabella) pasan al azar las fotos de su carpeta cada 4 s, sin flyers con precios.
-- **Paquetes:** foto en las tarjetas de El Vaso Maíz (`img/home/vasomaiz-fresas-vasos.jpg`) y Casa Isabella (`img/home/casa-isabella-alberca.jpg`).
-- Prompts para generar imágenes de El Vaso Maíz: `Downloads\Prompts imagenes El Vaso Maiz.txt` (no subirlas a carpetas que DiMa enseña como producto real).
 
 **Pendientes de Víctor:**
 1. ~~Precios de Casa Isabella~~ RESUELTO 2026-11-01 (ddb8c00): valen los de los flyers (L-J $1,800 sin mantel, salida 10 pm, mesa extra $400; V-D $3,000 / 50 personas $4,000). Por confirmar: mesa extra de fin de semana ($500) y tope de $4,500 para 70 a 80 personas, que no vienen en los flyers.
 2. Los 2 flyers de Casa Isabella se leyeron como "de la competencia"; ya se corrigió la instrucción, pero las lecturas viejas siguen hasta que cambie la imagen (borrar su descripción en Drive para que se relean).
 3. De antes: precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; probar en el teléfono `/daño`, cobro desde la ficha, foto de comanda y recibo; "Activar alertas".
-
-**Al cerrar (2026-11-01, se retoma en enero 2027):**
-- Último cambio (743d112): **🗑️ Borrar evento** en el dashboard (solo Diana y Víctor), al final de cada ficha y de cada pedido. Víctor veía eventos que no deben existir: él o Diana los borran (Revisar → escribir el folio → borrar). Probado con pruebas y en Edge con API simulada; NO probado contra Airtable real.
-- Revisión final: homepage ✅ (precios nuevos, portarretratos, galería, Drive), app/APK ✅ en servidor (no probada en teléfono), Telegram 🟡 envía bien (cron 8:00 sin errores, webhook rechaza sin secreto) pero falta que Víctor mande `/hoy` a @dimaclnbot para confirmar que recibe.
-- `OneDriveDesktopDIVANNA HOMEPAGEkeysairtable dima os.txt` está VACÍO (0 bytes desde el 9-jul; también antrhopic.txt y github.txt): las herramientas locales de Airtable no funcionan hasta que Víctor pegue ahí el token. Producción no se afecta (usa el de Vercel).
-- Al volver: `git pull`, `npm install`, `npm test` (365) y revisar `vercel logs`; revisar si Diana subió fotos nuevas a Drive y si las promociones de Navidad siguen vigentes (temporada alta 18-dic al 1-ene).
-
-**Siguiente:**
-2. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.

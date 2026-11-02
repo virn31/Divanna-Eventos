@@ -78,14 +78,69 @@ async function airtablePatch(tableId, recordId, fields) {
   return res.json();
 }
 
-// Datos de los clientes vinculados a los pedidos pendientes, en una sola consulta.
+// Datos de los clientes vinculados a pedidos y eventos. De 90 en 90 para no
+// pasar el máximo de 100 registros por página de Airtable.
 async function clientesPorId(ids) {
-  if (!ids.length) return {};
-  const formula = encodeURIComponent(`OR(${ids.map(id => `RECORD_ID()="${id}"`).join(',')})`);
-  const data = await airtableGet(`${TABLES.CLIENTES}?filterByFormula=${formula}`);
   const mapa = {};
-  data.records.forEach(c => { mapa[c.id] = c.fields; });
+  for (let i = 0; i < ids.length; i += 90) {
+    const grupo = ids.slice(i, i + 90);
+    const formula = encodeURIComponent(`OR(${grupo.map(id => `RECORD_ID()="${id}"`).join(',')})`);
+    const data = await airtableGet(`${TABLES.CLIENTES}?filterByFormula=${formula}`);
+    data.records.forEach(c => { mapa[c.id] = c.fields; });
+  }
   return mapa;
+}
+
+// ✏️ Diana corrige a mano los datos del evento y del cliente desde el dashboard.
+// Solo se escriben los campos que vienen en la petición. Si el evento no tiene
+// cliente y se escribe un nombre o teléfono, se crea el cliente y se vincula.
+const TEXTO = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
+async function editarEvento(eventoId, f, body) {
+  const evento = {};
+  const ubicacion = TEXTO(body.ubicacion, 500);
+  if (ubicacion !== undefined) evento.Ubicacion = ubicacion;
+  if (body.fecha !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.fecha || '')) return { error: 'Fecha inválida' };
+    evento.Fecha_Evento = body.fecha;
+  }
+  if (body.invitados !== undefined) {
+    const n = body.invitados === '' || body.invitados === null ? null : Number(body.invitados);
+    if (n !== null && !(Number.isInteger(n) && n > 0 && n < 100000)) return { error: 'Invitados inválidos' };
+    evento.Invitados = n;
+  }
+  if (typeof body.fueraDeCiudad === 'boolean') evento.Fuera_De_Ciudad = body.fueraDeCiudad;
+
+  const cliente = {};
+  const nombre = TEXTO(body.clienteNombre, 200);
+  if (nombre !== undefined) cliente.Nombre = nombre;
+  if (body.clienteTelefono !== undefined) {
+    const digitos = String(body.clienteTelefono || '').replace(/\D/g, '');
+    if (digitos && digitos.length < 10) return { error: 'El teléfono debe tener 10 dígitos' };
+    // Mismo formato que los clientes de la página (+52 y 10 dígitos).
+    cliente.Telefono_WhatsApp = !digitos ? '' : digitos.length === 10 ? `+52${digitos}` : `+${digitos}`;
+  }
+  const email = TEXTO(body.clienteEmail, 200);
+  if (email !== undefined) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Correo inválido' };
+    cliente.Email = email;
+  }
+
+  const clienteId = (f.Cliente || [])[0];
+  if (clienteId && Object.keys(cliente).length) {
+    await airtablePatch(TABLES.CLIENTES, clienteId, cliente);
+  } else if (!clienteId && (cliente.Nombre || cliente.Telefono_WhatsApp)) {
+    const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${TABLES.CLIENTES}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: [{ fields: { Tipo_Cliente: 'Particular', Nivel: 'Nuevo', ...cliente } }] }),
+    });
+    if (!res.ok) throw new Error(`Airtable POST error ${res.status}: ${await res.text()}`);
+    evento.Cliente = [(await res.json()).records[0].id];
+  }
+  if (Object.keys(evento).length) await airtablePatch(TABLES.EVENTOS, eventoId, evento);
+  // Fecha o lugar distintos: se actualiza Google Calendar.
+  const google = evento.Fecha_Evento !== undefined || evento.Ubicacion !== undefined ? await sincronizarEvento(eventoId) : null;
+  return { google };
 }
 
 async function ultimoBalance() {
@@ -194,7 +249,7 @@ function agendaDesdeDashboard(body, inventario) {
 async function resolverPedido(req, res, colaborador) {
   const { eventoId, accion, monto, items } = req.body || {};
   const instrucciones = typeof (req.body || {}).instrucciones === 'string' ? req.body.instrucciones.trim().slice(0, 2000) : null;
-  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff', 'confirmar_cambio', 'descartar_cambio'].includes(accion)) {
+  if (!/^rec[A-Za-z0-9]{14}$/.test(eventoId || '') || !['autorizar', 'rechazar', 'instrucciones', 'mensaje_cliente', 'agenda', 'asignar', 'invitar_staff', 'confirmar_cambio', 'descartar_cambio', 'editar'].includes(accion)) {
     res.status(400).json({ error: 'Parámetros inválidos' });
     return;
   }
@@ -203,6 +258,18 @@ async function resolverPedido(req, res, colaborador) {
   const f = evento.fields;
   // Solo se lee INVENTARIO si Diana mandó artículos (para validar y guardar su nombre).
   const inventario = Array.isArray((req.body || {}).articulos) ? await cargarInventario() : [];
+
+  if (accion === 'editar') {
+    // La gerente edita solo eventos de El Vaso Maíz (igual que al asignar).
+    if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) {
+      res.status(403).json({ error: 'Solo puedes editar eventos de El Vaso Maíz.' });
+      return;
+    }
+    const r = await editarEvento(eventoId, f, req.body || {});
+    if (r.error) { res.status(400).json({ error: r.error }); return; }
+    res.status(200).json({ success: true, google: r.google });
+    return;
+  }
 
   if (accion === 'mensaje_cliente') {
     const mensaje = typeof (req.body || {}).mensaje === 'string' ? req.body.mensaje.trim().slice(0, 1500) : '';
@@ -486,8 +553,8 @@ module.exports = async (req, res) => {
         res.status(200).json({ success: true, ...r });
         return;
       }
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar o invitar staff.
-      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff'].includes((req.body || {}).accion))) {
+      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar, invitar staff o editar.
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
       }
@@ -569,7 +636,16 @@ module.exports = async (req, res) => {
 
     // Pedidos de la landing esperando cotización de Diana
     const pendientes = eventosData.records.filter(r => r.fields.Autorizacion_Diana === 'Pendiente');
-    const clientes = await clientesPorId([...new Set(pendientes.map(r => (r.fields.Cliente || [])[0]).filter(Boolean))]);
+    // Clientes de todos los eventos (los pedidos y las fichas muestran teléfono y correo).
+    // Si falla, el dashboard sigue sin esos datos.
+    const clientes = await clientesPorId([...new Set(eventosData.records.map(r => (r.fields.Cliente || [])[0]).filter(Boolean))])
+      .catch(err => { console.error('No se pudieron leer los clientes:', err.message); return {}; });
+    eventos.forEach((ev, i) => {
+      const c = clientes[(eventosData.records[i].fields.Cliente || [])[0]] || {};
+      ev.clienteNombre = c.Nombre || '';
+      ev.clienteTelefono = c.Telefono_WhatsApp || '';
+      ev.clienteEmail = c.Email || '';
+    });
     const pedidos = pendientes.map(r => {
       const c = clientes[(r.fields.Cliente || [])[0]] || {};
       return {

@@ -403,3 +403,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Cómo quedó:** `api/_etapas.js`; campos nuevos `EVENTOS.Equipo_Produccion` (vínculo múltiple a COLABORADORES) y `EVENTOS.Produccion_Lista` (fecha y hora). Las etapas se guardan en `Estatus_Logistico`, solo hacia adelante, con el mismo bloqueo de carga que la app. Quién puede estar en producción: las mismas opciones que el encargado (staff de la coordinadora, encargadas y la gerente). El SOS usa el teclado de Telegram con `request_location` (un toque + aceptar compartir); `/sos` ofrece mandarlo sin ubicación. El aviso de emergencia se movió a `api/_alertas.js` para que app y Telegram manden lo mismo.
 **Descartado:** que solo un responsable del staff marque las etapas (Víctor: cualquiera); SOS sin ubicación por defecto (Víctor: con ubicación); avisar a Ángela por Telegram en cada etapa; nuevas opciones en `Estatus_Logistico` para "Listo para staff" (habría cambiado la app de las brigadas).
 **Límite conocido:** el botón "Listo para staff" llega en la lista de producción del día (cron 8:00); si un evento empieza muy temprano y producción termina antes, el encargado tiene que esperar a ese mensaje. Cualquier ubicación que alguien mande al bot se toma como SOS. El resto del equipo de producción (que no es encargado) no recibe la lista de producción, solo su aviso.
+
+## 2026-11-02 — Teléfono del cliente para todos y ✏️ Editar evento
+
+**Decisión:** en la app todos los roles ven nombre, teléfono (toca para llamar) y correo del cliente de sus eventos (`api/_eventos.js`, `bloqueCliente`). Diana y Víctor (dashboard) y la gerente de El Vaso Maíz (solo eventos de El Vaso Maíz) tienen **✏️ Editar evento y cliente**: nombre, teléfono, correo, ubicación, fecha, invitados y fuera de la ciudad (`accion: 'editar'` en `api/dashboard-eventos.js`). Fecha o lugar nuevos se pasan a Google Calendar.
+
+**Por qué:** Víctor: "cada encargado de brigada se contactará con el cliente de principio a fin"; los datos llegaban incompletos y no había cómo corregirlos a mano.
+
+**Alternativa:** dejar el teléfono solo a quien cobra (`veDinero`). Ojo: nombre/teléfono/correo son del registro de CLIENTES; cambiarlos en un evento los cambia en todos los eventos de ese cliente.
