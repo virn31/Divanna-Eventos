@@ -16,14 +16,14 @@ const HORAS_SERVICIO_VASO_MAIZ = 2;
 // Cada equipo de El Vaso Maíz es de 2 personas (se pueden sumar eventuales).
 const PERSONAS_POR_EQUIPO = 2;
 
-// Reglas de ocupación del inventario (Víctor, 2026-10-28):
-// - mobiliario: sale en la ruta de logística del día del evento (una brigada
-//   lleva 2 o 3 pedidos por ruta), así que queda ocupado todo ese día, y
-//   regresa a bodega a más tardar a la 1 pm del día siguiente;
-// - mantel (textiles): 48 h de lavado después de regresar a bodega;
+// Reglas de ocupación del inventario (Víctor, 2026-10-28; ajustadas 2026-11-02):
+// - mobiliario y manteles: quedan ocupados el día del evento y vuelven a estar
+//   disponibles a las 12 del día siguiente ("si están rentadas para hoy, mañana a
+//   medio día ya están disponibles"). Antes: 1 pm y los manteles 48 h de lavado;
+// - en cuanto la brigada marca la recolección, ya no apartan nada (_agenda.js);
 // - salon (Casa Isabella): solo las horas del evento.
-const HORA_REGRESO_SIGUIENTE_DIA = 13;
-const HORAS_LAVADO_MANTEL = 48;
+const HORA_REGRESO_SIGUIENTE_DIA = 12;
+const HORAS_LAVADO_MANTEL = 0;
 const HORAS_SALON = 5;           // Casa Isabella incluye 5 h de evento
 const HORA_INICIO_DEFAULT = '14:00'; // si no hay hora, se supone que empieza en la tarde
 const ZONA_HORARIA = '-07:00';   // Culiacán (Sinaloa no cambia de horario)

@@ -296,8 +296,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(unEquipo.min === 3 && unEquipo.max === 4, 'capacidad: un equipo de 2 tarda de 3 a 4 h con 120 piezas');
   ok(JSON.stringify(prod.normalizarProductos([{ clave: 'dv_silla_tiffany', cantidad: 10 }, { clave: 'dv_silla_tiffany', cantidad: 5 }, { clave: 'x', cantidad: 1 }, { clave: 'dv_aro', cantidad: -1 }])) === '[{"clave":"dv_silla_tiffany","cantidad":15}]', 'productos: junta repetidos y descarta claves o cantidades inválidas');
   const iso = (v) => [new Date(v.desde).toISOString(), new Date(v.hasta).toISOString()].join(' ');
-  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Silla Tiffany')) === '2026-11-14T07:00:00.000Z 2026-11-15T20:00:00.000Z', 'ocupación: mobiliario todo el día del evento (ruta de logística) hasta la 1 pm del día siguiente');
-  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Mantel')).endsWith('2026-11-17T20:00:00.000Z'), 'ocupación: manteles 48 h de lavado después de regresar a bodega');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Silla Tiffany')) === '2026-11-14T07:00:00.000Z 2026-11-15T19:00:00.000Z', 'ocupación: mobiliario todo el día del evento hasta las 12 del día siguiente (Víctor 2026-11-02)');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Mantel')).endsWith('2026-11-15T19:00:00.000Z'), 'ocupación: los manteles también quedan libres a las 12 del día siguiente');
   ok(iso(prod.ventanaPersonalVasoMaiz({ fecha: '2026-11-14', horaInicio: '18:00', horasServicio: 2 })) === '2026-11-15T00:30:00.000Z 2026-11-15T03:00:00.000Z', 'ocupación: el equipo de El Vaso Maíz sale 30 min antes y termina con el servicio');
   const inv = [
     { id: 'recINVCOPA0000001', nombre: 'Copa Globo - Roja', categoria: 'Copa globo', total: 109 },
@@ -355,7 +355,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(s1.nivel === 'verde', 'semáforo: sillas de hace dos días ya regresaron');
   const manteles = [{ clave: 'dv_mantel', cantidad: 30 }];
   s1 = semaforo(evA({ productos: manteles }), [evA({ id: 'recA4', autorizacion: 'SI', fecha: '2026-11-12', productos: manteles })]);
-  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.startsWith('Mantel'), 'semáforo: manteles de hace dos días siguen en lavado (48 h)');
+  ok(s1.nivel === 'verde', 'semáforo: manteles de hace dos días ya están disponibles');
+  s1 = semaforo(evA({ productos: tiff(50) }), [evA({ id: 'recA3', autorizacion: 'SI', fecha: '2026-11-13', productos: tiff(150), recogido: true })]);
+  ok(s1.nivel === 'verde', 'semáforo: en cuanto la brigada marca la recolección, las sillas vuelven a estar disponibles');
+  ok(agendaMod.eventoParaAgenda({ id: 'x', fields: { Checklist_Recoleccion: true } }).recogido && agendaMod.eventoParaAgenda({ id: 'y', fields: { Estatus_Logistico: 'Cerrado' } }).recogido
+    && !agendaMod.eventoParaAgenda({ id: 'z', fields: { Estatus_Logistico: 'Recolectando' } }).recogido, 'agenda: recogido = checklist de recolección marcado o estatus Cerrado');
   const casa = [{ clave: 'dv_casa_isabella', cantidad: 1 }];
   s1 = semaforo(evA({ productos: casa }), [evA({ id: 'recA5', folio: 'EVT-A5', autorizacion: 'SI', horaInicio: '16:00', productos: casa })]);
   ok(s1.nivel === 'rojo' && s1.motivos[0].texto.includes('Casa Isabella ya está apartada'), 'semáforo: Casa Isabella apartada en ese horario = rojo');
@@ -1900,10 +1904,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ---------- Día lleno ----------
   const evDia = (i, negocio, extra = {}) => ({ id: `recEVLLENO${String(i).padStart(7, '0')}`, fields: { Fecha_Evento: '2026-12-12', Negocio: negocio, Autorizacion_Diana: 'SI', ...extra } });
-  const nueveDv = Array.from({ length: 9 }, (_, i) => evDia(i, 'Divanna Eventos'));
-  const cupo8 = agendaMod.cupoDelDia('2026-12-12', nueveDv.slice(0, 8).map(agendaMod.eventoParaAgenda));
-  const cupo9 = agendaMod.cupoDelDia('2026-12-12', nueveDv.map(agendaMod.eventoParaAgenda));
-  ok(!cupo8['Divanna Eventos'].lleno && cupo9['Divanna Eventos'].lleno && !cupo9['El Vaso Maiz'].lleno, 'día lleno: Divanna se llena con 9 entregas (3 brigadas x 3)');
+  // Víctor 2026-11-02: Divanna sin límite de entregas (manda el inventario; se apoya en proveedores aliados).
+  const treintaDv = Array.from({ length: 30 }, (_, i) => evDia(i, 'Divanna Eventos'));
+  ok(!agendaMod.cupoDelDia('2026-12-12', treintaDv.map(agendaMod.eventoParaAgenda))['Divanna Eventos'].lleno, 'día lleno: Divanna no tiene límite de entregas por día');
+  const llenoVm = Array.from({ length: 10 }, (_, i) => evDia(40 + i, 'El Vaso Maiz', { Personal_Requerido: 2 }));
   // Diana 2026-11-02: hasta 10 eventos de El Vaso Maíz por día; el personal no llena el día (se suman eventuales).
   const diezVm = Array.from({ length: 10 }, (_, i) => evDia(i, 'El Vaso Maiz', { Personal_Requerido: 2 }));
   const conOnce = [evDia(20, 'El Vaso Maiz', { Personal_Requerido: 11 }), evDia(21, 'El Vaso Maiz', { Personal_Requerido: 2 })];
@@ -1913,32 +1917,32 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     'día lleno: El Vaso Maíz se llena con 10 eventos; el personal del día no lo llena');
 
   reset();
-  llenosPrueba = nueveDv;
+  llenosPrueba = llenoVm;
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
-    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6400 } },
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6400 } },
   ] }];
   res = await chat({ historial });
   ok(res.body.texto.includes('Lamentablemente esa fecha') && res.body.texto.includes('la tenemos llena y ya no podemos cubrir tu evento') && res.body.texto.includes('Tenemos disponible el') && !res.body.texto.includes('Diana') && !llamadas.some(l => l.method === 'POST') && !res.body.folio
-    && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS SIN CUPO') && m.content.includes('2026-12-12 (Divanna)')),
+    && llamadasClaude[0].messages.some(m => typeof m.content === 'string' && m.content.includes('DÍAS SIN CUPO') && m.content.includes('2026-12-12 (El Vaso Maíz)')),
     'día lleno: DiMa sabe los días sin cupo y no registra un pedido nuevo de ese negocio');
 
   reset();
-  llenosPrueba = nueveDv;
+  llenosPrueba = llenoVm;
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
-    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'El Vaso Maiz', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete 3', monto_estimado: 3000 } },
+    { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 90, ubicacion: 'Las Quintas', servicios: 'Paquete 3', monto_estimado: 3000 } },
   ] }];
   respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000009', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000009' }] }];
   res = await chat({ historial });
-  ok(/^EVT-[0-9]{6}$/.test(res.body.folio || ''), 'día lleno: si solo Divanna está llena, El Vaso Maíz sí recibe pedidos ese día');
+  ok(/^EVT-[0-9]{6}$/.test(res.body.folio || ''), 'día lleno: si solo El Vaso Maíz está lleno, Divanna sí recibe pedidos ese día');
 
   reset();
-  llenosPrueba = nueveDv;
+  llenosPrueba = llenoVm;
   respuestas = [{ records: [ADMIN, { id: 'recGERENTEPRUEB1', fields: { Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Activo: true } }] }];
   const calMod = require(path.join(repo, 'api/_calendario.js'));
-  const avisoLleno = await calMod.avisarSiLleno('2026-12-12', 'Divanna Eventos');
-  ok(avisoLleno && avisoLleno.lleno && avisoLleno.negocios.join() === 'Divanna Eventos' && avisoLleno.detalle.includes('9 de 9 entregas')
+  const avisoLleno = await calMod.avisarSiLleno('2026-12-12', 'El Vaso Maiz');
+  ok(avisoLleno && avisoLleno.lleno && avisoLleno.negocios.join() === 'El Vaso Maiz' && avisoLleno.detalle.includes('10 de 10 eventos')
     && llamadas.some(l => l.url.includes('tblHdz4vqUIlIdkwc')),
-    'día lleno: al llenarse un día se avisa a la gerencia (Divanna: solo Admin)');
+    'día lleno: al llenarse un día se avisa a la gerencia (El Vaso Maíz)');
 
   // Casa Isabella apartada: "esa fecha ya no está disponible" y fechas libres del salón.
   reset();
@@ -1952,8 +1956,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     'Casa Isabella: si ya está apartada ese día, DiMa dice que la fecha no está disponible y ofrece otras');
 
   reset();
-  llenosPrueba = nueveDv.slice(0, 3);
-  ok((await calMod.avisarSiLleno('2026-12-12', 'Divanna Eventos')).lleno === false && llamadas.length === 0, 'día lleno: si aún hay cupo no avisa a nadie');
+  llenosPrueba = llenoVm.slice(0, 3);
+  ok((await calMod.avisarSiLleno('2026-12-12', 'El Vaso Maiz')).lleno === false && !llamadas.some(l => l.url.includes('tblHdz4vqUIlIdkwc')), 'día lleno: si aún hay cupo no avisa a nadie');
 
   reset();
   respuestas = [LIDER];

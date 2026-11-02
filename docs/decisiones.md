@@ -382,3 +382,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** EVT-004762 bloqueó el día pidiendo 11 personas: 155 personalizados se contaron como piezas a preparar (4 min c/u en 2 h). Víctor: "esos personalizados son los diseños para los platos… este evento lo hacen solo dos personas en 2 hrs". Diana: "es posible hacer hasta 10 eventos por día ya que podemos aumentar el staff".
 
 **Descartado:** subir el cupo de personal del día (seguiría bloqueando por personas cuando el staff sí se puede aumentar). Divanna sigue en 9 entregas por día (3 brigadas x 3).
+
+## 2026-11-02 — Divanna sin límite de entregas; inventario libre a las 12 del día siguiente o al recoger
+
+**Decisión:** Divanna ya no tiene tope de entregas por día (antes 9: 3 brigadas x 3): el día nunca se llena por entregas y el semáforo ya no avisa por eso. Solo marca el inventario (amarillo/rojo como antes), sin bloquear. El mobiliario y los manteles quedan ocupados el día del evento hasta las 12 del día siguiente (antes 1 pm y los manteles 48 h más de lavado), y en cuanto la brigada marca la recolección (o el evento pasa a Cerrado) dejan de apartar. Casa Isabella sigue apartando el día.
+
+**Por qué:** Víctor: "imagínate que solo pidan 1 o 2 mesas por pedido y tenemos más en bodega"; lo que falte se pide a proveedores aliados. "Si están rentadas para hoy, en teoría mañana a medio día ya están disponibles."
+
+**Descartado:** subir el tope de entregas (seguiría bloqueando pedidos chicos). Mantener las 48 h de lavado de manteles (Víctor pidió reducir el bloqueo del almacén a 12 h; si el lavado lo necesita, se regresa con `HORAS_LAVADO_MANTEL` en `_productos.js`).
