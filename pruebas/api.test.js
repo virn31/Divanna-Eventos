@@ -297,7 +297,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(JSON.stringify(prod.normalizarProductos([{ clave: 'dv_silla_tiffany', cantidad: 10 }, { clave: 'dv_silla_tiffany', cantidad: 5 }, { clave: 'x', cantidad: 1 }, { clave: 'dv_aro', cantidad: -1 }])) === '[{"clave":"dv_silla_tiffany","cantidad":15}]', 'productos: junta repetidos y descarta claves o cantidades inválidas');
   const iso = (v) => [new Date(v.desde).toISOString(), new Date(v.hasta).toISOString()].join(' ');
   ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Silla Tiffany')) === '2026-11-14T07:00:00.000Z 2026-11-15T19:00:00.000Z', 'ocupación: mobiliario todo el día del evento hasta las 12 del día siguiente (Víctor 2026-11-02)');
-  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Mantel')).endsWith('2026-11-15T19:00:00.000Z'), 'ocupación: los manteles también quedan libres a las 12 del día siguiente');
+  ok(iso(prod.ventanaOcupacion({ fecha: '2026-11-14', horaInicio: '18:00' }, 'Mantel')).endsWith('2026-11-16T19:00:00.000Z'), 'ocupación: manteles 24 h de lavado después de las 12 del día siguiente');
   ok(iso(prod.ventanaPersonalVasoMaiz({ fecha: '2026-11-14', horaInicio: '18:00', horasServicio: 2 })) === '2026-11-15T00:30:00.000Z 2026-11-15T03:00:00.000Z', 'ocupación: el equipo de El Vaso Maíz sale 30 min antes y termina con el servicio');
   const inv = [
     { id: 'recINVCOPA0000001', nombre: 'Copa Globo - Roja', categoria: 'Copa globo', total: 109 },
@@ -355,7 +355,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(s1.nivel === 'verde', 'semáforo: sillas de hace dos días ya regresaron');
   const manteles = [{ clave: 'dv_mantel', cantidad: 30 }];
   s1 = semaforo(evA({ productos: manteles }), [evA({ id: 'recA4', autorizacion: 'SI', fecha: '2026-11-12', productos: manteles })]);
-  ok(s1.nivel === 'verde', 'semáforo: manteles de hace dos días ya están disponibles');
+  ok(s1.nivel === 'amarillo', 'semáforo: manteles de hace dos días salen de lavado a las 12 del día del evento (la ruta sale antes)');
+  s1 = semaforo(evA({ productos: manteles }), [evA({ id: 'recA4', autorizacion: 'SI', fecha: '2026-11-11', productos: manteles })]);
+  ok(s1.nivel === 'verde', 'semáforo: manteles de hace tres días ya salieron de lavado (24 h)');
+  s1 = semaforo(evA({ productos: manteles }), [evA({ id: 'recA4', autorizacion: 'SI', fecha: '2026-11-13', productos: manteles })]);
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.startsWith('Mantel'), 'semáforo: manteles de ayer siguen en lavado (24 h)');
   s1 = semaforo(evA({ productos: tiff(50) }), [evA({ id: 'recA3', autorizacion: 'SI', fecha: '2026-11-13', productos: tiff(150), recogido: true })]);
   ok(s1.nivel === 'verde', 'semáforo: en cuanto la brigada marca la recolección, las sillas vuelven a estar disponibles');
   ok(agendaMod.eventoParaAgenda({ id: 'x', fields: { Checklist_Recoleccion: true } }).recogido && agendaMod.eventoParaAgenda({ id: 'y', fields: { Estatus_Logistico: 'Cerrado' } }).recogido

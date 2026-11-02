@@ -17,13 +17,13 @@ const HORAS_SERVICIO_VASO_MAIZ = 2;
 const PERSONAS_POR_EQUIPO = 2;
 
 // Reglas de ocupación del inventario (Víctor, 2026-10-28; ajustadas 2026-11-02):
-// - mobiliario y manteles: quedan ocupados el día del evento y vuelven a estar
-//   disponibles a las 12 del día siguiente ("si están rentadas para hoy, mañana a
-//   medio día ya están disponibles"). Antes: 1 pm y los manteles 48 h de lavado;
+// - mobiliario: ocupado el día del evento y disponible a las 12 del día siguiente
+//   ("si están rentadas para hoy, mañana a medio día ya están disponibles");
+// - manteles: 24 h de lavado después de eso (Víctor 2026-11-02; antes 48 h);
 // - en cuanto la brigada marca la recolección, ya no apartan nada (_agenda.js);
 // - salon (Casa Isabella): solo las horas del evento.
 const HORA_REGRESO_SIGUIENTE_DIA = 12;
-const HORAS_LAVADO_MANTEL = 0;
+const HORAS_LAVADO_MANTEL = 24;
 const HORAS_SALON = 5;           // Casa Isabella incluye 5 h de evento
 const HORA_INICIO_DEFAULT = '14:00'; // si no hay hora, se supone que empieza en la tarde
 const ZONA_HORARIA = '-07:00';   // Culiacán (Sinaloa no cambia de horario)

@@ -390,3 +390,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "imagínate que solo pidan 1 o 2 mesas por pedido y tenemos más en bodega"; lo que falte se pide a proveedores aliados. "Si están rentadas para hoy, en teoría mañana a medio día ya están disponibles."
 
 **Descartado:** subir el tope de entregas (seguiría bloqueando pedidos chicos). Mantener las 48 h de lavado de manteles (Víctor pidió reducir el bloqueo del almacén a 12 h; si el lavado lo necesita, se regresa con `HORAS_LAVADO_MANTEL` en `_productos.js`).
+
+## 2026-11-02 — Manteles: 24 h de lavado
+
+**Decisión:** los manteles quedan 24 h en lavado después de las 12 del día siguiente al evento (`HORAS_LAVADO_MANTEL = 24`). Ej.: evento el sábado → disponibles el lunes a las 12. Al marcar la recolección se liberan igual que el mobiliario.
+
+**Por qué:** Víctor: "los manteles déjalos en 24 horas de lavado" (antes 48 h; en el cambio anterior quedaron en 0).
