@@ -97,6 +97,7 @@ Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que 
 - "lineas": cada artículo con su cantidad como está escrito (sale como lista de carga). Incluye también los que no tienen cantidad.
 - "productos": además, los que correspondan con seguridad a una clave del catálogo, con su cantidad (de mesas, sillas, manteles, platos, copas y paquetes).
 - Total y anticipo: los que están escritos. No calcules precios.
+- Si no está escrita la forma de pago del anticipo, pon "No se sabe" y NO lo pongas en "dudas" (se registra después en la app).
 
 Catálogo (clave: nombre):
 ${catalogo}`;
@@ -128,14 +129,17 @@ function aCaptura(x) {
 }
 
 // Lo que todavía falta para poder guardar (las mismas reglas de capturarEvento).
-function faltantes(d) {
+// En Telegram no se pide la forma de pago del anticipo (Víctor 2026-11-02: "eso
+// se hace en la apk"): se guarda el evento y el anticipo se registra en la app
+// con 💵 Registrar pago. En el formulario de la app sí se pide.
+function faltantes(d, { pideForma = true } = {}) {
   const f = [];
   if (!d.clienteNombre) f.push('nombre del cliente');
   if (String(d.clienteTelefono || '').length !== 10) f.push('teléfono del cliente (10 dígitos)');
   if (!d.fecha) f.push('fecha del evento');
   if (!d.servicios) f.push('qué lleva');
   if (!d.montoContratado) f.push('total contratado');
-  if (d.anticipo && !d.formaAnticipo) f.push('cómo pagó el anticipo (efectivo, transferencia o depósito)');
+  if (pideForma && d.anticipo && !d.formaAnticipo) f.push('cómo pagó el anticipo (efectivo, transferencia o depósito)');
   return f;
 }
 
@@ -182,7 +186,7 @@ const pesos = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractio
 const hora12 = (h) => { if (!h) return ''; const [a, m] = h.split(':').map(Number); return `${a % 12 || 12}:${String(m).padStart(2, '0')} ${a < 12 ? 'am' : 'pm'}`; };
 
 function textoBorrador(d, id) {
-  const falta = faltantes(d);
+  const falta = faltantes(d, { pideForma: false });
   const lineas = [
     `${MARCA} (borrador, todavía no se guarda)`,
     '',
@@ -205,7 +209,7 @@ function textoBorrador(d, id) {
   return lineas.join('\n').slice(0, 4000);
 }
 const botonesBorrador = (id, d) => [[
-  ...(faltantes(d).length ? [] : [{ texto: '✅ Guardar evento', dato: `cm:g:${id}` }]),
+  ...(faltantes(d, { pideForma: false }).length ? [] : [{ texto: '✅ Guardar evento', dato: `cm:g:${id}` }]),
   { texto: '❌ Descartar', dato: `cm:x:${id}` },
 ]];
 
@@ -276,7 +280,14 @@ async function atenderBoton(accion, id, colaborador) {
     await airtable(TABLA, { method: 'PATCH', body: JSON.stringify({ records: [{ id, fields: { Estado: 'Descartada' } }] }) });
     return { aviso: 'Descartada', texto: '❌ Comanda descartada. No se guardó nada.' };
   }
-  const r = await capturarEvento(colaborador, { ...b.datos, notas: [b.datos.notas, 'Capturado desde foto de comanda (Telegram).'].filter(Boolean).join(' ') });
+  // Sin forma de pago, el anticipo no se registra aquí (el cobro la necesita): queda anotado y se registra en la app.
+  const anticipoPendiente = b.datos.anticipo && !b.datos.formaAnticipo ? b.datos.anticipo : null;
+  const notaAnticipo = anticipoPendiente ? `Anticipo según la comanda: ${pesos(anticipoPendiente)} (falta registrarlo en la app con 💵 Registrar pago).` : '';
+  const r = await capturarEvento(colaborador, {
+    ...b.datos,
+    ...(anticipoPendiente ? { anticipo: null, formaAnticipo: '' } : {}),
+    notas: [b.datos.notas, 'Capturado desde foto de comanda (Telegram).', notaAnticipo].filter(Boolean).join(' '),
+  });
   if (r.error) return { aviso: r.error, alerta: true };
   const foto = (b.r.fields.Foto || [])[0];
   await Promise.all([
@@ -286,6 +297,7 @@ async function atenderBoton(accion, id, colaborador) {
   const extras = [
     r.clienteNuevo ? 'cliente nuevo' : `cliente ya registrado: ${r.cliente}`,
     r.anticipoGuardado ? 'anticipo registrado' : '',
+    anticipoPendiente ? `anticipo de ${pesos(anticipoPendiente)} por registrar en la app con 💵 Registrar pago` : '',
     r.recibo ? (r.recibo.ok ? 'te mandé el recibo' : `el recibo no salió: ${r.recibo.error}`) : '',
     r.google && !r.google.ok ? `⚠️ ${r.google.error}` : '',
     r.diaLleno && r.diaLleno.lleno ? `📅 ese día quedó LLENO (${r.diaLleno.detalle})` : '',
