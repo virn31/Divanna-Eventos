@@ -115,7 +115,12 @@ function articulosDe(d, negocio) {
       .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']));
   }
   // Divanna: como el recibo de papel, por artículo (mesas, sillas, manteles...).
-  const lineas = Object.entries(inventarioRequerido(propios)).map(([cat, n]) => [cat, n, '']);
+  // En los manteles va el tipo y color que se anotó en la nota de las mesas o el
+  // paquete (ej. "mantel básico beige"): solo el pedazo que habla del mantel.
+  const detalleMantel = (cat) => [...new Set(propios
+    .filter(p => /^Mantel/.test(cat) && (PRODUCTOS[p.clave].componentes || {})[cat])
+    .flatMap(p => String(p.nota || '').split(/[,;·]/).map(t => t.trim()).filter(t => /mantel/i.test(t))))].join(' · ');
+  const lineas = Object.entries(inventarioRequerido(propios)).map(([cat, n]) => [cat, n, detalleMantel(cat)]);
   for (const p of propios) {
     if (!Object.keys(PRODUCTOS[p.clave].componentes || {}).length) lineas.push([PRODUCTOS[p.clave].nombre, p.cantidad, p.nota || '']);
   }

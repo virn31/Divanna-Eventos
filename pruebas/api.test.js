@@ -2238,6 +2238,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(celda('B5')[0] === 'EVT-111222' && celda('B6')[0] === 'Laura Pérez' && celda('B7')[0] === '696 100 7116' && celda('B9')[0] === '6:00 pm' && celda('D29')[0] === 2500 && celda('D30')[0] === 500
       && celdas.some(x => x.range.includes('A17:E17') && x.values[0][1] > 0) && celdas.some(x => x.values[0][0] === 'Lona personalizada' && x.values[0][2] === 'Feliz cumpleaños'),
       'sheets: el recibo trae folio, cliente, teléfono, hora, artículos, total y anticipo');
+    const conMantel = sh.articulosDe({ f: { Negocio: 'Divanna Eventos' }, productos: [{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mesas redondas, mantel básico beige' }] }, 'Divanna Eventos');
+    const rMantel = conMantel.find(l => l[0] === 'Mantel');
+    ok(rMantel && rMantel[1] === 10 && rMantel[2] === 'mantel básico beige' && conMantel.find(l => l[0] === 'Mesa')[2] === '',
+      'sheets: el renglón de manteles del recibo trae el tipo y color anotados');
     ok(renglon.range === "'Pedidos'!A3:I3" && renglon.requestBody.values[0][0] === 'EVT-111222' && renglon.requestBody.values[0][5] === 2500 && renglon.requestBody.values[0][6] === 500
       && renglon.requestBody.values[0][7] === '=IF(F3="","",F3-G3)' && renglon.requestBody.values[0][8] === 'Anticipo recibido',
       'sheets: agrega el pedido en el primer renglón libre de la lista (no toca los que ya estaban)');
@@ -2325,6 +2329,13 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       for (const k of Object.keys(o)) revisar(o[k], ruta + '.' + k);
     })(com.HERRAMIENTA.input_schema, 'input_schema');
     ok(!enumsMalos.length, 'comanda: el esquema no tiene enum con null (la API lo rechaza) ' + enumsMalos.join(', '));
+
+    // "10 mesas, 10 manteles" no debe salir con 20 manteles en el recibo (Víctor 2026-11-02).
+    const conManteles = (prods, lineas) => com.aCaptura({ ...LEIDA, productos: prods.map(([clave, cantidad]) => ({ clave, cantidad, nota: null })), lineas }).productos;
+    const doble = conManteles([['dv_mesa_mantel', 10], ['dv_mantel', 10]], ['10 mesas', '10 manteles beige']);
+    const conExtra = conManteles([['dv_mesa_mantel', 10], ['dv_mantel', 2]], ['10 mesas', '12 manteles']);
+    ok(doble.length === 1 && doble[0].clave === 'dv_mesa_mantel' && conExtra.find(p => p.clave === 'dv_mantel').cantidad === 2,
+      'comanda: los manteles de las mesas no se cuentan otra vez como "Mantel extra"');
 
     reset();
     respuestas = [ADMIN];

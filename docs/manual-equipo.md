@@ -87,6 +87,9 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
   borrador con la corrección ("la fecha es el 28").
 - En Telegram no hace falta decir cómo se pagó el anticipo: el evento se guarda y el anticipo queda anotado
   para registrarlo en la app con **💵 Registrar pago** (ahí sale el recibo).
+- **Mantel:** en la comanda, el espacio de "Mantel" lleva el **tipo y el color** (ej. "básico beige",
+  "lentejuela dorado"), no la cantidad: los manteles salen de las mesas (uno por mesa). Si ahí solo va un
+  número, DiMa avisa que falta el tipo y el color.
 - La gerente solo puede capturar comandas de El Vaso Maíz.
 - **Recibo:** cuando se registra un anticipo o un pago, a Diana y Víctor (y a la gerente si es de El Vaso Maíz)
   les llega por Telegram el recibo en PDF para reenviárselo al cliente. También se pide cuando quieran con

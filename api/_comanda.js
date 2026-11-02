@@ -96,6 +96,8 @@ Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que 
 - No inventes: si un dato no está o no se lee, ponlo en null y explícalo en "dudas". Si un número está tachado o es dudoso, di cuál leíste y que hay que confirmarlo.
 - "lineas": cada artículo con su cantidad como está escrito (sale como lista de carga). Incluye también los que no tienen cantidad.
 - "productos": además, los que correspondan con seguridad a una clave del catálogo, con su cantidad (de mesas, sillas, manteles, platos, copas y paquetes).
+- MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel básico beige") y elige la clave según el tipo (paquete con lentejuela o corrugado si así lo dice). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
+- No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. "Mantel extra" es solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2.
 - Total y anticipo: los que están escritos. No calcules precios.
 - Si no está escrita la forma de pago del anticipo, pon "No se sabe" y NO lo pongas en "dudas" (se registra después en la app).
 
@@ -103,11 +105,36 @@ Catálogo (clave: nombre):
 ${catalogo}`;
 }
 
+// Candado (Víctor 2026-11-02: "en lugar de poner 10 manteles pone 20"): las
+// mesas con mantel ya traen su mantel y Claude a veces agrega además "Mantel
+// extra" por los mismos manteles. Manda lo escrito en el papel: si las líneas
+// dicen N manteles (básicos, no lentejuela ni corrugado) y con los productos
+// salen más, se le quita la diferencia a "Mantel extra".
+function sinMantelesDobles(productos, lineas) {
+  let escritos = 0;
+  for (const t of lineas) {
+    if (!/manteles?\b/i.test(t) || /lentejuela|corrugad/i.test(t)) continue;
+    const n = (t.match(/^\s*(\d+)/) || [])[1];
+    if (!n) return productos; // no se sabe cuántos: se deja como vino
+    escritos += Number(n);
+  }
+  if (!escritos) return productos;
+  const total = productos.reduce((t, p) => t + ((PRODUCTOS[p.clave].componentes || {})['Mantel'] || 0) * p.cantidad, 0);
+  let sobran = total - escritos;
+  if (sobran <= 0) return productos;
+  return productos.map(p => {
+    if (p.clave !== 'dv_mantel' || sobran <= 0) return p;
+    const quitar = Math.min(sobran, p.cantidad);
+    sobran -= quitar;
+    return { ...p, cantidad: p.cantidad - quitar };
+  }).filter(p => p.cantidad > 0);
+}
+
 // Normaliza lo que dio Claude al formato de "capturar evento".
 function aCaptura(x) {
   const tel = String(x.cliente_telefono || '').replace(/\D/g, '').slice(-10);
   const lineas = (x.lineas || []).map(t => String(t).trim()).filter(Boolean).slice(0, 80);
-  const productos = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
+  const productos = sinMantelesDobles((x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null })), lineas);
   const notas = [x.numero_recibo ? `Comanda de papel Nº ${x.numero_recibo}.` : '', x.notas || ''].filter(Boolean).join(' ');
   return {
     negocio: x.negocio === 'El Vaso Maiz' ? 'El Vaso Maiz' : 'Divanna Eventos',
@@ -305,4 +332,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
 }
 
-module.exports = { HERRAMIENTA, leer, aCaptura, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };
+module.exports = { HERRAMIENTA, leer, aCaptura, sinMantelesDobles, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };

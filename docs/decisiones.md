@@ -358,3 +358,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "me pregunta el anticipo como fue si deposito efectivo o transferencia, eso no importa en ese momento, eso se hace en la apk". Sin la forma solo salía Descartar y había que mandar una corrección (otra llamada a Claude) solo para eso.
 
 **Descartado:** registrar el cobro con forma vacía (el cuadre separa efectivo de transferencia y quedaría un cobro sin clasificar).
+
+## 2026-11-02 — Mantel: en la comanda va tipo y color, no la cantidad
+
+**Decisión:** el espacio de "Mantel" de la comanda lleva el tipo (básico, lentejuela, corrugado) y el color; la cantidad sale de las mesas (uno por mesa). DiMa lo pregunta en el chat y lo lee en la foto, lo anota en la nota del producto de las mesas y el recibo lo muestra en el renglón de manteles. Si en la comanda solo hay un número, no se agrega "Mantel extra" y avisa que falta tipo y color; además un candado en `_comanda.js` le quita a "Mantel extra" lo que exceda los manteles escritos.
+
+**Por qué:** un recibo salió con 20 manteles en vez de 10: en la comanda se escribió "10" en el espacio de Mantel y DiMa lo sumó como "Mantel extra" encima de las 10 mesas con mantel. Víctor: "en el área de mantel debe decir el tipo y color no el número de manteles".
+
+**Descartado:** contar manteles aparte de las mesas (se duplican con las mesas y paquetes que ya los traen).
