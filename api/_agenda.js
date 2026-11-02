@@ -25,7 +25,10 @@ const TABLES = {
 
 // Datos de Víctor (2026-10-28).
 const PERSONAL_BASE_VASO_MAIZ = 12;  // personas por día si no hay renglón en PERSONAL_DIA
-const EQUIPOS_VASO_MAIZ = 6;         // máximo de eventos de El Vaso Maíz al mismo tiempo
+// Diana 2026-11-02: El Vaso Maíz puede hacer hasta 10 eventos por día porque el
+// staff se aumenta con eventuales. El personal del día ya no llena el día: si no
+// alcanza, el semáforo sale amarillo (sumar eventuales), no rojo.
+const EQUIPOS_VASO_MAIZ = 10;        // máximo de eventos de El Vaso Maíz por día (y al mismo tiempo)
 const BRIGADAS_DIVANNA = 3;          // Ángel, Edén y Mario
 const PEDIDOS_POR_RUTA = 3;          // cada brigada lleva 2 o 3 pedidos por ruta
 const HORAS_AVISO_PROVEEDOR = 48;    // a proveedores aliados se les pide con 48 h mínimo
@@ -222,7 +225,7 @@ function evaluarDisponibilidad(ev, { otros = [], inventario = [], personalPorFec
     if (equipos >= EQUIPOS_VASO_MAIZ) {
       agregar('rojo', `El Vaso Maíz: los ${EQUIPOS_VASO_MAIZ} equipos ya están ocupados en ese horario${conQuien}.`);
     } else if (libres < PERSONAS_POR_EQUIPO) {
-      agregar('rojo', `El Vaso Maíz: no queda personal libre en ese horario (cupo ${cupo}, ocupadas ${ocupadas}${conQuien}).`);
+      agregar('amarillo', `El Vaso Maíz: con el personal del día (${cupo}) no queda nadie libre en ese horario (ocupadas ${ocupadas}${conQuien}): sumar ${necesita.personas} eventuales.`);
     } else if (libres < necesita.personas) {
       const horas = Math.round(piezas * MINUTOS_POR_PIEZA.max / libres / 60 * 2) / 2;
       agregar('amarillo', `El Vaso Maíz: se necesitan ${necesita.personas} personas y quedan ${libres} libres${conQuien}. Con ${libres} la preparación tarda ~${horas} h; o sumar eventuales (cupo del día: ${cupo}).`);
@@ -263,9 +266,8 @@ function camposDisponibilidad(resultado) {
 // Con las mismas reglas del semáforo, por día y por negocio:
 // - Divanna: entregas del día (eventos autorizados de Divanna) contra
 //   BRIGADAS_DIVANNA x PEDIDOS_POR_RUTA.
-// - El Vaso Maíz: eventos contra EQUIPOS_VASO_MAIZ y personas requeridas contra
-//   el personal del día (PERSONAL_DIA o PERSONAL_BASE_VASO_MAIZ). Es conservador:
-//   cuenta todo el día como si los eventos coincidieran (no separa turnos).
+// - El Vaso Maíz: eventos del día contra EQUIPOS_VASO_MAIZ (10). Las personas
+//   contra el personal del día solo se informan: el staff se aumenta (Diana 2026-11-02).
 // Lleno = ya no cabe uno más. Diana puede capturar uno más a mano (con aviso).
 const CAPACIDAD_DIVANNA = BRIGADAS_DIVANNA * PEDIDOS_POR_RUTA;
 const esDeVasoMaiz = (o) => o.negocio === 'El Vaso Maiz' || o.personal > 0 || piezasVasoMaiz(o.productos) > 0;
@@ -281,8 +283,8 @@ function cupoDelDia(fecha, autorizados, personalPorFecha = {}) {
     'Divanna Eventos': { usados: dv, cupo: CAPACIDAD_DIVANNA, lleno: dv >= CAPACIDAD_DIVANNA, texto: `${dv} de ${CAPACIDAD_DIVANNA} entregas` },
     'El Vaso Maiz': {
       usados: vm.length, cupo: EQUIPOS_VASO_MAIZ, personas, cupoPersonas,
-      lleno: vm.length >= EQUIPOS_VASO_MAIZ || personas + PERSONAS_POR_EQUIPO > cupoPersonas,
-      texto: `${vm.length} de ${EQUIPOS_VASO_MAIZ} equipos · ${personas} de ${cupoPersonas} personas`,
+      lleno: vm.length >= EQUIPOS_VASO_MAIZ,
+      texto: `${vm.length} de ${EQUIPOS_VASO_MAIZ} eventos · ${personas} personas (personal del día: ${cupoPersonas}${personas > cupoPersonas ? ', sumar eventuales' : ''})`,
     },
   };
 }

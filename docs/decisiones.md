@@ -374,3 +374,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "la apk me dice que no puede leer la foto… que se mantenga siempre funcional". En los registros no llegó ninguna foto al servidor: fallaba en el teléfono (Android 10) antes de mandarla, y el mensaje genérico no decía por qué.
 
 **Descartado:** subir la foto original sin achicar (fotos de cámara pasan el límite de 4.5 MB de Vercel).
+
+## 2026-11-02 — El Vaso Maíz: hasta 10 eventos por día; personalizados no son piezas
+
+**Decisión:** el día de El Vaso Maíz se llena con 10 eventos (antes 6 equipos o el personal del día). Si el personal no alcanza, el semáforo sale 🟡 "sumar eventuales", ya no 🔴 ni bloquea el día. Nuevo producto `vm_personalizado` (diseño para el plato o vaso) sin piezas: no cuenta personal ni sale en la lista de producción. La lectura de comandas y el chat los registran así, y un candado en `_comanda.js` cambia a personalizado los "N personalizados" que Claude haya puesto como pieza suelta.
+
+**Por qué:** EVT-004762 bloqueó el día pidiendo 11 personas: 155 personalizados se contaron como piezas a preparar (4 min c/u en 2 h). Víctor: "esos personalizados son los diseños para los platos… este evento lo hacen solo dos personas en 2 hrs". Diana: "es posible hacer hasta 10 eventos por día ya que podemos aumentar el staff".
+
+**Descartado:** subir el cupo de personal del día (seguiría bloqueando por personas cuando el staff sí se puede aumentar). Divanna sigue en 9 entregas por día (3 brigadas x 3).

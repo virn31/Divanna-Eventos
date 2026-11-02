@@ -105,7 +105,9 @@ const PRODUCTOS = {
   vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Raspados': 1 } },
   vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Elotes forrados': 1 } },
   vm_maruchan: { nombre: 'Maruchan preparada (por pieza)', negocio: VM, piezas: 1, contenido: { 'Maruchan preparadas': 1 } },
-  vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
+  vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz que se prepara (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
+  // Diseño impreso para el plato o vaso (Víctor 2026-11-02): no se prepara, no cuenta piezas ni personal.
+  vm_personalizado: { nombre: 'Personalizado de El Vaso Maíz (diseño para el plato o vaso, no se prepara)', negocio: VM },
 
   // ---------- Divanna: mobiliario por pieza ----------
   dv_mesa_10_jardin: { nombre: 'Mesa con 10 sillas Jardinera y mantel', negocio: DV, componentes: { 'Mesa': 1, 'Silla Jardín': 10, 'Mantel': 1 } },
@@ -200,7 +202,7 @@ function produccionVasoMaiz(lista) {
   const sinDesglose = [];
   for (const p of lista) {
     const prod = PRODUCTOS[p.clave];
-    if (!prod || prod.negocio !== VM) continue;
+    if (!prod || prod.negocio !== VM || !prod.piezas) continue; // los personalizados no se preparan
     if (!prod.contenido) { sinDesglose.push({ cantidad: p.cantidad, nota: p.nota || '' }); continue; }
     for (const [nombre, n] of Object.entries(prod.contenido)) totales.set(nombre, (totales.get(nombre) || 0) + n * p.cantidad);
   }

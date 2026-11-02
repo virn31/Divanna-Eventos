@@ -331,7 +331,16 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', folio: 'EVT-A1', autorizacion: 'SI', horaInicio: '17:00', personal: 6 }), evA({ id: 'recA2', folio: 'EVT-A2', autorizacion: 'SI', horaInicio: '19:00', personal: 4 })]);
   ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('quedan 2 libres') && s1.motivos[0].texto.includes('EVT-A1'), 'semáforo: con 10 de 12 personas ocupadas en ese horario = amarillo, dice con quién');
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '17:00', personal: 6 }), evA({ id: 'recA2', autorizacion: 'SI', horaInicio: '19:00', personal: 4 })], { personalPorFecha: { '2026-11-14': 11 } });
-  ok(s1.nivel === 'rojo', 'semáforo: si PERSONAL_DIA baja el cupo y no queda ni un equipo = rojo');
+  {
+    const prod = require(path.join(repo, 'api/_productos.js'));
+    const conPers = [{ clave: 'vm_paquete_1', cantidad: 1 }, { clave: 'vm_personalizado', cantidad: 155 }];
+    ok(prod.piezasVasoMaiz(conPers) === 60 && prod.capacidadEvento(conPers, 2).personal === 2 && !prod.produccionVasoMaiz(conPers).sinDesglose.length,
+      'capacidad: 155 personalizados no son piezas a preparar (EVT-004762 pedía 11 personas)');
+    const com = require(path.join(repo, 'api/_comanda.js'));
+    const leidos = com.aCaptura({ negocio: 'El Vaso Maiz', productos: [{ clave: 'vm_paquete_1', cantidad: 1, nota: null }, { clave: 'vm_pieza', cantidad: 155, nota: null }], lineas: ['Paquete 1', '155 personalizados'], dudas: [] }).productos;
+    ok(leidos.some(p => p.clave === 'vm_personalizado' && p.cantidad === 155) && !leidos.some(p => p.clave === 'vm_pieza'), 'comanda: "155 personalizados" leídos como pieza suelta se cambian a personalizado');
+  }
+  ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('eventuales'), 'semáforo: si no queda personal libre = amarillo, sumar eventuales (Diana 2026-11-02: el staff se aumenta)');
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '10:00', personal: 10 })]);
   ok(s1.nivel === 'verde', 'semáforo: un evento en la mañana no ocupa el personal de la tarde');
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recP1', folio: 'EVT-P1', autorizacion: 'Pendiente', horaInicio: '18:00', personal: 10 })]);
@@ -1895,11 +1904,13 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const cupo8 = agendaMod.cupoDelDia('2026-12-12', nueveDv.slice(0, 8).map(agendaMod.eventoParaAgenda));
   const cupo9 = agendaMod.cupoDelDia('2026-12-12', nueveDv.map(agendaMod.eventoParaAgenda));
   ok(!cupo8['Divanna Eventos'].lleno && cupo9['Divanna Eventos'].lleno && !cupo9['El Vaso Maiz'].lleno, 'día lleno: Divanna se llena con 9 entregas (3 brigadas x 3)');
-  const seisVm = Array.from({ length: 6 }, (_, i) => evDia(i, 'El Vaso Maiz', { Personal_Requerido: 2 }));
-  ok(agendaMod.cupoDelDia('2026-12-12', seisVm.map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
-    && !agendaMod.cupoDelDia('2026-12-12', seisVm.slice(0, 5).map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
-    && agendaMod.cupoDelDia('2026-12-12', seisVm.slice(0, 2).map(agendaMod.eventoParaAgenda), { '2026-12-12': 5 })['El Vaso Maiz'].lleno,
-    'día lleno: El Vaso Maíz se llena con 6 equipos o cuando ya no cabe otro equipo en el personal del día');
+  // Diana 2026-11-02: hasta 10 eventos de El Vaso Maíz por día; el personal no llena el día (se suman eventuales).
+  const diezVm = Array.from({ length: 10 }, (_, i) => evDia(i, 'El Vaso Maiz', { Personal_Requerido: 2 }));
+  const conOnce = [evDia(20, 'El Vaso Maiz', { Personal_Requerido: 11 }), evDia(21, 'El Vaso Maiz', { Personal_Requerido: 2 })];
+  ok(agendaMod.cupoDelDia('2026-12-12', diezVm.map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
+    && !agendaMod.cupoDelDia('2026-12-12', diezVm.slice(0, 9).map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno
+    && !agendaMod.cupoDelDia('2026-12-12', conOnce.map(agendaMod.eventoParaAgenda))['El Vaso Maiz'].lleno,
+    'día lleno: El Vaso Maíz se llena con 10 eventos; el personal del día no lo llena');
 
   reset();
   llenosPrueba = nueveDv;
