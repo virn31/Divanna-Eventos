@@ -468,13 +468,13 @@
       </div>`;
   }
 
-  // ✏️ Editar evento y cliente (solo la gerente, en eventos de El Vaso Maíz).
+  // ✏️ Editar evento, cliente y pedido (solo la gerente, en eventos de El Vaso Maíz; sin monto).
   function bloqueEditar(ev){
     if(!opcionesAsignar || !ev.vasoMaiz) return '';
     const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
     return `
       <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
-        <summary>✏️ Editar evento y cliente</summary>
+        <summary>✏️ Editar evento, cliente y pedido</summary>
         <label class="ed-label">Nombre del cliente</label>
         <input type="text" class="ed-nombre" maxlength="200" value="${esc(ev.clienteNombre)}">
         <label class="ed-label">Teléfono (10 dígitos)</label>
@@ -488,6 +488,9 @@
         <label class="ed-label">Invitados</label>
         <input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${ev.invitados ? esc(ev.invitados) : ''}">
         <label><input type="checkbox" class="ed-fuera" ${ev.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <label class="ed-label">Pedido: qué lleva (un artículo por línea; también es la lista de carga)</label>
+        <textarea class="ed-servicios" maxlength="5000" rows="5">${esc(ev.servicios)}</textarea>
+        <label><input type="checkbox" class="ed-avisar" checked> Si cambia lo que lleva, avisar al equipo del evento</label>
         <button class="asig-guardar ed-guardar" data-evento="${esc(ev.id)}">Guardar cambios</button>
         <div class="asig-msg ed-msg"></div>
       </details>`;
@@ -501,7 +504,7 @@
     btn.disabled = true;
     msg.textContent = 'Guardando…';
     try {
-      await api('/api/dashboard-eventos', {
+      const r = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -509,10 +512,12 @@
           clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
           ubicacion: v('.ed-ubicacion'), fecha: v('.ed-fecha'), invitados: v('.ed-invitados'),
           fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+          servicios: caja.querySelector('.ed-servicios').value,
+          avisarEquipo: caja.querySelector('.ed-avisar').checked,
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = 'Guardado.';
+      msg.textContent = r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.';
       ultimaFoto = null;
       setTimeout(() => loadEventos(true), 800);
     } catch(e){

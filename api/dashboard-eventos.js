@@ -39,7 +39,7 @@ const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArt
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
-const { confirmarCambio, descartarCambio } = require('./_cambios');
+const { confirmarCambio, descartarCambio, avisarEquipoCambio } = require('./_cambios');
 const Comanda = require('./_comanda');
 const { enviarRecibo } = require('./_sheets');
 const { leerCambio, notasSinConversacion } = require('./_pedidos');
@@ -93,9 +93,59 @@ async function clientesPorId(ids) {
 // ✏️ Diana corrige a mano los datos del evento y del cliente desde el dashboard.
 // Solo se escriben los campos que vienen en la petición. Si el evento no tiene
 // cliente y se escribe un nombre o teléfono, se crea el cliente y se vincula.
+// También el pedido (decisión de Víctor 2026-11-03): lo que se pidió (que en un
+// evento autorizado es también la lista de carga) y el monto (solo Admin; la
+// gerente no ve montos). Si cambia lo pedido de un evento autorizado se avisa
+// al equipo igual que un cambio del cliente confirmado.
 const TEXTO = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
-async function editarEvento(eventoId, f, body) {
+
+// Al cambiar la lista de carga se conservan las palomitas de los artículos que
+// siguen igual (las marcas guardan el número de renglón, no el texto).
+function marcadosConservados(viejos, marcadosJson, nuevos) {
+  let marcados = [];
+  try { marcados = JSON.parse(marcadosJson || '[]'); } catch (e) { marcados = []; }
+  const pendientes = marcados.map(i => viejos[i]).filter(t => t !== undefined);
+  const resultado = [];
+  nuevos.forEach((t, j) => {
+    const k = pendientes.indexOf(t);
+    if (k !== -1) { resultado.push(j); pendientes.splice(k, 1); }
+  });
+  return JSON.stringify(resultado);
+}
+
+async function editarEvento(eventoId, f, body, colaborador) {
   const evento = {};
+  const esAdmin = colaborador.rol === ROLES.ADMIN;
+  const autorizado = f.Autorizacion_Diana === 'SI';
+  let pedidoCambio = false;
+  if (body.servicios !== undefined) {
+    const lista = itemsDeTexto(TEXTO(body.servicios, 5000));
+    // Vacío solo se acepta si ya estaba vacío (pedidos viejos sin lista).
+    if (!lista.length && itemsDeTexto(f.Servicios_Solicitados).length) return { error: 'El pedido no puede quedar vacío' };
+    const texto = lista.join('\n');
+    if (lista.length && texto !== itemsDeTexto(f.Servicios_Solicitados).join('\n')) {
+      pedidoCambio = true;
+      evento.Servicios_Solicitados = texto;
+      if (autorizado) {
+        evento.Items_Detallados_Cotizacion = texto;
+        evento.Checklist_Items = texto;
+        evento.Checklist_Items_Marcados = marcadosConservados(itemsDeTexto(f.Checklist_Items), f.Checklist_Items_Marcados, lista);
+      }
+    }
+  }
+  if (body.monto !== undefined && body.monto !== '' && body.monto !== null) {
+    if (!esAdmin) return { error: 'Solo Diana o Víctor cambian el monto.', codigo: 403 };
+    const monto = Number(body.monto);
+    if (!(monto > 0 && monto < 10000000)) return { error: 'Monto inválido' };
+    evento.Monto_Estimado_IA = Math.round(monto * 100) / 100;
+  }
+  const avisar = autorizado && pedidoCambio && body.avisarEquipo !== false;
+  if (avisar) {
+    // El equipo vuelve a confirmar que vio el evento con el cambio.
+    evento.Enterado_Por = '';
+    evento.Enterado_Hora = null;
+    evento.Notas = `${f.Notas || ''}\n--- Pedido modificado a mano por ${colaborador.nombre} (${new Date().toISOString().slice(0, 10)}) ---`.slice(-90000);
+  }
   const ubicacion = TEXTO(body.ubicacion, 500);
   if (ubicacion !== undefined) evento.Ubicacion = ubicacion;
   if (body.fecha !== undefined) {
@@ -137,9 +187,15 @@ async function editarEvento(eventoId, f, body) {
     evento.Cliente = [(await res.json()).records[0].id];
   }
   if (Object.keys(evento).length) await airtablePatch(TABLES.EVENTOS, eventoId, evento);
-  // Fecha o lugar distintos: se actualiza Google Calendar.
-  const google = evento.Fecha_Evento !== undefined || evento.Ubicacion !== undefined ? await sincronizarEvento(eventoId) : null;
-  return { google };
+  // Fecha, lugar o pedido distintos: se actualiza Google Calendar.
+  const google = evento.Fecha_Evento !== undefined || evento.Ubicacion !== undefined || pedidoCambio ? await sincronizarEvento(eventoId) : null;
+  const aviso = avisar
+    ? await avisarEquipoCambio(eventoId, { ...f, ...evento }, colaborador, await colaboradoresActivos(), {
+      servicios: evento.Servicios_Solicitados,
+      explicacion: `${colaborador.nombre || 'La gerencia'} modificó el pedido. Ahora lleva:`,
+    })
+    : null;
+  return { google, aviso };
 }
 
 async function ultimoBalance() {
@@ -264,9 +320,9 @@ async function resolverPedido(req, res, colaborador) {
       res.status(403).json({ error: 'Solo puedes editar eventos de El Vaso Maíz.' });
       return;
     }
-    const r = await editarEvento(eventoId, f, req.body || {});
-    if (r.error) { res.status(400).json({ error: r.error }); return; }
-    res.status(200).json({ success: true, google: r.google });
+    const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
+    if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
+    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0 });
     return;
   }
 
