@@ -20,6 +20,7 @@ const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES } = require('./_productos');
 const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
+const { ORIGENES } = require('./_origen');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
 const { sincronizarSheets, sheetsConfigurado, enviarRecibo } = require('./_sheets');
@@ -572,6 +573,12 @@ async function capturarEvento(colaborador, b) {
   if (String(b.instrucciones || '').trim()) campos.Instrucciones_Equipo = String(b.instrucciones).trim().slice(0, 2000);
   const creado = await airtable(TABLES.EVENTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
   const eventoId = creado.records[0].id;
+  // Origen aparte: si la columna no existe, el evento ya quedó guardado igual.
+  try {
+    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: ORIGENES.MANUAL } }], typecast: true }) });
+  } catch (err) {
+    console.error('No se pudo guardar Origen:', err.message);
+  }
 
   // El anticipo ya recibido entra como pago a Diana (cuadre y por cobrar).
   let anticipoGuardado = false;

@@ -9,6 +9,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { normalizarProductos, capacidadEvento, inicioEvento } = require('./_productos');
+const { ORIGENES } = require('./_origen');
 const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
 
 // Plazo que DiMa le promete al cliente para confirmar su cotización.
@@ -103,6 +104,20 @@ function camposAgenda(datos) {
   return fields;
 }
 
+// Escribe la columna Origen. typecast crea la opción si aún no existe; si la
+// columna no existe, solo queda en el log (el origen sigue en Notas).
+async function guardarOrigen(eventoId, valor) {
+  if (!eventoId) return;
+  try {
+    await airtableRequest(TABLES.EVENTOS, {
+      method: 'PATCH',
+      body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: valor } }], typecast: true }),
+    });
+  } catch (err) {
+    console.error('No se pudo guardar Origen:', err.message);
+  }
+}
+
 // origen: 'formulario' o 'chat'. notasExtra: texto adicional para Notas (ej. la conversación).
 async function crearPedido(datos, { origen, notasExtra = '' }) {
   const diezDigitos = datos.telefonoDigitos.slice(-10);
@@ -160,6 +175,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     body: JSON.stringify({ records: [{ fields: eventoFields }] }),
   });
   const eventoId = creado && creado.records && creado.records[0] && creado.records[0].id;
+
+  await guardarOrigen(eventoId, origen === 'chat' ? ORIGENES.CHAT : ORIGENES.FORMULARIO);
 
   // 3. Semáforo de agenda: se guarda en el evento y va en los avisos. Si falla,
   // el pedido sigue registrado y el dashboard lo recalcula al abrirse.
