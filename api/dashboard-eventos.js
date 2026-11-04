@@ -634,6 +634,8 @@ module.exports = async (req, res) => {
         fecha: r.fields.Fecha_Evento || '',
         ubicacion: r.fields.Ubicacion || '',
         invitados: r.fields.Invitados || null,
+        // Qué lleva: el ✏️ Editar lo muestra para corregirlo (antes llegaba vacío).
+        servicios: r.fields.Servicios_Solicitados || '',
         brigadaId: brigadaIds[0] || '',
         encargadaIds: r.fields.Encargada || [],
         vasoMaiz: esVasoMaiz(r.fields),

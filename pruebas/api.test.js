@@ -524,7 +524,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestas = [
     ADMIN,
     { records: [] },
-    { records: [{ id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Autorizacion_Diana: 'Pendiente', Cliente: ['recCLIENTE0000001'], Monto_Estimado_IA: 6000 } }] },
+    { records: [{ id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Autorizacion_Diana: 'Pendiente', Cliente: ['recCLIENTE0000001'], Monto_Estimado_IA: 6000, Servicios_Solicitados: '10 mesas\n80 sillas' } }] },
     { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Ana' } }] },
     { records: [] },
   ];
@@ -532,6 +532,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'GET', query: {}, headers: auth(tokenAdmin) }, res);
   ok(res.code === 200 && res.body.pedidos[0].montoEstimado === 6000 && res.body.pedidos[0].clienteNombre === 'Ana', 'dashboard GET: pedido con estimado de DiMa');
   ok(res.body.eventos[0].dinero && res.body.eventos[0].dinero.total === 6000 && res.body.eventos[0].dinero.resta === 6000, 'dashboard GET: cada evento trae su dinero para la ficha de Diana');
+  ok(res.body.eventos[0].servicios === '10 mesas\n80 sillas', 'dashboard GET: cada evento trae qué lleva para el ✏️ Editar (antes llegaba vacío)');
 
   // ---------- App de brigadas por rol ----------
   reset();
