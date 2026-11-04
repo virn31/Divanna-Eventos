@@ -1437,6 +1437,58 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
   ok(res.code === 403 && llamadas.length === 1, 'cambio: solo Diana y Víctor confirman cambios');
 
+  // ---------- ✏️ Editar el pedido a mano (qué lleva y monto) ----------
+  const EV_ED = { id: 'recEVENTOEDITA001', fields: { ...EV_PEND.fields, Cambio_Cliente: '', Servicios_Solicitados: 'Mesa\nSillas\nMantel',
+    Checklist_Items: 'Mesa\nSillas\nMantel', Checklist_Items_Marcados: '[0,2]', Monto_Estimado_IA: 4000 } };
+  reset();
+  respuestas = [ADMIN, EV_ED, {}, EV_ED, { records: [ADMIN, LIDER_CAMBIO] }, { records: [ADMIN, LIDER_CAMBIO] }, { records: [ADMIN_T, LIDER_CAMBIO] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: ' Sillas\n\nMantel\nCopas ', monto: '5000' } }, res);
+  const edPedido = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  const avisoEd = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '222');
+  ok(res.code === 200 && edPedido.Servicios_Solicitados === 'Sillas\nMantel\nCopas' && edPedido.Checklist_Items === 'Sillas\nMantel\nCopas' && edPedido.Items_Detallados_Cotizacion === 'Sillas\nMantel\nCopas'
+    && edPedido.Checklist_Items_Marcados === '[1]' && edPedido.Monto_Estimado_IA === 5000 && edPedido.Enterado_Por === '',
+    'editar pedido: Diana cambia lo que lleva y el monto; la lista de carga conserva las palomitas de lo que sigue igual');
+  ok(avisoEd && avisoEd.body.text.startsWith('🔄 Cambió el pedido EVT-CM1') && avisoEd.body.text.includes('Diana modificó el pedido') && avisoEd.body.text.includes('Copas') && !avisoEd.body.text.includes('$')
+    && botonesDe(avisoEd).join() === `cf:${EV_ED.id}` && res.body.avisados === 1,
+    'editar pedido: se avisa a la brigada con lo nuevo (sin montos) y botón Confirmar');
+
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Mesa\nSillas', avisarEquipo: false } }, res);
+  const edSinAviso = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edSinAviso.Checklist_Items === 'Mesa\nSillas' && edSinAviso.Checklist_Items_Marcados === '[0]' && !('Enterado_Por' in edSinAviso) && !telegram.length,
+    'editar pedido: sin "avisar al equipo" se guarda sin mandar avisos');
+
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Mesa\nSillas\nMantel', invitados: '90' } }, res);
+  const edIgual = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edIgual.Invitados === 90 && !('Servicios_Solicitados' in edIgual) && !('Checklist_Items_Marcados' in edIgual) && !telegram.length,
+    'editar pedido: si lo que lleva no cambió no se toca la lista de carga ni se avisa');
+
+  reset();
+  respuestas = [ADMIN, EV_ED];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: '  \n ' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'editar pedido: no se deja el pedido vacío');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM01', accion: 'editar', servicios: 'Paquete 5', monto: '9000' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'editar pedido: la gerente no cambia el monto');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3', Checklist_Items: 'Paquete 3' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM01', accion: 'editar', servicios: 'Paquete 5', avisarEquipo: false } }, res);
+  const edGer = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edGer.Servicios_Solicitados === 'Paquete 5' && edGer.Checklist_Items === 'Paquete 5' && !('Monto_Estimado_IA' in edGer),
+    'editar pedido: la gerente cambia lo que lleva un evento de El Vaso Maíz');
+
   // Diana es la jefa de todo: invita a cualquier chica y elige producción desde el dashboard.
   reset();
   respuestas = [ADMIN, EV_STAFF, { records: [EV_STAFF] }, { records: [ZOE_OTRA] }, { records: [] }, { records: [{ id: 'recINVITA00000030' }] }];

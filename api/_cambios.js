@@ -98,22 +98,33 @@ async function confirmarCambio(eventoId, f, colaborador, colaboradores) {
   }
   await airtable(EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: campos }] }) });
 
+  return avisarEquipoCambio(eventoId, f, colaborador, colaboradores, {
+    servicios: c.servicios, indicaciones: c.indicaciones, horaInicio: c.horaInicio,
+    explicacion: 'El cliente pidió un cambio y la gerencia ya lo confirmó. Ahora lleva:',
+  });
+}
+
+// Avisa al equipo del evento (menos a quien hizo el cambio) que el pedido
+// cambió, con el botón "Confirmar", y reenvía la producción si ya se había
+// mandado. Lo usan el cambio del cliente confirmado y ✏️ Editar del dashboard.
+async function avisarEquipoCambio(eventoId, f, colaborador, colaboradores, { servicios, indicaciones, horaInicio, explicacion }) {
   const equipo = equipoDelEvento(f, colaboradores).filter(id => id !== colaborador.id);
   let porTelegram = 0, porPush = 0;
   const erroresAvisos = [];
   if (equipo.length) {
     const titulo = `🔄 Cambió el pedido ${f.Folio_Evento || ''}`.trim();
+    const hora = horaInicio || f.Hora_Inicio;
     const texto = [
-      `${titulo}${f.Fecha_Evento ? ' (' + f.Fecha_Evento + (f.Hora_Inicio || c.horaInicio ? ' · ' + (c.horaInicio || f.Hora_Inicio) : '') + ')' : ''}`,
-      'El cliente pidió un cambio y la gerencia ya lo confirmó. Ahora lleva:',
+      `${titulo}${f.Fecha_Evento ? ' (' + f.Fecha_Evento + (hora ? ' · ' + hora : '') + ')' : ''}`,
+      explicacion,
       '',
-      c.servicios,
-      c.indicaciones ? `\n📌 ${c.indicaciones}` : null,
+      servicios,
+      indicaciones ? `\n📌 ${indicaciones}` : null,
       '',
       'Confirma que lo viste con el botón o en la app ("Enterado").',
     ].filter(l => l !== null).join('\n');
     [porPush, porTelegram] = await Promise.all([
-      enviarPushEquipo({ titulo, cuerpo: 'La gerencia confirmó un cambio. Toca para verlo.', soloColaboradores: equipo }),
+      enviarPushEquipo({ titulo, cuerpo: 'La gerencia cambió el pedido. Toca para verlo.', soloColaboradores: equipo }),
       enviarTelegramEquipo({ texto, soloColaboradores: equipo, errores: erroresAvisos, botones: botonConfirmar(eventoId) }),
     ]);
   }
@@ -138,4 +149,4 @@ async function descartarCambio(eventoId, f, colaborador) {
   return {};
 }
 
-module.exports = { avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento };
+module.exports = { avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento, avisarEquipoCambio };

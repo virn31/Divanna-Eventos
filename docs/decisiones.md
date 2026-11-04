@@ -404,3 +404,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Víctor: "cada encargado de brigada se contactará con el cliente de principio a fin"; los datos llegaban incompletos y no había cómo corregirlos a mano.
 
 **Alternativa:** dejar el teléfono solo a quien cobra (`veDinero`). Ojo: nombre/teléfono/correo son del registro de CLIENTES; cambiarlos en un evento los cambia en todos los eventos de ese cliente.
+
+## 2026-11-03 — ✏️ Editar también el pedido
+
+- **Decisión:** el botón ✏️ (ahora "Editar evento, cliente y pedido") deja cambiar qué lleva el pedido (un artículo por línea) y, solo Diana y Víctor, el monto contratado (`Monto_Estimado_IA`). Ángela lo hace en la app, solo en eventos de El Vaso Maíz y sin monto. En un evento autorizado lo que lleva es también la lista de carga (`Checklist_Items`): se conservan las palomitas de los artículos que no cambiaron y, si está marcada la casilla "avisar al equipo" (viene marcada), se avisa igual que un cambio del cliente confirmado (Telegram con Confirmar, push, se borra "Enterado", se reenvía la producción). Google Calendar se actualiza.
+- **Por qué:** Víctor lo pidió; antes solo se corregían los datos del cliente y del evento, y la hora y los productos.
+- **Alternativa descartada:** formulario aparte de "pedido"; se prefirió el mismo ✏️ para no sumar otra caja.
