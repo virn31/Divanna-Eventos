@@ -119,7 +119,7 @@ window.DimaCalendario = (function(){
     }
     const lista = diaSel ? (porDia[diaSel] || []) : datos.eventos;
     const bloqueos = diaSel ? (bloqDia[diaSel] || []) : datos.bloqueos;
-    const negociosBloqueo = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Ambos', 'Divanna Eventos', 'El Vaso Maiz'];
+    const negociosBloqueo = datos.negociosBloqueo || (datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Ambos', 'Divanna Eventos', 'El Vaso Maiz']);
     panel.querySelector('#calCuerpo').innerHTML = `
       ${datos.puedeEditar ? `<div class="cal-form" style="margin-top:12px;"><button data-cal="nuevo">➕ Capturar evento</button></div><div id="calNuevo"></div>` : ''}
       <div class="cal-nav"><button data-cal="mes" data-n="-1">‹</button><span>${e(textoMes(mes))}</span><button data-cal="mes" data-n="1">›</button></div>
@@ -134,7 +134,7 @@ window.DimaCalendario = (function(){
         <div class="cal-sec">📆 Google Calendar</div>
         <div class="cal-sub">Los eventos que se autorizaron antes de conectar Google no están en Calendar ni en las hojas de pedidos (Sheets). Este botón los pasa (de hoy en adelante, 20 por vez).</div>
         <div class="cal-form"><button class="sec" data-cal="sincronizar">🔄 Pasar los eventos a Google</button><div class="cal-msg" id="calSyncMsg"></div></div>` : ''}
-      ${datos.puedeEditar ? `
+      ${datos.puedeEditar && negociosBloqueo.length ? `
         <div class="cal-sec">⛔ Bloquear un día</div>
         <div class="cal-sub">DiMa ya no ofrece ese día a los clientes de ese negocio.</div>
         <div class="cal-form" id="calBloq">
@@ -161,14 +161,14 @@ window.DimaCalendario = (function(){
   // Entra ya autorizado; el anticipo queda como pago a Diana (cuadre).
   function filaProducto(){
     const e = o.esc;
-    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
+    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
   }
 
   function formularioNuevo(){
     const e = o.esc;
     const caja = panel.querySelector('#calNuevo');
     if(caja.innerHTML){ caja.innerHTML = ''; return; }
-    const negocios = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Divanna Eventos', 'El Vaso Maiz'];
+    const negocios = datos.negociosGerente || (datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Divanna Eventos', 'El Vaso Maiz']);
     caja.innerHTML = `
       <div class="cal-ev" style="--c:var(--maiz);">
         <b>➕ Capturar evento</b>
@@ -291,7 +291,7 @@ window.DimaCalendario = (function(){
       const neg = panel.querySelector('#calNNeg');
       if([...neg.options].some(op => op.value === d.negocio)){ neg.value = d.negocio; neg.dispatchEvent(new Event('change')); }
       const lista = panel.querySelector('#calProds');
-      const validos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      const validos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).some(c => c.clave === p.clave));
       if(validos.length){
         lista.innerHTML = validos.map(() => filaProducto()).join('');
         [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; });

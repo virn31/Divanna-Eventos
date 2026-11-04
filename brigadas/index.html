@@ -434,9 +434,12 @@
 
   // Brigadas y encargadas para la gerente de El Vaso Maíz (null para los demás).
   let opcionesAsignar = null;
+  // Negocio que gerencia quien entró ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
+  let miGerencia = null;
+  const esDeMiGerencia = (ev) => !!miGerencia && (ev.gerencias || []).includes(miGerencia);
 
   function bloqueAsignar(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     return `
       <details class="asignar-box" data-caja="asig-${esc(ev.id)}">
         <summary>👷 Asignar brigada y encargada</summary>
@@ -445,7 +448,7 @@
           ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
         </select>
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
-        ${opcionesAsignar.produccion ? `
+        ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
           <div style="margin-top:10px; font-weight:800;">🍳 Encargado de producción</div>
           <select class="asig-produccion">
             <option value="">Sin encargado de producción</option>
@@ -470,7 +473,7 @@
 
   // ✏️ Editar evento, cliente y pedido (solo la gerente, en eventos de El Vaso Maíz; sin monto).
   function bloqueEditar(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
     return `
       <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
@@ -540,7 +543,7 @@
   };
 
   function bloqueStaff(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     if(staffError) return `<div class="asignar-box">🧑‍🍳 Staff: no se pudo leer la lista. Toca actualizar o usa /staff en Telegram.</div>`;
     const s = staffEventos && staffEventos[ev.id];
     if(!s) return '';
@@ -579,7 +582,7 @@
 
   // Quién tiene la producción del evento y su última respuesta (solo la gerente).
   function lineaProduccion(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz || !ev.produccionId) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev) || miGerencia !== 'El Vaso Maiz' || !ev.produccionId) return '';
     const p = (opcionesAsignar.produccion || []).find(x => x.id === ev.produccionId);
     return `<div class="instr-box"><b>🍳 Producción: ${esc(p ? p.nombre : 'asignada')}</b>${esc(ev.produccionRespuesta || 'Todavía no responde.')}</div>`;
   }
@@ -1162,7 +1165,8 @@
       // No se borra lo que la gerente está escribiendo en ✏️ Editar.
       if(silencioso && mainContent.querySelector('.editar-box[data-sucio], .editar-box :focus')) return;
       ultimaFoto = foto;
-      const rolTexto = data.colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      const rolTexto = data.colaborador.gerente ? (data.colaborador.puesto || 'Gerente') : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      miGerencia = data.colaborador.gerencia || null;
       opcionesAsignar = data.opcionesAsignar || null;
       staffEventos = data.staffEventos || null;
       staffError = !!data.staffError;
@@ -1382,7 +1386,7 @@
     const rev = finDatos.revision;
     const tarjeta = (r) => `
       <div class="fin-caja">
-        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloVasoMaiz ? ' <small>(solo lo de El Vaso Maíz)</small>' : ''}</h4>
+        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloNegocio || r.soloVasoMaiz ? ` <small>(solo lo de ${esc(r.soloNegocio || 'El Vaso Maíz')})</small>` : ''}</h4>
         <div>Gastos ${pesos(r.totalGastos)} · Cobros ${pesos(r.totalCobros)} · Efectivo entregado ${pesos(r.efectivoEntregado)}${r.reembolsoPendiente ? ' · reembolso ' + pesos(r.reembolsoPendiente) : ''}</div>
         ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, '⚠️ sin ticket')}</div></div>`).join('')}
         ${r.cobros.map(c => `<div class="fin-item"><div>Cobro ${esc(c.concepto)} · ${pesos(c.monto)}</div><div>${fotoLink(c.foto, '')}</div></div>`).join('')}
@@ -1394,7 +1398,7 @@
 
   function pintarFinanzas(){
     const tabs = finDatos.revision && finDatos.puedeReportar ? `
-      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">🌽 Administración El Vaso Maíz</button></div>` : '';
+      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">${miGerencia === 'Divanna Eventos' ? '🪑 Administración Divanna' : '🌽 Administración El Vaso Maíz'}</button></div>` : '';
     $('finCuerpo').innerHTML = tabs + (finTab === 'admin' && finDatos.revision ? pintarRevision() : pintarMiReporte());
     $('finCuerpo').querySelectorAll('.fin-tabs button').forEach(b => b.addEventListener('click', () => { finTab = b.dataset.tab; pintarFinanzas(); }));
     const sel = $('finFechaSel');

@@ -1,7 +1,7 @@
 // api/_dima-equipo.js
 // DiMa como asistente del equipo (no de clientes): contesta dudas de la
 // plataforma y de los eventos de quien pregunta. Canal exclusivo de la gerente
-// de El Vaso Maíz (COLABORADORES.Gerente_Vaso_Maiz) y de los Admin, desde la app
+// (Rol "Gerente …" o casilla Gerente_Vaso_Maiz) y de los Admin, desde la app
 // ("💬 Pregúntale a DiMa", POST /api/dima-chat con modo "equipo") y desde
 // Telegram (cualquier mensaje que no sea comando).
 //
@@ -10,7 +10,7 @@
 // Límite por persona en memoria de cada instancia (freno básico de costo).
 
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { ROLES } = require('./_sesion');
+const { ROLES, NOMBRE_GERENCIA } = require('./_sesion');
 const { alcanceDe, leerEventos } = require('./_eventos');
 const { manualTexto } = require('./_instrucciones');
 const { historialMensual, historialParaDima } = require('./_finanzas');
@@ -73,7 +73,7 @@ async function sistemaPara(colaborador, coordina) {
   } catch (err) {
     console.error('DiMa equipo: no se pudieron leer los eventos:', err.message);
   }
-  const puesto = colaborador.gerente ? 'gerente de El Vaso Maíz' : colaborador.rol === ROLES.ADMIN ? 'dueño(a) del negocio (Admin)' : colaborador.rol;
+  const puesto = colaborador.gerente ? `gerente de ${NOMBRE_GERENCIA[colaborador.gerente] || colaborador.gerente} (solo ve los eventos de ese negocio)` : colaborador.rol === ROLES.ADMIN ? 'dueño(a) del negocio (Admin)' : colaborador.rol;
   const esAdmin = colaborador.rol === ROLES.ADMIN;
   // Solo a Diana y Víctor: historial de dinero por mes y por empresa.
   let finanzas = '', cuadre = '';

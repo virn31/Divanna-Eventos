@@ -17,7 +17,7 @@
 // GOOGLE_SERVICE_ACCOUNT_EMAIL.
 
 const { google } = require('googleapis');
-const { esVasoMaiz } = require('./_sesion');
+const { esVasoMaiz, esDeSuGerencia, gerenciaDe, negocioDeGerencia } = require('./_sesion');
 const { PRODUCTOS, leerProductos, inventarioRequerido } = require('./_productos');
 const { enviarDocumento } = require('./_telegram');
 const { totalDelEvento, leerCargos } = require('./_cargos');
@@ -281,7 +281,7 @@ async function reciboPdf(folio, negocio) {
 }
 
 // Actualiza la hoja y manda el recibo en PDF por Telegram a Diana y Víctor (y a
-// la gerente si es de El Vaso Maíz) para que se lo reenvíen al cliente.
+// al gerente del negocio del evento) para que se lo reenvíen al cliente.
 // Devuelve { ok, enviados } o { ok: false, error }. Nunca lanza.
 async function enviarRecibo(eventoId, motivo = '') {
   if (!sheetsConfigurado()) return { ok: false, error: 'Google Sheets todavía no está configurado.' };
@@ -290,9 +290,9 @@ async function enviarRecibo(eventoId, motivo = '') {
     if (!s.ok) return s;
     const d = await leerDatos(eventoId);
     const negocios = negociosDe(d.f).filter(configurado);
-    const formula = encodeURIComponent('AND({Activo}, OR({Rol} = "Admin", {Gerente_Vaso_Maiz}))');
-    const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${formula}`)).records || [])
-      .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || negocios.includes(VM)));
+    // Admin y el gerente del negocio del evento (gerenciaDe, ver _sesion.js).
+    const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${encodeURIComponent('{Activo}')}`)).records || [])
+      .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || esDeSuGerencia({ gerente: gerenciaDe(c.fields) }, d.f)));
     if (!gente.length) return { ok: false, error: 'Nadie tiene Telegram vinculado para recibir el recibo.' };
     const resta = Math.max(0, d.total - d.pagado);
     const texto = `🧾 Recibo ${d.folio}${motivo ? ' · ' + motivo : ''}\n${d.cliente || 'Cliente'} · ${d.f.Fecha_Evento || ''}\nTotal ${dinero(d.total)} · Pagado ${dinero(d.pagado)} · Resta ${dinero(resta)}\nReenvíaselo al cliente.`;
@@ -302,7 +302,7 @@ async function enviarRecibo(eventoId, motivo = '') {
       const pdf = await reciboPdf(d.folio, negocio);
       const nombre = `Recibo ${d.folio}${negocios.length > 1 ? (negocio === VM ? ' El Vaso Maiz' : ' Divanna') : ''}.pdf`;
       for (const c of gente) {
-        if (negocio === DV && c.fields.Rol !== 'Admin') continue; // la gerente solo lo de El Vaso Maíz
+        if (c.fields.Rol !== 'Admin' && negocioDeGerencia(gerenciaDe(c.fields)) !== negocio) continue; // cada gerente solo el recibo de su negocio
         const r = await enviarDocumento(c.fields.Telegram_Chat_ID, pdf, nombre, texto);
         if (r.ok) enviados++; else errores.push(`${c.fields.Nombre || 'alguien'}: ${r.error}`);
       }

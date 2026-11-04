@@ -5,7 +5,7 @@
 //
 // Requiere TELEGRAM_BOT_TOKEN en Vercel (lo da @BotFather).
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, gerenciaDe, rolDe, rolValido } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const LIMITE_TEXTO = 4000; // Telegram acepta 4096 caracteres por mensaje.
@@ -91,11 +91,11 @@ function aColaborador(r) {
   return {
     id: r.id,
     nombre: r.fields.Nombre || '',
-    rol: r.fields.Rol || '',
+    rol: rolDe(r.fields),
     brigadaId: (r.fields.Brigada || [])[0] || null,
     chatId: r.fields.Telegram_Chat_ID || '',
     coordinaStaff: !!r.fields.Coordina_Staff,
-    gerente: !!r.fields.Gerente_Vaso_Maiz,
+    gerente: gerenciaDe(r.fields),
     cursoAvance: Number(r.fields.Curso_Avance) || 0,
   };
 }
@@ -106,7 +106,7 @@ async function colaboradorPorChat(chatId) {
   const formula = encodeURIComponent(`AND({Telegram_Chat_ID} = "${chatId}", {Activo})`);
   const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
-  return r && Object.values(ROLES).includes(r.fields.Rol) ? aColaborador(r) : null;
+  return r && rolValido(r.fields.Rol) ? aColaborador(r) : null;
 }
 
 async function guardarChat(colaboradorId, chatId) {
