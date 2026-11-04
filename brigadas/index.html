@@ -712,6 +712,8 @@
     recargar: () => { ultimaFoto = null; loadEventos(true); },
     esAdmin: () => !!sesion && sesion.rol === 'Admin',
     eventos: () => eventosActuales,
+    // Al cobrar se pliega la tarjeta del evento.
+    alCobrar: (id) => fichasAbiertas.delete(id),
   });
   let eventosActuales = [];
 
@@ -766,6 +768,7 @@
       html += `
         <div class="event-card ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" data-id="${ev.id}" data-din-ev="${ev.id}">
           ${fichaEvento(ev)}
+          ${DimaDinero.cobroRapido(ev)}
           <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
             ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}

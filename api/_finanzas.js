@@ -17,6 +17,7 @@ const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { enviarPushEquipo } = require('./_push');
 const { alcanceDe } = require('./_eventos');
+const { cerrarSiTermino } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -372,13 +373,15 @@ async function agregarCobro(colaborador, body) {
     } }] }),
   });
   const id = creado.records[0].id;
+  // Si con este cobro el cliente liquidó y ya se recogió, el evento se cierra.
+  const cerrado = await cerrarSiTermino(ev.id).catch(err => { console.error('No se pudo revisar si cerrar el evento:', err.message); return false; });
   if (foto.foto) {
     try { await subirFoto(id, 'Comprobante', foto.foto); } catch (err) {
       console.error(err.message);
-      return { ok: true, id, avisoFoto: 'El cobro quedó guardado, pero la foto del comprobante no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
+      return { ok: true, id, cerrado, avisoFoto: 'El cobro quedó guardado, pero la foto del comprobante no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
     }
   }
-  return { ok: true, id };
+  return { ok: true, id, cerrado };
 }
 
 // Quita un gasto o cobro propio de un reporte que todavía se puede editar.

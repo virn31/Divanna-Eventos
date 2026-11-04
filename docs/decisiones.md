@@ -417,3 +417,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Cómo se marca (Víctor lo pidió así):** con tres opciones nuevas del campo `COLABORADORES.Rol`: `Gerente El Vaso Maiz`, `Gerente Divanna`, `Gerente Casa Isabella`. Por dentro el gerente trabaja como "Lider de brigada" (reporte del día, su brigada, cobros) con su negocio en `colaborador.gerente` (`rolDe` / `gerenciaDe` en `api/_sesion.js`). La casilla vieja `Gerente_Vaso_Maiz` sigue valiendo para Ángela mientras no se le cambie el Rol.
 - **Por qué:** Víctor lo pidió (2026-11-03): Eden lleva Divanna y Mario Casa Isabella, pero Mario sigue apoyando a Divanna como brigada.
 - **Alternativa descartada:** que Eden viera también Casa Isabella (Víctor eligió separarlos); un campo aparte `Gerente_De` (primera versión del mismo día) o casillas sueltas por negocio; Víctor prefirió el Rol.
+
+## 2026-11-03 — 💵 Cobrar en cada tarjeta y cierre automático al liquidar
+
+- **Decisión:** cada evento trae en su tarjeta (sin abrir la ficha) una caja corta **💵 Cobrar**: forma de pago, "Liquidó todo · $X" o un abono. El cobro queda ligado al evento y entra al reporte del día; al guardar, la tarjeta se pliega. No sale si ya está pagado. Si con el cobro el cliente liquidó **y ya se recogió** (Checklist_Recoleccion o Estatus_Logistico Cerrado), el evento pasa a `Estado = Cerrado` (`cerrarSiTermino` en `api/_cargos.js`). Si liquida antes, se cierra solo al marcar la recolección.
+- **Por qué:** Víctor lo pidió "muy simple" y que el evento se cierre al cobrar; eligió "cerrar si liquidó". Se exige la recolección porque `Cerrado` lo saca de la app de la brigada, producción, staff y semáforo: cerrar un anticipo liquidado antes del evento haría que nadie lo atendiera.
+- **Alternativa descartada:** cerrar con cualquier cobro, o cerrar al liquidar sin esperar la recolección. Los pagos que Diana registra desde el dashboard no cierran solos (por ahora).

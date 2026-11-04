@@ -97,6 +97,21 @@ window.DimaDinero = (function(){
 
   const postJson = (url, cuerpo) => o.api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
 
+  // 💵 Cobrar a la vista en la tarjeta (sin abrir la ficha): forma de pago y
+  // "Liquidó todo" o una cantidad. No sale si ya está pagado.
+  function cobroRapido(ev){
+    const d = ev.dinero;
+    if(!d || d.error || (d.total > 0 && d.resta <= 0)) return '';
+    const esc = o.esc;
+    return `<details class="din-caja cobro-rapido" data-caja="rapido-${esc(ev.id)}"><summary>💵 Cobrar</summary>
+        <label>Forma de pago<select class="din-cobro-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
+        ${d.resta > 0 ? `<button type="button" class="din-btn" data-din="cobro" data-todo="1">Liquidó todo · ${pesos(d.resta)}</button>` : ''}
+        <input class="din-cobro-monto" inputmode="decimal" placeholder="${d.resta > 0 ? 'O escribe el abono' : 'Cantidad que te pagó'}">
+        <button type="button" class="din-btn" data-din="cobro">Guardar abono</button>
+        <div class="din-msg"></div>
+      </details>`;
+  }
+
   async function accion(b){
     const ev = eventoDe(b);
     if(!ev || !ev.dinero) return;
@@ -106,12 +121,13 @@ window.DimaDinero = (function(){
     b.disabled = true;
     try {
       if(b.dataset.din === 'cobro'){
-        const todo = valor('.din-cobro-tipo') === 'todo';
+        const todo = b.dataset.todo === '1' || valor('.din-cobro-tipo') === 'todo';
         const monto = todo ? String(ev.dinero.resta) : valor('.din-cobro-monto');
         const d = o.esAdmin()
           ? await postJson('/api/dashboard-eventos', { accion: 'registrar_pago', eventoId: ev.id, monto: todo ? 'todo' : monto, forma: valor('.din-cobro-forma') })
           : await postJson('/api/finanzas', { accion: 'cobro', desdeFicha: true, fecha: hoy(), eventoId: ev.id, monto, forma: valor('.din-cobro-forma') });
-        o.toast(d.texto || `Cobro de ${pesos(monto)} guardado en tu reporte del día`);
+        o.toast(d.cerrado ? '✅ Liquidado: el evento quedó cerrado' : (d.texto || `Cobro de ${pesos(monto)} guardado en tu reporte del día`));
+        if(o.alCobrar) o.alCobrar(ev.id);
       } else if(b.dataset.din === 'cargo'){
         const tipo = valor('.din-tipo');
         if(!tipo) throw new Error('Elige el artículo o "Otro".');
@@ -141,5 +157,5 @@ window.DimaDinero = (function(){
     });
   }
 
-  return { configurar, bloque, conectar, etiqueta, pesos };
+  return { configurar, bloque, cobroRapido, conectar, etiqueta, pesos };
 })();

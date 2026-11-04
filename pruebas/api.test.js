@@ -2813,5 +2813,27 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [EV_D, { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Precio_Reposicion: 400 } }, {}, { records: [] }];
     const rApp = await agregarCargo({ id: 'recCOLAB000000001', nombre: 'Diana', rol: 'Admin' }, { eventoId: EV_D.id, articuloId: 'recINVMANTEL00001', cantidad: 2, gravedad: 'menor' });
     ok(rApp.ok && rApp.cargo.total === 80 && rApp.cargo.gravedad === 'menor', 'cargos: en la app el daño menor se cobra al 10% del precio de reposición');
+
+    // Cierre automático: liquidado + recogido = Estado Cerrado (pedido de Víctor 2026-11-03).
+    const { cerrarSiTermino } = require(path.join(repo, 'api/_cargos.js'));
+    const EV_CIERRE = (extra) => ({ id: 'recEVENTOCIERRE01', fields: { Folio_Evento: 'EVT-CR1', Monto_Estimado_IA: 1000, COBROS: ['recCOBROCIERRE001'], Estado: 'Confirmado', ...extra } });
+    const COBRO_CIERRE = (monto) => ({ records: [{ id: 'recCOBROCIERRE001', fields: { Monto: monto, Evento: ['recEVENTOCIERRE01'] } }] });
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true }), COBRO_CIERRE(1000), {}];
+    let cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    let patchCierre = llamadas.find(l => l.method === 'PATCH');
+    ok(cerro === true && patchCierre && patchCierre.body.records[0].fields.Estado === 'Cerrado', 'cobro: liquidado y ya recogido, el evento se cierra');
+    reset();
+    respuestas = [EV_CIERRE({}), COBRO_CIERRE(1000)];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: liquidado antes de recoger, el evento sigue abierto (la brigada lo sigue viendo)');
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true }), COBRO_CIERRE(600)];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: con un abono el evento no se cierra');
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true, Monto_Estimado_IA: 0, COBROS: [] })];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: un evento sin monto no se cierra solo');
   }
 })();
