@@ -133,18 +133,23 @@ const ROLES_GERENTE = {
   'Gerente Casa Isabella': GERENCIAS.CI,
 };
 
+// Opción de Rol sin espacios de más (en Airtable se coló " Gerente Divanna"
+// con espacio al inicio).
+const limpiarRol = (rol) => String(rol || '').trim();
+
 function gerenciaDe(colaboradorFields) {
   const f = colaboradorFields || {};
-  if (ROLES_GERENTE[f.Rol]) return ROLES_GERENTE[f.Rol];
+  const rol = limpiarRol(f.Rol);
+  if (ROLES_GERENTE[rol]) return ROLES_GERENTE[rol];
   return f.Gerente_Vaso_Maiz ? GERENCIAS.VM : null;
 }
 
 // Rol con el que trabaja la plataforma: los gerentes cuentan como líderes.
 const rolDe = (colaboradorFields) => {
-  const rol = (colaboradorFields || {}).Rol || '';
+  const rol = limpiarRol((colaboradorFields || {}).Rol);
   return ROLES_GERENTE[rol] ? ROLES.LIDER : rol;
 };
-const rolValido = (rol) => Object.values(ROLES).includes(rol) || !!ROLES_GERENTE[rol];
+const rolValido = (rol) => Object.values(ROLES).includes(limpiarRol(rol)) || !!ROLES_GERENTE[limpiarRol(rol)];
 
 // ¿El evento lleva el salón Casa Isabella? (producto, artículo asignado o texto).
 function usaCasaIsabella(eventoFields) {
