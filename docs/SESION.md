@@ -28,7 +28,11 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-03 noche · **Producción:** `main` en `fea6518` (caché v31). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **407 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-04 · **Producción:** `main` en `6ae181d` (caché v31, sin cambio). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **411 pruebas pasan** en `main`.
+
+**Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
+
+**Costos (análisis 2026-11-04):** operación ~$900–1 300 MXN/mes (Airtable $300, Claude Pro $380, IA en producción ~$120–300 a ~$2 MXN por conversación, + Vercel Pro $380 recomendado porque Hobby no admite uso comercial) contra >20 eventos/mes × ~$1 900. Se paga con 1 evento al mes atribuible a DiMa. Noviembre llevaba US$57.81 en créditos de la consola, casi todo sesiones de Claude Code: Víctor tiene plan Pro → cambiar Claude Code con `/logout` + `/login` (cuenta con suscripción) y bajar el límite mensual de la consola; no apagar la recarga (DiMa en producción usa esos créditos).
 
 **Publicado 2026-11-03 noche, `main` fea6518 (rama `cobro-visible`):** caja **💵 Cobrar** en cada tarjeta (forma de pago, "Liquidó todo" o abono; se pliega al guardar; no sale si ya está pagado). Liquidado + recogido = `Estado Cerrado` (`cerrarSiTermino` en `api/_cargos.js`, al cobrar y al marcar recolección). Pagos desde el dashboard no cierran solos. Decisión en `docs/decisiones.md`. No probado en teléfono. Revertir: `git revert -m 1 fea6518`. Roles ya puestos: Eden `Gerente Divanna`, Mario `Gerente Casa Isabella`, Ángela `Lider de brigada` + casilla; ya entran y ven sus eventos.
 
@@ -53,6 +57,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
 
 **Siguiente, en orden:**
+0. Evento de prueba → `Origen = Manual`. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable.
 1. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): ven sus eventos, 👷 Asignar, ✏️ Editar y 💵 Cobrar (un abono chico; luego un liquidado en evento ya recogido → se cierra). Revisar que Eden no vea los de Casa Isabella.
 1b. Decidir si los pagos de Diana/Víctor desde el dashboard también cierran el evento al liquidar.
 2. Crear los 2 campos de Airtable → probar `produccion-staff-etapas` en Preview (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot → decidir si se manda a todos el botón 🆘.
