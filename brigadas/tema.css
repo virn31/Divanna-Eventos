@@ -110,6 +110,7 @@ body.rol-asistente .ev-tab-btn[data-tab="tareas"]{ display:none; }
 .din-previa{margin-top:8px; font-weight:800; color:var(--maiz);}
 .din-btn{margin-top:10px; width:100%; padding:12px; border:none; border-radius:12px; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 .din-btn:disabled{opacity:.6;}
+.ficha-cobrar{margin-top:10px; width:100%; padding:11px; border:none; border-radius:12px; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 .din-msg{margin-top:8px; font-size:0.82rem; color:var(--muted);}
 .ev-ficha .event-folio{font-size:0.78rem; color:var(--muted); font-family:monospace;}
 .evento-row.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:10px;}
