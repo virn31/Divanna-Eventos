@@ -28,7 +28,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-03 · **Producción:** `main` en `f9f3138`. Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **397 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-03 noche · **Producción:** `main` en `f6cc9da`. Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **403 pruebas pasan** en `main`.
+
+**Incidente 2026-11-03 noche — "se cayeron los PIN":** a Eden, Ángela y Mario se les puso en Airtable un Rol "Gerente …" antes de publicar la rama que lo reconoce → "Usuario o PIN incorrecto" en la APK. Mario además tenía Activo desmarcado. Se corrigió con otro Claude con acceso a Airtable (roles de vuelta a `Lider de brigada`, Activo de Mario) y luego se **publicó `gerentes-por-negocio`** (`main` f6cc9da, caché v30; incluye 20f7adb: el Rol se lee sin espacios, porque en Airtable la opción es " Gerente Divanna"). **Regla:** nunca poner en Airtable un Rol que producción no conozca todavía. Revertir: `git revert -m 1 f6cc9da` y roles a `Lider de brigada`. Falta: en Airtable poner Eden → `Gerente Divanna` y Mario → `Gerente Casa Isabella` (Ángela sigue `Lider de brigada` + casilla) y probar en sus teléfonos que ven sus eventos. El token de Airtable de `keys\airtable dima os.txt` da 403 en esta base (no sirve). `produccion-staff-etapas`: al unirle `main` ya trae v30 → subir a v31.
 
 **Arreglo publicado 2026-11-03, `main` f9f3138 (rama `arreglo-editar-pedido`):** en el dashboard, el ✏️ Editar de los eventos autorizados mostraba vacía la casilla "qué lleva" (el GET no mandaba `Servicios_Solicitados` en `eventos`). Solo cambia el API, sin subir caché. Revertir: `git revert -m 1 f9f3138`. Confirmado con Víctor: Ángela edita solo El Vaso Maíz desde la APK; Diana y Víctor desde el dashboard (no se le abre el dashboard a Ángela).
 
