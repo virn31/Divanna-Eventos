@@ -212,12 +212,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ---------- Pedido por formulario ----------
   reset();
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000001', fields: {} }] }, { records: [{}] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000001', fields: {} }] }, { records: [{ id: 'recEVFORMULARIO01' }] }];
   res = resMock();
   await pedido({ method: 'POST', body: { nombre: 'Ana <b>', telefono: '667 123 4567', email: 'ana@x.com', negocio: 'Ambos', tipoEvento: 'XV', fecha: '2026-12-12', invitados: '80', ubicacion: 'Las Quintas', servicios: '10 mesas\n80 sillas' } }, res);
   const ev = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
   ok(res.code === 200 && /^EVT-\d{6}$/.test(res.body.folio), 'formulario: 200 con folio');
   ok(ev.Autorizacion_Diana === 'Pendiente' && !ev.Negocio && ev.Notas.includes('Negocio solicitado: Ambos') && !('Monto_Estimado_IA' in ev), 'formulario: evento pendiente, sin estimado');
+  const origenForm = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+  ok(origenForm && origenForm.body.records[0].fields.Origen === 'Formulario' && origenForm.body.typecast === true && !('Origen' in ev),
+    'origen: el pedido del formulario guarda Origen = Formulario aparte del evento (si la columna falta, el pedido no se cae)');
   ok(correos.length === 1 && correos[0].html.includes('Ana &lt;b&gt;'), 'formulario: correo al equipo con HTML escapado');
   reset();
   res = resMock();
@@ -273,10 +276,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990001', email: null, negocio: 'Ambos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '18:00', horas_servicio: 2, invitados: 100, ubicacion: 'Las Quintas', servicios: 'Paquete 5\n2 paquetes 50 Antonella', productos: [{ clave: 'vm_paquete_5', cantidad: 1, nota: null }, { clave: 'dv_paq50_antonella', cantidad: 2, nota: 'manteles rosa' }, { clave: 'inventada', cantidad: 3, nota: null }], monto_estimado: 14200, fuera_de_ciudad: false, indicaciones: null, preferencia_contacto: 'no_preguntado' } },
   ] }];
   // Cliente, cliente nuevo, evento creado; luego eventos cercanos, inventario y personal del semáforo.
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000001' }] },
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000001' }] }, {},
     { records: [] }, { records: [{ id: 'recINVTIFF0000001', fields: { Item: 'Silla Antonella grande', Categoria: 'Silla Antonella', Cantidad_Total: 113 } }] }, { records: [] }];
   res = await chat({ historial });
-  const patchSemaforo = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].id === 'recEVTNUEVO000001');
+  const patchSemaforo = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].id === 'recEVTNUEVO000001' && 'Disponibilidad' in l.body.records[0].fields);
   ok(patchSemaforo && patchSemaforo.body.records[0].fields.Disponibilidad === '🟡 Amarillo' && patchSemaforo.body.records[0].fields.Disponibilidad_Detalle.includes('Sin conteo en INVENTARIO'), 'semáforo: al registrar se guarda en el evento (aquí amarillo: faltan conteos)');
   ok(correos.some(c => c.text.includes('🟡 Amarillo') && c.text.includes('Confirmar al cliente antes de')), 'semáforo: el aviso a Diana trae el semáforo y el plazo de 12 h');
   ok(res.body.texto.includes('Ya tenemos todos los datos') && res.body.texto.includes('no mayor a 12 horas') && !res.body.texto.includes('Amarillo'), 'DiMa: al cliente le dice que ya están los datos y que se le confirma en 12 h, sin semáforo');
@@ -924,6 +927,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && bal.Detalle_Completo.includes('Reembolsos pendientes (gastos con dinero propio): $300') && bal.Detalle_Completo.includes('1 gasto ($200) en reportes sin aprobar'),
     'balance: solo cuentan los gastos y cobros de reportes aprobados (más los capturados a mano) y avisa lo pendiente');
   ok(bal.Por_Cobrar === 2000 && bal.Detalle_Completo.includes('Por cobrar a clientes (eventos de la semana): $2,000 en 1 evento'), 'balance: incluye lo por cobrar a clientes y lo guarda');
+  const { origenDeEvento } = require(path.join(repo, 'api/_origen.js'));
+  ok(origenDeEvento({ Origen: 'Chat DiMa', Notas: 'Pedido desde el formulario' }) === 'Chat DiMa' && origenDeEvento({ Notas: 'Pedido armado con DiMa en la página web.' }) === 'Chat DiMa'
+    && origenDeEvento({ Notas: 'Pedido desde el formulario de la página web.' }) === 'Formulario' && origenDeEvento({ Notas: 'Evento capturado a mano por Eden' }) === 'Manual'
+    && origenDeEvento({}) === 'Sin dato', 'origen: se toma de la columna o, en eventos viejos, del primer renglón de Notas');
+  reset();
+  respuestas = [{ records: [] }, { records: [] }, { records: [] },
+    { records: [{ fields: { Monto_Estimado_IA: 3000, Origen: 'Chat DiMa' } }, { fields: { Monto_Estimado_IA: 1900, Notas: 'Evento capturado a mano por Diana' } }] },
+    { records: [{ fields: { Notas: 'Pedido armado con DiMa en la página web.', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 2500 } }, { fields: { Origen: 'Chat DiMa', Autorizacion_Diana: 'Pendiente' } }] },
+    {}];
+  res = resMock();
+  await balance({ headers: {}, query: {} }, res);
+  const balOrigen = llamadas.find(l => l.method === 'POST').body.records[0].fields.Detalle_Completo;
+  const lecturaNuevos = llamadas.filter(l => !l.method || l.method === 'GET').pop();
+  ok(balOrigen.includes('Chat DiMa: 1 evento · $3,000') && balOrigen.includes('Manual: 1 evento · $1,900')
+    && balOrigen.includes('Pedidos que entraron esta semana') && balOrigen.includes('Chat DiMa: 2 pedidos, 1 autorizado · $2,500')
+    && lecturaNuevos && decodeURIComponent(lecturaNuevos.url).includes('CREATED_TIME()'),
+    'balance: ventas de la semana y pedidos nuevos por origen (cuánto trae DiMa)');
 
   // Por cobrar evento por evento.
   const { calcularPorCobrar } = require(path.join(repo, 'api/_finanzas.js'));
@@ -1972,7 +1992,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ➕ Capturar evento (los que se apartaron fuera del chat).
   reset();
-  respuestas = [GERENTE, { records: [] }, { records: [{ id: 'recCLIENTENUEVO01', fields: { Nombre: 'Laura Pérez' } }] }, { records: [{ id: 'recEVCAPTURA00001' }] }, {},
+  respuestas = [GERENTE, { records: [] }, { records: [{ id: 'recCLIENTENUEVO01', fields: { Nombre: 'Laura Pérez' } }] }, { records: [{ id: 'recEVCAPTURA00001' }] }, {}, {},
     { id: 'recEVCAPTURA00001', fields: { Folio_Evento: 'EVT-CAP', Fecha_Evento: '2026-12-20', Hora_Inicio: '17:00', Horas_Servicio: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Ubicacion: 'Las Quintas' } }, {}];
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'capturar_evento', clienteNombre: 'Laura Pérez', clienteTelefono: '667 123 4567', negocio: 'El Vaso Maiz',
@@ -1986,9 +2006,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(antCap && antCap.body.records[0].fields.Monto === 1000 && antCap.body.records[0].fields.Recibido_Por === 'Diana' && antCap.body.records[0].fields.Forma === 'Transferencia'
     && googleCal.some(g => g.op === 'insert' && g.requestBody.start.dateTime === '2026-12-20T17:00:00'),
     'capturar: el anticipo queda como pago recibido (cuadre) y el evento sale en Google');
+  const origenCap = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Manual', 'origen: el evento capturado a mano guarda Origen = Manual');
 
   reset();
-  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] },
+  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] }, {},
     { id: 'recEVCAPTURA00002', fields: { Folio_Evento: 'EVT-CP2', Fecha_Evento: '2026-12-21', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}];
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Luna', clienteTelefono: '6671112233', negocio: 'Divanna Eventos',
@@ -2542,7 +2564,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset();
     respuestas = [{ records: [DIANA_TG] },
       { id: 'recCOMANDA0000001', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_B), Foto: [{ url: 'https://dl.airtable.com/comanda.jpg', filename: 'comanda.jpg' }] } },
-      { records: [] }, { records: [{ id: 'recCLIENTECOMAND1', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00001' }] }, {},
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND1', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00001' }] }, {}, {},
       { id: 'recEVCOMANDA00001', fields: { Folio_Evento: 'EVT-CMD', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb9', data: 'cm:g:recCOMANDA0000001', message: { message_id: 22, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
@@ -2571,7 +2593,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset();
     respuestas = [{ records: [DIANA_TG] },
       { id: 'recCOMANDA0000002', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_SIN_FORMA) } },
-      { records: [] }, { records: [{ id: 'recCLIENTECOMAND2', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00002' }] },
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND2', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00002' }] }, {},
       { id: 'recEVCOMANDA00002', fields: { Folio_Evento: 'EVT-CMD2', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb10', data: 'cm:g:recCOMANDA0000002', message: { message_id: 31, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
