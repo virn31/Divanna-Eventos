@@ -712,6 +712,8 @@
     recargar: () => { ultimaFoto = null; loadEventos(true); },
     esAdmin: () => !!sesion && sesion.rol === 'Admin',
     eventos: () => eventosActuales,
+    // Al cobrar se pliega la tarjeta del evento.
+    alCobrar: (id) => fichasAbiertas.delete(id),
   });
   let eventosActuales = [];
 
@@ -766,7 +768,7 @@
       html += `
         <div class="event-card ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" data-id="${ev.id}" data-din-ev="${ev.id}">
           ${fichaEvento(ev)}
-          ${ev.dinero && !ev.dinero.error ? `<button type="button" class="ficha-cobrar" data-evento="${ev.id}">💵 Registrar cobro de este evento</button>` : ''}
+          ${DimaDinero.cobroRapido(ev)}
           <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
             ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
@@ -851,20 +853,6 @@
     // Ficha con pestañas: se recuerda la pestaña de cada evento entre repintados.
     mainContent.querySelectorAll('.event-card').forEach(card => mostrarPestana(card, pestanaPorEvento[card.dataset.id] || pestanaInicial()));
     mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
-    // 💵 Cobro a la vista en cada evento: abre la ficha en 💰 Dinero con la caja de
-    // cobro lista, para que el pago quede ligado a ese evento.
-    mainContent.querySelectorAll('.ficha-cobrar').forEach(b => b.addEventListener('click', () => {
-      const card = b.closest('.event-card');
-      if(!fichasAbiertas.has(card.dataset.id)) abrirFicha(card.querySelector('.ev-ficha'));
-      pestanaPorEvento[card.dataset.id] = 'dinero';
-      mostrarPestana(card, 'dinero');
-      const caja = card.querySelector('details.din-caja[data-caja^="cobro-"]');
-      if(!caja) return;
-      caja.open = true;
-      caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const monto = caja.querySelector('.din-cobro-monto');
-      if(monto) monto.focus({ preventScroll: true });
-    }));
     mainContent.querySelectorAll('.ev-tab-btn').forEach(b => b.addEventListener('click', () => {
       pestanaPorEvento[b.dataset.evento] = b.dataset.tab;
       mostrarPestana(b.closest('.event-card'), b.dataset.tab);
