@@ -28,7 +28,9 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-03 (cierre) · **Producción:** `main` en `f6584ea`. Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **396 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-03 · **Producción:** `main` en `f9f3138`. Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **397 pruebas pasan** en `main`.
+
+**Arreglo publicado 2026-11-03, `main` f9f3138 (rama `arreglo-editar-pedido`):** en el dashboard, el ✏️ Editar de los eventos autorizados mostraba vacía la casilla "qué lleva" (el GET no mandaba `Servicios_Solicitados` en `eventos`). Solo cambia el API, sin subir caché. Revertir: `git revert -m 1 f9f3138`. Confirmado con Víctor: Ángela edita solo El Vaso Maíz desde la APK; Diana y Víctor desde el dashboard (no se le abre el dashboard a Ángela).
 
 **Publicado hoy (2026-11-03), `main` f6584ea (rama `editar-pedido`):**
 - ✏️ **Editar evento, cliente y pedido**: además de cliente/fecha/lugar/invitados, ahora se cambia **qué lleva** (un artículo por línea; en evento autorizado es también la lista de carga y se conservan las palomitas de lo que no cambió) y el **monto contratado** (solo Diana y Víctor, en el dashboard). Ángela en la app, solo El Vaso Maíz, sin monto.
