@@ -11,7 +11,7 @@
 //   producción ya se había mandado, se le reenvía la lista actualizada.
 // - Con menos de 24 h para el evento el cambio va marcado como URGENTE.
 
-const { ROLES, COLABORADORES_TABLE, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, esDeSuGerencia, gerenciaDe: gerenciaColaborador } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -32,12 +32,12 @@ async function airtable(path, options = {}) {
 
 const fechaCorta = () => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
 
-// Admin y, si el evento es de El Vaso Maíz, la gerente: { admins: [ids], gerentes: [ids] }.
+// Admin y el gerente del negocio del evento: { admins: [ids], gerentes: [ids] }.
+// La gerencia se filtra aquí con gerenciaDe (ver api/_sesion.js).
 async function gerenciaDe(eventoFields) {
-  const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.ADMIN}", {Gerente_Vaso_Maiz}))`);
-  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
+  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
   const admins = data.records.filter(r => r.fields.Rol === ROLES.ADMIN).map(r => r.id);
-  const gerentes = esVasoMaiz(eventoFields || {}) ? data.records.filter(r => r.fields.Rol !== ROLES.ADMIN && r.fields.Gerente_Vaso_Maiz).map(r => r.id) : [];
+  const gerentes = data.records.filter(r => r.fields.Rol !== ROLES.ADMIN && esDeSuGerencia({ gerente: gerenciaColaborador(r.fields) }, eventoFields || {})).map(r => r.id);
   return { admins, gerentes };
 }
 
@@ -74,7 +74,7 @@ function equipoDelEvento(eventoFields, colaboradores) {
   const ids = new Set([...(eventoFields.Encargada || []), ...(eventoFields.Encargado_Produccion || [])]);
   colaboradores.forEach(c => {
     if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
-    if (esVasoMaiz(eventoFields) && c.fields.Gerente_Vaso_Maiz) ids.add(c.id);
+    if (esDeSuGerencia({ gerente: gerenciaColaborador(c.fields) }, eventoFields)) ids.add(c.id);
   });
   return [...ids];
 }

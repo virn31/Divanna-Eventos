@@ -67,6 +67,8 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 
 ## Gerente de El Vaso Maíz
 
+> Hay también gerente de **Divanna** (Eden; no ve los eventos que llevan Casa Isabella) y de **Casa Isabella** (Mario; solo los eventos que llevan el salón). Tienen lo mismo que se describe aquí, menos el staff y la producción, que son solo de El Vaso Maíz. En "👷 Asignar" se puede elegir a cualquiera de los tres gerentes; quien quede asignado ve ese evento aunque no sea de su negocio.
+
 - En la app ve **todos** los eventos autorizados de El Vaso Maíz, aunque no se los asignen.
 - En cada uno tiene **👷 Asignar**: elige brigada y encargada y toca **Guardar y avisar**. A ellas les llega el
   aviso con **Confirmar** y a Diana y Víctor se les avisa qué asignó.

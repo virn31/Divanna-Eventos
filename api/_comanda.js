@@ -14,7 +14,7 @@
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { PRODUCTOS, CLAVES } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
-const { ROLES } = require('./_sesion');
+const { ROLES, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
 
 const MODELO = 'claude-sonnet-5-5';
@@ -262,10 +262,12 @@ async function leerParaFormulario(colaborador, body) {
     return { error: 'DiMa no pudo leer la foto en este momento. Intenta de nuevo en un minuto; si sigue, llena el formulario a mano.', codigo: 502 };
   }
   if (r.error) return r;
-  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz.');
+  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift(avisoOtroNegocio(colaborador, r.datos.negocio));
   return { ok: true, datos: r.datos, faltan: faltantes(r.datos) };
 }
-const puedeCapturarNegocio = (c, negocio) => c.rol === ROLES.ADMIN || (c.gerente && negocio === 'El Vaso Maiz');
+// Cada gerente captura en su negocio (Casa Isabella: Divanna, con el salón).
+const puedeCapturarNegocio = (c, negocio) => c.rol === ROLES.ADMIN || (!!c.gerente && negocio === negocioDeGerencia(c.gerente));
+const avisoOtroNegocio = (c, negocio) => `La comanda parece de ${negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}; tú solo puedes capturar eventos de ${NOMBRE_GERENCIA[c.gerente] || 'tu negocio'} (corrígelo si me equivoqué).`;
 
 // ---------- Telegram: borrador con botones ----------
 
@@ -323,7 +325,7 @@ const esRespuestaComanda = (mensaje) => !!(mensaje.reply_to_message && mensaje.r
 
 // Devuelve { texto, botones } para contestar en el chat.
 async function atenderFoto(mensaje, colaborador) {
-  if (!puedeLeer(colaborador)) return { texto: 'Las fotos de comandas las leo solo para Diana, Víctor y la gerente de El Vaso Maíz.' };
+  if (!puedeLeer(colaborador)) return { texto: 'Las fotos de comandas las leo solo para Diana, Víctor y los gerentes.' };
   await telegramApi('sendMessage', { chat_id: mensaje.chat.id, text: '📷 Leyendo la comanda, dame unos segundos…' }).catch(() => {});
   let foto;
   try { foto = await descargarFotoTelegram(mensaje); } catch (err) { return { texto: `No pude abrir la foto: ${err.message}` }; }
@@ -337,7 +339,7 @@ async function atenderFoto(mensaje, colaborador) {
     return { texto: 'No pude leer la comanda en este momento. Mándala otra vez en un minuto; si sigue, captúrala en la app.' };
   }
   if (r.error) return { texto: r.error };
-  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz (corrígelo si es de El Vaso Maíz).');
+  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift(avisoOtroNegocio(colaborador, r.datos.negocio));
   const creado = await airtable(TABLA, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
     Resumen: `${r.datos.clienteNombre || 'Sin nombre'} · ${r.datos.fecha || 'sin fecha'}`.slice(0, 100),
     Datos: JSON.stringify(r.datos), Estado: 'Pendiente', Colaborador: [colaborador.id],

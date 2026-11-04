@@ -30,7 +30,7 @@
 const { enviarCotizacionPorCorreo } = require('./_google-integrations');
 const C = require('./_calendario');
 const { sincronizarEvento } = C;
-const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz, esDeSuGerencia, GERENCIAS, NOMBRE_GERENCIA, gerenciaDe, puestoGerente } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -315,9 +315,9 @@ async function resolverPedido(req, res, colaborador) {
   const inventario = Array.isArray((req.body || {}).articulos) ? await cargarInventario() : [];
 
   if (accion === 'editar') {
-    // La gerente edita solo eventos de El Vaso Maíz (igual que al asignar).
-    if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) {
-      res.status(403).json({ error: 'Solo puedes editar eventos de El Vaso Maíz.' });
+    // Cada gerente edita solo eventos de su negocio (igual que al asignar).
+    if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) {
+      res.status(403).json({ error: `Solo puedes editar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` });
       return;
     }
     const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
@@ -347,8 +347,8 @@ async function resolverPedido(req, res, colaborador) {
 
   if (accion === 'asignar') {
     const esAdmin = colaborador.rol === ROLES.ADMIN;
-    if (!esAdmin && !esVasoMaiz(f)) {
-      res.status(403).json({ error: 'Solo puedes asignar eventos de El Vaso Maíz.' });
+    if (!esAdmin && !esDeSuGerencia(colaborador, f)) {
+      res.status(403).json({ error: `Solo puedes asignar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` });
       return;
     }
     const b = req.body || {};
@@ -359,7 +359,8 @@ async function resolverPedido(req, res, colaborador) {
     }
     // Encargado de producción (opcional; solo si viene en la petición): debe estar
     // entre las opciones de quien asigna. '' lo quita.
-    const cambiaProduccion = typeof b.produccionId === 'string';
+    // Producción es solo de El Vaso Maíz: Admin o su gerente.
+    const cambiaProduccion = typeof b.produccionId === 'string' && (esAdmin || colaborador.gerente === GERENCIAS.VM);
     if (cambiaProduccion && b.produccionId) {
       const opciones = await opcionesProduccion(colaborador);
       if (!opciones.some(o => o.id === b.produccionId)) {
@@ -370,7 +371,8 @@ async function resolverPedido(req, res, colaborador) {
     const produccionAntes = (f.Encargado_Produccion || [])[0] || '';
     const colaboradores = await colaboradoresActivos();
     // Solo se aceptan encargadas activas con ese rol.
-    const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
+    // Encargadas activas o gerentes (se pueden asignar a sí mismos o entre ellos).
+    const encargadas = colaboradores.filter(c => (c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)) && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
     if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
     const antes = equipoDe(f, colaboradores);
@@ -435,6 +437,11 @@ async function resolverPedido(req, res, colaborador) {
   }
 
   if (accion === 'invitar_staff') {
+    // El staff (chicas por Telegram) es solo de El Vaso Maíz.
+    if (colaborador.rol !== ROLES.ADMIN && colaborador.gerente !== GERENCIAS.VM) {
+      res.status(403).json({ error: 'El staff es solo de El Vaso Maíz.' });
+      return;
+    }
     const ids = (req.body || {}).colaboradorIds;
     if (!Array.isArray(ids) || !ids.length || ids.length > 60 || !ids.every(id => /^rec[A-Za-z0-9]{14}$/.test(id))) {
       res.status(400).json({ error: 'Elige al menos a una persona.' });
@@ -557,7 +564,7 @@ async function capturarConFoto(colaborador, body) {
 async function reciboAPeticion(colaborador, body) {
   if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
   const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
-  if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) return { error: 'Solo puedes mandar recibos de El Vaso Maíz.', codigo: 403 };
+  if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) return { error: `Solo puedes mandar recibos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.`, codigo: 403 };
   if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
   const r = await enviarRecibo(body.eventoId, `lo pidió ${colaborador.nombre}`);
   return r.ok ? { ok: true, enviados: r.enviados } : { error: r.error };
@@ -589,7 +596,7 @@ module.exports = async (req, res) => {
         res.status(200).json({ success: true, ...r });
         return;
       }
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar, invitar staff o editar.
+      // Fuera de Admin, solo los gerentes (cada uno su negocio) y solo para asignar, invitar staff o editar.
       if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
@@ -726,7 +733,7 @@ module.exports = async (req, res) => {
     // Opciones para asignar: todas las brigadas y las encargadas activas.
     const brigadas = brigadasData.records.map(b => ({ id: b.id, nombre: b.fields.Nombre_Brigada || 'Brigada', lider: b.fields.Lider || '' }));
     const encargadas = await colaboradoresActivos()
-      .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA).map(c => ({ id: c.id, nombre: c.fields.Nombre || '' })))
+      .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)).map(c => ({ id: c.id, nombre: `${c.fields.Nombre || ''}${c.fields.Rol !== ROLES.ENCARGADA ? ` (${puestoGerente(gerenciaDe(c.fields))})` : ''}` })))
       .catch(err => { console.error('No se pudo leer COLABORADORES:', err.message); return []; });
     // Lo mismo que tiene la gerente en su app (Diana es la jefa de todo, 2026-10-29):
     // invitar staff por evento y elegir al encargado de producción. Si falla, se dice.

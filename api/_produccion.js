@@ -76,7 +76,7 @@ async function leerColaborador(id) {
 
 // Gerente(s) de El Vaso Maíz y Admin: a quienes les llegan las respuestas.
 async function destinatariosRespuesta() {
-  const formula = encodeURIComponent(`AND({Activo}, OR({Gerente_Vaso_Maiz}, {Rol} = "${ROLES.ADMIN}"))`);
+  const formula = encodeURIComponent(`AND({Activo}, OR({Gerente_Vaso_Maiz}, {Rol} = "Gerente El Vaso Maiz", {Rol} = "${ROLES.ADMIN}"))`);
   const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
   return data.records.map(r => r.id);
 }
@@ -90,7 +90,7 @@ async function avisarGerencia(texto) {
 // Quién puede ser encargado de producción: el staff de la gerente (Admin:
 // todo el staff), las encargadas de evento y la gerente. Activos.
 async function opcionesProduccion(colaborador) {
-  const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.STAFF}", {Rol} = "${ROLES.ENCARGADA}", {Gerente_Vaso_Maiz}))`);
+  const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.STAFF}", {Rol} = "${ROLES.ENCARGADA}", {Gerente_Vaso_Maiz}, {Rol} = "Gerente El Vaso Maiz"))`);
   const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
   return data.records
     .filter(r => r.fields.Rol !== ROLES.STAFF || colaborador.rol === ROLES.ADMIN || (r.fields.Coordinadora || []).includes(colaborador.id))

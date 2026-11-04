@@ -14,7 +14,7 @@
 // Estado = Cerrado (así el semáforo, producción y staff lo dejan fuera solos).
 
 const { google } = require('googleapis');
-const { ROLES, COLABORADORES_TABLE, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, esVasoMaiz, GERENCIAS, gerenciaDe, esDeSuGerencia, eventoDeGerencia, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -70,14 +70,17 @@ function fechaTexto(iso) {
 
 // ¿Puede este colaborador modificar este evento / bloquear este negocio?
 const esEditor = (c) => c.rol === ROLES.ADMIN || !!c.gerente;
+// Cada gerente, su negocio. Casa Isabella no bloquea días (es parte de Divanna).
 function puedeEditarEvento(c, f) {
   if (c.rol === ROLES.ADMIN) return true;
-  return !!c.gerente && esVasoMaiz(f);
+  return esDeSuGerencia(c, f);
 }
+const negociosBloqueo = (c) => c.rol === ROLES.ADMIN ? [NEGOCIOS.AMBOS, NEGOCIOS.DV, NEGOCIOS.VM]
+  : c.gerente === GERENCIAS.VM ? [NEGOCIOS.VM] : c.gerente === GERENCIAS.DV ? [NEGOCIOS.DV] : [];
 function puedeBloquear(c, negocio) {
-  if (c.rol === ROLES.ADMIN) return true;
-  return !!c.gerente && negocio === NEGOCIOS.VM;
+  return negociosBloqueo(c).includes(negocio);
 }
+const textoGerencia = (c) => NOMBRE_GERENCIA[c.gerente] || 'tu negocio';
 
 // ---------- Google Calendar (espejo) ----------
 
@@ -216,6 +219,10 @@ async function vistaMes(colaborador, mes) {
     puedeCobrar: colaborador.rol === ROLES.ADMIN,
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
+    // Cada gerente captura en su negocio (Casa Isabella: Divanna, con el salón).
+    catalogoGerente: colaborador.rol !== ROLES.ADMIN && colaborador.gerente ? CLAVES.filter(k => k !== 'otro' && PRODUCTOS[k].negocio === negocioDeGerencia(colaborador.gerente)).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : null,
+    negociosGerente: colaborador.rol !== ROLES.ADMIN && colaborador.gerente ? [negocioDeGerencia(colaborador.gerente)] : null,
+    negociosBloqueo: negociosBloqueo(colaborador),
     catalogo: colaborador.rol === ROLES.ADMIN ? CLAVES.filter(k => k !== 'otro').map(k => ({ clave: k, nombre: `${PRODUCTOS[k].negocio === NEGOCIOS.VM ? 'VM · ' : 'DV · '}${PRODUCTOS[k].nombre}` })) : null,
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     eventos: eventos.map(r => {
@@ -264,7 +271,8 @@ async function equipoDe(eventoId, f) {
   ]);
   colaboradores.forEach(c => {
     if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
-    if (esVasoMaiz(f) && c.fields.Gerente_Vaso_Maiz) ids.add(c.id);
+    const g = gerenciaDe(c.fields);
+    if (g && eventoDeGerencia(g, f)) ids.add(c.id);
   });
   staff.filter(s => (s.fields.Evento || [])[0] === eventoId).forEach(s => ids.add((s.fields.Colaborador || [])[0]));
   return { ids: [...ids].filter(Boolean), staff: staff.filter(s => (s.fields.Evento || [])[0] === eventoId) };
@@ -285,7 +293,7 @@ async function avisar(colaborador, ids, titulo, texto, eventoId, conBoton) {
 async function leerEditable(colaborador, eventoId) {
   if (!ID.test(eventoId || '')) return { error: 'Parámetros inválidos' };
   const r = await airtable(`${TABLES.EVENTOS}/${eventoId}`);
-  if (!puedeEditarEvento(colaborador, r.fields)) return { error: 'Solo puedes modificar eventos de El Vaso Maíz.', codigo: 403 };
+  if (!puedeEditarEvento(colaborador, r.fields)) return { error: `Solo puedes modificar eventos de ${textoGerencia(colaborador)}.`, codigo: 403 };
   if (r.fields.Cancelado) return { error: 'Este evento ya está cancelado.', codigo: 409 };
   return { f: r.fields };
 }
@@ -410,7 +418,7 @@ async function borrar(colaborador, body) {
 async function bloquear(colaborador, body) {
   const negocio = body.negocio;
   if (![NEGOCIOS.DV, NEGOCIOS.VM, NEGOCIOS.AMBOS].includes(negocio)) return { error: 'Elige el negocio.' };
-  if (!puedeBloquear(colaborador, negocio)) return { error: 'Solo puedes bloquear días de El Vaso Maíz.', codigo: 403 };
+  if (!puedeBloquear(colaborador, negocio)) return { error: 'No puedes bloquear días de ese negocio.', codigo: 403 };
   if (!esFecha(body.fecha) || body.fecha < hoyCuliacan()) return { error: 'Elige una fecha de hoy en adelante.' };
   const motivo = String(body.motivo || '').trim().slice(0, 120);
   if (!motivo) return { error: 'Escribe el motivo (ej. vacaciones, mantenimiento).' };
@@ -439,7 +447,7 @@ async function bloquear(colaborador, body) {
 async function desbloquear(colaborador, body) {
   if (!ID.test(body.bloqueoId || '')) return { error: 'Parámetros inválidos' };
   const r = await airtable(`${TABLES.BLOQUEOS}/${body.bloqueoId}`);
-  if (!puedeBloquear(colaborador, r.fields.Negocio || NEGOCIOS.AMBOS)) return { error: 'Solo puedes quitar bloqueos de El Vaso Maíz.', codigo: 403 };
+  if (!puedeBloquear(colaborador, r.fields.Negocio || NEGOCIOS.AMBOS)) return { error: 'No puedes quitar bloqueos de ese negocio.', codigo: 403 };
   if (r.fields.Google_Evento_ID && googleConfigurado()) {
     await calendarioGoogle().events.delete({ calendarId: process.env.GOOGLE_CALENDAR_ID, eventId: r.fields.Google_Evento_ID })
       .catch(err => { if (err.code !== 404 && err.code !== 410) console.error('Error quitando bloqueo en Google:', err.message); });
@@ -461,9 +469,13 @@ async function avisarSiLleno(fecha, negocio) {
     if (!negocios.length) return { lleno: false };
     const nombres = negocios.map(n => n === NEGOCIOS.VM ? 'El Vaso Maíz' : 'Divanna').join(' y ');
     const texto = `📅 El ${fechaTexto(fecha)} ya está LLENO para ${nombres} (${dia.detalle}).\nDiMa ya no ofrecerá ese día a los clientes de ${nombres}. Si aun así quieren meter otro, se puede capturar a mano en el calendario.`;
-    const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.ADMIN}", {Gerente_Vaso_Maiz}))`);
-    const gente = await todas(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
-    const ids = gente.filter(c => c.fields.Rol === ROLES.ADMIN || negocios.includes(NEGOCIOS.VM)).map(c => c.id);
+    // Admin y la gerencia del negocio lleno (se filtra en código con gerenciaDe, ver _sesion.js).
+    const gente = await todas(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
+    const ids = gente.filter(c => {
+      if (c.fields.Rol === ROLES.ADMIN) return true;
+      const g = gerenciaDe(c.fields);
+      return (g === GERENCIAS.VM && negocios.includes(NEGOCIOS.VM)) || (g === GERENCIAS.DV && negocios.includes(NEGOCIOS.DV)) || (g === GERENCIAS.CI && !!dia.casaIsabella);
+    }).map(c => c.id);
     await Promise.all([
       enviarTelegramEquipo({ texto, soloColaboradores: ids }),
       enviarPushEquipo({ titulo: `📅 ${fechaTexto(fecha)}: día lleno`, cuerpo: `${nombres} ya no tiene cupo.`, soloColaboradores: ids }),
@@ -508,7 +520,7 @@ async function capturarEvento(colaborador, b) {
   if (!nombre) return { error: 'Escribe el nombre del cliente.' };
   if (tel.length !== 10) return { error: 'El teléfono del cliente debe tener 10 dígitos.' };
   if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio)) return { error: 'Elige el negocio.' };
-  if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && negocio === NEGOCIOS.VM)) return { error: 'Solo puedes capturar eventos de El Vaso Maíz.', codigo: 403 };
+  if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && negocio === negocioDeGerencia(colaborador.gerente))) return { error: `Solo puedes capturar eventos de ${textoGerencia(colaborador)}.`, codigo: 403 };
   if (!esFecha(b.fecha)) return { error: 'Elige la fecha del evento.' };
   const hora = String(b.hora || '');
   if (hora && !esHora(hora)) return { error: 'La hora debe ser como 18:00.' };
@@ -524,6 +536,11 @@ async function capturarEvento(colaborador, b) {
   if (anticipo && anticipo > contratado) return { error: 'El anticipo es mayor que lo contratado.' };
   const productos = normalizarProductos(Array.isArray(b.productos) ? b.productos : []);
   const invitados = Number(b.invitados) > 0 && Number(b.invitados) < 100000 ? Math.round(Number(b.invitados)) : null;
+
+  // Eden (Divanna) no captura eventos con el salón; Mario (Casa Isabella) solo esos.
+  if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, { Negocio: negocio, Servicios_Solicitados: servicios, Productos: JSON.stringify(productos) })) {
+    return { error: colaborador.gerente === GERENCIAS.CI ? 'Solo puedes capturar eventos que lleven Casa Isabella (agrega el salón).' : 'Los eventos con Casa Isabella los captura su gerente o Diana.', codigo: 403 };
+  }
 
   // Cliente: el que ya tenga ese teléfono, o uno nuevo.
   let cliente = await buscarClientePorTelefono(tel);

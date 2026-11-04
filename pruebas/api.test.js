@@ -1213,7 +1213,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   reset();
   respuestas = [
-    GERENTE, BRIGADA_VM,
+    GERENTE, BRIGADA_VM, { fields: {} },
     { records: [{ id: 'recEVENTO0000VM01' }, { id: 'recEVENTO0000VM02' }] },
     { records: [] },
     { records: [{ id: 'recEVENTO0000VM02', fields: { Folio_Evento: 'EVT-VM2', Negocio: 'El Vaso Maiz', Encargada: [ENCARG.id] } }] },
@@ -1490,6 +1490,37 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && edGer.Servicios_Solicitados === 'Paquete 5' && edGer.Checklist_Items === 'Paquete 5' && !('Monto_Estimado_IA' in edGer),
     'editar pedido: la gerente cambia lo que lleva un evento de El Vaso Maíz');
 
+  // Gerentes por negocio (2026-11-03): Eden Divanna sin Casa Isabella, Mario solo Casa Isabella.
+  {
+    const S = require('../api/_sesion');
+    const EV_DV = { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas y sillas' };
+    const EV_CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    const EV_VM = { Negocio: 'El Vaso Maiz' };
+    ok(S.eventoDeGerencia('Divanna Eventos', EV_DV) && !S.eventoDeGerencia('Divanna Eventos', EV_CI) && !S.eventoDeGerencia('Divanna Eventos', EV_VM),
+      'gerentes: Divanna ve sus eventos, no los de Casa Isabella ni El Vaso Maíz');
+    ok(S.eventoDeGerencia('Casa Isabella', EV_CI) && !S.eventoDeGerencia('Casa Isabella', EV_DV) && S.eventoDeGerencia('El Vaso Maiz', EV_VM),
+      'gerentes: Casa Isabella solo los que llevan el salón; El Vaso Maíz igual que antes');
+    ok(S.gerenciaDe({ Gerente_Vaso_Maiz: true }) === 'El Vaso Maiz' && S.gerenciaDe({ Rol: 'Gerente Casa Isabella' }) === 'Casa Isabella' && S.gerenciaDe({ Rol: 'Gerente Divanna' }) === 'Divanna Eventos' && S.gerenciaDe({ Rol: 'Lider de brigada' }) === null && S.rolDe({ Rol: 'Gerente Divanna' }) === 'Lider de brigada',
+      'gerentes: la casilla de Ángela sigue valiendo; el Rol "Gerente …" marca a cada gerente y cuenta como líder');
+    const MARIO = { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario', Rol: 'Gerente Casa Isabella', Activo: true } };
+    ok(S.puedeOperarEvento(S.gerenciaDe(MARIO.fields) && { id: MARIO.id, rol: 'Lider de brigada', gerente: 'Casa Isabella' }, { ...EV_DV, Encargada: [MARIO.id] }),
+      'gerentes: Mario opera un evento de Divanna donde Eden lo asignó');
+    const EDEN = { id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: 'Gerente Divanna', Activo: true } };
+    const tokenEden = (await login(EDEN)).body.token;
+    reset();
+    respuestas = [EDEN, { id: 'recEVENTO0000CI01', fields: { Folio_Evento: 'EVT-CI1', Autorizacion_Diana: 'SI', ...EV_CI } }];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenEden), body: { eventoId: 'recEVENTO0000CI01', accion: 'editar', invitados: '50' } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'gerentes: Eden no edita un evento de Casa Isabella');
+    reset();
+    respuestas = [EDEN, { id: 'recEVENTO0000DV01', fields: { Folio_Evento: 'EVT-DV1', Autorizacion_Diana: 'SI', Brigada_Asignada: [], ...EV_DV } }, { records: [MARIO, ENCARG] }, {}, { records: [] }];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenEden), body: { eventoId: 'recEVENTO0000DV01', accion: 'asignar', brigadaId: '', encargadaIds: [MARIO.id] } }, res);
+    const patchEden = llamadas.find(l => l.method === 'PATCH');
+    ok(res.code === 200 && patchEden && JSON.stringify(patchEden.body.records[0].fields.Encargada) === JSON.stringify([MARIO.id]) && !('Encargado_Produccion' in patchEden.body.records[0].fields),
+      'gerentes: Eden asigna a Mario en un evento de Divanna (sin producción)');
+  }
+
   // Diana es la jefa de todo: invita a cualquier chica y elige producción desde el dashboard.
   reset();
   respuestas = [ADMIN, EV_STAFF, { records: [EV_STAFF] }, { records: [ZOE_OTRA] }, { records: [] }, { records: [{ id: 'recINVITA00000030' }] }];
@@ -1600,7 +1631,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   // La gerente ve de un reporte "Ambos" solo lo de El Vaso Maíz.
   const REP_AMBOS = { id: 'recREPORTEAMBOS01', fields: { Fecha: hoyCln, Colaborador: [LIDER.id], Estado: 'Enviado', Negocio: 'Ambos', GASTOS: ['recGASTOVM0000001', 'recGASTODV0000001'], COBROS: ['recCOBRODV0000001'] } };
   reset();
-  respuestas = [GERENTE, { records: [] }, BRIGADA_VM, { records: [] }, { records: [] }, { records: [] },
+  respuestas = [GERENTE, { records: [] }, BRIGADA_VM, { records: [] }, { fields: {} }, { records: [] }, { records: [] },
     { records: [REP_AMBOS] },
     { records: [{ id: 'recGASTOVM0000001', fields: { Monto: 100, Negocio: 'El Vaso Maiz', Reporte: [REP_AMBOS.id] } }, { id: 'recGASTODV0000001', fields: { Monto: 900, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },
     { records: [{ id: 'recCOBRODV0000001', fields: { Monto: 5000, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },

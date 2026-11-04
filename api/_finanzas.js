@@ -12,7 +12,7 @@
 // Estados: Abierto (se está llenando) -> Enviado -> Aprobado, o Aclaración
 // (Diana pide corregir; se puede editar y volver a enviar). Aprobado ya no cambia.
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, GERENCIAS, gerenciaDe } = require('./_sesion');
 const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { enviarPushEquipo } = require('./_push');
@@ -75,7 +75,10 @@ function monto(valor) {
 }
 
 const puedeReportar = (c) => c.rol === ROLES.LIDER || c.rol === ROLES.ENCARGADA;
-const veVasoMaiz = (c) => c.rol === ROLES.ADMIN || !!c.gerente;
+// Revisan reportes: Admin todo; la gerente de El Vaso Maíz y la de Divanna, lo
+// de su negocio. Casa Isabella no: los reportes del día no separan el salón.
+const negocioRevisa = (c) => c.gerente === GERENCIAS.VM ? NEGOCIOS.VM : c.gerente === GERENCIAS.DV ? NEGOCIOS.DV : null;
+const veVasoMaiz = (c) => c.rol === ROLES.ADMIN || !!negocioRevisa(c);
 
 // ---------- Lectura ----------
 
@@ -189,16 +192,16 @@ function negocioDe(colaborador, eventos) {
   const set = new Set(eventos.map(e => e.negocio));
   if (set.size > 1) return NEGOCIOS.AMBOS;
   if (set.size === 1) return [...set][0];
-  return colaborador.gerente || colaborador.rol === ROLES.ENCARGADA ? NEGOCIOS.VM : NEGOCIOS.DV;
+  return colaborador.gerente === GERENCIAS.VM || colaborador.rol === ROLES.ENCARGADA ? NEGOCIOS.VM : NEGOCIOS.DV;
 }
 
 // La gerente ve de los reportes "Ambos" solo lo de El Vaso Maíz.
-function filtrarParaGerente(reporte, gastos, cobros) {
-  const gs = gastos.filter(g => g.negocio === NEGOCIOS.VM);
-  const cs = cobros.filter(c => c.negocio === NEGOCIOS.VM);
-  if (reporte.negocio === NEGOCIOS.VM) return { reporte, gastos, cobros };
+function filtrarParaGerente(reporte, gastos, cobros, negocio = NEGOCIOS.VM) {
+  const gs = gastos.filter(g => g.negocio === negocio);
+  const cs = cobros.filter(c => c.negocio === negocio);
+  if (reporte.negocio === negocio) return { reporte, gastos, cobros };
   return {
-    reporte: { ...reporte, totalGastos: suma(gs), totalCobros: suma(cs), reembolsoPendiente: suma(gs.filter(g => g.pagadoCon === 'Dinero propio' && !g.reembolsado)), soloVasoMaiz: true },
+    reporte: { ...reporte, totalGastos: suma(gs), totalCobros: suma(cs), reembolsoPendiente: suma(gs.filter(g => g.pagadoCon === 'Dinero propio' && !g.reembolsado)), soloVasoMaiz: negocio === NEGOCIOS.VM, soloNegocio: negocio === NEGOCIOS.VM ? 'El Vaso Maíz' : 'Divanna' },
     gastos: gs,
     cobros: cs,
   };
@@ -241,12 +244,13 @@ async function paraRevision(colaborador) {
   const formula = `AND({Estado} != "${ESTADOS.ABIERTO}", NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${desde}"))))`;
   let reportes = (await todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(formula)}`)).map(aReporte);
   const esAdmin = colaborador.rol === ROLES.ADMIN;
-  if (!esAdmin) reportes = reportes.filter(r => r.negocio === NEGOCIOS.VM || r.negocio === NEGOCIOS.AMBOS);
+  const suyo = negocioRevisa(colaborador);
+  if (!esAdmin) reportes = reportes.filter(r => r.negocio === suyo || r.negocio === NEGOCIOS.AMBOS);
   const detalle = await detalleDe(reportes);
   const nombres = await nombresColaboradores(reportes.map(r => r.colaboradorId));
   const lista = reportes.map(r => {
     const base = esAdmin ? { reporte: r, gastos: detalle.gastos.get(r.id), cobros: detalle.cobros.get(r.id) }
-      : filtrarParaGerente(r, detalle.gastos.get(r.id), detalle.cobros.get(r.id));
+      : filtrarParaGerente(r, detalle.gastos.get(r.id), detalle.cobros.get(r.id), suyo);
     return { ...base.reporte, quien: nombres.get(r.colaboradorId) || '', gastos: base.gastos, cobros: base.cobros };
   }).sort((a, b) => b.fecha.localeCompare(a.fecha) || a.quien.localeCompare(b.quien, 'es'));
   const reembolsos = lista.filter(r => r.estado === ESTADOS.APROBADO)
@@ -453,10 +457,14 @@ async function enviar(colaborador, body) {
 
 // Admin y, si el reporte tiene algo de El Vaso Maíz, la gerente (ella sin lo de Divanna).
 async function avisarRevisores(negocio, texto, titulo) {
-  const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.ADMIN}", {Gerente_Vaso_Maiz}))`);
-  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`).catch(() => ({ records: [] }));
+  // La gerencia se filtra aquí con gerenciaDe (ver api/_sesion.js).
+  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`).catch(() => ({ records: [] }));
   const admins = data.records.filter(r => r.fields.Rol === ROLES.ADMIN).map(r => r.id);
-  const gerentes = negocio === NEGOCIOS.DV ? [] : data.records.filter(r => r.fields.Rol !== ROLES.ADMIN && r.fields.Gerente_Vaso_Maiz).map(r => r.id);
+  const gerentes = data.records.filter(r => {
+    if (r.fields.Rol === ROLES.ADMIN) return false;
+    const g = gerenciaDe(r.fields);
+    return (g === GERENCIAS.VM && negocio !== NEGOCIOS.DV) || (g === GERENCIAS.DV && negocio !== NEGOCIOS.VM);
+  }).map(r => r.id);
   const destinos = [...admins, ...gerentes];
   if (!destinos.length) return 0;
   const [tg] = await Promise.all([

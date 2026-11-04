@@ -19,7 +19,7 @@
 // Requiere en Vercel: TELEGRAM_BOT_TOKEN y TELEGRAM_WEBHOOK_SECRET (Telegram lo
 // manda en cada llamada; así nadie más puede hacerse pasar por Telegram).
 
-const { ROLES, iniciarSesion } = require('./_sesion');
+const { ROLES, iniciarSesion, puestoGerente } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
 const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const {
@@ -112,7 +112,7 @@ function ayuda(colaborador) {
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
   if (veDinero(colaborador)) comandos.push('/daño — anotar lo que se rompió o faltó en un evento');
   comandos.push('/salir — desvincular este Telegram');
-  const puesto = colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
+  const puesto = colaborador.gerente ? puestoGerente(colaborador.gerente) : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
   return `${colaborador.nombre} (${puesto})\n\n${comandos.join('\n')}\n\n` +
     (puedeUsarDima(colaborador) ? '💬 Para preguntarle a DiMa, escríbele aquí sin comando.\n' : '') +
     `Aquí te llegan las emergencias${colaborador.rol === ROLES.ADMIN ? ', los pedidos nuevos y el balance semanal' : ''}.\n` +

@@ -11,7 +11,7 @@
 // La gerente de El Vaso Maíz recibe esa misma lista para asignar sus eventos,
 // y el estado de su staff en cada evento (staffEventos) para invitarlas.
 
-const { ROLES, requerirSesion } = require('./_sesion');
+const { ROLES, requerirSesion, GERENCIAS, puestoGerente } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
 const { staffParaApp } = require('./_staff');
 const { vistaMes } = require('./_calendario');
@@ -58,19 +58,20 @@ module.exports = async (req, res) => {
     // La gerente también ve e invita al staff de sus eventos. Si no se puede
     // leer, se dice (staffError) en vez de mostrar la lista vacía.
     let staffEventos = null, staffError = false, opcionesProduccion = null;
-    if (colaborador.gerente && colaborador.rol !== ROLES.ADMIN) {
+    // Staff y producción son solo de El Vaso Maíz (Ángela).
+    if (colaborador.gerente === GERENCIAS.VM && colaborador.rol !== ROLES.ADMIN) {
       staffEventos = await staffParaApp(colaborador).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; });
       opcionesProduccion = await opcionesDeProduccion(colaborador).catch(err => { console.error('No se pudo leer quién hace producción:', err.message); return null; });
     }
 
     res.status(200).json({
-      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, veDinero: veDinero(colaborador) },
+      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, gerencia: colaborador.gerente || null, puesto: puestoGerente(colaborador.gerente), veDinero: veDinero(colaborador) },
       brigada,
       eventos,
       alertasEquipo,
       ...(colaborador.rol === ROLES.ADMIN ? { opciones: await opcionesVista() } : {}),
-      // La gerente asigna brigada y encargada a los eventos de El Vaso Maíz.
-      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: { ...(await opcionesVista()), produccion: opcionesProduccion }, staffEventos, staffError } : {}),
+      // Cada gerente asigna brigada y encargada a los eventos de su negocio.
+      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: { ...(await opcionesVista(true)), produccion: opcionesProduccion }, ...(colaborador.gerente === GERENCIAS.VM ? { staffEventos, staffError } : {}) } : {}),
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

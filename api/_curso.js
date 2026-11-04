@@ -7,7 +7,8 @@
 // Admin: /curso muestra el avance de cada quien y un botón para mandarle su
 // lección (cu:inv:<colaborador>).
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, gerenciaDe, rolDe, NOMBRE_GERENCIA } = require('./_sesion');
+const negocioTexto = (c) => NOMBRE_GERENCIA[c.gerente] || 'El Vaso Maíz';
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -57,14 +58,14 @@ const LECCIONES = [
     id: 'gerente',
     solo: 'gerente',
     titulo: 'Tu papel de gerente',
-    texto:
-      'Como gerente de El Vaso Maíz ves en la app TODOS los eventos autorizados de El Vaso Maíz, aunque no te los asignen.\n\n' +
+    texto: (c) =>
+      `Como gerente de ${negocioTexto(c)} ves en la app TODOS los eventos autorizados de ${negocioTexto(c)}, aunque no te los asignen.\n\n` +
       'En cada uno tienes "👷 Asignar": eliges brigada y encargada y tocas "Guardar y avisar". A ellas les llega el aviso para confirmar y a Diana y Víctor les aviso qué asignaste. Los precios y pagos los siguen llevando ellos.',
-    practica: 'En la app abre un evento de El Vaso Maíz y busca "👷 Asignar".',
-    pregunta: '¿Dónde asignas la encargada de un evento de El Vaso Maíz?',
+    practica: (c) => `En la app abre un evento de ${negocioTexto(c)} y busca "👷 Asignar".`,
+    pregunta: '¿Dónde asignas la encargada de un evento de tu negocio?',
     opciones: ['En la app, en "👷 Asignar" del evento', 'En Airtable', 'Pidiéndoselo a DiMa'],
     correcta: 0,
-    explicacion: 'Se asigna en la app, en "👷 Asignar" de cada evento de El Vaso Maíz.',
+    explicacion: 'Se asigna en la app, en "👷 Asignar" de cada evento de tu negocio.',
   },
   {
     id: 'staff',
@@ -165,8 +166,8 @@ function aColab(r) {
   return {
     id: r.id,
     nombre: r.fields.Nombre || '',
-    rol: r.fields.Rol || '',
-    gerente: !!r.fields.Gerente_Vaso_Maiz,
+    rol: rolDe(r.fields),
+    gerente: gerenciaDe(r.fields),
     coordina: !!r.fields.Coordina_Staff,
     cursoAvance: Number(r.fields.Curso_Avance) || 0,
     chatId: r.fields.Telegram_Chat_ID || '',
