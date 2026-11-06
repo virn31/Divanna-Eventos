@@ -106,6 +106,7 @@ function ayuda(colaborador) {
     '/alertas — emergencias y alertas de seguridad de hoy',
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
+  if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
@@ -193,6 +194,7 @@ async function configurarBot() {
       { command: 'staff', description: 'Invitar staff de El Vaso Maíz a un evento' },
       { command: 'alertas', description: 'Emergencias y alertas de hoy' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
+      { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
@@ -386,6 +388,8 @@ async function responder(mensaje) {
     case '/dano':
       await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
       return reportarDanos(colaborador, texto.slice(primera.length).trim());
+    case '/comanda':
+      return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);
     case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();

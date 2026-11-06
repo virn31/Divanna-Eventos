@@ -183,8 +183,6 @@ window.DimaCalendario = (function(){
     mant.hidden = neg && neg.value === 'El Vaso Maiz';
     if(mant.hidden) return { error: '', cargo: 0 };
     const r = DimaManteles.resumir(caja, filasProductos(), datos.manteles);
-    const monto = Number(String(panel.querySelector('#calNMonto').value).replace(/[$,\s]/g, '')) || 0;
-    panel.querySelector('#calNTotal').textContent = r.cargo && monto ? `Total con manteles: $${(monto + r.cargo).toLocaleString('es-MX')} (si el cliente es decorador, se le resta 10%).` : '';
     return r;
   }
 
@@ -199,6 +197,8 @@ window.DimaCalendario = (function(){
         <div class="cal-sub">Para los eventos que ya se apartaron por teléfono o en persona. Entra ya autorizado y avisa al calendario de Google.</div>
         <div class="cal-form">
           <button class="sec" data-cal="leer-foto">📷 Llenar con la foto de una comanda</button>
+          <button class="sec" data-cal="mostrar-texto">📝 Llenar con el pedido escrito</button>
+          <div id="calNTextoCaja" hidden><textarea id="calNTexto" rows="4" maxlength="4000" placeholder="Pega o escribe el pedido: cliente, teléfono, fecha, hora, lugar, qué lleva (con colores y estilos), total y anticipo" style="width:100%; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea><button data-cal="leer-texto" style="margin-top:6px;">Leer pedido</button></div>
           <input type="file" id="calNFoto" accept="image/*" hidden>
           <div class="cal-msg" id="calNFotoMsg"></div>
           <input id="calNNombre" maxlength="80" placeholder="Nombre del cliente">
@@ -213,8 +213,7 @@ window.DimaCalendario = (function(){
           <textarea id="calNServ" rows="4" maxlength="4000" placeholder="Qué lleva, uno por línea (sale como checklist de carga)" style="padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
           <div id="calProdsCaja"><div class="cal-sub">${datos.catalogo ? 'Productos del catálogo (con esto salen la producción, el personal y el inventario)' : 'El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)'}</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
           <div id="calManteles"></div>
-          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (sin cambios ni extras de mantel)">
-          <div class="cal-sub" id="calNTotal"></div>
+          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (los manteles especiales y extra se suman solos)">
           <div style="display:flex; gap:6px;"><input id="calNAnt" inputmode="decimal" placeholder="Anticipo ya recibido (si hubo)" style="flex:1;"><select id="calNAntForma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></div>
           <input id="calNInstr" maxlength="2000" placeholder="Instrucciones para el equipo (opcional)">
           <button data-cal="capturar">Guardar evento</button>
@@ -312,7 +311,43 @@ window.DimaCalendario = (function(){
     try {
       const foto = await achicar(archivo);
       const r = await mandarFoto(foto, msg);
+      llenarConLectura(r);
+      fotoComanda = foto;
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer la foto, intenta de nuevo.');
+    }
+  }
+
+  // 📝 Pedido escrito (texto pegado o dictado): DiMa lo lee igual que una comanda.
+  // ❓ Respuestas a las preguntas de DiMa: se mandan con lo ya leído y vuelve a llenar.
+  async function leerTexto(boton, conRespuestas){
+    const msg = panel.querySelector('#calNFotoMsg');
+    const caja = panel.querySelector(conRespuestas ? '#calNResp' : '#calNTexto');
+    const texto = caja ? caja.value.trim() : '';
+    if(!texto){ msg.textContent = conRespuestas ? '⚠️ Escribe las respuestas.' : '⚠️ Escribe o pega el pedido.'; return; }
+    boton.disabled = true;
+    msg.textContent = conRespuestas ? '❓ DiMa está revisando tus respuestas…' : '📝 DiMa está leyendo el pedido… (unos segundos)';
+    try {
+      const r = await post(conRespuestas ? { accion: 'leer_comanda', previo: ultimaLectura, respuestas: texto } : { accion: 'leer_comanda', texto });
+      llenarConLectura(r);
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer, intenta de nuevo.');
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  // Llena el formulario con lo que leyó DiMa y muestra sus preguntas.
+  let ultimaLectura = null, preguntasPendientes = [];
+  function llenarConLectura(r){
+    const e = o.esc;
+    const msg = panel.querySelector('#calNFotoMsg');
+    {
       const d = r.datos;
+      ultimaLectura = d;
+      preguntasPendientes = d.preguntas || [];
       const poner = (id, valor) => { const el = panel.querySelector('#' + id); if(el && valor !== '' && valor != null) el.value = valor; };
       poner('calNNombre', d.clienteNombre); poner('calNTel', d.clienteTelefono); poner('calNFecha', d.fecha); poner('calNHora', d.hora);
       poner('calNHoras', d.horasServicio); poner('calNLugar', d.ubicacion); poner('calNInv', d.invitados); poner('calNServ', d.servicios);
@@ -327,13 +362,13 @@ window.DimaCalendario = (function(){
         [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; fila.querySelector('.calProdNota').value = validos[i].nota || ''; });
       }
       pintarManteles(todos);
-      fotoComanda = foto;
       fotoNotas = d.notas || '';
-      const avisos = [...(d.dudas || []), ...(r.faltan || []).map(x => 'Falta: ' + x)];
-      msg.innerHTML = `✅ Listo, revisa cada dato antes de guardar.${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`;
-    } catch(err){
-      if(err.message === 'sesion') return;
-      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer la foto, intenta de nuevo.');
+      const avisos = [...(d.dudas || []), ...(r.faltan || []).filter(x => x !== 'contestar las preguntas').map(x => 'Falta: ' + x)];
+      msg.innerHTML = (preguntasPendientes.length ? '❓ Antes de guardar, contesta lo que pregunta DiMa.' : '✅ Listo, revisa cada dato antes de guardar.')
+        + `${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`
+        + (preguntasPendientes.length ? `<div class="cal-lleno" style="margin-top:8px;"><b>❓ Preguntas de DiMa</b><br>${preguntasPendientes.map(p => '• ' + e(p)).join('<br>')}
+          <textarea id="calNResp" rows="3" maxlength="1000" placeholder="Contesta aquí (ej. manteles lentejuela rosa, cerezos blancos)" style="width:100%; margin-top:6px; padding:8px; border-radius:8px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
+          <button data-cal="responder-dima" style="margin-top:6px;">Enviar respuestas</button></div>` : '');
     }
   }
   let fotoNotas = '';
@@ -343,6 +378,7 @@ window.DimaCalendario = (function(){
     const v = (id) => panel.querySelector('#' + id).value;
     const msg = panel.querySelector('#calNMsg');
     const negocio = v('calNNeg');
+    if(preguntasPendientes.length){ msg.textContent = '❓ Primero contesta las preguntas de DiMa (arriba): el pedido tiene que quedar sin dudas.'; return; }
     const mant = resumirManteles();
     if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
     const filas = !panel.querySelector('#calProdsCaja').hidden ? filasProductos() : [];
@@ -357,8 +393,8 @@ window.DimaCalendario = (function(){
         servicios: v('calNServ'), productos, montoContratado: v('calNMonto'), anticipo: v('calNAnt'), formaAnticipo: v('calNAntForma'), instrucciones: v('calNInstr'),
         ...(fotoComanda ? { fotoComanda, notas: [fotoNotas, 'Capturado desde foto de comanda.'].filter(Boolean).join(' ') } : {}),
       });
-      fotoComanda = null; fotoNotas = '';
-      const monto = d.total ? ` Total: $${Number(d.total).toLocaleString('es-MX')}${d.cargoManteles ? ` (con $${Number(d.cargoManteles).toLocaleString('es-MX')} de manteles)` : ''}${d.decorador ? ', ya con 10% de decorador' : ''}.` : '';
+      fotoComanda = null; fotoNotas = ''; ultimaLectura = null; preguntasPendientes = [];
+      const monto = d.total ? ` Total: $${Number(d.total).toLocaleString('es-MX')}${d.decorador ? ' (ya con 10% de decorador)' : ''}.` : '';
       msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${monto}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
       if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
       setTimeout(cargar, 3500);
@@ -386,6 +422,9 @@ window.DimaCalendario = (function(){
     if(accion === 'otro-producto'){ panel.querySelector('#calProds').insertAdjacentHTML('beforeend', filaProducto()); return; }
     if(accion === 'capturar'){ capturar(b); return; }
     if(accion === 'leer-foto'){ panel.querySelector('#calNFoto').click(); return; }
+    if(accion === 'mostrar-texto'){ const c = panel.querySelector('#calNTextoCaja'); c.hidden = !c.hidden; if(!c.hidden) panel.querySelector('#calNTexto').focus(); return; }
+    if(accion === 'leer-texto'){ leerTexto(b, false); return; }
+    if(accion === 'responder-dima'){ leerTexto(b, true); return; }
     const tarjeta = b.closest('.cal-ev');
     const zona = tarjeta && tarjeta.querySelector('.cal-zona');
     const evento = tarjeta && datos.eventos.find(x => x.id === tarjeta.dataset.ev);

@@ -1,5 +1,6 @@
 // brigadas/manteles.js
-// Selector de manteles (Víctor 2026-11-06), lo usan el ➕ Capturar evento del
+// Selector de manteles (Víctor 2026-11-06, sin precios a la vista: "más simple
+// siempre es mejor"; el desglose con precios va en el recibo), lo usan el ➕ Capturar evento del
 // calendario y "Hora y productos" del dashboard. Cada mesa trae su mantel básico
 // incluido; aquí se dice cuántos se cambian a lentejuela o corrugado (se cobra la
 // diferencia), los extras y el color de cada tipo. Se guarda como productos del
@@ -8,7 +9,6 @@
 // info (lo manda el servidor): { basicos: {clave: n}, precios: {clave: $}, claves: { extra: {...}, cambio: {...} } }
 window.DimaManteles = (function(){
   const TIPOS = [['basico', 'Básico'], ['lentejuela', 'Lentejuela'], ['corrugado', 'Corrugado']];
-  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-MX');
   const esMantel = (info, clave) => !!(info && info.precios && info.precios[clave]);
   const tipoDeClave = (info, clave) => {
     for (const [grupo, claves] of Object.entries(info.claves)) for (const [t, c] of Object.entries(claves)) if (c === clave) return { grupo, tipo: t };
@@ -48,10 +48,10 @@ window.DimaManteles = (function(){
       <div class="dm-manteles" style="margin-top:10px; padding:10px; border:1.5px solid var(--line); border-radius:10px;">
         <b>🧺 Manteles</b>
         <div class="dm-resumen" style="font-size:.9rem; opacity:.85; margin-top:4px;"></div>
-        ${fila(`Cambiar a lentejuela (+${pesos(info.precios[info.claves.cambio.lentejuela])} c/u)`, num('cambio', 'lentejuela'))}
-        ${fila(`Cambiar a corrugado (+${pesos(info.precios[info.claves.cambio.corrugado])} c/u)`, num('cambio', 'corrugado'))}
+        ${fila('¿Cuántos cambian a lentejuela?', num('cambio', 'lentejuela'))}
+        ${fila('¿Cuántos cambian a corrugado?', num('cambio', 'corrugado'))}
         <div style="margin-top:8px; font-size:.9rem; opacity:.85;">Extras (además de los de las mesas)</div>
-        ${TIPOS.map(([t, n]) => fila(`${n} (${pesos(info.precios[info.claves.extra[t]])} c/u)`, num('extra', t))).join('')}
+        ${TIPOS.map(([t, n]) => fila(n, num('extra', t))).join('')}
         <div style="margin-top:8px; font-size:.9rem; opacity:.85;">Color de cada tipo</div>
         ${TIPOS.map(([t, n]) => fila(n, `<input class="dm-color" data-tipo="${t}" maxlength="60" placeholder="Ej. beige" value="${esc(val.color[t] || '')}" style="width:150px;">`)).join('')}
       </div>`;
@@ -81,7 +81,7 @@ window.DimaManteles = (function(){
     const error = cambiados > n ? `Se cambian ${cambiados} manteles pero las mesas solo traen ${n} básicos. Si son más, ponlos como extra.` : '';
     const tipos = TIPOS.filter(([t]) => porTipo[t]).map(([t, nom]) => `${porTipo[t]} ${nom.toLowerCase()}`).join(' · ');
     box.querySelector('.dm-resumen').innerHTML = error ? `⚠️ ${error}`
-      : `Las mesas traen <b>${n}</b> básico${n === 1 ? '' : 's'} incluido${n === 1 ? '' : 's'}. Van <b>${total}</b> manteles${tipos ? ': ' + tipos : ''}.${cargo ? ` Se suma <b>${pesos(cargo)}</b> al monto.` : ''}`;
+      : `Las mesas traen <b>${n}</b> básico${n === 1 ? '' : 's'}. Van <b>${total}</b> manteles${tipos ? ': ' + tipos : ''}.`;
     return { error, cargo, total };
   }
 

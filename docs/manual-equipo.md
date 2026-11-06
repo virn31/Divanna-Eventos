@@ -92,9 +92,11 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - **Mantel:** en la comanda, el espacio de "Mantel" lleva el **tipo y el color** (ej. "básico beige",
   "lentejuela dorado"), no la cantidad: los manteles salen de las mesas (uno por mesa). Si ahí solo va un
   número, DiMa avisa que falta el tipo y el color.
-- **Manteles en la app:** cada mesa trae su mantel básico incluido. En "🧺 Manteles" se pone cuántos se
-  cambian a lentejuela (+$140 c/u) o corrugado (+$60 c/u), los extras (básico $60, corrugado $120,
-  lentejuela $200) y el color de cada tipo. Eso se suma solo al monto y sale en el recibo.
+- **Manteles en la app:** cada mesa trae su mantel básico. En "🧺 Manteles" se pone cuántos cambian a
+  lentejuela o corrugado, los extras y el color de cada tipo. El precio se calcula solo y sale desglosado en el recibo.
+- **Pedido escrito:** en Telegram, `/comanda` y el pedido en el mismo mensaje; en la app, "📝 Llenar con el pedido
+  escrito". Si falta algo (tipo y color del mantel, color de los cerezos, temática de los personalizados…), DiMa
+  pregunta y no deja guardar hasta que se conteste.
 - La gerente solo puede capturar comandas de El Vaso Maíz.
 - **Recibo:** cuando se registra un anticipo o un pago, a Diana y Víctor (y a la gerente si es de El Vaso Maíz)
   les llega por Telegram el recibo en PDF para reenviárselo al cliente. También se pide cuando quieran con

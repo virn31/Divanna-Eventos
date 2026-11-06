@@ -2684,6 +2684,51 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     await telegramApi({ method: 'POST', headers: tgHeaders, body: fotoDiana }, res);
     ok(!telegram.some(t => t.body && String(t.body.text || '').includes('SIN SALDO')) && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('sin saldo para usar la IA')),
       'comanda: el aviso de falta de saldo no se repite a cada foto');
+
+    // Pedido 100% sin dudas (Víctor 2026-11-06): DiMa pregunta lo que falta y no deja guardar.
+    const comP = require(path.join(repo, 'api/_comanda.js'));
+    const pf = (prods, lineas) => comP.aCaptura({ negocio: 'Divanna Eventos', productos: prods, lineas, preguntas: [] }).preguntas;
+    ok(pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: null }], ['10 mesas']).some(q => q.includes('tipo de mantel'))
+      && pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel básico' }], ['10 mesas']).some(q => q.includes('color'))
+      && !pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel lentejuela rosa' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: null }], ['10 mesas']).length,
+      'preguntas: si lleva mesas, DiMa pide el tipo y el color del mantel');
+    ok(pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel lentejuela rosa' }], ['10 mesas']).some(q => q.includes('lentejuela') && q.includes('cuántas mesas')),
+      'preguntas: si dice lentejuela pero no se está cobrando, pregunta para cuántas mesas');
+    const pfDeco = pf([{ clave: 'dv_arco_cerezos', cantidad: 1, nota: null }, { clave: 'dv_personalizado', cantidad: 50, nota: null }], ['arco de cerezos', '50 personalizados']);
+    ok(pfDeco.some(q => q.includes('cerezos')) && pfDeco.some(q => q.includes('temática'))
+      && !pf([{ clave: 'dv_arco_cerezos', cantidad: 1, nota: 'cerezos blancos' }, { clave: 'dv_personalizado', cantidad: 50, nota: 'Frozen, Sofía' }], ['arco de cerezos blancos', '50 personalizados']).length,
+      'preguntas: color de los cerezos y temática de los personalizados');
+    const conPreg = comP.aCaptura({ ...LEIDA, forma_anticipo: 'Efectivo', preguntas: ['¿De qué color las sillas?'] });
+    ok(comP.faltantes(conPreg).includes('contestar las preguntas') && comP.textoBorrador(conPreg, 'recCOMANDA0000009').includes('❓ Antes de guardar'),
+      'preguntas: con preguntas abiertas no se puede guardar y el borrador las muestra');
+
+    // Pedido escrito en la app y respuestas a las preguntas.
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, preguntas: [] });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', texto: 'Perla Ayon 696 100 7116, 27 de noviembre 5 pm, 4 mesas mantel básico beige' } }, res);
+    ok(res.code === 200 && res.body.datos.clienteNombre === 'Perla Ayon' && llamadasClaude[0].messages[0].content[0].type === 'text'
+      && llamadasClaude[0].messages[0].content[0].text.includes('Lee este pedido escrito'),
+      'comanda: en la app se puede llenar con el pedido escrito');
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, preguntas: [] });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', previo: { clienteNombre: 'Perla Ayon', preguntas: ['¿Color?'] }, respuestas: 'beige' } }, res);
+    ok(res.code === 200 && llamadasClaude[0].messages[0].content[0].text.includes('Corrección de Diana') && llamadasClaude[0].messages[0].content[0].text.includes('beige'),
+      'comanda: las respuestas a las preguntas de DiMa corrigen lo leído');
+
+    // Pedido escrito por Telegram: /comanda y el pedido.
+    reset();
+    respuestas = [{ records: [DIANA_TG] }, { records: [{ id: 'recCOMANDA0000002' }] }];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'Efectivo', preguntas: ['¿De qué color las sillas?'] });
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 30, chat: { id: 111, type: 'private' }, text: '/comanda Perla Ayon 696 100 7116, 27 nov, 4 mesas, 45 sillas' } } }, res);
+    const borradorTexto = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    ok(res.code === 200 && borradorTexto && borradorTexto.body.text.includes('Borrador: recCOMANDA0000002') && borradorTexto.body.text.includes('¿De qué color las sillas?')
+      && !JSON.stringify(borradorTexto.body.reply_markup || {}).includes('cm:g:'),
+      'comanda: por Telegram /comanda lee el pedido escrito; con preguntas abiertas no sale Guardar');
   }
   // ---------- Carpeta de Google Drive (api/_drive.js) ----------
   {

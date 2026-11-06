@@ -670,17 +670,11 @@
     nota: f.querySelector('.prod-nota').value.trim() || null,
   }));
 
-  // Texto en vivo del selector de manteles. En los pedidos por cotizar el monto
-  // lo escribe Diana (ahí solo se dice cuánto van); en los eventos se suma solo.
+  // Texto en vivo del selector de manteles (cuántos van de cada tipo, sin precios).
   function resumirManteles(contenedor){
     const caja = contenedor.querySelector('.ag-manteles');
     if(!caja) return { error: '' };
-    const r = DimaManteles.resumir(caja, filasProductos(contenedor), mantelesInfo);
-    if(caja.dataset.modo === 'pedido' && r.cargo && !r.error){
-      const t = caja.querySelector('.dm-resumen');
-      t.innerHTML = t.innerHTML.replace(/ Se suma <b>[^<]*<\/b> al monto\./, ` Cambios y extras de mantel: <b>$${r.cargo.toLocaleString('es-MX')}</b> (inclúyelos en el monto total).`);
-    }
-    return r;
+    return DimaManteles.resumir(caja, filasProductos(contenedor), mantelesInfo);
   }
 
   function leerAgenda(contenedor){
