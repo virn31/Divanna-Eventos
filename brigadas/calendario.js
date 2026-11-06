@@ -159,9 +159,33 @@ window.DimaCalendario = (function(){
 
   // ---------- ➕ Capturar evento (los que se apartaron fuera del chat) ----------
   // Entra ya autorizado; el anticipo queda como pago a Diana (cuadre).
+  const esMantel = (clave) => !!(window.DimaManteles && DimaManteles.esMantel(datos.manteles, clave));
   function filaProducto(){
     const e = o.esc;
-    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
+    return `<div class="cal-prod" style="display:flex; flex-wrap:wrap; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).filter(p => !esMantel(p.clave)).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"><input class="calProdNota" maxlength="150" placeholder="Nota: color, variante…" style="flex-basis:100%;"></div>`;
+  }
+  // Productos escritos en el formulario (sin manteles).
+  const filasProductos = () => [...panel.querySelectorAll('.cal-prod')]
+    .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value), nota: f.querySelector('.calProdNota').value.trim() || null }))
+    .filter(p => p.clave && p.cantidad > 0);
+  // 🧺 Selector de manteles (brigadas/manteles.js) y el total con lo que suman.
+  function pintarManteles(productos){
+    const caja = panel.querySelector('#calManteles');
+    if(!caja) return;
+    caja.innerHTML = datos.manteles && window.DimaManteles ? DimaManteles.html(productos || [], datos.manteles, o.esc) : '';
+    resumirManteles();
+  }
+  function resumirManteles(){
+    const caja = panel.querySelector('#calNuevo');
+    const neg = panel.querySelector('#calNNeg');
+    const mant = panel.querySelector('#calManteles');
+    if(!caja || !mant || !datos.manteles || !window.DimaManteles) return { error: '', cargo: 0 };
+    mant.hidden = neg && neg.value === 'El Vaso Maiz';
+    if(mant.hidden) return { error: '', cargo: 0 };
+    const r = DimaManteles.resumir(caja, filasProductos(), datos.manteles);
+    const monto = Number(String(panel.querySelector('#calNMonto').value).replace(/[$,\s]/g, '')) || 0;
+    panel.querySelector('#calNTotal').textContent = r.cargo && monto ? `Total con manteles: $${(monto + r.cargo).toLocaleString('es-MX')} (si el cliente es decorador, se le resta 10%).` : '';
+    return r;
   }
 
   function formularioNuevo(){
@@ -188,7 +212,9 @@ window.DimaCalendario = (function(){
           <input id="calNInv" type="number" min="1" placeholder="Invitados">
           <textarea id="calNServ" rows="4" maxlength="4000" placeholder="Qué lleva, uno por línea (sale como checklist de carga)" style="padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
           <div id="calProdsCaja"><div class="cal-sub">${datos.catalogo ? 'Productos del catálogo (con esto salen la producción, el personal y el inventario)' : 'El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)'}</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
-          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (total)">
+          <div id="calManteles"></div>
+          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (sin cambios ni extras de mantel)">
+          <div class="cal-sub" id="calNTotal"></div>
           <div style="display:flex; gap:6px;"><input id="calNAnt" inputmode="decimal" placeholder="Anticipo ya recibido (si hubo)" style="flex:1;"><select id="calNAntForma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></div>
           <input id="calNInstr" maxlength="2000" placeholder="Instrucciones para el equipo (opcional)">
           <button data-cal="capturar">Guardar evento</button>
@@ -200,6 +226,9 @@ window.DimaCalendario = (function(){
     const ver = () => { prods.hidden = !datos.catalogo && negSel.value !== 'El Vaso Maiz'; };
     negSel.addEventListener('change', ver); ver();
     caja.querySelector('#calNFoto').addEventListener('change', (ev) => leerFoto(ev.target.files[0]));
+    pintarManteles([]);
+    caja.addEventListener('input', resumirManteles);
+    caja.addEventListener('change', resumirManteles);
   }
 
   // 📷 Foto de la comanda: se achica en el teléfono (máx. 1600 px, JPG), DiMa la lee y llena el formulario.
@@ -291,11 +320,13 @@ window.DimaCalendario = (function(){
       const neg = panel.querySelector('#calNNeg');
       if([...neg.options].some(op => op.value === d.negocio)){ neg.value = d.negocio; neg.dispatchEvent(new Event('change')); }
       const lista = panel.querySelector('#calProds');
-      const validos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      const todos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      const validos = todos.filter(p => !esMantel(p.clave));
       if(validos.length){
         lista.innerHTML = validos.map(() => filaProducto()).join('');
-        [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; });
+        [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; fila.querySelector('.calProdNota').value = validos[i].nota || ''; });
       }
+      pintarManteles(todos);
       fotoComanda = foto;
       fotoNotas = d.notas || '';
       const avisos = [...(d.dudas || []), ...(r.faltan || []).map(x => 'Falta: ' + x)];
@@ -312,9 +343,11 @@ window.DimaCalendario = (function(){
     const v = (id) => panel.querySelector('#' + id).value;
     const msg = panel.querySelector('#calNMsg');
     const negocio = v('calNNeg');
-    const productos = !panel.querySelector('#calProdsCaja').hidden ? [...panel.querySelectorAll('.cal-prod')]
-      .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value) }))
-      .filter(p => p.clave && p.cantidad > 0) : [];
+    const mant = resumirManteles();
+    if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
+    const filas = !panel.querySelector('#calProdsCaja').hidden ? filasProductos() : [];
+    const conManteles = negocio !== 'El Vaso Maiz' && datos.manteles && window.DimaManteles;
+    const productos = conManteles ? DimaManteles.aplicar(panel.querySelector('#calNuevo'), filas, datos.manteles) : filas;
     b.disabled = true;
     msg.textContent = 'Guardando…';
     try {
@@ -325,7 +358,8 @@ window.DimaCalendario = (function(){
         ...(fotoComanda ? { fotoComanda, notas: [fotoNotas, 'Capturado desde foto de comanda.'].filter(Boolean).join(' ') } : {}),
       });
       fotoComanda = null; fotoNotas = '';
-      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
+      const monto = d.total ? ` Total: $${Number(d.total).toLocaleString('es-MX')}${d.cargoManteles ? ` (con $${Number(d.cargoManteles).toLocaleString('es-MX')} de manteles)` : ''}${d.decorador ? ', ya con 10% de decorador' : ''}.` : '';
+      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${monto}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
       if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
       setTimeout(cargar, 3500);
     } catch(err){

@@ -18,7 +18,8 @@
 
 const { google } = require('googleapis');
 const { esVasoMaiz, esDeSuGerencia, gerenciaDe, negocioDeGerencia } = require('./_sesion');
-const { PRODUCTOS, leerProductos, inventarioRequerido } = require('./_productos');
+const { PRODUCTOS, leerProductos, inventarioRequerido, resumenManteles } = require('./_productos');
+const { tieneDescuento, redondo, DESCUENTO_DECORADOR } = require('./_decorador');
 const { enviarDocumento } = require('./_telegram');
 const { totalDelEvento, leerCargos } = require('./_cargos');
 
@@ -109,26 +110,48 @@ async function leerDatos(eventoId) {
 function articulosDe(d, negocio) {
   const propios = d.productos.filter(p => (PRODUCTOS[p.clave].negocio || DV) === negocio);
   // Daños y faltantes que anotó la brigada (api/_cargos.js): en la hoja del primer negocio.
-  const cargos = negocio === negociosDe(d.f)[0] ? leerCargos(d.f.Cargos_Extra) : [];
+  const primero = negocio === negociosDe(d.f)[0];
+  const cargos = primero ? leerCargos(d.f.Cargos_Extra) : [];
+  // Descuento de decorador (api/_decorador.js): el monto ya lo trae restado; en el
+  // recibo se ve cuánto fue. Va en la hoja del primer negocio, como los cargos.
+  const monto = Number(d.f.Monto_Estimado_IA) || 0;
+  const descuento = primero && tieneDescuento(d.f) && monto > 0 ? redondo(monto / (1 - DESCUENTO_DECORADOR) - monto) : 0;
   if (negocio === VM) {
     return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || ''])
-      .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']));
+      .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
+      .concat(descuento ? [[1, 'Descuento decorador 10%', '', -descuento, `-$${descuento.toLocaleString('es-MX')} (ya restado del total)`]] : []);
   }
   // Divanna: como el recibo de papel, por artículo (mesas, sillas, manteles...).
   // En los manteles va el tipo y color que se anotó en la nota de las mesas o el
   // paquete (ej. "mantel básico beige"): solo el pedazo que habla del mantel.
-  const detalleMantel = (cat) => [...new Set(propios
-    .filter(p => /^Mantel/.test(cat) && (PRODUCTOS[p.clave].componentes || {})[cat])
-    .flatMap(p => String(p.nota || '').split(/[,;·]/).map(t => t.trim()).filter(t => /mantel/i.test(t))))].join(' · ');
-  const lineas = Object.entries(inventarioRequerido(propios)).map(([cat, n]) => [cat, n, detalleMantel(cat)]);
+  // Cada tipo se queda con lo que habla de él: "mantel lentejuela rosa" va en
+  // Mantel lentejuela; en los cambios y extras de mantel, su nota completa (el color).
+  const tipoDe = (t) => /lentejuela/i.test(t) ? 'Mantel lentejuela' : /corrugad/i.test(t) ? 'Mantel corrugado' : 'Mantel';
+  const detalleMantel = (cat) => !/^Mantel/.test(cat) ? '' : [...new Set(propios.flatMap(p => {
+    const nota = String(p.nota || '').trim();
+    if (PRODUCTOS[p.clave].precio) return nota && (PRODUCTOS[p.clave].componentes || {})[cat] > 0 ? [nota] : [];
+    return nota.split(/[,;·]/).map(t => t.trim()).filter(t => /mantel/i.test(t) && tipoDe(t) === cat);
+  }))].join(' · ');
+  const lineas = Object.entries(inventarioRequerido(propios)).filter(([, n]) => n > 0).map(([cat, n]) => [cat, n, detalleMantel(cat)]);
   for (const p of propios) {
     if (!Object.keys(PRODUCTOS[p.clave].componentes || {}).length) lineas.push([PRODUCTOS[p.clave].nombre, p.cantidad, p.nota || '']);
+  }
+  // Manteles (Víctor 2026-11-06): cuántos van en total y, con su precio, los
+  // cambios a especial (la diferencia) y los extras; ya van sumados al total.
+  const m = resumenManteles(propios);
+  if (m.total) {
+    const tipos = [['básico', m.porTipo.basico], ['lentejuela', m.porTipo.lentejuela], ['corrugado', m.porTipo.corrugado]].filter(([, n]) => n).map(([t, n]) => `${n} ${t}`).join(' · ');
+    lineas.push(['Manteles en total', m.total, `${tipos}${m.incluidos ? ` (${m.incluidos} incluidos con las mesas)` : ''}`]);
+  }
+  for (const p of propios) {
+    if (PRODUCTOS[p.clave].precio) lineas.push([PRODUCTOS[p.clave].nombre.replace(/ \([^)]*\$[^)]*\)$/, ''), p.cantidad, p.nota || '', PRODUCTOS[p.clave].precio]);
   }
   // Pedidos viejos sin productos: lo que Diana escribió al autorizar.
   if (!lineas.length) {
     (d.f.Items_Detallados_Cotizacion || d.f.Checklist_Items || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => lineas.push([t, '', '']));
   }
   for (const c of cargos) lineas.push([`Cargo extra: ${c.descripcion}`, c.cantidad, `$${c.total.toLocaleString('es-MX')}${c.nota ? ' · ' + c.nota : ''}`]);
+  if (descuento) lineas.push(['Descuento decorador 10%', 1, 'Ya restado del total', -descuento]);
   return lineas;
 }
 
@@ -155,7 +178,7 @@ function celdasRecibo(d, negocio, pestana) {
     poner('B13', extra);
     lineas.slice(0, caben).forEach((l, i) => {
       const n = p.articulos.desde + i;
-      out.push({ range: rango(pestana, `A${n}:E${n}`), values: [[l[0], l[1], l[2], '', `=IF(D${n}="","",B${n}*D${n})`]] });
+      out.push({ range: rango(pestana, `A${n}:E${n}`), values: [[l[0], l[1], l[2], l[3] == null ? '' : l[3], `=IF(D${n}="","",B${n}*D${n})`]] });
     });
     poner('D29', total);
     poner('D30', d.pagado);

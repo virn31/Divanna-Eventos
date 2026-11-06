@@ -928,9 +928,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     'balance: solo cuentan los gastos y cobros de reportes aprobados (más los capturados a mano) y avisa lo pendiente');
   ok(bal.Por_Cobrar === 2000 && bal.Detalle_Completo.includes('Por cobrar a clientes (eventos de la semana): $2,000 en 1 evento'), 'balance: incluye lo por cobrar a clientes y lo guarda');
   const { origenDeEvento } = require(path.join(repo, 'api/_origen.js'));
-  ok(origenDeEvento({ Origen: 'Chat DiMa', Notas: 'Pedido desde el formulario' }) === 'Chat DiMa' && origenDeEvento({ Notas: 'Pedido armado con DiMa en la página web.' }) === 'Chat DiMa'
-    && origenDeEvento({ Notas: 'Pedido desde el formulario de la página web.' }) === 'Formulario' && origenDeEvento({ Notas: 'Evento capturado a mano por Eden' }) === 'Manual'
-    && origenDeEvento({}) === 'Sin dato', 'origen: se toma de la columna o, en eventos viejos, del primer renglón de Notas');
+  ok(origenDeEvento({ Origen: 'Chat DiMa', Notas: 'Pedido desde el formulario' }) === 'DiMa' && origenDeEvento({ Notas: 'Pedido armado con DiMa en la página web.' }) === 'DiMa'
+    && origenDeEvento({ Notas: 'Pedido desde el formulario de la página web.' }) === 'Formulario' && origenDeEvento({ Notas: 'Evento capturado a mano por Eden' }) === 'Eden'
+    && origenDeEvento({ Origen: 'Manual', Notas: 'Evento capturado a mano por Mario López en el calendario (5 nov).' }) === 'Mario' && origenDeEvento({ Origen: 'Diana' }) === 'Diana'
+    && origenDeEvento({}) === 'Sin dato', 'origen: quién lo creó (DiMa, Formulario o el nombre de quien lo capturó); los viejos "Manual" se leen de Notas');
   reset();
   respuestas = [{ records: [] }, { records: [] }, { records: [] },
     { records: [{ fields: { Monto_Estimado_IA: 3000, Origen: 'Chat DiMa' } }, { fields: { Monto_Estimado_IA: 1900, Notas: 'Evento capturado a mano por Diana' } }] },
@@ -940,8 +941,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await balance({ headers: {}, query: {} }, res);
   const balOrigen = llamadas.find(l => l.method === 'POST').body.records[0].fields.Detalle_Completo;
   const lecturaNuevos = llamadas.filter(l => !l.method || l.method === 'GET').pop();
-  ok(balOrigen.includes('Chat DiMa: 1 evento · $3,000') && balOrigen.includes('Manual: 1 evento · $1,900')
-    && balOrigen.includes('Pedidos que entraron esta semana') && balOrigen.includes('Chat DiMa: 2 pedidos, 1 autorizado · $2,500')
+  ok(balOrigen.includes('DiMa: 1 evento · $3,000') && balOrigen.includes('Diana: 1 evento · $1,900')
+    && balOrigen.includes('Pedidos que entraron esta semana') && balOrigen.includes('DiMa: 2 pedidos, 1 autorizado · $2,500')
     && lecturaNuevos && decodeURIComponent(lecturaNuevos.url).includes('CREATED_TIME()'),
     'balance: ventas de la semana y pedidos nuevos por origen (cuánto trae DiMa)');
 
@@ -2007,7 +2008,47 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && googleCal.some(g => g.op === 'insert' && g.requestBody.start.dateTime === '2026-12-20T17:00:00'),
     'capturar: el anticipo queda como pago recibido (cuadre) y el evento sale en Google');
   const origenCap = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
-  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Manual', 'origen: el evento capturado a mano guarda Origen = Manual');
+  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Ángela', 'origen: el evento capturado a mano guarda quién lo capturó');
+
+  // Manteles (Víctor 2026-11-06): 1 básico incluido por mesa; cambio = diferencia; extras a precio completo.
+  {
+    const P = require(path.join(repo, 'api/_productos.js'));
+    const m = P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 10 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }, { clave: 'dv_cambio_corrugado', cantidad: 2 }, { clave: 'dv_mantel', cantidad: 2 }]);
+    ok(m.incluidos === 10 && m.porTipo.basico === 7 && m.porTipo.lentejuela === 3 && m.porTipo.corrugado === 2 && m.total === 12 && m.cargo === 3 * 140 + 2 * 60 + 2 * 60 && !m.error,
+      'manteles: 10 mesas = 10 básicos incluidos; 3 a lentejuela (+$140) y 2 a corrugado (+$60) cobran la diferencia; extra básico $60');
+    ok(P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }]).error.includes('solo traen 2'),
+      'manteles: no se cambian más manteles de los que traen las mesas');
+    const paq = P.resumenManteles([{ clave: 'dv_paq50_tiffany_lentejuela', cantidad: 1 }]);
+    ok(paq.cargo === 0 && paq.porTipo.corrugado === 5, 'manteles: el paquete que ya trae mantel especial respeta su precio (sin cargo aparte)');
+    ok(P.inventarioRequerido([{ clave: 'dv_mesa_mantel', cantidad: 10 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }])['Mantel'] === 7,
+      'manteles: el inventario aparta 7 básicos y 3 lentejuela, no 10 + 3');
+    const info = P.infoManteles();
+    ok(info.precios.dv_mantel === 60 && info.precios.dv_mantel_lentejuela === 200 && info.precios.dv_mantel_corrugado === 120 && info.basicos.dv_mesa_10_jardin === 1 && !info.basicos.dv_cambio_lentejuela,
+      'manteles: precios de renta básico $60, lentejuela $200, corrugado $120 para el selector');
+
+    // Capturar: los manteles se suman al monto y al decorador se le resta 10% del total.
+    reset();
+    respuestas = [ADMIN, { records: [{ id: 'recCLIDECORADOR01', fields: { Nombre: 'Deco Fiestas', Tipo_Cliente: 'Decorador' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] }, {}];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Deco Fiestas', clienteTelefono: '6671234567', negocio: 'Divanna Eventos',
+      fecha: '2026-12-22', servicios: '10 mesas con mantel lentejuela', montoContratado: '2200',
+      productos: [{ clave: 'dv_mesa_10_jardin', cantidad: 10, nota: 'mantel básico beige' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: 'rosa' }] } }, res);
+    const evDeco = (llamadas.find(l => l.method === 'POST' && l.url.includes('tblY6U7Y9F6M9tQ7a')) || llamadas.filter(l => l.method === 'POST')[0] || {}).body;
+    const fDeco = evDeco && evDeco.records[0].fields;
+    ok(res.code === 200 && fDeco && fDeco.Monto_Estimado_IA === 3240 && fDeco.Notas.includes('decorador') && res.body.cargoManteles === 1400 && res.body.decorador === true,
+      'capturar: $2,200 + 10 cambios a lentejuela ($1,400) = $3,600, menos 10% de decorador = $3,240');
+    const origenDeco = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+    ok(origenDeco && origenDeco.body.records[0].fields.Origen === 'Diana', 'origen: lo que captura Diana dice "Diana"');
+
+    // Recibo: total de manteles, cambios con su precio y el descuento de decorador.
+    const S = require(path.join(repo, 'api/_sheets.js'));
+    const lineas = S.articulosDe({ f: { Negocio: 'Divanna Eventos', Monto_Estimado_IA: 3240, Notas: fDeco ? fDeco.Notas : '' },
+      productos: [{ clave: 'dv_mesa_10_jardin', cantidad: 10, nota: 'mantel básico beige' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: 'rosa' }] }, 'Divanna Eventos');
+    const fila = (t) => lineas.find(l => l[0] === t);
+    ok(!fila('Mantel') && fila('Mantel lentejuela')[1] === 10 && fila('Manteles en total')[1] === 10 && fila('Cambio de mantel básico a lentejuela')[3] === 140
+      && fila('Descuento decorador 10%')[3] === -360,
+      'recibo: dice cuántos manteles van, el cambio a lentejuela con su precio y el descuento de decorador');
+  }
 
   reset();
   respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] }, {},

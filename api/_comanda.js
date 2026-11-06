@@ -12,7 +12,7 @@
 // Al guardar con anticipo, sale el recibo (api/_sheets.js).
 
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { PRODUCTOS, CLAVES } = require('./_productos');
+const { PRODUCTOS, CLAVES, cargoManteles } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
 const { ROLES, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
@@ -132,8 +132,8 @@ Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que 
 - No inventes: si un dato no está o no se lee, ponlo en null y explícalo en "dudas". Si un número está tachado o es dudoso, di cuál leíste y que hay que confirmarlo.
 - "lineas": cada artículo con su cantidad como está escrito (sale como lista de carga). Incluye también los que no tienen cantidad.
 - "productos": además, los que correspondan con seguridad a una clave del catálogo, con su cantidad (de mesas, sillas, manteles, platos, copas y paquetes).
-- MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel básico beige") y elige la clave según el tipo (paquete con lentejuela o corrugado si así lo dice). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
-- No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. "Mantel extra" es solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2.
+- MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel lentejuela rosa"). Las mesas traen mantel básico: si dice lentejuela o corrugado, agrega además dv_cambio_lentejuela o dv_cambio_corrugado con la misma cantidad de mesas (o un paquete que ya traiga ese mantel, si lo escrito es un paquete). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
+- No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. Los manteles extra (dv_mantel básico, dv_mantel_corrugado, dv_mantel_lentejuela) son solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2; "10 mesas, mantel lentejuela" = dv_mesa_mantel x 10 + dv_cambio_lentejuela x 10.
 - PERSONALIZADOS: "personalizados" son los diseños impresos para los platos o vasos (con el nombre o tema del festejado), NO son snacks ni piezas que se preparan. En El Vaso Maíz van como vm_personalizado y en Divanna como dv_personalizado. Nunca los pongas como vm_pieza ni en un paquete.
 - Total y anticipo: los que están escritos. No calcules precios.
 - Si no está escrita la forma de pago del anticipo, pon "No se sabe" y NO lo pongas en "dudas" (se registra después en la app).
@@ -200,7 +200,8 @@ function aCaptura(x) {
     invitados: Number(x.invitados) > 0 ? Math.round(Number(x.invitados)) : '',
     servicios: lineas.join('\n'),
     productos,
-    montoContratado: Number(x.total) > 0 ? Number(x.total) : '',
+    // El total del papel ya trae los manteles; capturarEvento los vuelve a sumar.
+    montoContratado: Number(x.total) > 0 ? Math.max(0, Number(x.total) - cargoManteles(productos)) || Number(x.total) : '',
     anticipo: Number(x.anticipo) > 0 ? Number(x.anticipo) : '',
     formaAnticipo: FORMAS.includes(x.forma_anticipo) ? x.forma_anticipo : '',
     notas: notas.slice(0, 1500),

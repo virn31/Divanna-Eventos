@@ -18,9 +18,10 @@ const { ROLES, COLABORADORES_TABLE, esVasoMaiz, GERENCIAS, gerenciaDe, esDeSuGer
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
-const { capacidadEvento, leerProductos, normalizarProductos, PRODUCTOS, CLAVES } = require('./_productos');
+const { capacidadEvento, leerProductos, normalizarProductos, resumenManteles, infoManteles, PRODUCTOS, CLAVES } = require('./_productos');
+const { esDecorador, conDescuento, redondo, MARCA_DECORADOR } = require('./_decorador');
 const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
-const { ORIGENES } = require('./_origen');
+const { origenDePersona } = require('./_origen');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
 const { sincronizarSheets, sheetsConfigurado, enviarRecibo } = require('./_sheets');
@@ -226,6 +227,8 @@ async function vistaMes(colaborador, mes) {
     negociosBloqueo: negociosBloqueo(colaborador),
     catalogo: colaborador.rol === ROLES.ADMIN ? CLAVES.filter(k => k !== 'otro').map(k => ({ clave: k, nombre: `${PRODUCTOS[k].negocio === NEGOCIOS.VM ? 'VM · ' : 'DV · '}${PRODUCTOS[k].nombre}` })) : null,
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
+    // Selector de manteles del ➕ Capturar evento (brigadas/manteles.js).
+    manteles: esEditor(colaborador) ? infoManteles() : null,
     eventos: eventos.map(r => {
       const f = r.fields;
       return {
@@ -534,8 +537,10 @@ async function capturarEvento(colaborador, b) {
   const anticipo = b.anticipo === '' || b.anticipo == null ? null : montoValido(b.anticipo);
   if (b.anticipo && !anticipo) return { error: 'El anticipo no es un monto válido.' };
   if (anticipo && !FORMAS_PAGO.includes(b.formaAnticipo)) return { error: 'Elige cómo se pagó el anticipo.' };
-  if (anticipo && anticipo > contratado) return { error: 'El anticipo es mayor que lo contratado.' };
   const productos = normalizarProductos(Array.isArray(b.productos) ? b.productos : []);
+  const manteles = resumenManteles(productos);
+  if (manteles.error) return { error: manteles.error };
+  if (anticipo && anticipo > contratado + manteles.cargo) return { error: 'El anticipo es mayor que lo contratado.' };
   const invitados = Number(b.invitados) > 0 && Number(b.invitados) < 100000 ? Math.round(Number(b.invitados)) : null;
 
   // Eden (Divanna) no captura eventos con el salón; Mario (Casa Isabella) solo esos.
@@ -551,6 +556,12 @@ async function capturarEvento(colaborador, b) {
     cliente = nuevo.records[0];
   }
 
+  // Monto: lo contratado + cambios y extras de mantel; al decorador, 10% menos sobre el total.
+  const decorador = esDecorador(cliente.fields);
+  const sinDescuento = redondo(contratado + manteles.cargo);
+  const total = decorador ? conDescuento(sinDescuento) : sinDescuento;
+  if (anticipo && anticipo > total) return { error: 'El anticipo es mayor que lo contratado (ya con el 10% de decorador).' };
+
   const folio = `EVT-${Date.now().toString().slice(-6)}`;
   const items = servicios.split('\n').map(s => s.trim()).filter(Boolean);
   const campos = {
@@ -561,11 +572,11 @@ async function capturarEvento(colaborador, b) {
     Fecha_Evento: b.fecha,
     Servicios_Solicitados: servicios,
     Autorizacion_Diana: 'SI',
-    Monto_Estimado_IA: contratado,
+    Monto_Estimado_IA: total,
     Items_Detallados_Cotizacion: items.join('\n'),
     Checklist_Items: items.join('\n'),
     Checklist_Items_Marcados: '[]',
-    Notas: `Evento capturado a mano por ${colaborador.nombre} en el calendario (${fechaCorta()}).${b.notas ? '\n' + String(b.notas).slice(0, 2000) : ''}`,
+    Notas: `Evento capturado a mano por ${colaborador.nombre} en el calendario (${fechaCorta()}).${decorador ? '\n' + MARCA_DECORADOR : ''}${b.notas ? '\n' + String(b.notas).slice(0, 2000) : ''}`,
     ...camposAgenda({ horaInicio: hora, horasServicio: horas, productos }),
   };
   if (String(b.ubicacion || '').trim()) campos.Ubicacion = String(b.ubicacion).trim().slice(0, 200);
@@ -575,7 +586,7 @@ async function capturarEvento(colaborador, b) {
   const eventoId = creado.records[0].id;
   // Origen aparte: si la columna no existe, el evento ya quedó guardado igual.
   try {
-    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: ORIGENES.MANUAL } }], typecast: true }) });
+    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: origenDePersona(colaborador.nombre) } }], typecast: true }) });
   } catch (err) {
     console.error('No se pudo guardar Origen:', err.message);
   }
@@ -593,7 +604,7 @@ async function capturarEvento(colaborador, b) {
   const diaLleno = await avisarSiLleno(b.fecha, negocio);
   // Con anticipo: el recibo en PDF para mandarlo al cliente.
   const recibo = anticipoGuardado && sheetsConfigurado() ? await enviarRecibo(eventoId, 'anticipo recibido') : null;
-  return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google };
+  return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google, total, cargoManteles: manteles.cargo, decorador };
 }
 
 // Pasa a Google los eventos autorizados de hoy en adelante que todavía no están

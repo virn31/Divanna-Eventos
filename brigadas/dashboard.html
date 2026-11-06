@@ -265,6 +265,7 @@
   <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de los eventos"></textarea><button type="submit">Enviar</button></form>
 </div>
 <script src="alertas.js"></script>
+<script src="manteles.js"></script>
 <script src="calendario.js"></script>
 <script src="dinero.js"></script>
 <script>
@@ -349,6 +350,9 @@
   let pedidosFirma = null;
   // Catálogo de productos (clave, nombre, negocio) que manda el servidor.
   let catalogo = [];
+  // Selector de manteles (brigadas/manteles.js): qué claves son mantel y cuántos básicos trae cada mesa.
+  let mantelesInfo = null;
+  const esMantel = (clave) => !!(window.DimaManteles && DimaManteles.esMantel(mantelesInfo, clave));
   // Artículos de INVENTARIO (modelo y color) para asignar a cada evento.
   let inventario = [];
   // Opciones para asignar eventos: brigadas y encargadas (El Vaso Maíz).
@@ -606,7 +610,7 @@
   // ---------- Hora y productos (agenda, inventario y personal) ----------
   function opcionesCatalogo(seleccion){
     const grupos = {};
-    catalogo.forEach(p => { (grupos[p.negocio || 'Otros'] = grupos[p.negocio || 'Otros'] || []).push(p); });
+    catalogo.filter(p => !esMantel(p.clave)).forEach(p => { (grupos[p.negocio || 'Otros'] = grupos[p.negocio || 'Otros'] || []).push(p); });
     return Object.entries(grupos).map(([negocio, lista]) =>
       `<optgroup label="${esc(negocio)}">${lista.map(p => `<option value="${esc(p.clave)}" ${p.clave === seleccion ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</optgroup>`
     ).join('');
@@ -641,22 +645,47 @@
 
   // Campos de hora, horas de servicio y productos. Se usan en los pedidos por
   // cotizar y en los eventos ya autorizados.
-  function camposAgenda(item){
+  function camposAgenda(item, modo){
+    const conManteles = mantelesInfo && window.DimaManteles && item.negocio !== 'El Vaso Maiz';
+    const productos = (item.productos || []).filter(p => !esMantel(p.clave));
     return `
       <div class="agenda-grid">
         <div><label class="ag-label">Hora de inicio</label><input type="time" class="ag-hora" value="${esc(item.horaInicio)}"></div>
         <div><label class="ag-label">Horas de servicio (Vaso Maíz)</label><input type="number" class="ag-horas" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="2" value="${item.horasServicio ? esc(item.horasServicio) : ''}"></div>
       </div>
       <label class="ag-label">Productos (para inventario y personal)</label>
-      <div class="prod-lista">${(item.productos || []).map(filaProducto).join('')}</div>
+      <div class="prod-lista">${productos.map(filaProducto).join('')}</div>
       <button type="button" class="prod-agregar">+ Agregar producto</button>
+      ${conManteles ? `<div class="ag-manteles" data-modo="${modo === 'pedido' ? 'pedido' : 'evento'}">${DimaManteles.html(item.productos || [], mantelesInfo, esc)}</div>` : ''}
       <label class="ag-label">Modelo, color y cantidad (lo que carga la brigada)</label>
       ${item.porAsignar ? `<div class="motivo aviso-fuera">🎨 Falta asignar modelo y color: ${esc(item.porAsignar)}</div>` : ''}
       <div class="art-lista">${(item.articulos || []).map(filaArticulo).join('')}</div>
       <button type="button" class="prod-agregar art-agregar">+ Agregar modelo y color</button>`;
   }
 
+  // Productos de los renglones (sin manteles).
+  const filasProductos = (contenedor) => [...contenedor.querySelectorAll('.prod-fila:not(.art-fila)')].map(f => ({
+    clave: f.querySelector('.prod-clave').value,
+    cantidad: Number(f.querySelector('.prod-cant').value),
+    nota: f.querySelector('.prod-nota').value.trim() || null,
+  }));
+
+  // Texto en vivo del selector de manteles. En los pedidos por cotizar el monto
+  // lo escribe Diana (ahí solo se dice cuánto van); en los eventos se suma solo.
+  function resumirManteles(contenedor){
+    const caja = contenedor.querySelector('.ag-manteles');
+    if(!caja) return { error: '' };
+    const r = DimaManteles.resumir(caja, filasProductos(contenedor), mantelesInfo);
+    if(caja.dataset.modo === 'pedido' && r.cargo && !r.error){
+      const t = caja.querySelector('.dm-resumen');
+      t.innerHTML = t.innerHTML.replace(/ Se suma <b>[^<]*<\/b> al monto\./, ` Cambios y extras de mantel: <b>$${r.cargo.toLocaleString('es-MX')}</b> (inclúyelos en el monto total).`);
+    }
+    return r;
+  }
+
   function leerAgenda(contenedor){
+    const filas = filasProductos(contenedor);
+    const mant = contenedor.querySelector('.ag-manteles');
     return {
       horaInicio: contenedor.querySelector('.ag-hora').value,
       horasServicio: contenedor.querySelector('.ag-horas').value,
@@ -664,11 +693,7 @@
         id: f.querySelector('.art-id').value,
         cantidad: Number(f.querySelector('.art-cant').value),
       })),
-      productos: [...contenedor.querySelectorAll('.prod-fila:not(.art-fila)')].map(f => ({
-        clave: f.querySelector('.prod-clave').value,
-        cantidad: Number(f.querySelector('.prod-cant').value),
-        nota: f.querySelector('.prod-nota').value.trim() || null,
-      })),
+      productos: mant ? DimaManteles.aplicar(mant, filas, mantelesInfo) : filas,
     };
   }
 
@@ -676,7 +701,9 @@
   // que el polling no lo borre.
   function conectarAgenda(contenedor){
     contenedor.querySelectorAll('.agenda').forEach(caja => {
-      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      resumirManteles(caja);
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; resumirManteles(caja); });
+      caja.addEventListener('change', () => resumirManteles(caja));
       caja.addEventListener('click', (e) => {
         if(e.target.closest('.art-agregar')){
           caja.querySelector('.art-lista').insertAdjacentHTML('beforeend', filaArticulo({ id: '', cantidad: 1 }));
@@ -687,6 +714,7 @@
         } else if(e.target.closest('.prod-quitar')){
           e.target.closest('.prod-fila').remove();
           caja.dataset.sucio = '1';
+          resumirManteles(caja);
         }
       });
     });
@@ -696,17 +724,20 @@
   async function guardarAgenda(btn){
     const caja = btn.closest('.agenda');
     const msg = caja.querySelector('.agenda-msg');
+    const mant = resumirManteles(caja);
+    if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
     btn.disabled = true;
     msg.textContent = 'Guardando…';
     try {
-      await api('/api/dashboard-eventos', {
+      const r = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'agenda', ...leerAgenda(caja) }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = 'Guardado.';
-      setTimeout(loadDashboard, 800);
+      msg.textContent = 'Guardado.' + (r && r.monto != null ? ` Monto nuevo: $${Number(r.monto).toLocaleString('es-MX')}.` : '')
+        + (r && r.recibo ? (r.recibo.ok ? ' 🧾 Recibo actualizado por Telegram.' : ` ⚠️ El recibo no salió: ${r.recibo.error}`) : '');
+      setTimeout(loadDashboard, 4000);
     } catch(e){
       if(e.message === 'sesion') return;
       msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
@@ -1046,7 +1077,8 @@
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.';
+      msg.textContent = (r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.')
+        + (r && r.recibo ? (r.recibo.ok ? ' 🧾 Recibo actualizado por Telegram.' : ` ⚠️ El recibo no salió: ${r.recibo.error}`) : '');
       pedidosFirma = '';
       setTimeout(loadDashboard, 800);
     } catch(e){
@@ -1099,7 +1131,7 @@
           ${p.notas ?`<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
           ${p.resumenCapacidad ? `<div class="motivo capacidad">${esc(p.resumenCapacidad)}</div>` : ''}
-          <div class="agenda">${camposAgenda(p)}</div>
+          <div class="agenda">${camposAgenda(p, 'pedido')}</div>
           <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
           <input type="number" id="monto-${esc(p.id)}" class="pedido-monto" min="1" step="1" inputmode="numeric" placeholder="Ej. 4500" value="${p.montoEstimado ? esc(p.montoEstimado) : ''}">
           ${p.montoEstimado ? '<div class="evento-sub">Estimado de DiMa, ajústalo si hace falta.</div>' : ''}
@@ -1515,6 +1547,7 @@
     try {
       const data = await api('/api/dashboard-eventos');
       catalogo = data.catalogo || [];
+      mantelesInfo = data.manteles || null;
       inventario = data.inventario || [];
       brigadas = data.brigadas || [];
       encargadas = data.encargadas || [];
