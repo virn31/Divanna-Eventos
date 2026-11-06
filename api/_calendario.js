@@ -584,11 +584,17 @@ async function capturarEvento(colaborador, b) {
   if (String(b.instrucciones || '').trim()) campos.Instrucciones_Equipo = String(b.instrucciones).trim().slice(0, 2000);
   const creado = await airtable(TABLES.EVENTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
   const eventoId = creado.records[0].id;
-  // Origen aparte: si la columna no existe, el evento ya quedó guardado igual.
+  // Origen y quién lo autorizó aparte: si las columnas no existen, el evento ya quedó guardado igual.
+  const quien = origenDePersona(colaborador.nombre);
   try {
-    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: origenDePersona(colaborador.nombre) } }], typecast: true }) });
+    await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: quien, Autorizado_Por: quien } }], typecast: true }) });
   } catch (err) {
-    console.error('No se pudo guardar Origen:', err.message);
+    console.error('No se pudo guardar Origen y Autorizado_Por, reintento solo Origen:', err.message);
+    try {
+      await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: quien } }], typecast: true }) });
+    } catch (err2) {
+      console.error('No se pudo guardar Origen:', err2.message);
+    }
   }
 
   // El anticipo ya recibido entra como pago a Diana (cuadre y por cobrar).

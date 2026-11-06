@@ -28,12 +28,12 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Rama `manteles-origen-decorador` (2026-11-06, SIN PUBLICAR, 418 pruebas pasan, caché v32):** detalle en `docs/decisiones.md` 2026-11-06.
+**Rama `manteles-origen-decorador` (2026-11-06, SIN PUBLICAR, 421 pruebas pasan, caché v32):** detalle en `docs/decisiones.md` 2026-11-06.
 - Origen = quién lo creó (`DiMa`, `Formulario`, `Diana`, `Eden`, `Mario`, `Ángela`…); los viejos `Chat DiMa`/`Manual` se leen con el nombre nuevo.
 - 🧺 Selector de manteles (`brigadas/manteles.js`) en ➕ Capturar evento y en "Hora y productos": básico incluido por mesa, cambio a lentejuela +$140 / corrugado +$60, extras $60/$200/$120, color por tipo. Se suma solo al monto. La comanda por foto ya conserva la nota (tipo y color) de cada producto.
 - Recibo: se rehace y se manda solo al editar un evento autorizado (✏️ Editar, Hora y productos, mover fecha). Muestra manteles por tipo, cambios/extras con precio y el descuento de decorador.
 - Decorador: `CLIENTES.Tipo_Cliente = Decorador` (o `Profesional` mientras se renombra) → 10% del total, también en DiMa.
-- Sin formulario en la página: se quitaron el enlace, el botón al terminar el chat y `api/pedido.js` (quedan 11 funciones de Vercel). Todo pedido entra por DiMa.
+- Quién autorizó: columna nueva `EVENTOS.Autorizado_Por` (texto de una línea) — **Víctor la crea en Airtable** (sin ella todo funciona, solo no se guarda el dato). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
 - **Antes de publicar:** probar en Preview: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Diana renombra en Airtable `Profesional` → `Decorador` (cualquier momento: el código acepta los dos).
 
 **Actualizado:** 2026-11-04 · **Producción:** `main` en `6ae181d` (caché v31, sin cambio). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **411 pruebas pasan** en `main`.

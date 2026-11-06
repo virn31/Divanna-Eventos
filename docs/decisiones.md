@@ -438,8 +438,8 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Decorador:** `CLIENTES.Tipo_Cliente = "Decorador"` (la opción "Profesional" se renombra; mientras tanto también vale) → 10% sobre el total del evento, también en DiMa (al registrar el pedido le dice al cliente el total con descuento; en los cambios del chat también). Queda la marca "🏷️ Cliente decorador…" en Notas para el recibo y para que los cambios de manteles posteriores lleven el 10%. Si Diana escribe el monto a mano (✏️ Editar o al autorizar), ese es el final.
 - **Alternativa descartada:** versiones del recibo (`EVT-123 v2`): Víctor prefirió que el viejo desaparezca. Columna nueva para el descuento: la marca en Notas evita crear campos en Airtable antes de publicar.
 
-## 2026-11-06 — Sin formulario en la página: todo pedido entra por DiMa
+## 2026-11-06 — Se queda el formulario; aparte se guarda quién autorizó
 
-- **Decisión:** se quitó el formulario de respaldo de la landing (enlace "¿Prefieres llenar un formulario?" y botón "Llenar el formulario" al terminar el chat) y la ruta pública `api/pedido.js`. Los mensajes de DiMa ya no mandan "al formulario de abajo": al llegar al límite de mensajes se sugiere "Nueva"; si DiMa falla, "intenta en unos minutos". `crearPedido` sigue igual (lo usa DiMa). Los eventos viejos con Origen `Formulario` se quedan así.
-- **Por qué:** Víctor: "todo lo de la página debe entrar por DiMa"; el formulario no debía verse. Además la ruta era pública sin límite (bots) y libera una de las 12 funciones de Vercel.
-- **Riesgo aceptado:** si DiMa no tiene saldo o está caída, el cliente no tiene otra forma de pedir en la página (al equipo le llega el aviso de sin saldo por Telegram).
+- **Decisión:** el formulario de respaldo de la página se queda (se probó quitarlo y Víctor prefirió dejarlo). Sus pedidos conservan Origen `Formulario` (y los del chat, `DiMa`). Aparte, la columna nueva `EVENTOS.Autorizado_Por` (texto) guarda el primer nombre de quien autorizó en el dashboard; en los capturados a mano es quien los capturó. El balance semanal trae "Eventos de la semana por quién los autorizó" además de "por origen".
+- **Por qué:** ver las dos cosas: de dónde llegan los clientes (DiMa, formulario, captura) y quién los cerró.
+- **Seguro:** si la columna no existe todavía en Airtable, la autorización y la captura se guardan igual sin ese dato (se reintenta sin el campo). Los eventos autorizados antes salen como "Sin dato".

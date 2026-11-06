@@ -294,6 +294,21 @@
   .closing h2{font-size:clamp(2rem,4.4vw,3.2rem);max-width:16ch;margin:0 auto 22px;line-height:1.12;}
   .closing p{color:var(--muted);font-size:1.08rem;max-width:520px;margin:0 auto 40px;}
   .closing .btn-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+  .pedido-form{max-width:760px;margin:0 auto;text-align:left;}
+  .pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:640px){.pf-grid{grid-template-columns:1fr;}}
+  .pedido-form label{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;font-weight:700;color:var(--paper);}
+  .pedido-form label span{font-weight:500;color:var(--muted);}
+  .pedido-form input,.pedido-form select,.pedido-form textarea{
+    padding:13px 15px;border-radius:12px;border:1px solid var(--line);
+    background:var(--ink-2);color:var(--paper);font:inherit;font-size:0.95rem;outline:none;color-scheme:dark;
+  }
+  .pedido-form input:focus,.pedido-form select:focus,.pedido-form textarea:focus{border-color:var(--divanna);}
+  .pedido-form textarea{min-height:110px;resize:vertical;}
+  .pf-full{margin-top:16px;}
+  .pf-trampa{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
+  .pedido-form .btn{margin-top:22px;cursor:pointer;font-family:inherit;}
+  .pedido-form .btn:disabled{opacity:0.6;cursor:default;transform:none;}
   .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:0.95rem;}
   .pf-msg.ok{color:var(--maiz-husk);}
   .pf-msg.error{color:#ff8a8a;}
@@ -305,6 +320,9 @@
   .pe-fila input:focus{border-color:var(--divanna);}
   .pe-fila .btn{cursor:pointer;font-family:inherit;background:transparent;border-color:var(--divanna);}
   .pedido-existente .pf-msg{margin:10px 0 0;}
+  .pf-alterno{background:none;border:none;color:var(--muted);text-decoration:underline;font:inherit;font-size:0.92rem;margin:22px auto 0;display:block;cursor:pointer;}
+  .pf-alterno:hover{color:var(--paper);}
+  .closing .pedido-form{margin-top:28px;}
 
   /* ---------- CHAT CON DIMA ---------- */
   .dima-chat{
@@ -343,6 +361,7 @@
   .dc-form button{width:46px;flex:none;border:none;border-radius:14px;background:var(--maiz);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .dc-form button:disabled{opacity:.5;cursor:default;}
   .dc-form textarea:disabled{opacity:.6;}
+  .dc-ir-form{align-self:center;margin-top:6px;background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:10px 18px;font:inherit;font-weight:700;font-size:0.9rem;cursor:pointer;}
 
   footer{
     border-top:1px solid var(--line);padding:44px 0;
@@ -695,6 +714,38 @@
       </div>
       <p class="pf-msg error" id="peMsg" role="status"></p>
     </div>
+    <button type="button" class="pf-alterno" id="mostrarFormBtn" aria-expanded="false" aria-controls="pedidoForm">¿Prefieres llenar un formulario?</button>
+    <form class="pedido-form" id="pedidoForm" novalidate hidden>
+      <div class="pf-grid">
+        <label>Nombre<input name="nombre" required maxlength="80" autocomplete="name"></label>
+        <label>Teléfono (10 dígitos)<input name="telefono" type="tel" required maxlength="20" inputmode="tel" autocomplete="tel"></label>
+        <label>Correo <span>(opcional)</span><input name="email" type="email" maxlength="120" autocomplete="email"></label>
+        <label>¿Qué te interesa?
+          <select name="negocio">
+            <option value="Divanna Eventos">Mobiliario (Divanna Eventos)</option>
+            <option value="El Vaso Maiz">Snacks (El Vaso Maíz)</option>
+            <option value="Ambos">Ambos</option>
+          </select>
+        </label>
+        <label>Tipo de evento<input name="tipoEvento" maxlength="60" placeholder="Boda, XV años, cumpleaños…"></label>
+        <label>Fecha del evento<input name="fecha" type="date" required></label>
+        <label>Hora en que empieza<input name="horaInicio" type="time"></label>
+        <label>Invitados<input name="invitados" type="number" min="1" max="5000" inputmode="numeric"></label>
+        <label>Ubicación<input name="ubicacion" maxlength="150" placeholder="Colonia o salón"></label>
+        <label>¿Es dentro de la ciudad de Culiacán?
+          <select name="enCiudad">
+            <option value="si">Sí, en la ciudad</option>
+            <option value="no">No, fuera de la ciudad (sindicatura, Navolato, playa…)</option>
+            <option value="nose">No estoy seguro</option>
+          </select>
+        </label>
+      </div>
+      <label class="pf-full">¿Qué necesitas?<textarea name="servicios" required maxlength="1500" placeholder="Ej. 10 mesas redondas, 100 sillas Tiffany, decoración en tonos dorados"></textarea></label>
+      <label class="pf-full">Indicaciones para el equipo <span>(opcional)</span><textarea name="indicaciones" maxlength="800" placeholder="Horario de montaje, cómo llegar, a quién buscar…"></textarea></label>
+      <label class="pf-trampa" aria-hidden="true">Sitio web<input name="sitio_web" tabindex="-1" autocomplete="off"></label>
+      <button type="submit" class="btn btn-primary" id="pedidoBtn">Enviar pedido</button>
+      <p class="pf-msg" id="pedidoMsg" role="status"></p>
+    </form>
   </div>
 </section>
 
@@ -789,12 +840,27 @@
   }
 
   // Cuando DiMa ya cerró la conversación (límite de mensajes), se desactiva la
-  // caja de texto; con "Nueva" se empieza otra. Todo pedido entra por DiMa
-  // (Víctor 2026-11-06: sin formulario en la página).
+  // caja de texto y se ofrece el formulario para que el cliente no se quede colgado.
   function aplicarTerminado(){
     dimaInput.disabled = chat.terminado;
     dimaEnviar.disabled = chat.terminado;
     dimaInput.placeholder = chat.terminado ? 'Conversación terminada. Toca "Nueva" para empezar otra.' : 'Escribe tu mensaje…';
+    if(chat.terminado){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dc-ir-form';
+      btn.textContent = 'Llenar el formulario';
+      btn.addEventListener('click', () => {
+        cerrarChat();
+        const form = document.getElementById('pedidoForm');
+        form.hidden = false;
+        mostrarFormBtn.setAttribute('aria-expanded', 'true');
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        form.nombre.focus();
+      });
+      dimaMsgs.appendChild(btn);
+      dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+    }
   }
 
   function pintarChat(){
@@ -936,6 +1002,51 @@
     chat = { historial: [], folio: null, folioFirma: null, vistas: [], terminado: false, pedidoExistente: { folio, telefono } };
     guardarChat();
     abrirChat(e);
+  });
+
+  // Formulario de respaldo para quien no quiere usar el chat.
+  const mostrarFormBtn = document.getElementById('mostrarFormBtn');
+  mostrarFormBtn.addEventListener('click', () => {
+    const form = document.getElementById('pedidoForm');
+    form.hidden = !form.hidden;
+    mostrarFormBtn.setAttribute('aria-expanded', String(!form.hidden));
+    if(!form.hidden) form.nombre.focus();
+  });
+
+  // Formulario de pedido: crea el pedido en Airtable vía /api/pedido y Diana lo cotiza.
+  const pedidoForm = document.getElementById('pedidoForm');
+  const pedidoBtn = document.getElementById('pedidoBtn');
+  const pedidoMsg = document.getElementById('pedidoMsg');
+  pedidoForm.fecha.min = new Date().toLocaleDateString('en-CA');
+
+  pedidoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const datos = Object.fromEntries(new FormData(pedidoForm));
+    if(!datos.nombre.trim() || datos.telefono.replace(/\D/g, '').length < 10 || !datos.fecha || !datos.servicios.trim()){
+      pedidoMsg.className = 'pf-msg error';
+      pedidoMsg.textContent = 'Completa tu nombre, teléfono a 10 dígitos, fecha y lo que necesitas.';
+      return;
+    }
+    pedidoBtn.disabled = true;
+    pedidoMsg.className = 'pf-msg';
+    pedidoMsg.textContent = 'Enviando…';
+    try {
+      const res = await fetch('/api/pedido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos),
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'No pudimos registrar tu pedido, intenta de nuevo.');
+      pedidoForm.reset();
+      pedidoMsg.className = 'pf-msg ok';
+      pedidoMsg.textContent = `¡Listo! Recibimos tu pedido${data.folio ? ' (folio ' + data.folio + ')' : ''}. Ya tenemos todos los datos: en un lapso no mayor a 12 horas te confirmamos tu cotización.`;
+    } catch(err){
+      pedidoMsg.className = 'pf-msg error';
+      pedidoMsg.textContent = err.message;
+    } finally {
+      pedidoBtn.disabled = false;
+    }
   });
 
   // Música de fondo: el navegador bloquea autoplay con sonido,

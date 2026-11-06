@@ -30,6 +30,7 @@ Referencia completa (antes vivía en CLAUDE.md; se movió el 2026-11-02 para que
 |---|---|
 | `index.html` | Landing pública. Los botones "Haz aquí tu cotización" abren el chat con DiMa; abajo hay un formulario de respaldo. |
 | `api/dima-chat.js` | POST público del chat. Acepta `pedidoExistente: {folio, telefono}` (se verifica contra el teléfono del cliente) y `folio` + `folioFirma` (HMAC con `SESSION_SECRET`): solo con folio firmado un cambio se guarda en el evento existente. Detecta lugares foráneos en lo que escribe el cliente y se lo recuerda a DiMa. El navegador manda el historial (solo texto). DiMa da estimados y llama `registrar_pedido` / `mostrar_fotos`. Desde el mensaje 14 del cliente va cerrando; pasado el 20 se despide y ofrece el formulario. Límite por IP en memoria. |
+| `api/pedido.js` | POST público del formulario de respaldo. Campo trampa `sitio_web` contra bots. |
 | `api/_pedidos.js` | Crea CLIENTE + EVENTO (`Autorizacion_Diana` = Pendiente, `Monto_Estimado_IA` si DiMa lo calculó) y avisa por correo. Lo usan el chat y el formulario. |
 | `api/_productos.js` | Catálogo estructurado (claves de producto, piezas de El Vaso Maíz, mobiliario por categoría de Divanna) y cálculo de capacidad: personal por piezas y horas, inventario requerido, ventana de ocupación. DiMa manda los productos con estas claves; se guardan en `EVENTOS.Productos`. |
 | `api/_agenda.js` | Semáforo de disponibilidad: cruza un evento con los eventos AUTORIZADOS que se traslapan (inventario por categoría y por artículo exacto, Casa Isabella, personal y equipos de El Vaso Maíz contra `PERSONAL_DIA`). Lo usan `_pedidos.js` al registrar (guarda `Disponibilidad`) y el dashboard (en vivo). |
@@ -104,7 +105,7 @@ Alta de alguien: fila en COLABORADORES con Usuario, PIN de 6 dígitos, Rol, Brig
 
 ## Hallazgos de seguridad abiertos
 
-1. `POST /api/dima-chat` tiene límite por IP solo en memoria de cada instancia (freno básico). Si llega abuso: regla de rate limiting en el Firewall de Vercel o captcha.
+1. `POST /api/dima-chat` tiene límite por IP solo en memoria de cada instancia (freno básico) y `POST /api/pedido` no tiene límite. Si llega abuso: regla de rate limiting en el Firewall de Vercel o captcha.
 2. Los PIN están en texto plano en COLABORADORES (para que Víctor los administre desde Airtable). Quien tenga acceso a la base los ve.
 3. El login frena intentos fallidos con una pausa, pero no bloquea la cuenta tras varios intentos.
 

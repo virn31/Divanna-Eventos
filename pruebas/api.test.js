@@ -141,6 +141,7 @@ global.fetch = async (url, opts = {}) => {
   }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
   const r = respuestas.shift() || { records: [] };
+  if (r.__error) return { ok: false, status: r.__error, json: async () => r, text: async () => JSON.stringify(r) };
   return { ok: true, status: 200, json: async () => r, text: async () => '' };
 };
 
@@ -172,14 +173,7 @@ const ASIST = { id: 'recCOLAB000000003', fields: { Nombre: 'Luis', Rol: 'Asisten
 const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encargada de evento', Activo: true } };
 
 (async () => {
-  // Ya no hay formulario público (Víctor 2026-11-06): se prueba crearPedido directo, como lo llama DiMa.
-  const P_ = require(path.join(repo, 'api/_pedidos.js'));
-  const pedido = async (req, res) => {
-    const { error, datos } = P_.validarPedido({ ...req.body, montoEstimado: null, fueraDeCiudad: req.body.enCiudad !== 'si' });
-    if (error) { res.status(400).json({ error }); return; }
-    const r = await P_.crearPedido(datos, { origen: 'chat' });
-    res.status(200).json({ success: true, folio: r.folio });
-  };
+  const pedido = require(path.join(repo, 'api/pedido.js'));
   const dash = require(path.join(repo, 'api/dashboard-eventos.js'));
   const estatus = require(path.join(repo, 'api/brigada-estatus.js'));
   const checklist = require(path.join(repo, 'api/brigada-checklist.js'));
@@ -226,12 +220,13 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && /^EVT-\d{6}$/.test(res.body.folio), 'formulario: 200 con folio');
   ok(ev.Autorizacion_Diana === 'Pendiente' && !ev.Negocio && ev.Notas.includes('Negocio solicitado: Ambos') && !('Monto_Estimado_IA' in ev), 'formulario: evento pendiente, sin estimado');
   const origenForm = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
-  ok(origenForm && origenForm.body.records[0].fields.Origen === 'DiMa' && origenForm.body.typecast === true && !('Origen' in ev),
-    'origen: el pedido de DiMa guarda Origen = DiMa aparte del evento (si la columna falta, el pedido no se cae)');
+  ok(origenForm && origenForm.body.records[0].fields.Origen === 'Formulario' && origenForm.body.typecast === true && !('Origen' in ev),
+    'origen: el pedido del formulario guarda Origen = Formulario aparte del evento (si la columna falta, el pedido no se cae)');
   ok(correos.length === 1 && correos[0].html.includes('Ana &lt;b&gt;'), 'formulario: correo al equipo con HTML escapado');
-  ok(!require('fs').existsSync(path.join(repo, 'api/pedido.js')) && !require('fs').readFileSync(path.join(repo, 'index.html'), 'utf8').includes('/api/pedido')
-    && !require('fs').readFileSync(path.join(repo, 'index.html'), 'utf8').includes('pedidoForm'),
-    'página: no hay formulario de pedido, todo entra por DiMa');
+  reset();
+  res = resMock();
+  await pedido({ method: 'POST', body: { sitio_web: 'spam', nombre: 'Bot' } }, res);
+  ok(res.code === 200 && llamadas.length === 0 && correos.length === 0, 'formulario: bot ignorado');
 
   // ---------- Chat con DiMa ----------
   const historial = [{ rol: 'cliente', texto: 'Hola, quiero cotizar unos XV' }];
@@ -508,6 +503,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patch = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && res.body.googleOk && patch.Autorizacion_Diana === 'SI' && patch.Monto_Estimado_IA === 4500 && patch.Checklist_Items === '10 mesas\n80 sillas', 'admin autoriza: SI, monto y checklist');
   ok(correos.length === 1 && correos[0].to === 'ana@x.com', 'admin autoriza: correo de cotización al cliente');
+  ok(patch.Autorizado_Por === 'Diana', 'autorizar: se guarda quién lo autorizó (Autorizado_Por), el origen no cambia');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Servicios_Solicitados: 'a' } },
+    { __error: 422, error: { type: 'UNKNOWN_FIELD_NAME', message: 'Unknown field name: "Autorizado_Por"' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'autorizar', monto: '1000', items: 'a' } }, res);
+  const patchesAut = llamadas.filter(l => l.method === 'PATCH').map(l => l.body.records[0].fields);
+  ok(res.code === 200 && patchesAut.length >= 2 && 'Autorizado_Por' in patchesAut[0] && !('Autorizado_Por' in patchesAut[1]) && patchesAut[1].Autorizacion_Diana === 'SI',
+    'autorizar: si falta la columna Autorizado_Por en Airtable, se autoriza igual sin ese dato');
 
   reset();
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Servicios_Solicitados: 'Paquete 3' } }, {}];
@@ -948,6 +952,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const balOrigen = llamadas.find(l => l.method === 'POST').body.records[0].fields.Detalle_Completo;
   const lecturaNuevos = llamadas.filter(l => !l.method || l.method === 'GET').pop();
   ok(balOrigen.includes('DiMa: 1 evento · $3,000') && balOrigen.includes('Diana: 1 evento · $1,900')
+    && balOrigen.includes('Eventos de la semana por quién los autorizó:\n  Sin dato: 1 evento · $3,000\n  Diana: 1 evento · $1,900')
     && balOrigen.includes('Pedidos que entraron esta semana') && balOrigen.includes('DiMa: 2 pedidos, 1 autorizado · $2,500')
     && lecturaNuevos && decodeURIComponent(lecturaNuevos.url).includes('CREATED_TIME()'),
     'balance: ventas de la semana y pedidos nuevos por origen (cuánto trae DiMa)');
@@ -2014,7 +2019,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && googleCal.some(g => g.op === 'insert' && g.requestBody.start.dateTime === '2026-12-20T17:00:00'),
     'capturar: el anticipo queda como pago recibido (cuadre) y el evento sale en Google');
   const origenCap = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
-  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Ángela', 'origen: el evento capturado a mano guarda quién lo capturó');
+  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Ángela' && origenCap.body.records[0].fields.Autorizado_Por === 'Ángela',
+    'origen: el evento capturado a mano guarda quién lo capturó, que también es quien lo autorizó');
 
   // Manteles (Víctor 2026-11-06): 1 básico incluido por mesa; cambio = diferencia; extras a precio completo.
   {
@@ -2384,6 +2390,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'boda en Eldorado' }] });
   ok(!llamadas.some(l => l.method === 'POST') && !res.body.folio && res.body.texto.includes('35 km') && res.body.texto.includes('seguridad'), 'límite: el chat no registra un evento a más de 35 km y explica por qué');
 
+  reset();
+  res = resMock();
+  await pedido({ method: 'POST', body: { nombre: 'Leo', telefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-12', ubicacion: 'Eldorado', enCiudad: 'no', servicios: 'Paquete boda' } }, res);
+  ok(res.code === 400 && res.body.error.includes('35 km') && !llamadas.some(l => l.method === 'POST'), 'límite: el formulario rechaza un evento a más de 35 km');
 
   reset();
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];

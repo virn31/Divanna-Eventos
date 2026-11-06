@@ -36,6 +36,7 @@ const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUI
 const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { tieneDescuento, conDescuento, redondo } = require('./_decorador');
+const { origenDePersona } = require('./_origen');
 const { normalizarProductos, leerProductos, resumenManteles, infoManteles, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
@@ -483,7 +484,9 @@ async function resolverPedido(req, res, colaborador) {
     return;
   }
 
-  await airtablePatch(TABLES.EVENTOS, eventoId, {
+  // Quién autorizó (EVENTOS.Autorizado_Por). Si la columna aún no existe en
+  // Airtable, se autoriza igual sin ese dato.
+  const camposAutorizar = {
     Autorizacion_Diana: 'SI',
     Monto_Estimado_IA: montoNum,
     Items_Detallados_Cotizacion: listaItems.join('\n'),
@@ -491,7 +494,14 @@ async function resolverPedido(req, res, colaborador) {
     Checklist_Items_Marcados: '[]',
     ...(instrucciones !== null ? { Instrucciones_Equipo: instrucciones } : {}),
     ...agendaDesdeDashboard(req.body, inventario),
-  });
+  };
+  try {
+    await airtablePatch(TABLES.EVENTOS, eventoId, { ...camposAutorizar, Autorizado_Por: origenDePersona(colaborador.nombre) });
+  } catch (err) {
+    if (!/UNKNOWN_FIELD_NAME|Autorizado_Por/.test(err.message)) throw err;
+    console.error('Falta la columna EVENTOS.Autorizado_Por, se autoriza sin ella:', err.message);
+    await airtablePatch(TABLES.EVENTOS, eventoId, camposAutorizar);
+  }
 
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
   // fallan no se deshace la autorización, solo se reporta.

@@ -30,4 +30,15 @@ function origenDeEvento(fields = {}) {
   return 'Sin dato';
 }
 
-module.exports = { ORIGENES, origenDeEvento, origenDePersona };
+// Quién autorizó el evento (Víctor 2026-11-06: el origen se queda —DiMa,
+// Formulario— y aparte se ve quién lo autorizó). Columna EVENTOS.Autorizado_Por
+// (texto); los capturados a mano los autoriza quien los captura. Antes de la
+// columna: "Sin dato".
+function autorizadoPor(fields = {}) {
+  if (fields.Autorizado_Por) return String(fields.Autorizado_Por).trim();
+  const capturo = /^Evento capturado a mano por (\S+)/.exec(String(fields.Notas || ''));
+  if (capturo) return origenDePersona(capturo[1]);
+  return 'Sin dato';
+}
+
+module.exports = { ORIGENES, origenDeEvento, origenDePersona, autorizadoPor };
