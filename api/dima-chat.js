@@ -9,7 +9,8 @@
 // - a partir de AVISO_CIERRE mensajes del cliente, DiMa recibe la instrucción
 //   de ir cerrando con amabilidad (resumen, datos de contacto, registrar);
 // - al pasar MAX_MENSAJES_CLIENTE ya no se llama a Claude: se le ofrece al
-//   cliente que Diana lo contacte o usar el formulario;
+//   cliente que el equipo lo contacte o empezar otra conversación con "Nueva"
+//   (no hay formulario: todo pedido de la página entra por DiMa);
 // - límite de envíos por IP (ver limiteDeEnvios).
 //
 // Con modo "equipo" (y sesión de la app) es el canal interno de DiMa para la
@@ -83,8 +84,8 @@ function limiteDeEnvios(ip) {
 
 const MENSAJE_LIMITE =
   'Ya platicamos bastante y no quiero quitarte más tiempo. Si ya registramos tu pedido, nuestro equipo te contacta ' +
-  'para confirmarlo. Si todavía no, deja tus datos en el formulario de abajo y te llamamos para terminar ' +
-  'tu cotización. ¡Gracias por la confianza!';
+  'para confirmarlo. Si todavía no, toca "Nueva" para empezar otra conversación y terminamos tu cotización. ' +
+  '¡Gracias por la confianza!';
 
 const ID_FOTOS_VASOMAIZ = 'paquetes-vasomaiz';
 
@@ -542,7 +543,7 @@ module.exports = async (req, res) => {
     res.status(429).json({
       error: limite === 'rapido'
         ? 'Dame un segundito para leerte y me vuelves a escribir.'
-        : 'Recibimos muchos mensajes desde tu conexión. Intenta en un rato o usa el formulario de abajo.',
+        : 'Recibimos muchos mensajes desde tu conexión. Intenta de nuevo en un rato.',
     });
     return;
   }
@@ -743,7 +744,7 @@ module.exports = async (req, res) => {
       limite: mensajesCliente >= MAX_MENSAJES_CLIENTE,
     });
   } catch (err) {
-    // Sin saldo: al cliente le sale el mismo mensaje de siempre (con el formulario); se avisa al equipo.
+    // Sin saldo: al cliente le sale el mismo mensaje de siempre; se avisa al equipo.
     if (esSinSaldo(err)) await avisarSinSaldo('chat de cotización de la página');
     if (err instanceof Anthropic.RateLimitError) {
       console.error('DiMa: límite de uso de la API de Claude', err.message);
@@ -752,6 +753,6 @@ module.exports = async (req, res) => {
     } else {
       console.error('Error en dima-chat:', err);
     }
-    res.status(502).json({ error: 'DiMa no está disponible en este momento. Intenta de nuevo en un momento o usa el formulario.' });
+    res.status(502).json({ error: 'DiMa no está disponible en este momento. Intenta de nuevo en unos minutos.' });
   }
 };

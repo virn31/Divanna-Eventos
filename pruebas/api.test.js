@@ -172,7 +172,14 @@ const ASIST = { id: 'recCOLAB000000003', fields: { Nombre: 'Luis', Rol: 'Asisten
 const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encargada de evento', Activo: true } };
 
 (async () => {
-  const pedido = require(path.join(repo, 'api/pedido.js'));
+  // Ya no hay formulario público (Víctor 2026-11-06): se prueba crearPedido directo, como lo llama DiMa.
+  const P_ = require(path.join(repo, 'api/_pedidos.js'));
+  const pedido = async (req, res) => {
+    const { error, datos } = P_.validarPedido({ ...req.body, montoEstimado: null, fueraDeCiudad: req.body.enCiudad !== 'si' });
+    if (error) { res.status(400).json({ error }); return; }
+    const r = await P_.crearPedido(datos, { origen: 'chat' });
+    res.status(200).json({ success: true, folio: r.folio });
+  };
   const dash = require(path.join(repo, 'api/dashboard-eventos.js'));
   const estatus = require(path.join(repo, 'api/brigada-estatus.js'));
   const checklist = require(path.join(repo, 'api/brigada-checklist.js'));
@@ -219,13 +226,12 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && /^EVT-\d{6}$/.test(res.body.folio), 'formulario: 200 con folio');
   ok(ev.Autorizacion_Diana === 'Pendiente' && !ev.Negocio && ev.Notas.includes('Negocio solicitado: Ambos') && !('Monto_Estimado_IA' in ev), 'formulario: evento pendiente, sin estimado');
   const origenForm = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
-  ok(origenForm && origenForm.body.records[0].fields.Origen === 'Formulario' && origenForm.body.typecast === true && !('Origen' in ev),
-    'origen: el pedido del formulario guarda Origen = Formulario aparte del evento (si la columna falta, el pedido no se cae)');
+  ok(origenForm && origenForm.body.records[0].fields.Origen === 'DiMa' && origenForm.body.typecast === true && !('Origen' in ev),
+    'origen: el pedido de DiMa guarda Origen = DiMa aparte del evento (si la columna falta, el pedido no se cae)');
   ok(correos.length === 1 && correos[0].html.includes('Ana &lt;b&gt;'), 'formulario: correo al equipo con HTML escapado');
-  reset();
-  res = resMock();
-  await pedido({ method: 'POST', body: { sitio_web: 'spam', nombre: 'Bot' } }, res);
-  ok(res.code === 200 && llamadas.length === 0 && correos.length === 0, 'formulario: bot ignorado');
+  ok(!require('fs').existsSync(path.join(repo, 'api/pedido.js')) && !require('fs').readFileSync(path.join(repo, 'index.html'), 'utf8').includes('/api/pedido')
+    && !require('fs').readFileSync(path.join(repo, 'index.html'), 'utf8').includes('pedidoForm'),
+    'página: no hay formulario de pedido, todo entra por DiMa');
 
   // ---------- Chat con DiMa ----------
   const historial = [{ rol: 'cliente', texto: 'Hola, quiero cotizar unos XV' }];
@@ -2378,10 +2384,6 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'boda en Eldorado' }] });
   ok(!llamadas.some(l => l.method === 'POST') && !res.body.folio && res.body.texto.includes('35 km') && res.body.texto.includes('seguridad'), 'límite: el chat no registra un evento a más de 35 km y explica por qué');
 
-  reset();
-  res = resMock();
-  await pedido({ method: 'POST', body: { nombre: 'Leo', telefono: '6671112233', negocio: 'Divanna Eventos', fecha: '2026-12-12', ubicacion: 'Eldorado', enCiudad: 'no', servicios: 'Paquete boda' } }, res);
-  ok(res.code === 400 && res.body.error.includes('35 km') && !llamadas.some(l => l.method === 'POST'), 'límite: el formulario rechaza un evento a más de 35 km');
 
   reset();
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }];
