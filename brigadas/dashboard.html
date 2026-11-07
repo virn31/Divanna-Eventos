@@ -162,7 +162,8 @@
   .agenda .asig-check{display:flex; align-items:center; gap:8px; margin-top:6px;}
   .agenda .asig-check input{width:auto;}
   .prod-fila{display:grid; grid-template-columns:minmax(0,1fr) 76px 40px; gap:6px; margin-top:8px; padding-bottom:8px; border-bottom:1px solid var(--line);}
-  .prod-fila .prod-nota{grid-column:1 / -1;}
+  .prod-fila .prod-nota, .prod-fila .prod-buscar{grid-column:1 / -1;}
+  [data-buscar-producto].sin-resultado{border-color:#e05555;}
   .prod-quitar{border:1.5px solid var(--bad); background:transparent; color:var(--bad); border-radius:10px; cursor:pointer; font-weight:800;}
   .prod-agregar{margin-top:8px; border:1.5px dashed var(--divanna); background:transparent; color:var(--divanna); border-radius:10px; padding:9px 14px; font-weight:800; cursor:pointer;}
   .balance-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 20px; margin-bottom:20px;}
@@ -265,6 +266,7 @@
   <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de los eventos"></textarea><button type="submit">Enviar</button></form>
 </div>
 <script src="alertas.js"></script>
+<script src="buscar-producto.js"></script>
 <script src="manteles.js"></script>
 <script src="calendario.js"></script>
 <script src="dinero.js"></script>
@@ -619,6 +621,7 @@
   function filaProducto(p){
     return `
       <div class="prod-fila">
+        <input type="search" class="prod-buscar" data-buscar-producto placeholder="🔎 Buscar producto (ej. mesita)" aria-label="Buscar producto">
         <select class="prod-clave" aria-label="Producto">${opcionesCatalogo(p.clave)}</select>
         <input type="number" class="prod-cant" min="1" step="1" inputmode="numeric" value="${esc(p.cantidad || 1)}" aria-label="Cantidad">
         <button type="button" class="prod-quitar" aria-label="Quitar producto">✕</button>

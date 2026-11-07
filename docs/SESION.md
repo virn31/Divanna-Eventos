@@ -65,6 +65,10 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Se le unió `main` hasta 1f38c60 (caché v28). **Al volver a unirle `main` (trae v29) subir la caché a v30** y correr pruebas (las de `editar` y `_cambios.js` cambiaron).
 - **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
 
+**Rama `buscar-producto` (2026-11-06, sin publicar, caché v33):** buscador 🔎 en cada renglón de producto (➕ Capturar evento y Hora y productos): escribes "mesita" y elige "Mesita de herrería extra" (sin acentos ni mayúsculas; en rojo si no hay nada). `brigadas/buscar-producto.js`.
+
+**Idea aprobada para después (Víctor 2026-11-06, "me gusta la opción 2 pero no en este momento"):** que la gerencia le diga a DiMa por Telegram o el dashboard "agrega tambor plateado, $250, tenemos 4" → DiMa muestra cómo queda, se confirma y queda en una tabla PRODUCTOS de Airtable (cotiza, inventario y recibo). Requiere pasar el catálogo de `_productos.js` / `_dima-catalogo.js` a Airtable. Productos que faltan hoy: tambores, figuras de coroplast de varias medidas (hoy una sola, $150), ¿mesita para pastel = mesita de herrería?
+
 **Siguiente, en orden:**
 0. Evento de prueba → `Origen = Manual`. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable.
 1. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): ven sus eventos, 👷 Asignar, ✏️ Editar y 💵 Cobrar (un abono chico; luego un liquidado en evento ya recogido → se cierra). Revisar que Eden no vea los de Casa Isabella.

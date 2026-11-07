@@ -25,6 +25,7 @@ window.DimaCalendario = (function(){
     s.textContent = `
       .cal-panel{position:fixed; inset:0; z-index:70; overflow-y:auto; background:var(--ink-2); color:var(--paper); padding:16px 16px 40px; font-size:1rem;}
       .cal-panel[hidden]{display:none;}
+      .cal-panel [data-buscar-producto].sin-resultado{border-color:#e05555;}
       .cal-cont{max-width:760px; margin:0 auto;}
       .cal-top{display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:1.15rem;}
       .cal-top button, .cal-nav button{border:1.5px solid var(--line); background:var(--ink); color:var(--paper); border-radius:10px; padding:8px 14px; font:inherit; font-weight:700; cursor:pointer;}
@@ -162,7 +163,7 @@ window.DimaCalendario = (function(){
   const esMantel = (clave) => !!(window.DimaManteles && DimaManteles.esMantel(datos.manteles, clave));
   function filaProducto(){
     const e = o.esc;
-    return `<div class="cal-prod" style="display:flex; flex-wrap:wrap; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).filter(p => !esMantel(p.clave)).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"><input class="calProdNota" maxlength="150" placeholder="Nota: color, variante…" style="flex-basis:100%;"></div>`;
+    return `<div class="cal-prod" style="display:flex; flex-wrap:wrap; gap:6px;"><input type="search" data-buscar-producto placeholder="🔎 Buscar producto (ej. mesita)" style="flex-basis:100%;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).filter(p => !esMantel(p.clave)).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"><input class="calProdNota" maxlength="150" placeholder="Nota: color, variante…" style="flex-basis:100%;"></div>`;
   }
   // Productos escritos en el formulario (sin manteles).
   const filasProductos = () => [...panel.querySelectorAll('.cal-prod')]
