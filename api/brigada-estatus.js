@@ -15,37 +15,19 @@
 // "Enterado"; el resto
 // de cambios son del líder, la encargada del evento o un admin.
 
-const { enviarCorreoEquipo } = require('./_google-integrations');
 const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
-const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { textoEnterado } = require('./_eventos');
+const { leerUbicacion, textoUbicacion, notificarEquipo } = require('./_alertas');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
-const { agregarCargo, quitarCargo } = require('./_cargos');
+const { agregarCargo, quitarCargo, tocaCerrar } = require('./_cargos');
 
 const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
 };
 
 const TIPOS_ASISTENTE = ['checklist_item', 'emergencia', 'alerta_seguridad', 'ubicacion', 'enterado'];
-
-// { lat, lng, precision } del GPS del teléfono, o null si no viene o no es válido.
-function leerUbicacion(u) {
-  if (!u || typeof u !== 'object') return null;
-  const lat = Number(u.lat), lng = Number(u.lng), precision = Number(u.precision);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, precision: Number.isFinite(precision) ? Math.round(precision) : null };
-}
-
-function linkMapa({ lat, lng }) {
-  return `https://maps.google.com/?q=${lat},${lng}`;
-}
-
-function textoUbicacion(ubic) {
-  if (!ubic) return '📍 Sin ubicación GPS (el teléfono no dio permiso o no tenía señal).';
-  return `📍 Ubicación de quien reporta: ${linkMapa(ubic)}${ubic.precision ? ` (±${ubic.precision} m)` : ''}`;
-}
 
 const MENSAJE_ALERTA_SEGURIDAD_CLIENTE =
   'Hay una situación de inseguridad en la ciudad que nos está retrasando, ' +
@@ -70,25 +52,6 @@ async function airtablePatch(tableId, recordId, fields) {
   });
   if (!res.ok) throw new Error(`Airtable PATCH error ${res.status}: ${await res.text()}`);
   return res.json();
-}
-
-// Push y Telegram a todo el equipo (menos quien reporta) y correo a Diana y
-// Víctor, en paralelo. Si un canal falla, los demás y el aviso en la app quedan.
-// Después le confirma a quien reportó, por Telegram, a cuántos les llegó.
-async function notificarEquipo({ asunto, mensaje, reportaId, ubic }) {
-  const [enviado, porPush, porTelegram] = await Promise.all([
-    enviarCorreoEquipo({ asunto, texto: mensaje }),
-    enviarPushEquipo({ titulo: asunto, cuerpo: mensaje, excluirColaboradorId: reportaId, url: ubic ? linkMapa(ubic) : null }),
-    enviarTelegramEquipo({ texto: mensaje, excluirColaboradorId: reportaId, ubicacion: ubic }),
-  ]);
-  if (!enviado) console.error('No se pudo enviar por correo la alerta:', asunto);
-  await enviarTelegramEquipo({
-    soloColaboradores: [reportaId],
-    texto: `✅ Tu alerta se envió.\n${asunto}\nLes llegó a ${porTelegram} por Telegram y a ${porPush} teléfonos por la app` +
-      `${enviado ? ', y el correo a Diana y Víctor' : ''}.` +
-      (ubic ? '\nTu ubicación va con la alerta; deja la app abierta para que se siga actualizando.' : '\nNo se pudo mandar tu ubicación: activa la ubicación del teléfono para la app.'),
-  });
-  return { porPush, porTelegram, correo: !!enviado };
 }
 
 module.exports = async (req, res) => {
@@ -178,6 +141,7 @@ module.exports = async (req, res) => {
         }
 
         fieldsToUpdate.Estatus_Logistico = valor;
+        if (tocaCerrar(eventoData.fields, fieldsToUpdate)) fieldsToUpdate.Estado = 'Cerrado';
         if (valor === 'Salió del almacén') {
           fieldsToUpdate.Timestamp_Salida = new Date().toISOString();
         }

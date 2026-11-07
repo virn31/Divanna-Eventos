@@ -1358,7 +1358,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await produccionApi({ method: 'GET', headers: {}, query: {} }, res);
   const avisoHoy = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555');
   ok(avisoHoy && avisoHoy.body.text.startsWith('Hola Lucía 👋 esta es la producción del día de hoy') && avisoHoy.body.text.includes('confirma si tenemos todos los ingredientes')
-    && botonesDe(avisoHoy).join() === `pr:o:dia:${hoyCln},pr:f:dia:${hoyCln}`, 'producción: el mismo día le llega la producción de hoy para confirmar ingredientes');
+    && botonesDe(avisoHoy).join() === `pr:o:dia:${hoyCln},pr:f:dia:${hoyCln},pl:${EV_HOY.id}`, 'producción: el mismo día le llega la producción de hoy para confirmar ingredientes, con "Listo para staff"');
 
   reset();
   respuestas = [{ records: [{ ...EV_PROD, fields: { ...EV_PROD.fields, Encargado_Produccion: [CHICA_SIN_TG.id] } }] }, CHICA_SIN_TG, { records: [] }, { records: [] },
@@ -1430,6 +1430,179 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: ZOE_OTRA.id } }, res);
   ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'producción: no se puede poner de encargado a alguien fuera de las opciones');
+
+  // ---------- Equipo de producción, "Listo para staff", etapas del staff y 🆘 SOS (api/_etapas.js) ----------
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }, { records: [GERENTE, ENCARG, CHICA_G] }, {}, { records: [ADMIN_T] }, CHICA_G, { records: [CHICA_G, ENCARG] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id, equipoProduccionIds: [ENCARG.id] } }, res);
+  const patchEquipo = llamadas.find(l => l.method === 'PATCH');
+  const avisoEquipo = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('equipo de producción de EVT-PR2'));
+  ok(res.code === 200 && patchEquipo && JSON.stringify(patchEquipo.body.records[0].fields.Equipo_Produccion) === JSON.stringify([ENCARG.id, CHICA_G.id])
+    && JSON.stringify(res.body.equipoProduccion.enviados) === JSON.stringify(['Lucía']) && res.body.equipoProduccion.fallidos[0].nombre === 'Ana'
+    && avisoEquipo && avisoEquipo.body.text.includes('Tú eres el encargado') && avisoEquipo.body.reply_markup.keyboard[0][0].request_location === true,
+    'etapas: la gerente elige el equipo de producción; el encargado entra solo, le llega su aviso con el botón 🆘 y se reporta a quien no tiene Telegram');
+
+  reset();
+  respuestas = [GERENTE, EV_LEJOS, { records: [CHICA_G, ENCARG] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_LEJOS.id, accion: 'asignar', brigadaId: '', encargadaIds: [], produccionId: CHICA_G.id, equipoProduccionIds: [ZOE_OTRA.id] } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'etapas: no se puede poner en el equipo de producción a alguien fuera de las opciones');
+
+  const ROSA = { id: 'recCOLABROSA00001', fields: { Nombre: 'Rosa', Rol: 'Staff', Activo: true, Coordinadora: [GERENTE.id], Telegram_Chat_ID: '321' } };
+  const EV_ET = { id: 'recEVENTOETAPA001', fields: { Folio_Evento: 'EVT-ET1', Fecha_Evento: hoyCln, Hora_Inicio: '18:00', Ubicacion: 'Las Quintas', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI',
+    Encargado_Produccion: [CHICA_G.id], Equipo_Produccion: [CHICA_G.id], Estatus_Logistico: 'Preparando' } };
+  const EV_ET_LISTO = { ...EV_ET, fields: { ...EV_ET.fields, Produccion_Lista: '2026-11-02T22:00:00.000Z' } };
+  const INV_ROSA = { id: 'recINVITAROSA0001', fields: { Evento: [EV_ET.id], Colaborador: [ROSA.id], Estado: 'Confirmó', Fecha_Evento: hoyCln } };
+  const botonEt = (dato, chatId) => ({ callback_query: { id: 'cbE', data: dato, message: { message_id: 90, chat: { id: chatId, type: 'private' }, text: 'Etapas' } } });
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, EV_ET, {}, { records: [INV_ROSA] }, { records: [ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 555) }, res);
+  const patchListo = llamadas.find(l => l.method === 'PATCH');
+  const etapasRosa = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '321');
+  ok(patchListo && patchListo.body.records[0].fields.Produccion_Lista && patchListo.body.records[0].fields.Produccion_Respuesta.includes('🚀 Lucía: listo para staff')
+    && etapasRosa && etapasRosa.body.text.includes('la producción de EVT-ET1 ya está lista (avisó Lucía)')
+    && etapasRosa.body.reply_markup.inline_keyboard.map(f => f[0].callback_data).join() === [0, 1, 2, 3, 4].map(i => `et:${i}:${EV_ET.id}`).join()
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 555 && t.body.text.includes('Avisaste al staff de EVT-ET1: Rosa')),
+    'etapas: el encargado toca "Listo para staff", queda la hora y al staff confirmado le llegan los botones de sus etapas');
+
+  reset();
+  respuestas = [{ records: [ZOE_OTRA] }, EV_ET];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 557) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Solo el encargado')),
+    'etapas: solo el encargado de producción puede avisar "Listo para staff"');
+
+  reset();
+  respuestas = [{ records: [CHICA_G] }, EV_ET_LISTO];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`pl:${EV_ET.id}`, 555) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Ya avisaste al staff')),
+    'etapas: "Listo para staff" no se manda dos veces');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET_LISTO, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  const patchEtapa = llamadas.find(l => l.method === 'PATCH');
+  const editEtapa = telegram.find(t => t.metodo === 'editMessageText');
+  ok(patchEtapa && patchEtapa.body.records[0].fields.Estatus_Logistico === 'Salió del almacén' && patchEtapa.body.records[0].fields.Timestamp_Salida
+    && editEtapa && editEtapa.body.text.includes('lo marcó Rosa') && editEtapa.body.reply_markup.inline_keyboard[0][0].callback_data === `et:1:${EV_ET.id}`,
+    'etapas: el staff marca "Saliendo del almacén", se guarda en el estatus que ve la gerente y le quedan las etapas siguientes');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('espera a que producción avise')),
+    'etapas: el staff no puede marcar etapas antes de que producción avise que está listo');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Estatus_Logistico: 'Llegó al lugar' } }, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:1:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Llegó al lugar')),
+    'etapas: una etapa que ya pasó (la marcó otra del staff) no se regresa');
+
+  reset();
+  respuestas = [{ records: [ZOE_OTRA] }, EV_ET_LISTO, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 557) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('no lo tienes confirmado')),
+    'etapas: quien no confirmó el evento no puede marcar sus etapas');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Checklist_Items: 'Vasos\nFresas', Checklist_Items_Marcados: '[0]' } }, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:0:${EV_ET.id}`, 321) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Faltan artículos')),
+    'etapas: igual que en la app, no se sale del almacén con artículos sin marcar como cargados');
+
+  // 🏁 Terminado cierra el evento (Estatus_Logistico y Estado), salvo cuadre por aclarar. Evento simulado.
+  const EV_ET_CURSO = { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Estatus_Logistico: 'Evento en curso', Estado: 'Confirmado' } };
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET_CURSO, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:4:${EV_ET.id}`, 321) }, res);
+  const patchFin = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(patchFin.Estatus_Logistico === 'Cerrado' && patchFin.Estado === 'Cerrado'
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('🔒 Evento cerrado')),
+    'cierre: "Evento terminado" por Telegram pone Estatus_Logistico y Estado en Cerrado y lo confirma');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_CURSO, fields: { ...EV_ET_CURSO.fields, Cuadre_Estado: 'Por aclarar' } }, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:4:${EV_ET.id}`, 321) }, res);
+  const patchFin2 = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(patchFin2.Estatus_Logistico === 'Cerrado' && !('Estado' in patchFin2)
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('hasta que Diana aclare')),
+    'cierre: con el cuadre "Por aclarar" la logística termina pero el evento sigue abierto');
+
+  {
+    const { tocaCerrar } = require(path.join(repo, 'api/_cargos.js'));
+    ok(tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Debe' }) && tocaCerrar({ Estatus_Logistico: 'Cerrado' })
+      && !tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' }) && !tocaCerrar({ Estatus_Logistico: 'Evento en curso', Cuadre_Estado: 'Cuadrado' })
+      && !tocaCerrar({ Estatus_Logistico: 'Cerrado', Cancelado: true }) && tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' }, { Cuadre_Estado: 'Debe' }),
+      'cierre: regla = logística cerrada y cuadre no "Por aclarar" ("Debe" también cierra; el saldo queda en cobranza)');
+  }
+
+  // Confirmar un evento cuya producción ya está lista: le llegan de una vez sus etapas y el botón 🆘.
+  const INV_ROSA_PEND = { id: 'recINVITAROSA0002', fields: { Evento: [EV_ET.id], Colaborador: [ROSA.id], Invito: [GERENTE.id], Estado: 'Invitada', Fecha_Evento: hoyCln } };
+  reset();
+  respuestas = [{ records: [ROSA] }, INV_ROSA_PEND, EV_ET_LISTO, { records: [] }, { records: [EV_ET_LISTO] }, {}, GERENTE, { records: [INV_ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`inv:s:${INV_ROSA_PEND.id}`, 321) }, res);
+  const aRosa = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === 321);
+  ok(aRosa.some(t => t.body.reply_markup && t.body.reply_markup.keyboard && t.body.reply_markup.keyboard[0][0].request_location)
+    && aRosa.some(t => t.body.text.includes('ya está lista') && t.body.reply_markup.inline_keyboard[0][0].callback_data === `et:0:${EV_ET.id}`),
+    'etapas: quien confirma después de "Listo para staff" recibe sus botones de etapas y el botón 🆘');
+
+  // 🆘 SOS: el botón de abajo manda la ubicación. Le llega a todo el equipo y el evento de hoy queda en emergencia.
+  const fetchBase = global.fetch;
+  reset();
+  global.fetch = async (url, opts = {}) => {
+    const u = decodeURIComponent(String(url));
+    if (!u.startsWith('https://api.airtable.com/')) return fetchBase(url, opts);
+    llamadas.push({ url: u, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+    const r = opts.method && opts.method !== 'GET' ? {}
+      : u.includes('{Telegram_Chat_ID} = "321"') ? { records: [ROSA] }
+      : u.includes('tblvTVcC3NMt5ddjr') ? { records: [INV_ROSA] }
+      : u.includes('tblzLAin65BZPP2c6') ? { records: [EV_ET_LISTO] }
+      : u.includes('tblHdz4vqUIlIdkwc') ? { records: [ROSA, CHICA_G, ADMIN_T] }
+      : { records: [] };
+    return { ok: true, status: 200, json: async () => r, text: async () => '' };
+  };
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 95, chat: { id: 321, type: 'private' }, location: { latitude: 24.8, longitude: -107.39, horizontal_accuracy: 12 } } } }, res);
+  const marcaSos = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Emergencia);
+  const sosLucia = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('🆘 SOS de Rosa'));
+  ok(marcaSos && marcaSos.body.records[0].id === EV_ET.id && marcaSos.body.records[0].fields.Ubicacion_Alerta === '24.8,-107.39'
+    && sosLucia && sosLucia.body.text.includes('EVT-ET1') && sosLucia.body.text.includes('maps.google.com/?q=24.8,-107.39')
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '111' && t.body.text.includes('🆘 SOS de Rosa'))
+    && !telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '321' && t.body.text.includes('🆘 SOS de Rosa'))
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === 321 && t.body.text.startsWith('🆘 Tu SOS ya salió.') && t.body.reply_markup.force_reply)
+    && correos.some(c => String(c.subject).includes('SOS - Rosa')),
+    'sos: con el botón 🆘 la ubicación le llega a todo el equipo (menos a quien lo manda), por correo a Diana y Víctor, y el evento de hoy queda en emergencia');
+
+  reset();
+  const motivoSos = msg('se ponchó la llanta en la Obregón', 321);
+  motivoSos.message.reply_to_message = { from: { is_bot: true }, text: '🆘 Tu SOS ya salió.\nSi puedes, escribe aquí qué está pasando y se lo mando a todos.' };
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: motivoSos }, res);
+  ok(telegram.some(t => t.metodo === 'sendMessage' && t.body.chat_id === '555' && t.body.text.includes('Rosa agrega sobre su SOS (EVT-ET1)') && t.body.text.includes('se ponchó la llanta'))
+    && llamadas.some(l => l.method === 'PATCH' && String(l.body.records[0].fields.Motivo_Emergencia).includes('se ponchó la llanta')),
+    'sos: lo que escribe después le llega a todo el equipo y queda como motivo de la emergencia');
+  global.fetch = fetchBase;
+
+  reset();
+  respuestas = [{ records: [ROSA] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/sos', 321) }, res);
+  ok(telegram.some(t => t.metodo === 'sendMessage' && t.body.reply_markup && t.body.reply_markup.keyboard && t.body.reply_markup.keyboard[0][0].request_location)
+    && telegram.some(t => t.metodo === 'sendMessage' && t.body.reply_markup && t.body.reply_markup.inline_keyboard && t.body.reply_markup.inline_keyboard[0][0].callback_data === 'sos:x'),
+    'sos: /sos deja el botón 🆘 abajo y ofrece mandarlo sin ubicación');
 
   // ---------- Diana confirma o descarta el cambio del cliente ----------
   const CAMBIO_PEND = { estado: 'pendiente', pedidoEl: '2026-10-29T18:00:00Z', urgente: false, antes: 'Paquete 3', servicios: 'Paquete 5 y 50 raspados',
@@ -1590,6 +1763,56 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && altaGasto.body.records[0].fields.Negocio === 'Divanna Eventos' && altaGasto.body.records[0].fields.Reportado_Por[0] === LIDER.id,
     'reporte: el líder agrega un gasto (dinero propio) y se crea su reporte del día');
   ok(subida && subida.url.includes('/recGASTONUEVO0001/Attachments/uploadAttachment') && subida.body.contentType === 'image/jpeg', 'reporte: la foto del ticket se sube al gasto');
+  ok(altaGasto.body.records[0].fields.Tipo === 'General', 'gasto: una app vieja sin la pregunta de tipo guarda General (sin evento)');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [] }, { records: [{ id: REP_FIN.id, fields: { Estado: 'Abierto' } }] }, { records: [{ id: 'recGASTONUEVO0002' }] }, {}];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Hielo', categoria: 'Otros', monto: '80', pagadoCon: 'Dinero del negocio', tipo: 'Extra' });
+  const altaTipo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(res.code === 200 && altaTipo.body.records[0].fields.Tipo === 'Extra', 'gasto: la app guarda el tipo elegido (Evento, General o Extra)');
+
+  // Opciones nuevas del formulario: textos exactos de Airtable.
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [] }, { records: [{ id: REP_FIN.id, fields: { Estado: 'Abierto' } }] }, { records: [{ id: 'recGASTONUEVO0003' }] }, {}];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Pintura del salón', categoria: 'Remodelacion', monto: '1500', pagadoCon: 'Inversión personal', tipo: 'General' });
+  const altaRemo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(res.code === 200 && altaRemo && altaRemo.body.records[0].fields.Categoria === 'Remodelacion' && altaRemo.body.records[0].fields.Pagado_Con === 'Inversión personal',
+    'gasto: se guarda con Categoria "Remodelacion" y Pagado_Con "Inversión personal" (textos exactos de Airtable)');
+
+  reset();
+  respuestas = [ADMIN];
+  res = await fin(tokenAdmin, undefined, 'GET', {});
+  ok(res.code === 200 && (res.body.pagadoCon || []).includes('Inversión personal') && (res.body.categorias || []).includes('Remodelacion'),
+    'gasto: el formulario de la app ofrece "Inversión personal" y "Remodelacion"');
+
+  {
+    // Un gasto pagado con inversión personal no aparece en reembolsos (aunque Airtable lo devolviera).
+    const INV = { id: 'recGASTOINVPERS02', fields: { Concepto: 'Pintura', Monto: 1500, Fecha: '2026-11-05', Pagado_Con: 'Inversión personal', Categoria: 'Remodelacion', Reportado_Por: ['recCOLABMARIO0001'] } };
+    reset();
+    respuestas = [ADMIN, { records: [INV] }, { records: [] }];
+    res = resMock();
+    await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenAdmin), query: { vista: 'reembolsos' } }, res);
+    ok(res.code === 200 && res.body.filas.length === 0 && res.body.total === 0, 'reembolsos: un gasto con Pagado_Con "Inversión personal" no aparece');
+  }
+
+  // /gasto por Telegram: pregunta el tipo con botones y confirma con lo guardado.
+  reset();
+  respuestas = [{ records: [ADMIN_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/gasto 350 gasolina', 111) }, res);
+  const preguntaGasto = telegram.find(t => t.metodo === 'sendMessage');
+  ok(preguntaGasto && preguntaGasto.body.text.startsWith('🧾 Gasto: $350 · gasolina') && botonesDe(preguntaGasto).join() === 'gs:Evento,gs:General,gs:Extra'
+    && !llamadas.some(l => l.method === 'POST'),
+    'gasto: /gasto pregunta el tipo con botones (Evento, General, Extra) antes de guardar');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { records: [{ id: 'recGASTOTELEG0001' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbG', data: 'gs:General', message: { message_id: 82, chat: { id: 111, type: 'private' }, text: '🧾 Gasto: $1,080.34 · renta de bodega\n¿De qué tipo es?' } } } }, res);
+  const gastoTg = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(gastoTg && gastoTg.body.records[0].fields.Monto === 1080.34 && gastoTg.body.records[0].fields.Tipo === 'General' && gastoTg.body.records[0].fields.Concepto === 'renta de bodega'
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('✅ Guardado: $1,080.34 · renta de bodega · tipo General')),
+    'gasto: al tocar el tipo se guarda y se confirma con lo que quedó');
 
   reset();
   respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }];
@@ -1738,8 +1961,70 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenLider), query: { vista: 'historial' } }, res);
   ok(res.code === 403 && llamadas.length === 1, 'historial: solo Diana y Víctor lo ven');
 
+  // ---------- Reembolsos consolidados por colaborador (datos simulados) ----------
+  {
+    const MARIO = 'recCOLABMARIO0001', ANGEL = 'recCOLABANGEL0001';
+    const gR = (id, monto, fecha, quien, extra = {}) => ({ id, fields: { Concepto: 'x', Monto: monto, Fecha: fecha, Pagado_Con: 'Dinero propio', Reportado_Por: [quien], Categoria: 'Otros', ...extra } });
+    const G_PEND = { records: [
+      gR('recGASTOMARIO0001', 500, '2026-11-01', MARIO), gR('recGASTOMARIO0002', 580.34, '2026-11-03', MARIO),
+      gR('recGASTOANGEL0001', 200, '2026-11-02', ANGEL),
+      gR('recGASTOINVERS001', 9000, '2026-11-02', MARIO, { Pagado_Con: 'Inversión personal' }),
+    ] };
+    const NOMBRES_R = { records: [{ id: MARIO, fields: { Nombre: 'Mario Samano', Telegram_Chat_ID: '901' } }, { id: ANGEL, fields: { Nombre: 'Ángel Samano' } }] };
+    const finR = require(path.join(repo, 'api/finanzas.js'));
+
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R];
+    res = resMock();
+    await finR({ method: 'GET', headers: auth(tokenAdmin), query: { vista: 'reembolsos' } }, res);
+    const fm = (res.body.filas || []).find(f => f.colaboradorId === MARIO), fa = (res.body.filas || []).find(f => f.colaboradorId === ANGEL);
+    ok(res.code === 200 && res.body.filas.length === 2 && fm.nombre === 'Mario Samano' && fm.pendiente === 1080.34 && fa.nombre === 'Ángel Samano' && fa.pendiente === 200
+      && res.body.total === 1280.34 && fm.gastos.length === 2,
+      'reembolsos: una fila por colaborador (Mario $1,080.34, Ángel $200) sin la inversión personal');
+
+    // Pago parcial a Mario: crea el registro de pago y solo marca el gasto que alcanza a cubrir (el más viejo).
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R, { records: [{ id: 'recPAGOREEMB00001' }] }, {}];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: MARIO, monto: '600', forma: 'Efectivo' } }, res);
+    const pagoR = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    const marcaR = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(res.code === 200 && pagoR && pagoR.body.records[0].fields.Monto === 600 && pagoR.body.records[0].fields.Forma === 'Efectivo'
+      && JSON.stringify(pagoR.body.records[0].fields.Colaborador) === JSON.stringify([MARIO]) && pagoR.body.records[0].fields.Gastos.length === 2
+      && marcaR && marcaR.body.records.length === 1 && marcaR.body.records[0].id === 'recGASTOMARIO0001' && marcaR.body.records[0].fields.Reembolsado === true
+      && res.body.queda === 480.34 && res.body.texto.includes('Le quedan $480.34')
+      && telegram.some(t => t.body.chat_id === '901' && t.body.text.includes('te reembolsó $600')),
+      'reembolsos: pago parcial → registro en PAGOS_REEMBOLSO, se marca solo el gasto cubierto y se confirma lo que queda');
+
+    // Después del parcial: el sobrante ($100) queda a cuenta y el pago "todo" liquida el resto.
+    const G_PEND2 = { records: [G_PEND.records[1], G_PEND.records[2]] };
+    const PAGOS_PREV = { records: [{ id: 'recPAGOREEMB00001', fields: { Monto: 600, Colaborador: [MARIO], Gastos: ['recGASTOMARIO0001', 'recGASTOMARIO0002'], Forma: 'Efectivo' } }] };
+    const CUBIERTOS = { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 500, Reembolsado: true, Reportado_Por: [MARIO] } }, { id: 'recGASTOMARIO0002', fields: { Monto: 580.34, Reportado_Por: [MARIO] } }] };
+    reset();
+    respuestas = [ADMIN, G_PEND2, PAGOS_PREV, CUBIERTOS, NOMBRES_R, { records: [{ id: 'recPAGOREEMB00002' }] }, {}];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: MARIO, monto: 'todo', forma: 'Transferencia' } }, res);
+    const pagoR2 = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    const marcaR2 = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(res.code === 200 && pagoR2.body.records[0].fields.Monto === 480.34 && marcaR2 && marcaR2.body.records[0].id === 'recGASTOMARIO0002' && res.body.queda === 0
+      && res.body.texto.includes('Ya no se le debe nada'),
+      'reembolsos: lo pagado de más en el parcial queda a cuenta; "todo" paga $480.34 y marca el gasto restante');
+
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: ANGEL, monto: '250', forma: 'Efectivo' } }, res);
+    ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reembolsos: no se paga más de lo pendiente (Ángel $200)');
+
+    reset();
+    respuestas = [LIDER];
+    res = resMock();
+    await finR({ method: 'GET', headers: auth(tokenLider), query: { vista: 'reembolsos' } }, res);
+    ok(res.code === 403, 'reembolsos: solo Diana y Víctor los ven');
+  }
+
   reset();
-  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
   res = resMock();
   await chatApi({ method: 'POST', headers: auth(tokenAdmin), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'Dame el balance, ¿cuáles son las mejores temporadas?' }] } }, res);
@@ -1765,6 +2050,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { records: [{ fields: { Monto: 1800, Evento_Relacionado: [EQ4.id] } }] },
     { records: [{ fields: { Tipo: 'Depósito al banco', Monto: 2000, Fecha: hoyCln } }] },
     { records: [{ id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Brigada Edén' } }] },
+    { records: [] }, // PAGOS_REEMBOLSO en efectivo
   ];
   reset();
   respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
@@ -1773,7 +2059,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && vq.porAclarar.map(e => e.folio).join() === 'EVT-Q1,EVT-Q4' && vq.porAclarar[0].saldo === 2000 && vq.porAclarar[0].cliente === 'Pepe'
     && vq.deben.map(e => e.folio).join() === 'EVT-Q2' && vq.cobradoDeMas.map(e => e.folio).join() === 'EVT-Q3' && vq.conPerdida.map(e => e.folio).join() === 'EVT-Q4',
     'cuadre: detecta lo que no cuadra, lo que se debe, lo cobrado de más y los eventos con pérdida');
-  ok(vq.efectivo.entregadoBrigadas === 3000 && vq.efectivo.pagadoEfectivo === 1500 && vq.efectivo.sinDestino === 2500 && vq.clientes[0].cliente === 'Pepe' && vq.clientes[0].cancelados === 1,
+  ok(vq.porCobrar.total > 0 && Math.abs(vq.cobranza.reduce((t, c) => t + c.pendiente, 0) - vq.porCobrar.total) < 0.01,
+    'clientes: la cobranza por cliente suma lo mismo que "por cobrar"');
+  ok(vq.clientes.every(c => c.gastos > 0 || c.margen === null) && vq.semana && typeof vq.semana.gastosPorTipo === 'object',
+    'clientes: sin gastos registrados el margen no repite lo contratado; la semana trae gastos por tipo');
+  ok(vq.efectivo.entregadoBrigadas === 3000 && vq.efectivo.pagadoEfectivo === 1500 && vq.efectivo.sinDestino === 2500 && vq.clientes.some(c => c.cliente === 'Pepe' && c.cancelados === 1) && vq.clientes[0].cliente === 'Sin cliente ligado',
     'cuadre: efectivo sin destino (entregado + pagos en efectivo − destinos) y clientes a vigilar');
 
   reset();
@@ -1813,7 +2103,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 400 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: no se registran pagos de un pedido sin autorizar');
 
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un día bonito. Te cuento con cariño: las cuentas de ayer no cuadraron en dos eventos. Va el detalle 👇' }] }];
   const Qmod = require(path.join(repo, 'api/_cuadre.js'));
   const rq = await Qmod.preguntasDelDia();
@@ -1823,25 +2113,25 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && llamadasClaude[0].messages[0].content.includes('Escríbele a Diana') && llamadasClaude[0].messages[0].content.includes('NO pongas montos'),
     'cuadre: primero un saludo amistoso con su nombre, escrito por DiMa sin cifras');
   ok(preguntaQ && preguntaQ.body.text.includes('el evento de Pepe (EVT-Q1)') && preguntaQ.body.text.includes('Brigada Edén reportó $3,000') && preguntaQ.body.text.includes('Me faltan $2,000')
-    && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
+    && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pb:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
     && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Cuadre_Preguntado === hoyCln),
     'cuadre: luego el detalle con números exactos, la brigada sin acusarla y los botones; no vuelve a preguntar');
 
   // Si DiMa mete cifras en el saludo (o falla), se usa un saludo de respaldo.
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hola Diana, faltan $2,000 en EVT-Q1.' }] }];
   await Qmod.preguntasDelDia();
   const saludoResp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
   ok(saludoResp && saludoResp.body.text.includes('Diana') && !saludoResp.body.text.includes('$') && !saludoResp.body.text.includes('EVT-'),
     'cuadre: si el saludo trae cifras o folios se descarta y sale uno de respaldo');
   const resumenQ = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111').find(t => t.body.text.startsWith('📋 Resumen del día'));
-  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
+  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('💵 Reembolsos pendientes: Ángel Samano $200') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
 
   // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
   reset();
   const EHOY = { id: 'recEVCUADREHOY001', fields: { Folio_Evento: 'EVT-H1', Fecha_Evento: hoyCln, Hora_Inicio: '17:00', Monto_Estimado_IA: 3000, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: [CLI1] } };
-  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }];
+  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un gran día. Te paso el resumen 👇' }] }];
   const rSin = await Qmod.preguntasDelDia();
   const sinPend = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
@@ -1857,6 +2147,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:pt:${EQ1.id}`) }, res);
   ok(llamadas.some(l => l.method === 'POST' && l.body.records[0].fields.Forma === 'Transferencia' && l.body.records[0].fields.Monto === 2000)
     && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Ya cuadra')), 'cuadre: Diana contesta con un botón de Telegram y queda anotado');
+  {
+    const patchPago = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+    ok(patchPago.Estatus_Pago === 'Liquidado 100%' && patchPago.Monto_Adeudado === 0 && !telegram.some(t => t.metodo === 'sendDocument'),
+      'recibos: registrar un cobro solo lo anota en Airtable (Estatus_Pago, Monto_Adeudado), sin generar ni mandar el PDF');
+  }
 
   reset();
   respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA003' }] }, {}];
@@ -1875,12 +2170,79 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(retiro && retiro.body.records[0].fields.Tipo === 'Retiro personal' && retiro.body.records[0].fields.Monto === 2500 && retiro.body.records[0].fields.Registrado_Por === 'Diana',
     'cuadre: el efectivo sin destino queda anotado (aquí, retiro personal) sin juzgar');
 
+  {
+    // Botones del efectivo (mismos que la app): gasto externo y reembolso.
+    const MARIO = 'recCOLABMARIO0001';
+    const G_MARIO = { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 1080.34, Fecha: '2026-11-01', Pagado_Con: 'Dinero propio', Reportado_Por: [MARIO] } }] };
+    const N_MARIO = { records: [{ id: MARIO, fields: { Nombre: 'Mario Samano' } }] };
+    ok(JSON.stringify(require(path.join(repo, 'api/_cuadre.js')).TIPOS_CAJA) && ['dep', 'gas', 'ret', 'ext', 'rb', 'caja'].every(k => require(path.join(repo, 'api/_cuadre.js')).TIPOS_CAJA[k]),
+      'cuadre: destinos del efectivo = Lo deposité, Gasto del negocio, Retiro personal, Gasto externo (remodelación), Reembolso, Sigue en caja');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), { records: [{ id: 'recCAJA000000002' }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:ext') }, res);
+    const externo = llamadas.find(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'));
+    ok(externo && externo.body.records[0].fields.Tipo === 'Gasto externo' && externo.body.records[0].fields.Monto === 2500 && !externo.body.typecast,
+      'cuadre: 🔨 Gasto externo (remodelación) anota el efectivo sin destino');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:rb') }, res);
+    const elegir = telegram.find(t => t.metodo === 'sendMessage' && t.body.text.includes('¿A quién le reembolsaste'));
+    ok(elegir && elegir.body.reply_markup.inline_keyboard[0][0].callback_data === `cj:rb:${MARIO}` && elegir.body.reply_markup.inline_keyboard[0][0].text === 'Mario Samano · $1,080.34'
+      && !llamadas.some(l => l.method === 'POST'),
+      'cuadre: 💵 Reembolso pregunta a quién, con lo que se le debe a cada uno');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO, G_MARIO, { records: [] }, N_MARIO, { records: [{ id: 'recPAGOREEMB00003' }] }, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cj:rb:${MARIO}`) }, res);
+    const pagoCaja = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    ok(pagoCaja && pagoCaja.body.records[0].fields.Monto === 1080.34 && pagoCaja.body.records[0].fields.Forma === 'Efectivo' && !llamadas.some(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'))
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('$1,080.34 a Mario Samano')),
+      'cuadre: el reembolso en efectivo queda en PAGOS_REEMBOLSO (no en CAJA) y se confirma');
+
+    reset();
+    const conReembolso = datosQ(); conReembolso[6] = { records: [{ fields: { Monto: 1000, Forma: 'Efectivo' } }] };
+    respuestas = [ADMIN, ...conReembolso, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
+    res = await fin(tokenAdmin, undefined, 'GET', { vista: 'cuadre' });
+    ok(res.code === 200 && res.body.efectivo.sinDestino === 1500 && res.body.efectivo.destinos.Reembolso === 1000,
+      'cuadre: lo reembolsado en efectivo descuenta del efectivo sin destino');
+  }
+
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
   res = resMock();
   await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbQ2', data: `cd:pe:${EQ1.id}`, message: { message_id: 81, chat: { id: 222, type: 'private' }, text: 'x' } } } }, res);
   ok(!llamadas.some(l => l.method === 'POST' || l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('solo para Diana y Víctor')),
     'cuadre: nadie más puede contestar el cuadre');
+
+  // Regla de cierre: Diana contesta "Sigue debiendo" de un evento con la logística cerrada → se cierra y queda en cobranza.
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { id: EQ1.id, fields: { ...EQ1.fields, COBROS: [], Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' } }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:d:${EQ1.id}`) }, res);
+  const cierreDebe = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(cierreDebe.Cuadre_Estado === 'Debe' && cierreDebe.Estado === 'Cerrado' && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('🔒 Evento cerrado')),
+    'cierre: "Sigue debiendo" en un evento ya terminado lo cierra (Diana desde Telegram) y el saldo sigue por cobrar');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBROBRIG0001' }] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:pb:${EQ1.id}`) }, res);
+  const cobroBrig = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(cobroBrig && cobroBrig.body.records[0].fields.Monto === 2000 && cobroBrig.body.records[0].fields.Forma === 'Efectivo' && !cobroBrig.body.records[0].fields.Recibido_Por
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Guardado: $2,000 en efectivo que cobró la brigada')),
+    'cuadre: 👷 Efectivo a la brigada lo anota como cobro de la brigada y confirma lo guardado');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { id: EQ1.id, fields: { ...EQ1.fields, Cuadre_Estado: 'Debe' } }, { records: [CQ1] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:d:${EQ1.id}`) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH' || l.method === 'POST') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Ya está contestado')),
+    'cuadre: un botón viejo no vuelve a registrar lo que ya se contestó');
 
   // ---------- Calendario del equipo ----------
   const LIDER_CAL = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
@@ -2504,7 +2866,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       { records: [{ id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Telegram_Chat_ID: '111' } }, { id: 'recCOLAB000000008', fields: { Nombre: 'Ángela G', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Telegram_Chat_ID: '444' } }] }];
     const rec = await sh.enviarRecibo('recEVSHEETS00001', 'anticipo recibido');
     const doc = telegram.filter(t => t.metodo === 'sendDocument');
-    ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000')
+    ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000') && !doc[0].body.caption.includes('Reenvíaselo')
       && googleSheets.some(g => g.op === 'pdf' && g.url.includes('format=pdf') && g.url.includes('gid=3') && g.auth === 'Bearer tok'),
       'recibo: sale el PDF de la pestaña del evento y le llega a Diana por Telegram (de Divanna no a la gerente)');
     delete process.env.GOOGLE_SHEET_DIVANNA;

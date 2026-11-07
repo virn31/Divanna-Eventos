@@ -90,7 +90,11 @@ async function leerDatos(eventoId) {
   const tipo = ((f.Notas || '').match(/Tipo de evento: ([^\n]+)/) || [])[1] || '';
   let estado = 'Autorizado';
   if (f.Cancelado) estado = 'Cancelado';
-  else if (/^Pagado\b/.test(f.Estatus_Pago || '') || f.Estatus_Pago === 'Liquidado 100%' || (total > 0 && pagado >= total)) estado = 'Pagado';
+  else if (/^Pagado\b/.test(f.Estatus_Pago || '') || f.Estatus_Pago === 'Liquidado 100%' || (total > 0 && pagado >= total)) {
+    // Leyenda "Pagado" con la fecha del último pago (Víctor 2026-11-07).
+    const ultimo = cobros.map(c => c.fields.Fecha || '').filter(Boolean).sort().pop();
+    estado = ultimo ? `Pagado · ${ultimo.split('-').reverse().join('/')}` : 'Pagado';
+  }
   else if (pagado > 0) estado = 'Anticipo recibido';
   return {
     f,
@@ -304,7 +308,8 @@ async function reciboPdf(folio, negocio) {
 }
 
 // Actualiza la hoja y manda el recibo en PDF por Telegram a Diana y Víctor (y a
-// al gerente del negocio del evento) para que se lo reenvíen al cliente.
+// al gerente del negocio del evento). Solo cuando el cliente lo pide (🧾 Mandar
+// recibo); nunca automático al registrar un cobro (Víctor 2026-11-07).
 // Devuelve { ok, enviados } o { ok: false, error }. Nunca lanza.
 async function enviarRecibo(eventoId, motivo = '') {
   if (!sheetsConfigurado()) return { ok: false, error: 'Google Sheets todavía no está configurado.' };
@@ -318,7 +323,7 @@ async function enviarRecibo(eventoId, motivo = '') {
       .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || esDeSuGerencia({ gerente: gerenciaDe(c.fields) }, d.f)));
     if (!gente.length) return { ok: false, error: 'Nadie tiene Telegram vinculado para recibir el recibo.' };
     const resta = Math.max(0, d.total - d.pagado);
-    const texto = `🧾 Recibo ${d.folio}${motivo ? ' · ' + motivo : ''}\n${d.cliente || 'Cliente'} · ${d.f.Fecha_Evento || ''}\nTotal ${dinero(d.total)} · Pagado ${dinero(d.pagado)} · Resta ${dinero(resta)}\nReenvíaselo al cliente.`;
+    const texto = `🧾 Recibo ${d.folio}${motivo ? ' · ' + motivo : ''}\n${d.cliente || 'Cliente'} · ${d.f.Fecha_Evento || ''}\nTotal ${dinero(d.total)} · Pagado ${dinero(d.pagado)} · Resta ${dinero(resta)}\nEl cliente lo pidió: mándaselo.`;
     let enviados = 0;
     const errores = [];
     for (const negocio of negocios) {

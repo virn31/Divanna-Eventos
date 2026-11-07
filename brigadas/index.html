@@ -451,12 +451,15 @@
         </select>
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
         ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
+          <div style="margin-top:10px; font-weight:800;">👩‍🍳 Equipo de producción</div>
+          ${opcionesAsignar.produccion.map(p => `<label><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
+          <div class="asig-msg">Quién prepara (1, 2 o más). Puede estar también en el staff. Les llega un aviso por Telegram con el botón 🆘.</div>
           <div style="margin-top:10px; font-weight:800;">🍳 Encargado de producción</div>
           <select class="asig-produccion">
             <option value="">Sin encargado de producción</option>
             ${opcionesAsignar.produccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
           </select>
-          <div class="asig-msg">Le llega por Telegram la lista de producción dos días antes y el mismo día.</div>`
+          <div class="asig-msg">Entra solo al equipo. Le llega por Telegram la lista de producción dos días antes y el mismo día, y solo esa persona tiene el botón "🚀 Listo para staff": al tocarlo, al staff le llegan sus etapas.</div>`
           : `<div class="asig-msg">🍳 No se pudo leer quién puede hacer producción. Toca actualizar.</div>`}
         <button class="asig-guardar" data-evento="${esc(ev.id)}">Guardar y avisar</button>
         <div class="asig-msg asig-resultado"></div>
@@ -583,10 +586,15 @@
   }
 
   // Quién tiene la producción del evento y su última respuesta (solo la gerente).
+  // Equipo de producción y si el encargado ya avisó "Listo para staff".
   function lineaProduccion(ev){
-    if(!opcionesAsignar || !esDeMiGerencia(ev) || miGerencia !== 'El Vaso Maiz' || !ev.produccionId) return '';
-    const p = (opcionesAsignar.produccion || []).find(x => x.id === ev.produccionId);
-    return `<div class="instr-box"><b>🍳 Producción: ${esc(p ? p.nombre : 'asignada')}</b>${esc(ev.produccionRespuesta || 'Todavía no responde.')}</div>`;
+    if(!opcionesAsignar || !esDeMiGerencia(ev) || miGerencia !== 'El Vaso Maiz' || (!ev.produccionId && !(ev.equipoProduccionIds || []).length)) return '';
+    const nombre = (id) => ((opcionesAsignar.produccion || []).find(x => x.id === id) || {}).nombre || 'asignado';
+    const equipo = (ev.equipoProduccionIds || []).filter(id => id !== ev.produccionId).map(nombre);
+    const lista = ev.produccionLista
+      ? `🚀 Lista para staff desde las ${new Date(ev.produccionLista).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}. El staff marca sus etapas por Telegram (se ven en el estatus).`
+      : '⏳ Producción todavía no avisa que está lista.';
+    return `<div class="instr-box"><b>🍳 Producción: ${esc(ev.produccionId ? nombre(ev.produccionId) + ' (encargado)' : 'sin encargado')}${equipo.length ? ' · ' + esc(equipo.join(', ')) : ''}</b>${esc(lista)}<br>${esc(ev.produccionRespuesta || 'Todavía no responde.')}</div>`;
   }
 
   async function invitarStaff(btn){
@@ -629,13 +637,19 @@
           brigadaId: caja.querySelector('.asig-brigada').value,
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
           // Si no se pudo leer la lista, no se manda (el servidor no toca al encargado actual).
-          ...(caja.querySelector('.asig-produccion') ? { produccionId: caja.querySelector('.asig-produccion').value } : {}),
+          ...(caja.querySelector('.asig-produccion') ? {
+            produccionId: caja.querySelector('.asig-produccion').value,
+            equipoProduccionIds: [...caja.querySelectorAll('.asig-equipo:checked')].map(c => c.value),
+          } : {}),
         }),
       });
-      const p = d.produccion;
-      const textoProduccion = !p ? ''
+      const p = d.produccion, e = d.equipoProduccion;
+      const textoProduccion = (!p ? ''
         : (p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
-          + (p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
+          + (p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : ''))
+        + (!e ? ''
+        : (e.enviados.length ? ` 👩‍🍳 Equipo de producción avisado: ${e.enviados.join(', ')}.` : '')
+          + (e.fallidos.length ? ` ⚠️ No le llegó al equipo de producción: ${e.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : ''));
       msg.textContent = !d.avisados ? 'Guardado. No hay nadie nuevo a quien avisar.'
         : `Guardado. Avisos a ${d.avisados}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculados, app ${d.porPush}.`
           + ((d.sinTelegram || []).length ? ` Sin Telegram: ${d.sinTelegram.join(', ')}.` : '')
@@ -1351,6 +1365,7 @@
           <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
           ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
           ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
+          <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}"> ${esc(t)}</label>`).join(' ')}</div>
           ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
           <label>📷 Foto del ticket <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
           <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>` : ''}
@@ -1427,6 +1442,8 @@
   async function agregarGasto(){
     const boton = $('gAgregar');
     try {
+      const tipoGasto = (document.querySelector('input[name="gTipo"]:checked') || {}).value;
+      if(document.querySelector('input[name="gTipo"]') && !tipoGasto){ showToast('Elige el tipo del gasto: Evento, General o Extra.'); return; }
       boton.textContent = 'Guardando…';
       const foto = await comprimirFoto($('gFoto').files[0]);
       const d = await postFin({
@@ -1435,6 +1452,7 @@
         monto: $('gMonto').value,
         categoria: $('gCategoria').value,
         pagadoCon: (document.querySelector('input[name="gPagado"]:checked') || {}).value,
+        tipo: tipoGasto || '',
         negocio: $('gNegocio') ? $('gNegocio').value : '',
         eventoId: $('gEvento') ? $('gEvento').value : '',
         foto,

@@ -17,7 +17,8 @@ const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
-const { totalDelEvento } = require('./_cargos');
+const { totalDelEvento, tocaCerrar } = require('./_cargos');
+const R = require('./_reembolsos');
 
 const MODELO = 'claude-sonnet-5-5';
 let clienteIA = null;
@@ -38,7 +39,8 @@ const FECHA_INICIO = '2026-10-29';
 const TOLERANCIA = 0.5;
 const ESTADOS = { POR_ACLARAR: 'Por aclarar', CUADRADO: 'Cuadrado', DEBE: 'Debe', DESCUENTO: 'Descuento', OTRO: 'Otro' };
 const FORMAS = { e: 'Efectivo', t: 'Transferencia', d: 'Depósito' };
-const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', caja: 'Sigue en caja', var: 'Varios' };
+// rb (Reembolso) no se anota en CAJA: el pago queda en PAGOS_REEMBOLSO y de ahí descuenta.
+const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', ext: 'Gasto externo', rb: 'Reembolso', caja: 'Sigue en caja', var: 'Varios' };
 const MARCA_MONTO = '✍️ ¿Cuánto te pagaron y cómo? ';
 const MARCA_OTRO = '❓ ¿Qué pasó con el dinero de ';
 const MARCA_VARIOS = '💼 ¿Qué se hizo con el efectivo? ';
@@ -116,13 +118,15 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
 async function datosCuadre() {
   const hoy = hoyCuliacan();
   const desde = `NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${FECHA_INICIO}")))`;
-  const [eventos, cobros, aprobados, gastos, caja, brigadas] = await Promise.all([
+  const [eventos, cobros, aprobados, gastos, caja, brigadas, reembolsado] = await Promise.all([
     todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND(OR({Autorizacion_Diana} = "SI", {Cancelado}), ${desde})`)}`),
     todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent('{Estado} = "Aprobado"')}&fields%5B%5D=Efectivo_Entregado&fields%5B%5D=Fecha`),
     todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.CAJA}`),
     todas(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada`),
+    // Reembolsos pagados en efectivo: salen del efectivo de Diana.
+    R.reembolsadoEnEfectivo().catch(err => { console.error('Cuadre: no se pudieron leer los reembolsos:', err.message); return 0; }),
   ]);
   const ok = new Set(aprobados.map(r => r.id));
   // Gastos que cuentan: capturados a mano o de reportes aprobados.
@@ -130,7 +134,7 @@ async function datosCuadre() {
   const lista = eventos.map(e => dineroDelEvento(e, cobros, ok, gastosValidos));
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
   lista.forEach(e => { e.brigadaNombre = nombreBrigada.get(e.brigadaId) || ''; });
-  return { hoy, eventos: lista, cobros, aprobados, ok, caja };
+  return { hoy, eventos: lista, cobros, aprobados, ok, caja, reembolsado, gastos: gastosValidos };
 }
 
 // Efectivo de Diana: lo que le entregaron las brigadas (reportes aprobados) y lo
@@ -143,6 +147,7 @@ function efectivoDe(d) {
     if (m.fields.Tipo === TIPOS_CAJA.caja) continue;
     destinos[m.fields.Tipo || 'Varios'] = (destinos[m.fields.Tipo || 'Varios'] || 0) + (Number(m.fields.Monto) || 0);
   }
+  if (d.reembolsado > 0) destinos[TIPOS_CAJA.rb] = (destinos[TIPOS_CAJA.rb] || 0) + d.reembolsado;
   const conDestino = Object.values(destinos).reduce((t, v) => t + v, 0);
   // "Sigue en caja": vale la última declaración.
   const ultimaCaja = d.caja.filter(m => m.fields.Tipo === TIPOS_CAJA.caja).sort((a, b) => (b.fields.Fecha || '').localeCompare(a.fields.Fecha || '') || (b.createdTime || '').localeCompare(a.createdTime || ''))[0];
@@ -184,19 +189,26 @@ async function vistaCuadre() {
   // Clientes: dónde se queda el dinero (adeudos, cancelaciones, margen).
   const porCliente = new Map();
   for (const e of d.eventos) {
-    if (!e.clienteId) continue;
-    const c = porCliente.get(e.clienteId) || { clienteId: e.clienteId, cliente: nombres.get(e.clienteId) || 'Sin nombre', eventos: 0, cancelados: 0, contratado: 0, pendiente: 0, margen: 0 };
+    // Eventos sin cliente ligado van en una fila aparte (si no, la tabla sumaría menos que "por cobrar").
+    const clave = e.clienteId || 'sin-cliente';
+    const c = porCliente.get(clave) || { clienteId: e.clienteId, cliente: e.clienteId ? nombres.get(e.clienteId) || 'Sin nombre' : 'Sin cliente ligado', eventos: 0, cancelados: 0, contratado: 0, pendiente: 0, margen: 0, gastos: 0 };
     c.eventos++;
     if (e.cancelado) c.cancelados++;
     else {
       c.contratado += e.contratado;
-      c.pendiente += Math.max(0, e.saldo);
+      // Mismo criterio que "por cobrar" (abajo), para que la tabla sume lo mismo.
+      if (e.saldo > TOLERANCIA && e.estado !== ESTADOS.OTRO) c.pendiente += e.saldo;
       c.margen += e.margen;
+      c.gastos += e.gastos;
     }
-    porCliente.set(e.clienteId, c);
+    porCliente.set(clave, c);
   }
-  const clientes = [...porCliente.values()]
-    .filter(c => c.pendiente > TOLERANCIA || c.cancelados || c.margen < 0)
+  // Sin gastos registrados el "margen" sería igual a lo contratado: se manda null (la app pone "—").
+  const todosClientes = [...porCliente.values()].map(c => ({ ...c, pendiente: redondo(c.pendiente), contratado: redondo(c.contratado), margen: c.gastos > 0 ? redondo(c.margen) : null }));
+  // Cobranza: todos los que deben (sin recortar), para que sume lo mismo que "por cobrar".
+  const cobranza = todosClientes.filter(c => c.pendiente > TOLERANCIA).sort((a, b) => b.pendiente - a.pendiente);
+  const clientes = todosClientes
+    .filter(c => c.pendiente > TOLERANCIA || c.cancelados || (c.margen != null && c.margen < 0))
     .sort((a, b) => b.pendiente - a.pendiente || b.cancelados - a.cancelados)
     .slice(0, 15);
   // Para el buenos días: eventos de hoy y mañana, y lo que falta por cobrar.
@@ -209,7 +221,19 @@ async function vistaCuadre() {
   const mananaEv = vigentes.filter(e => e.fecha === fechaManana).sort(porHora).map(conCliente);
   const pendientes = vigentes.filter(e => e.saldo > TOLERANCIA && e.estado !== ESTADOS.OTRO);
   const porCobrar = { eventos: pendientes.length, total: redondo(pendientes.reduce((t, e) => t + e.saldo, 0)) };
-  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, efectivo: efectivoDe(d), hoy: hoyEv, manana: mananaEv, porCobrar };
+  // Semana en curso (lunes a hoy): gastos por tipo (Evento, General, Extra).
+  const lunes = new Date(`${d.hoy}T12:00:00Z`);
+  lunes.setUTCDate(lunes.getUTCDate() - ((lunes.getUTCDay() + 6) % 7));
+  const desdeSemana = lunes.toISOString().slice(0, 10);
+  const gastosPorTipo = {};
+  for (const g of d.gastos || []) {
+    const fecha = g.fields.Fecha || '';
+    if (fecha < desdeSemana || fecha > d.hoy) continue;
+    const tipo = g.fields.Tipo || 'Sin tipo';
+    gastosPorTipo[tipo] = redondo((gastosPorTipo[tipo] || 0) + (Number(g.fields.Monto) || 0));
+  }
+  const semana = { desde: desdeSemana, hasta: d.hoy, gastosPorTipo, eventos: vigentes.filter(e => e.fecha >= desdeSemana && e.fecha <= d.hoy).length };
+  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, cobranza, efectivo: efectivoDe(d), hoy: hoyEv, manana: mananaEv, porCobrar, semana };
 }
 
 // Resumen para DiMa (solo Admin).
@@ -223,18 +247,29 @@ function cuadreParaDima(v) {
     `EXPLICADOS COMO "OTRO": ${v.otros.length ? '\n' + v.otros.map(lineaEv).join('\n') : 'ninguno'}`,
     `COBRADO DE MÁS (entró más de lo contratado, revisar si es error de captura): ${v.cobradoDeMas.length ? '\n' + v.cobradoDeMas.map(lineaEv).join('\n') : 'ninguno'}`,
     `EVENTOS CON PÉRDIDA (gastos mayores que lo contratado): ${v.conPerdida.length ? '\n' + v.conPerdida.map(lineaEv).join('\n') : 'ninguno'}`,
-    `CLIENTES A VIGILAR (adeudos, cancelaciones o margen negativo): ${v.clientes.length ? '\n' + v.clientes.map(c => `${c.cliente}: ${c.eventos} eventos, ${c.cancelados} cancelados, contratado ${pesos(c.contratado)}, pendiente ${pesos(c.pendiente)}, margen ${pesos(c.margen)}`).join('\n') : 'ninguno'}`,
+    `CLIENTES A VIGILAR (adeudos, cancelaciones o margen negativo): ${v.clientes.length ? '\n' + v.clientes.map(c => `${c.cliente}: ${c.eventos} eventos, ${c.cancelados} cancelados, contratado ${pesos(c.contratado)}, pendiente ${pesos(c.pendiente)}, margen ${c.margen == null ? "sin gastos registrados" : pesos(c.margen)}`).join('\n') : 'ninguno'}`,
     `EFECTIVO DE DIANA: le entregaron las brigadas ${pesos(ef.entregadoBrigadas)}, le pagaron en efectivo ${pesos(ef.pagadoEfectivo)}; destinos registrados ${Object.entries(ef.destinos).map(([k, x]) => `${k} ${pesos(x)}`).join(', ') || 'ninguno'}; declarado en caja ${pesos(ef.enCaja)}; SIN DESTINO ${pesos(ef.sinDestino)}${ef.excedente ? `; OJO: hay ${pesos(ef.excedente)} más registrado como destino de lo que entró` : ''}.`,
   ].join('\n\n');
 }
 
 // ---------- Respuestas de Diana (dashboard y Telegram) ----------
 
+// Guarda la respuesta de Diana. Si la logística ya terminó y el cuadre deja de
+// estar "Por aclarar", el evento se cierra en el mismo PATCH (regla de cierre).
 async function anotar(eventoId, f, campos, linea) {
+  const cierra = tocaCerrar(f, campos);
   await airtable(TABLES.EVENTOS, {
     method: 'PATCH',
-    body: JSON.stringify({ records: [{ id: eventoId, fields: { ...campos, Cuadre_Notas: f.Cuadre_Notas ? `${f.Cuadre_Notas}\n${linea}` : linea } }] }),
+    body: JSON.stringify({ records: [{ id: eventoId, fields: { ...campos, ...(cierra ? { Estado: 'Cerrado' } : {}), Cuadre_Notas: f.Cuadre_Notas ? `${f.Cuadre_Notas}\n${linea}` : linea } }] }),
   });
+  return cierra;
+}
+
+// Al registrar un pago queda en Airtable lo que resta (Monto_Adeudado) y, si ya
+// no resta nada, Estatus_Pago = "Liquidado 100%" (opción que ya existe).
+function estadoDePago(saldo) {
+  const resta = redondo(Math.max(0, saldo));
+  return resta > TOLERANCIA ? { Monto_Adeudado: resta } : { Monto_Adeudado: 0, Estatus_Pago: 'Liquidado 100%' };
 }
 
 async function saldoActual(eventoId) {
@@ -244,13 +279,38 @@ async function saldoActual(eventoId) {
   return { e, dinero: dineroDelEvento(e, cobros, new Set(), []) };
 }
 
-// tipo: pago | debe | descuento | otro. Devuelve { ok, texto } o { error }.
-async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota }) {
+// tipo: pago | debe | descuento | otro. recibio: 'brigada' si el efectivo lo
+// cobró la brigada (no Diana). unaVez: viene de un botón de Telegram; si ese
+// evento ya quedó contestado no se vuelve a registrar (botón viejo tocado otra vez).
+// Devuelve { ok, texto } o { error }.
+async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota, recibio, unaVez }) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor cuadran el dinero.', codigo: 403 };
   if (!ID.test(eventoId || '')) return { error: 'Parámetros inválidos' };
   const { e, dinero } = await saldoActual(eventoId);
   const f = e.fields;
   const quien = colaborador.nombre;
+  if (unaVez) {
+    const estado = f.Cuadre_Estado || '';
+    if (dinero.saldo <= TOLERANCIA || estado === ESTADOS.OTRO || (tipo === 'debe' && estado === ESTADOS.DEBE)) {
+      return { error: `Ya está contestado: ${dinero.saldo <= TOLERANCIA ? 'ya cuadra' : estado === ESTADOS.DEBE ? `sigue debiendo ${pesos(dinero.saldo)}` : 'explicado como "otro"'}.` };
+    }
+  }
+  if (tipo === 'pago' && recibio === 'brigada') {
+    // Lo cobró la brigada en efectivo: cuenta como cobro de la brigada (lo entrega en su reporte).
+    const valor = montoTexto === 'todo' ? (dinero.saldo > 0 ? dinero.saldo : null) : monto(montoTexto);
+    if (!valor) return { error: 'No hay saldo pendiente en este evento.' };
+    await airtable(TABLES.COBROS, {
+      method: 'POST',
+      body: JSON.stringify({ records: [{ fields: {
+        Concepto: `${f.Folio_Evento || ''} · efectivo que cobró la brigada (lo anotó ${quien})`, Monto: valor, Forma: FORMAS.e, Fecha: hoyCuliacan(),
+        ...(f.Negocio === 'Divanna Eventos' || f.Negocio === 'El Vaso Maiz' ? { Negocio: f.Negocio } : {}),
+        Evento: [eventoId], Reportado_Por: [colaborador.id],
+      } }] }),
+    });
+    const saldo = redondo(dinero.saldo - valor);
+    const cerro = await anotar(eventoId, f, { ...estadoDePago(saldo), Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: la brigada cobró ${pesos(valor)} en efectivo.`);
+    return { ok: true, cerro, texto: `✅ Guardado: ${pesos(valor)} en efectivo que cobró la brigada en ${f.Folio_Evento}. La brigada lo entrega en su reporte del día.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : ' Ya cuadra.'}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
+  }
   if (tipo === 'pago') {
     const valor = montoTexto === 'todo' ? (dinero.saldo > 0 ? dinero.saldo : null) : monto(montoTexto);
     if (!valor) return { error: 'Escribe cuánto te pagaron.' };
@@ -264,34 +324,36 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       } }] }),
     });
     const saldo = redondo(dinero.saldo - valor);
-    const recibo = sheetsConfigurado() ? await enviarRecibo(eventoId, `pago de ${pesos(valor)}`) : null;
-    await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
-    return { ok: true, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` };
+    // Sin recibo automático (regla de Víctor 2026-11-07): el PDF sale solo si el cliente lo pide.
+    const recibo = null;
+    const cerro = await anotar(eventoId, f, { ...estadoDePago(saldo), Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
+    return { ok: true, cerro, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'debe') {
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.DEBE }, `[${ahoraTexto()}] ${quien}: el cliente sigue debiendo ${pesos(dinero.saldo)}.`);
-    return { ok: true, texto: `⏳ Anotado: ${f.Folio_Evento} sigue debiendo ${pesos(dinero.saldo)}. Queda en "por cobrar".` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.DEBE }, `[${ahoraTexto()}] ${quien}: el cliente sigue debiendo ${pesos(dinero.saldo)}.`);
+    return { ok: true, cerro, texto: `⏳ Anotado: ${f.Folio_Evento} sigue debiendo ${pesos(dinero.saldo)}. Queda en "por cobrar".` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'descuento') {
     if (!(dinero.saldo > TOLERANCIA)) return { error: 'Este evento no tiene saldo pendiente.' };
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.CUADRADO, Descuento: redondo(dinero.descuento + dinero.saldo) }, `[${ahoraTexto()}] ${quien}: descuento o cortesía de ${pesos(dinero.saldo)}.`);
-    return { ok: true, texto: `🎁 Anotado: descuento de ${pesos(dinero.saldo)} en ${f.Folio_Evento}. Ya cuadra.` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.CUADRADO, Descuento: redondo(dinero.descuento + dinero.saldo) }, `[${ahoraTexto()}] ${quien}: descuento o cortesía de ${pesos(dinero.saldo)}.`);
+    return { ok: true, cerro, texto: `🎁 Anotado: descuento de ${pesos(dinero.saldo)} en ${f.Folio_Evento}. Ya cuadra.` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'otro') {
     const texto = String(nota || '').trim().slice(0, 500);
     if (!texto) return { error: 'Escribe qué pasó con ese dinero.' };
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.OTRO }, `[${ahoraTexto()}] ${quien}: ${texto}`);
-    return { ok: true, texto: `📝 Anotado en ${f.Folio_Evento}: ${texto}` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.OTRO }, `[${ahoraTexto()}] ${quien}: ${texto}`);
+    return { ok: true, cerro, texto: `📝 Anotado en ${f.Folio_Evento}: ${texto}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   return { error: 'Respuesta inválida' };
 }
 
 // Destino del efectivo sin destino (se asigna todo lo pendiente). tipo: clave de TIPOS_CAJA.
-async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto }) {
+async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto, colaboradorId }) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor.', codigo: 403 };
   const nombreTipo = TIPOS_CAJA[tipo];
   if (!nombreTipo) return { error: 'Destino inválido' };
   const ef = efectivoDe(await datosCuadre());
+  if (tipo === 'rb') return reembolsoDesdeCaja(colaborador, ef, colaboradorId);
   const valor = montoTexto ? monto(montoTexto) : (tipo === 'caja' ? redondo(ef.sinDestino + ef.enCaja) : ef.sinDestino);
   if (!valor) return { error: 'No hay efectivo sin destino.' };
   const texto = String(nota || '').trim().slice(0, 300);
@@ -303,21 +365,36 @@ async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto }) {
   return { ok: true, texto: tipo === 'caja' ? `💼 Anotado: tienes ${pesos(valor)} en caja.` : `✅ Anotado: ${pesos(valor)} → ${nombreTipo}${texto ? ' (' + texto + ')' : ''}.` };
 }
 
+// 💵 Reembolso: el efectivo sin destino se usó para reembolsar a alguien del equipo.
+// Sin colaboradorId devuelve a quién se le debe (para elegir); con él, paga en
+// efectivo lo que alcance (lo pendiente o el efectivo sin destino, lo menor).
+async function reembolsoDesdeCaja(colaborador, ef, colaboradorId) {
+  const { filas } = await R.vistaReembolsos(colaborador);
+  if (!filas || !filas.length) return { error: 'No hay reembolsos pendientes.' };
+  if (!colaboradorId) return { ok: true, elegir: filas.map(f => ({ colaboradorId: f.colaboradorId, nombre: f.nombre, pendiente: f.pendiente })), texto: '¿A quién le reembolsaste?' };
+  const fila = filas.find(f => f.colaboradorId === colaboradorId);
+  if (!fila) return { error: 'Esa persona no tiene reembolsos pendientes.' };
+  const valor = ef.sinDestino > TOLERANCIA ? Math.min(fila.pendiente, ef.sinDestino) : fila.pendiente;
+  return R.pagarReembolso(colaborador, { colaboradorId, monto: String(valor), forma: 'Efectivo' });
+}
+
 // ---------- Preguntas automáticas (cron de las 8:00) ----------
 
 function botonesEvento(id) {
   return [
-    [{ texto: '💵 Me pagaron todo en efectivo', dato: `cd:pe:${id}` }],
-    [{ texto: '🏦 Todo por transferencia', dato: `cd:pt:${id}` }, { texto: '✍️ Otra cantidad', dato: `cd:pm:${id}` }],
-    [{ texto: '⏳ Sigue debiendo', dato: `cd:d:${id}` }, { texto: '🎁 Descuento o cortesía', dato: `cd:x:${id}` }],
-    [{ texto: '❓ Otra cosa', dato: `cd:o:${id}` }],
+    [{ texto: '💵 Efectivo a Diana', dato: `cd:pe:${id}` }, { texto: '👷 Efectivo a la brigada', dato: `cd:pb:${id}` }],
+    [{ texto: '🏦 Transferencia', dato: `cd:pt:${id}` }, { texto: '✍️ Otro monto', dato: `cd:pm:${id}` }],
+    [{ texto: '⏳ Sigue debiendo', dato: `cd:d:${id}` }, { texto: '🎁 Cortesía', dato: `cd:x:${id}` }],
+    [{ texto: '❓ Otro', dato: `cd:o:${id}` }],
   ];
 }
 
+// Mismos destinos que la app (🔍 Cuadre del dashboard).
 const botonesCaja = () => [
   [{ texto: '🏦 Lo deposité', dato: 'cj:dep' }, { texto: '🧾 Gasto del negocio', dato: 'cj:gas' }],
-  [{ texto: '👛 Retiro personal', dato: 'cj:ret' }, { texto: '💼 Sigue en caja', dato: 'cj:caja' }],
-  [{ texto: '✍️ Repartido / otra cosa', dato: 'cj:var' }],
+  [{ texto: '👛 Retiro personal', dato: 'cj:ret' }, { texto: '🔨 Gasto externo (remodelación)', dato: 'cj:ext' }],
+  [{ texto: '💵 Reembolso', dato: 'cj:rb' }, { texto: '💼 Sigue en caja', dato: 'cj:caja' }],
+  [{ texto: '✍️ Otro', dato: 'cj:var' }],
 ];
 
 // ---------- Tono (pedido de Víctor 2026-10-29) ----------
@@ -374,8 +451,9 @@ function textoResumen(v, cuantos) {
     bloque('Hoy', v.hoy),
     bloque('Mañana', v.manana),
     v.porCobrar.eventos ? `💰 Falta por cobrar: ${pesos(v.porCobrar.total)} en ${v.porCobrar.eventos === 1 ? '1 evento' : v.porCobrar.eventos + ' eventos'}.` : '💰 No hay nada pendiente por cobrar.',
+    v.reembolsos && v.reembolsos.length ? `💵 Reembolsos pendientes: ${v.reembolsos.map(f => `${f.nombre} ${pesos(f.pendiente)}`).join(', ')}.` : null,
     cuantos ? `🔍 ${cuantos === 1 ? 'Un evento no cuadra' : cuantos + ' eventos no cuadran'}; te los paso abajo.` : '✅ Las cuentas cuadran.',
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 // Detalle de un evento, en plática (los números los pone el sistema).
@@ -404,6 +482,7 @@ async function adminsConTelegram() {
 // cuadran y no se han preguntado, un mensaje por evento con botones.
 async function preguntasDelDia() {
   const v = await vistaCuadre();
+  v.reembolsos = await R.datosReembolsos().catch(err => { console.error('Buenos días: no se pudieron leer los reembolsos:', err.message); return []; });
   const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
   const admins = await adminsConTelegram();
   if (!admins.length) console.error('Buenos días: ningún Admin activo tiene Telegram vinculado');
@@ -450,8 +529,13 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
       await telegramApi('sendMessage', { chat_id: chatId, text: `${MARCA_VARIOS}Escribe qué se hizo (ej. deposité 3000 y pagué la gasolina con 500):`, reply_markup: { force_reply: true } });
       return { aviso: 'Escribe qué se hizo' };
     }
-    const r = await destinoCaja(colaborador, { tipo: accion });
-    return r.error ? { aviso: r.error, alerta: true } : { aviso: 'Anotado', textoFinal: r.texto };
+    const r = await destinoCaja(colaborador, { tipo: accion, colaboradorId: ID.test(id || '') ? id : '' });
+    if (r.error) return { aviso: r.error, alerta: true };
+    if (r.elegir) {
+      await enviarTelegram(chatId, '💵 ¿A quién le reembolsaste en efectivo?', r.elegir.map(f => [{ texto: `${f.nombre} · ${pesos(f.pendiente)}`, dato: `cj:rb:${f.colaboradorId}` }]));
+      return { aviso: 'Elige a quién' };
+    }
+    return { aviso: 'Guardado', textoFinal: r.texto };
   }
   if (!ID.test(id || '')) return { aviso: '' };
   if (accion === 'pm' || accion === 'o') {
@@ -460,9 +544,9 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
     await telegramApi('sendMessage', { chat_id: chatId, text: `${marca}\n${accion === 'pm' ? 'Escribe el monto y la forma, por ejemplo: 2000 efectivo' : 'Escribe qué pasó con ese dinero:'}`, reply_markup: { force_reply: true } });
     return { aviso: 'Escríbelo' };
   }
-  const opciones = { pe: { tipo: 'pago', monto: 'todo', forma: FORMAS.e }, pt: { tipo: 'pago', monto: 'todo', forma: FORMAS.t }, d: { tipo: 'debe' }, x: { tipo: 'descuento' } };
+  const opciones = { pe: { tipo: 'pago', monto: 'todo', forma: FORMAS.e }, pb: { tipo: 'pago', monto: 'todo', recibio: 'brigada' }, pt: { tipo: 'pago', monto: 'todo', forma: FORMAS.t }, d: { tipo: 'debe' }, x: { tipo: 'descuento' } };
   if (!opciones[accion]) return { aviso: '' };
-  const r = await aclarar(colaborador, { eventoId: id, ...opciones[accion] });
+  const r = await aclarar(colaborador, { eventoId: id, ...opciones[accion], unaVez: true });
   return r.error ? { aviso: r.error, alerta: true } : { aviso: 'Anotado', textoFinal: r.texto };
 }
 

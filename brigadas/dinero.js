@@ -43,7 +43,7 @@ window.DimaDinero = (function(){
         <input class="din-cobro-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
         <label>Forma de pago<select class="din-cobro-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
         <button type="button" class="din-btn" data-din="cobro">Guardar cobro</button>
-        <div class="din-msg">${o.esAdmin() ? 'Queda como pago a Diana y te llega el recibo por Telegram.' : 'Entra a tu reporte del día; Diana lo aprueba al recibir el dinero.'}</div>
+        <div class="din-msg">${o.esAdmin() ? 'Queda como pago a Diana. El recibo sale solo si el cliente lo pide (🧾 Mandar recibo).' : 'Entra a tu reporte del día; Diana lo aprueba al recibir el dinero.'}</div>
       </details>
       <details class="din-caja" data-caja="cargo-${esc(ev.id)}"><summary>🧾 Anotar daño o faltante</summary>
         <label>¿Qué artículo?<select class="din-tipo"><option value="">Elige el artículo…</option></select></label>

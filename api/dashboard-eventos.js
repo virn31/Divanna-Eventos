@@ -41,6 +41,7 @@ const { normalizarProductos, leerProductos, resumenManteles, infoManteles, catal
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
+const { avisarEquipoProduccion } = require('./_etapas');
 const { confirmarCambio, descartarCambio, avisarEquipoCambio } = require('./_cambios');
 const Comanda = require('./_comanda');
 const { enviarRecibo } = require('./_sheets');
@@ -362,21 +363,33 @@ async function resolverPedido(req, res, colaborador) {
     // Encargado de producción (opcional; solo si viene en la petición): debe estar
     // entre las opciones de quien asigna. '' lo quita.
     // Producción es solo de El Vaso Maíz: Admin o su gerente.
-    const cambiaProduccion = typeof b.produccionId === 'string' && (esAdmin || colaborador.gerente === GERENCIAS.VM);
-    if (cambiaProduccion && b.produccionId) {
+    const puedeProduccion = esAdmin || colaborador.gerente === GERENCIAS.VM;
+    const cambiaProduccion = typeof b.produccionId === 'string' && puedeProduccion;
+    // Equipo de producción (opcional; solo si viene): 1, 2 o más personas de las
+    // mismas opciones que el encargado. El encargado siempre queda en el equipo.
+    const cambiaEquipo = Array.isArray(b.equipoProduccionIds) && puedeProduccion;
+    if ((cambiaProduccion && b.produccionId) || cambiaEquipo) {
       const opciones = await opcionesProduccion(colaborador);
-      if (!opciones.some(o => o.id === b.produccionId)) {
+      if (cambiaProduccion && b.produccionId && !opciones.some(o => o.id === b.produccionId)) {
         res.status(400).json({ error: 'Esa persona no puede ser encargada de producción.' });
+        return;
+      }
+      if (cambiaEquipo && b.equipoProduccionIds.some(id => !opciones.some(o => o.id === id))) {
+        res.status(400).json({ error: 'Alguien del equipo de producción no se puede elegir.' });
         return;
       }
     }
     const produccionAntes = (f.Encargado_Produccion || [])[0] || '';
+    const equipoAntes = f.Equipo_Produccion || [];
+    const encargadoFinal = cambiaProduccion ? b.produccionId : produccionAntes;
     const colaboradores = await colaboradoresActivos();
     // Solo se aceptan encargadas activas con ese rol.
     // Encargadas activas o gerentes (se pueden asignar a sí mismos o entre ellos).
     const encargadas = colaboradores.filter(c => (c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)) && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
     if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
+    if (cambiaEquipo) campos.Equipo_Produccion = [...new Set([...b.equipoProduccionIds, ...(encargadoFinal ? [encargadoFinal] : [])])];
+    const nuevosEquipo = cambiaEquipo ? campos.Equipo_Produccion.filter(id => !equipoAntes.includes(id)) : [];
     const antes = equipoDe(f, colaboradores);
     const despues = equipoDe({ ...f, ...campos }, colaboradores);
     const nuevos = despues.filter(id => !antes.includes(id));
@@ -398,7 +411,8 @@ async function resolverPedido(req, res, colaborador) {
       await enviarTelegramEquipo({
         roles: [ROLES.ADMIN],
         texto: `👷 ${colaborador.nombre} asignó ${f.Folio_Evento || 'un evento'}: ${brigada}${nombres ? ' · encargada: ' + nombres : ''}`
-          + `${cambiaProduccion && b.produccionId ? ' · producción: ' + ((colaboradores.find(c => c.id === b.produccionId) || {}).fields || {}).Nombre : ''}.`,
+          + `${cambiaProduccion && b.produccionId ? ' · producción: ' + ((colaboradores.find(c => c.id === b.produccionId) || {}).fields || {}).Nombre : ''}`
+          + `${cambiaEquipo && campos.Equipo_Produccion.length ? ' · equipo de producción: ' + campos.Equipo_Produccion.map(id => ((colaboradores.find(c => c.id === id) || {}).fields || {}).Nombre || '¿?').join(', ') : ''}.`,
       }).catch(err => console.error('Error avisando asignación de la gerente:', err));
     }
     // Nuevo encargado de producción: lista ya si faltan 2 días o menos; si no, aviso corto.
@@ -407,6 +421,12 @@ async function resolverPedido(req, res, colaborador) {
       produccion = await avisarAsignacion(b.produccionId, { folio: f.Folio_Evento, fecha: f.Fecha_Evento })
         .catch(err => { console.error('Error avisando producción:', err.message); return { enviados: [], fallidos: [{ nombre: 'el encargado de producción', motivo: 'error al enviar' }] }; });
     }
+    // Quien entra al equipo de producción recibe su aviso con el botón 🆘 (api/_etapas.js).
+    let equipoProduccion = null;
+    if (nuevosEquipo.length) {
+      equipoProduccion = await avisarEquipoProduccion({ folio: f.Folio_Evento, fecha: f.Fecha_Evento, horaInicio: f.Hora_Inicio }, nuevosEquipo, encargadoFinal)
+        .catch(err => { console.error('Error avisando al equipo de producción:', err.message); return { enviados: [], fallidos: [{ nombre: 'el equipo de producción', motivo: 'error al enviar' }] }; });
+    }
     const nuevosColab = colaboradores.filter(c => nuevos.includes(c.id));
     // La brigada y la encargada van en la descripción del evento en Google.
     const google = await sincronizarEvento(eventoId);
@@ -414,6 +434,7 @@ async function resolverPedido(req, res, colaborador) {
       success: true,
       google,
       produccion,
+      equipoProduccion,
       avisados: nuevos.length,
       porTelegram,
       porPush,
@@ -593,8 +614,11 @@ function montoPorManteles(f, productosNuevos) {
 
 // Al editar un evento autorizado desde la web, el recibo se rehace (la pestaña
 // del folio se sobrescribe, el viejo desaparece) y se manda por Telegram.
+const RECIBO_AL_EDITAR = false;
+// Regla de Víctor 2026-11-07: el recibo ya enviado no se rehace ni se reenvía solo;
+// sale únicamente con "🧾 Mandar recibo" cuando el cliente lo pide.
 async function reciboAlEditar(eventoId, f, colaborador) {
-  if (f.Autorizacion_Diana !== 'SI') return null;
+  if (!RECIBO_AL_EDITAR || f.Autorizacion_Diana !== 'SI') return null;
   const r = await enviarRecibo(eventoId, `actualizado por ${colaborador.nombre}`).catch(err => ({ ok: false, error: err.message }));
   return r && r.error === 'Google Sheets todavía no está configurado.' ? null : r;
 }
@@ -696,6 +720,9 @@ module.exports = async (req, res) => {
         // Encargado de producción de El Vaso Maíz y su última respuesta.
         produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
         produccionRespuesta: (r.fields.Produccion_Respuesta || '').trim().split('\n').pop() || '',
+        // Equipo de producción y hora en que el encargado avisó "Listo para staff".
+        equipoProduccionIds: r.fields.Equipo_Produccion || [],
+        produccionLista: r.fields.Produccion_Lista || '',
         enteradoPor: r.fields.Enterado_Por || '',
         enteradoHora: r.fields.Enterado_Hora || '',
         brigadaNombre: brigadaInfo ? brigadaInfo.Nombre_Brigada : 'Sin asignar',

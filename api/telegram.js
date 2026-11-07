@@ -31,10 +31,12 @@ const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_cu
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
+const { comandoGasto, botonGasto } = require('./_finanzas');
 const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 const { reportarDanos, botonDanos } = require('./_danos');
 const { veDinero } = require('./_cargos');
+const Etapas = require('./_etapas');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -97,17 +99,18 @@ function ayuda(colaborador) {
   }
   if (colaborador.rol === ROLES.STAFF) {
     return `${colaborador.nombre} (${ROL_TEXTO[ROLES.STAFF]})\n\n` +
-      '/hoy — tus eventos confirmados de hoy\n/eventos — tus próximos eventos confirmados\n/instrucciones — cómo funciona todo\n/salir — desvincular este Telegram\n\n' +
-      'Aquí te llegan las invitaciones a eventos: contesta con los botones "Sí puedo" o "No puedo".';
+      '/hoy — tus eventos confirmados de hoy\n/eventos — tus próximos eventos confirmados\n/sos — emergencia: alerta con tu ubicación a todo el equipo\n/instrucciones — cómo funciona todo\n/salir — desvincular este Telegram\n\n' +
+      'Aquí te llegan las invitaciones a eventos: contesta con los botones "Sí puedo" o "No puedo". Cuando producción avise que está listo, te llegan los botones para marcar cada etapa.';
   }
   const comandos = [
     '/hoy — tus eventos de hoy',
     '/eventos — tus próximos eventos',
     '/alertas — emergencias y alertas de seguridad de hoy',
+    '/sos — emergencia: alerta con tu ubicación a todo el equipo',
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
-  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
+  if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
@@ -193,8 +196,10 @@ async function configurarBot() {
       { command: 'eventos', description: 'Tus próximos eventos' },
       { command: 'staff', description: 'Invitar staff de El Vaso Maíz a un evento' },
       { command: 'alertas', description: 'Emergencias y alertas de hoy' },
+      { command: 'sos', description: 'Emergencia: alerta con tu ubicación a todo el equipo' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
       { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
+      { command: 'gasto', description: 'Anotar un gasto: /gasto 350 gasolina (Admin)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
@@ -230,6 +235,13 @@ async function atenderBoton(cb) {
     await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
     return;
   }
+  if (tipo === 'gs') {
+    // /gasto: Diana elige el tipo (gs:<Evento|General|Extra>) y se guarda.
+    const r = await botonGasto(colaborador, accion, cb.message.text || '');
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, r.textoFinal);
+    return;
+  }
   if (tipo === 'dn') {
     // Borrador de /daño: Registrar (s) o Cancelar (x), dn:<acción>:<evento>:<lote>.
     const r = await botonDanos(colaborador, accion, id, sel);
@@ -241,6 +253,31 @@ async function atenderBoton(cb) {
     const r = await responderInvitacion(colaborador, id, accion === 's');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
     if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`);
+    if (r.eventoConfirmado) {
+      // Botón 🆘 fijo abajo y, si producción ya avisó, sus botones de etapas.
+      await Etapas.enviarConSos(chatId, `Si tienes una emergencia en cualquier momento, toca "${Etapas.TEXTO_BOTON_SOS}" abajo: le llega a todo el equipo con tu ubicación.`);
+      await Etapas.etapasAlConfirmar(colaborador, chatId, r.eventoConfirmado);
+    }
+    return;
+  }
+  if (tipo === 'pl') {
+    // Encargado de producción: "🚀 Listo para staff" (pl:<evento>).
+    const r = await Etapas.listoParaStaff(colaborador, accion);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await enviarTelegram(chatId, r.textoFinal);
+    return;
+  }
+  if (tipo === 'et') {
+    // Staff: etapa del evento (et:<etapa>:<evento>). Quedan los botones de las etapas siguientes.
+    const r = await Etapas.marcarEtapa(colaborador, accion, id);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`, r.botones);
+    return;
+  }
+  if (tipo === 'sos' && accion === 'x') {
+    await responderBoton(cb.id, 'Enviando SOS…');
+    await editarTelegram(chatId, mensajeId, '🆘 SOS sin ubicación enviado.');
+    await Etapas.enviarSos(chatId, colaborador, null);
     return;
   }
 
@@ -355,11 +392,23 @@ async function responder(mensaje) {
   // Enlace de activación del staff (t.me/<bot>?start=...): vincula sin usuario ni PIN.
   if (comando === '/start' && argumentos[0]) {
     const bienvenida = await activarStaff(chatId, argumentos[0]);
-    if (bienvenida) return bienvenida;
+    if (bienvenida) {
+      // La bienvenida deja el botón 🆘 abajo del chat.
+      await Etapas.enviarConSos(chatId, `${bienvenida}\n\nSi tienes una emergencia en cualquier momento, toca "${Etapas.TEXTO_BOTON_SOS}" abajo: le llega a todo el equipo con tu ubicación.`);
+      return null;
+    }
   }
 
   const colaborador = await colaboradorPorChat(chatId);
   if (!colaborador) return ayuda(null);
+
+  // 🆘 SOS: el botón de abajo manda la ubicación del teléfono.
+  if (Etapas.esUbicacionSos(mensaje)) {
+    await Etapas.enviarSos(chatId, colaborador, Etapas.ubicacionDe(mensaje.location));
+    return null;
+  }
+  // Lo que escribe encima de "Tu SOS ya salió".
+  if (Etapas.esRespuestaSos(mensaje)) return Etapas.atenderMotivoSos(mensaje, colaborador);
 
   // Respuesta al "➕ Nuevo personal" de /staff: nombre y teléfono.
   if (esRespuestaAlta(mensaje)) {
@@ -388,11 +437,14 @@ async function responder(mensaje) {
     case '/dano':
       await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
       return reportarDanos(colaborador, texto.slice(primera.length).trim());
+    case '/gasto':
+      return comandoGasto(colaborador, texto.slice(primera.length).trim());
     case '/comanda':
       return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);
     case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();
+    case '/sos': return Etapas.comandoSos(chatId);
     case '/staff':
       return (await puedeCoordinar(colaborador)) ? menuInicio()
         : 'Esta opción es solo para Ángela, Diana y Víctor.';
@@ -451,7 +503,7 @@ module.exports = async (req, res) => {
 
   const mensaje = (req.body || {}).message;
   // Siempre 200 a Telegram (si no, reintenta el mismo mensaje una y otra vez).
-  if (!mensaje || !mensaje.chat || (typeof mensaje.text !== 'string' && !Comanda.esFotoComanda(mensaje))) { res.status(200).json({ ok: true }); return; }
+  if (!mensaje || !mensaje.chat || (typeof mensaje.text !== 'string' && !Comanda.esFotoComanda(mensaje) && !Etapas.esUbicacionSos(mensaje))) { res.status(200).json({ ok: true }); return; }
 
   try {
     if (mensaje.chat.type !== 'private') {

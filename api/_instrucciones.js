@@ -57,7 +57,8 @@ const TEMAS = {
       '🆘 Emergencia: choque, falla del vehículo, accidente. Le llega a todo el equipo con sonido y tu ubicación.\n' +
       '⚠️ Seguridad: una zona peligrosa en la ciudad. Le llega a todo el equipo con tu ubicación, y la app te da el mensaje para el cliente.\n\n' +
       'Cuando pase, vuelve a tocar el mismo botón para quitarla. Deja la app abierta mientras siga activa: tu ubicación se actualiza cada minuto.\n\n' +
-      '/alertas te dice las emergencias y alertas de hoy.',
+      '/alertas te dice las emergencias y alertas de hoy.\n\n' +
+      '🆘 También por Telegram, en cualquier momento: /sos deja abajo el botón "🆘 SOS (manda tu ubicación)". Le llega a todo el equipo con tu ubicación.',
   },
   staff: {
     boton: '🧑‍🍳 Invitar a las chicas',
@@ -83,7 +84,8 @@ const TEMAS = {
       '• En la app ves TODOS los eventos autorizados de El Vaso Maíz, aunque no te los asignen a ti.\n' +
       '• En cada evento de El Vaso Maíz tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
       '• Debajo tienes "🧑‍🍳 Staff": ves a tus chicas con su marca, eliges a las que quieres y tocas "📨 Invitar por Telegram". Es lo mismo que /staff; las respuestas te llegan aquí. Para dar de alta a una chica nueva sigue siendo /staff → "➕ Agregar personal".\n' +
-      '• En "👷 Asignar" también eliges al "🍳 Encargado de producción". Dos días antes le llega por Telegram la lista de lo que hay que preparar para que revise inventario, y el mismo día otra para confirmar ingredientes. Lo que conteste te llega aquí (con copia a Diana y Víctor) y lo ves en el evento.\n' +
+      '• En "👷 Asignar" también eliges al "👩‍🍳 Equipo de producción" (1, 2 o más personas; pueden estar también en el staff) y a su "🍳 Encargado". Dos días antes al encargado le llega por Telegram la lista de lo que hay que preparar para que revise inventario, y el mismo día otra para confirmar ingredientes. Lo que conteste te llega aquí (con copia a Diana y Víctor) y lo ves en el evento.\n' +
+      '• Solo el encargado tiene el botón "🚀 Listo para staff" (en la lista del día). Al tocarlo, al staff que confirmó le llegan los botones de sus etapas (saliendo del almacén, en camino, llegaron, evento en curso, terminado). Lo que marquen lo ves en el estatus del evento en la app.\n' +
       '• Si un cliente cambia su pedido te suena la app y te llega aquí ("✏️ Cambio en el pedido"). Diana lo confirma; entonces al equipo le llega "🔄 Cambió el pedido" y tienen que volver a tocar "Enterado". Los cambios se piden con 24 h de anticipación; si faltan menos, llega como URGENTE.\n' +
       '• Comandas en papel de El Vaso Maíz: tómales foto y mándamela aquí. Te muestro lo que leí; si algo está mal, contéstame encima con la corrección, y tocas "✅ Guardar evento" (no hace falta decir cómo pagaron el anticipo: lo registras después en la app con "💵 Registrar pago"). También en el calendario: "➕ Capturar evento" → "📷 Llenar con la foto de una comanda".\n' +
       '• En la comanda, el espacio de "Mantel" lleva el tipo y el color (ej. "básico beige"), no la cantidad: los manteles salen de las mesas, uno por mesa.\n' +
@@ -131,7 +133,9 @@ const TEMAS = {
       'Aquí te llegan las invitaciones a eventos de El Vaso Maíz con los datos del evento y a qué hora llegar antes para preparar.\n\n' +
       '• Toca "✅ Sí puedo" o "❌ No puedo". Tu respuesta le llega a tu coordinadora.\n' +
       '• /hoy te dice tus eventos confirmados de hoy y /eventos los próximos.\n' +
-      '• Si ya no puedes ir a uno que confirmaste, avísale a tu coordinadora.',
+      '• Si ya no puedes ir a uno que confirmaste, avísale a tu coordinadora.\n\n' +
+      '🚀 El día del evento, cuando producción avise que todo está listo, te llegan los botones de las etapas: 🚚 Saliendo del almacén → 🛣️ En camino → 📍 Llegamos al lugar → 🎉 Evento en curso → 🏁 Evento terminado. Tócalos conforme avancen; basta con que una del equipo lo marque y tu coordinadora lo ve en la app.\n\n' +
+      '🆘 Si tienes una emergencia en cualquier momento, toca el botón "🆘 SOS (manda tu ubicación)" de abajo del chat (o escribe /sos). Le llega a todo el equipo con tu ubicación; después puedes escribir qué pasa.',
   },
   problemas: {
     boton: '🛠️ Si algo falla',

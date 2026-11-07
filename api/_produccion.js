@@ -126,17 +126,20 @@ function textoAviso(tipo, nombre, fecha, eventos, { actualizada = false } = {}) 
     ev.instrucciones ? `   📌 ${ev.instrucciones}` : null,
   ].filter(Boolean).join('\n'));
   const cierre = tipo === TIPOS.dia
-    ? 'Por favor confirma si tenemos todos los ingredientes.'
+    ? 'Por favor confirma si tenemos todos los ingredientes. Cuando la producción esté lista, toca "🚀 Listo para staff" y al staff le llegan sus botones.'
     : 'Por favor verifica el inventario y repórtame las necesidades de insumos.';
   return [encabezado, '', ...lineas, piezas ? `Total: ${piezas} piezas` : null, '', ...detalle, '', cierre]
     .filter(l => l !== null).join('\n');
 }
 
-function botonesAviso(tipo, fecha) {
-  return [[
+// En la lista del día va además "🚀 Listo para staff" por cada evento (api/_etapas.js).
+function botonesAviso(tipo, fecha, eventos = []) {
+  const botones = [[
     { texto: '✅ Tenemos todo', dato: `pr:o:${tipo}:${fecha}` },
     { texto: tipo === TIPOS.dia ? '⚠️ Falta algo' : '📝 Reportar insumos', dato: `pr:f:${tipo}:${fecha}` },
   ]];
+  if (tipo === TIPOS.dia) eventos.forEach(ev => botones.push([{ texto: `🚀 Listo para staff · ${ev.folio}`, dato: `pl:${ev.id}` }]));
+  return botones;
 }
 
 const marcaAviso = (tipo, encargadoId) => `${tipo}:${encargadoId}`;
@@ -161,7 +164,7 @@ async function enviarAvisos(tipo, fecha, { soloEncargado = null, actualizada = f
     const nombre = (persona && persona.nombre) || 'el encargado';
     if (!persona || !persona.activo) { fallidos.push({ nombre, motivo: 'ya no está activo' }); continue; }
     if (!persona.chatId) { fallidos.push({ nombre, motivo: 'no ha activado su Telegram' }); continue; }
-    const r = await enviarTelegram(persona.chatId, textoAviso(tipo, nombre, fecha, suyos, { actualizada }), botonesAviso(tipo, fecha));
+    const r = await enviarTelegram(persona.chatId, textoAviso(tipo, nombre, fecha, suyos, { actualizada }), botonesAviso(tipo, fecha, suyos));
     if (!r.ok) { fallidos.push({ nombre, motivo: (r.data && r.data.description) || `error ${r.status}` }); continue; }
     enviados.push(nombre);
     const linea = `${marcaAviso(tipo, encargadoId)} ${new Date().toISOString()}`;

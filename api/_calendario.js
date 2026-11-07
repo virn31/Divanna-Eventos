@@ -608,8 +608,8 @@ async function capturarEvento(colaborador, b) {
   }
   const google = await sincronizarEvento(eventoId);
   const diaLleno = await avisarSiLleno(b.fecha, negocio);
-  // Con anticipo: el recibo en PDF para mandarlo al cliente.
-  const recibo = anticipoGuardado && sheetsConfigurado() ? await enviarRecibo(eventoId, 'anticipo recibido') : null;
+  // Sin recibo automático con el anticipo (Víctor 2026-11-07): se manda con 🧾 Mandar recibo si el cliente lo pide.
+  const recibo = null;
   return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google, total, cargoManteles: manteles.cargo, decorador };
 }
 
