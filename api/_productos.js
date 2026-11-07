@@ -427,6 +427,25 @@ function resumenManteles(lista) {
   return r;
 }
 
+// Si hay más cambios a especial que básicos en las mesas (ej. lo leído de una
+// comanda), lo que sobra pasa a extra de ese tipo: así siempre se puede guardar.
+function ajustarManteles(lista) {
+  let libres = resumenManteles(lista).incluidos;
+  const salida = [];
+  for (const p of lista || []) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod || !prod.cambioMantel) { salida.push(p); continue; }
+    const cambio = Math.min(p.cantidad, libres);
+    libres -= cambio;
+    if (cambio) salida.push({ ...p, cantidad: cambio });
+    if (p.cantidad - cambio) {
+      const tipo = p.clave === CLAVES_MANTEL.cambio.lentejuela ? 'lentejuela' : 'corrugado';
+      salida.push({ ...p, clave: CLAVES_MANTEL.extra[tipo], cantidad: p.cantidad - cambio });
+    }
+  }
+  return salida;
+}
+
 // Lo que se cobra aparte por manteles (cambios + extras), en pesos.
 const cargoManteles = (lista) => resumenManteles(lista).cargo;
 
@@ -478,4 +497,5 @@ module.exports = {
   resumenManteles,
   cargoManteles,
   infoManteles,
+  ajustarManteles,
 };

@@ -2046,6 +2046,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const rep2 = ctx.window.DimaManteles.repartir([{ tipo: 'lentejuela', color: '', cantidad: 12 }], 10);
     ok(rep2.salida.find(x => x.grupo === 'cambio').cantidad === 10 && rep2.salida.find(x => x.grupo === 'extra').cantidad === 2,
       'manteles (app): 12 de lentejuela con 10 mesas = 10 cambios y 2 extra');
+    const aj = P.ajustarManteles([{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_cambio_lentejuela', cantidad: 3, nota: 'rosa' }]);
+    ok(aj.find(x => x.clave === 'dv_cambio_lentejuela').cantidad === 2 && aj.find(x => x.clave === 'dv_mantel_lentejuela').cantidad === 1 && !P.resumenManteles(aj).error,
+      'manteles: si la comanda trae más cambios que mesas, lo que sobra pasa a extra y se puede guardar');
     ok(info.precios.dv_mantel === 60 && info.precios.dv_mantel_lentejuela === 200 && info.precios.dv_mantel_corrugado === 120 && info.basicos.dv_mesa_10_jardin === 1 && !info.basicos.dv_cambio_lentejuela,
       'manteles: precios de renta básico $60, lentejuela $200, corrugado $120 para el selector');
 

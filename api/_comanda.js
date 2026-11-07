@@ -12,7 +12,7 @@
 // Al guardar con anticipo, sale el recibo (api/_sheets.js).
 
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { PRODUCTOS, CLAVES, cargoManteles, resumenManteles } = require('./_productos');
+const { PRODUCTOS, CLAVES, cargoManteles, resumenManteles, ajustarManteles } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
 const { ROLES, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
@@ -199,7 +199,7 @@ function aCaptura(x) {
   const tel = String(x.cliente_telefono || '').replace(/\D/g, '').slice(-10);
   const lineas = (x.lineas || []).map(t => String(t).trim()).filter(Boolean).slice(0, 80);
   const limpios = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
-  const productos = sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas);
+  const productos = ajustarManteles(sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas));
   const notas = [x.numero_recibo ? `Comanda de papel Nº ${x.numero_recibo}.` : '', x.notas || ''].filter(Boolean).join(' ');
   return {
     negocio: x.negocio === 'El Vaso Maiz' ? 'El Vaso Maiz' : 'Divanna Eventos',

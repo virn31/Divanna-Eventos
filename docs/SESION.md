@@ -28,7 +28,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Rama `manteles-origen-decorador` (2026-11-06, SIN PUBLICAR, 430 pruebas pasan, caché v32):** detalle en `docs/decisiones.md` 2026-11-06.
+**Rama `manteles-origen-decorador` (2026-11-06, SIN PUBLICAR, 431 pruebas pasan, caché v32):** detalle en `docs/decisiones.md` 2026-11-06.
 - Origen = quién lo creó (`DiMa`, `Formulario`, `Diana`, `Eden`, `Mario`, `Ángela`…); los viejos `Chat DiMa`/`Manual` se leen con el nombre nuevo.
 - 🧺 Selector de manteles (`brigadas/manteles.js`) en ➕ Capturar evento y en "Hora y productos": básico incluido por mesa, cambio a lentejuela +$140 / corrugado +$60, extras $60/$200/$120, color por tipo. Se suma solo al monto. La comanda por foto ya conserva la nota (tipo y color) de cada producto.
 - Recibo: se rehace y se manda solo al editar un evento autorizado (✏️ Editar, Hora y productos, mover fecha). Muestra manteles por tipo, cambios/extras con precio y el descuento de decorador.
