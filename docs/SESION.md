@@ -37,7 +37,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Quién autorizó: columna `EVENTOS.Autorizado_Por` (texto de una línea, ya creada por Víctor el 2026-11-06). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
 - Pruebas pendientes en producción: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
 
-**Actualizado:** 2026-11-06 · **Producción:** `main` en `b33dcc3` (caché v32). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **411 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-06 · **Producción:** `main` en `b33dcc3` (caché v32). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **431 pruebas pasan** en `main`.
 
 **Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
 
