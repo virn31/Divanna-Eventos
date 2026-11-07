@@ -1911,6 +1911,68 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenLider), query: { vista: 'historial' } }, res);
   ok(res.code === 403 && llamadas.length === 1, 'historial: solo Diana y Víctor lo ven');
 
+  // ---------- Reembolsos consolidados por colaborador (datos simulados) ----------
+  {
+    const MARIO = 'recCOLABMARIO0001', ANGEL = 'recCOLABANGEL0001';
+    const gR = (id, monto, fecha, quien, extra = {}) => ({ id, fields: { Concepto: 'x', Monto: monto, Fecha: fecha, Pagado_Con: 'Dinero propio', Reportado_Por: [quien], Categoria: 'Otros', ...extra } });
+    const G_PEND = { records: [
+      gR('recGASTOMARIO0001', 500, '2026-11-01', MARIO), gR('recGASTOMARIO0002', 580.34, '2026-11-03', MARIO),
+      gR('recGASTOANGEL0001', 200, '2026-11-02', ANGEL),
+      gR('recGASTOINVERS001', 9000, '2026-11-02', MARIO, { Categoria: 'Inversión personal' }),
+    ] };
+    const NOMBRES_R = { records: [{ id: MARIO, fields: { Nombre: 'Mario Samano', Telegram_Chat_ID: '901' } }, { id: ANGEL, fields: { Nombre: 'Ángel Samano' } }] };
+    const finR = require(path.join(repo, 'api/finanzas.js'));
+
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R];
+    res = resMock();
+    await finR({ method: 'GET', headers: auth(tokenAdmin), query: { vista: 'reembolsos' } }, res);
+    const fm = (res.body.filas || []).find(f => f.colaboradorId === MARIO), fa = (res.body.filas || []).find(f => f.colaboradorId === ANGEL);
+    ok(res.code === 200 && res.body.filas.length === 2 && fm.nombre === 'Mario Samano' && fm.pendiente === 1080.34 && fa.nombre === 'Ángel Samano' && fa.pendiente === 200
+      && res.body.total === 1280.34 && fm.gastos.length === 2,
+      'reembolsos: una fila por colaborador (Mario $1,080.34, Ángel $200) sin la inversión personal');
+
+    // Pago parcial a Mario: crea el registro de pago y solo marca el gasto que alcanza a cubrir (el más viejo).
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R, { records: [{ id: 'recPAGOREEMB00001' }] }, {}];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: MARIO, monto: '600', forma: 'Efectivo' } }, res);
+    const pagoR = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    const marcaR = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(res.code === 200 && pagoR && pagoR.body.records[0].fields.Monto === 600 && pagoR.body.records[0].fields.Forma === 'Efectivo'
+      && JSON.stringify(pagoR.body.records[0].fields.Colaborador) === JSON.stringify([MARIO]) && pagoR.body.records[0].fields.Gastos.length === 2
+      && marcaR && marcaR.body.records.length === 1 && marcaR.body.records[0].id === 'recGASTOMARIO0001' && marcaR.body.records[0].fields.Reembolsado === true
+      && res.body.queda === 480.34 && res.body.texto.includes('Le quedan $480.34')
+      && telegram.some(t => t.body.chat_id === '901' && t.body.text.includes('te reembolsó $600')),
+      'reembolsos: pago parcial → registro en PAGOS_REEMBOLSO, se marca solo el gasto cubierto y se confirma lo que queda');
+
+    // Después del parcial: el sobrante ($100) queda a cuenta y el pago "todo" liquida el resto.
+    const G_PEND2 = { records: [G_PEND.records[1], G_PEND.records[2]] };
+    const PAGOS_PREV = { records: [{ id: 'recPAGOREEMB00001', fields: { Monto: 600, Colaborador: [MARIO], Gastos: ['recGASTOMARIO0001', 'recGASTOMARIO0002'], Forma: 'Efectivo' } }] };
+    const CUBIERTOS = { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 500, Reembolsado: true, Reportado_Por: [MARIO] } }, { id: 'recGASTOMARIO0002', fields: { Monto: 580.34, Reportado_Por: [MARIO] } }] };
+    reset();
+    respuestas = [ADMIN, G_PEND2, PAGOS_PREV, CUBIERTOS, NOMBRES_R, { records: [{ id: 'recPAGOREEMB00002' }] }, {}];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: MARIO, monto: 'todo', forma: 'Transferencia' } }, res);
+    const pagoR2 = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    const marcaR2 = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(res.code === 200 && pagoR2.body.records[0].fields.Monto === 480.34 && marcaR2 && marcaR2.body.records[0].id === 'recGASTOMARIO0002' && res.body.queda === 0
+      && res.body.texto.includes('Ya no se le debe nada'),
+      'reembolsos: lo pagado de más en el parcial queda a cuenta; "todo" paga $480.34 y marca el gasto restante');
+
+    reset();
+    respuestas = [ADMIN, G_PEND, { records: [] }, NOMBRES_R];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: ANGEL, monto: '250', forma: 'Efectivo' } }, res);
+    ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reembolsos: no se paga más de lo pendiente (Ángel $200)');
+
+    reset();
+    respuestas = [LIDER];
+    res = resMock();
+    await finR({ method: 'GET', headers: auth(tokenLider), query: { vista: 'reembolsos' } }, res);
+    ok(res.code === 403, 'reembolsos: solo Diana y Víctor los ven');
+  }
+
   reset();
   respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
