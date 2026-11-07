@@ -695,6 +695,7 @@
   // que el polling no lo borre.
   function conectarAgenda(contenedor){
     contenedor.querySelectorAll('.agenda').forEach(caja => {
+      if(window.DimaManteles) DimaManteles.conectar(caja.querySelector('.dm-manteles'), esc, () => { caja.dataset.sucio = '1'; resumirManteles(caja); });
       resumirManteles(caja);
       caja.addEventListener('input', () => { caja.dataset.sucio = '1'; resumirManteles(caja); });
       caja.addEventListener('change', () => resumirManteles(caja));

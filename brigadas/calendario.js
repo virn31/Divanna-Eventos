@@ -173,6 +173,7 @@ window.DimaCalendario = (function(){
     const caja = panel.querySelector('#calManteles');
     if(!caja) return;
     caja.innerHTML = datos.manteles && window.DimaManteles ? DimaManteles.html(productos || [], datos.manteles, o.esc) : '';
+    if(window.DimaManteles) DimaManteles.conectar(caja.querySelector('.dm-manteles'), o.esc, resumirManteles);
     resumirManteles();
   }
   function resumirManteles(){

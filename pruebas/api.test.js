@@ -2035,6 +2035,17 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(P.inventarioRequerido([{ clave: 'dv_mesa_mantel', cantidad: 10 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }])['Mantel'] === 7,
       'manteles: el inventario aparta 7 básicos y 3 lentejuela, no 10 + 3');
     const info = P.infoManteles();
+    // App (brigadas/manteles.js): renglones tipo-color-cantidad → cambios y extras.
+    const ctx = { window: {} };
+    require('vm').runInNewContext(require('fs').readFileSync(path.join(repo, 'brigadas/manteles.js'), 'utf8'), ctx);
+    const rep = ctx.window.DimaManteles.repartir([{ tipo: 'basico', color: 'beige', cantidad: 7 }, { tipo: 'lentejuela', color: 'rosa', cantidad: 3 }, { tipo: 'corrugado', color: 'dorado', cantidad: 2 }], 10);
+    const prodsRep = rep.salida.map(x => ({ clave: x.grupo === 'cambio' ? `dv_cambio_${x.tipo}` : ({ basico: 'dv_mantel', lentejuela: 'dv_mantel_lentejuela', corrugado: 'dv_mantel_corrugado' })[x.tipo], cantidad: x.cantidad }));
+    const mRep = P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 10 }, ...prodsRep]);
+    ok(mRep.porTipo.basico === 7 && mRep.porTipo.lentejuela === 3 && mRep.porTipo.corrugado === 2 && mRep.cargo === 660 && rep.coloresBasico[0] === 'beige',
+      'manteles (app): 10 mesas con 7 básicos beige, 3 lentejuela y 2 corrugado = 12 manteles y $660 aparte');
+    const rep2 = ctx.window.DimaManteles.repartir([{ tipo: 'lentejuela', color: '', cantidad: 12 }], 10);
+    ok(rep2.salida.find(x => x.grupo === 'cambio').cantidad === 10 && rep2.salida.find(x => x.grupo === 'extra').cantidad === 2,
+      'manteles (app): 12 de lentejuela con 10 mesas = 10 cambios y 2 extra');
     ok(info.precios.dv_mantel === 60 && info.precios.dv_mantel_lentejuela === 200 && info.precios.dv_mantel_corrugado === 120 && info.basicos.dv_mesa_10_jardin === 1 && !info.basicos.dv_cambio_lentejuela,
       'manteles: precios de renta básico $60, lentejuela $200, corrugado $120 para el selector');
 

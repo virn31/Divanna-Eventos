@@ -1,12 +1,14 @@
 // brigadas/manteles.js
-// Selector de manteles (Víctor 2026-11-06, sin precios a la vista: "más simple
-// siempre es mejor"; el desglose con precios va en el recibo), lo usan el ➕ Capturar evento del
-// calendario y "Hora y productos" del dashboard. Cada mesa trae su mantel básico
-// incluido; aquí se dice cuántos se cambian a lentejuela o corrugado (se cobra la
-// diferencia), los extras y el color de cada tipo. Se guarda como productos del
-// catálogo (dv_cambio_*, dv_mantel*), y el servidor suma su precio al monto
-// (api/_productos.js resumenManteles).
-// info (lo manda el servidor): { basicos: {clave: n}, precios: {clave: $}, claves: { extra: {...}, cambio: {...} } }
+// Mantel (Víctor 2026-11-06: "debería aparecer solo mantel, con tipo, color y
+// cantidad"). Lo usan el ➕ Capturar evento del calendario y "Hora y productos"
+// del dashboard. Cada renglón: tipo (básico, lentejuela o corrugado), color
+// (texto libre) y cantidad. Sin precios a la vista.
+// Por dentro: cada mesa trae un básico incluido; los especiales usan primero
+// esos incluidos (cambio: se cobra la diferencia) y lo que pase de las mesas es
+// extra (precio completo). Se guarda como productos del catálogo (dv_cambio_*,
+// dv_mantel*) y el color del básico en la nota de la mesa; el servidor suma los
+// precios al monto y el recibo los desglosa (api/_productos.js resumenManteles).
+// info (lo manda el servidor): { basicos: {clave: n}, especiales: {...}, precios: {clave: $}, claves: { extra: {...}, cambio: {...} } }
 window.DimaManteles = (function(){
   const TIPOS = [['basico', 'Básico'], ['lentejuela', 'Lentejuela'], ['corrugado', 'Corrugado']];
   const esMantel = (info, clave) => !!(info && info.precios && info.precios[clave]);
@@ -14,75 +16,128 @@ window.DimaManteles = (function(){
     for (const [grupo, claves] of Object.entries(info.claves)) for (const [t, c] of Object.entries(claves)) if (c === clave) return { grupo, tipo: t };
     return null;
   };
+  const incluidos = (productos, info) => Math.round((productos || []).reduce((t, p) => t + ((info.basicos || {})[p.clave] || 0) * (Number(p.cantidad) || 0), 0));
+  const colorBasico = (productos) => {
+    for (const p of productos || []) { const m = /mantel b[aá]sico\s+([^,;·]+)/i.exec(p.nota || ''); if (m) return m[1].trim(); }
+    return '';
+  };
 
-  // Separa los renglones de mantel del resto de los productos.
-  function separar(productos, info){
+  // Renglones a partir de lo guardado: básicos de las mesas que no se cambiaron
+  // (con el color de la nota de la mesa) + cambios y extras con su color.
+  function renglonesDe(productos, info){
     const lista = productos || [];
-    return { resto: lista.filter(p => !esMantel(info, p.clave)), manteles: lista.filter(p => esMantel(info, p.clave)) };
+    const resto = lista.filter(p => !esMantel(info, p.clave));
+    const n = incluidos(resto, info);
+    const filas = [];
+    let cambiados = 0;
+    for (const p of lista.filter(x => esMantel(info, x.clave))) {
+      const t = tipoDeClave(info, p.clave);
+      if (!t) continue;
+      if (t.grupo === 'cambio') cambiados += p.cantidad;
+      const igual = filas.find(f => f.tipo === t.tipo && f.color === (p.nota || ''));
+      if (igual) igual.cantidad += p.cantidad; else filas.push({ tipo: t.tipo, color: p.nota || '', cantidad: p.cantidad });
+    }
+    const basicosMesas = Math.max(0, n - cambiados);
+    if (basicosMesas) {
+      const color = colorBasico(resto);
+      const igual = filas.find(f => f.tipo === 'basico' && f.color === color);
+      if (igual) igual.cantidad += basicosMesas; else filas.unshift({ tipo: 'basico', color, cantidad: basicosMesas });
+    }
+    const orden = TIPOS.map(([t]) => t);
+    return filas.sort((x, y) => orden.indexOf(x.tipo) - orden.indexOf(y.tipo));
   }
 
-  const incluidos = (productos, info) => Math.round((productos || []).reduce((t, p) => t + ((info.basicos || {})[p.clave] || 0) * (Number(p.cantidad) || 0), 0));
-
-  // Color del básico: lo que diga "mantel básico ..." en la nota de alguna mesa.
-  function colorBasico(productos){
-    for (const p of productos || []) {
-      const m = /mantel b[aá]sico\s+([^,;·]+)/i.exec(p.nota || '');
-      if (m) return m[1].trim();
-    }
-    return '';
+  function fila(f, esc){
+    return `<div class="dm-fila" style="display:flex; gap:6px; margin-top:6px; align-items:center;">
+      <select class="dm-tipo" aria-label="Tipo de mantel">${TIPOS.map(([t, nom]) => `<option value="${t}" ${f.tipo === t ? 'selected' : ''}>${nom}</option>`).join('')}</select>
+      <input class="dm-color" maxlength="60" placeholder="Color" value="${esc(f.color || '')}" style="flex:1; min-width:0;">
+      <input class="dm-cant" type="number" min="0" step="1" inputmode="numeric" placeholder="Cant." value="${f.cantidad || ''}" style="width:70px;">
+      <button type="button" class="dm-quitar" aria-label="Quitar mantel" style="padding:4px 10px;">✕</button>
+    </div>`;
   }
 
   function html(productos, info, esc){
     if (!info || !info.claves) return '';
-    const { resto, manteles } = separar(productos, info);
-    const val = { cambio: {}, extra: {}, color: { basico: colorBasico(resto) } };
-    for (const p of manteles) {
-      const t = tipoDeClave(info, p.clave);
-      if (!t) continue;
-      val[t.grupo][t.tipo] = (val[t.grupo][t.tipo] || 0) + p.cantidad;
-      if (p.nota && !val.color[t.tipo]) val.color[t.tipo] = p.nota;
-    }
-    const num = (grupo, tipo) => `<input type="number" min="0" step="1" inputmode="numeric" class="dm-n" data-grupo="${grupo}" data-tipo="${tipo}" value="${val[grupo][tipo] || ''}" placeholder="0" style="width:70px;">`;
-    const fila = (txt, campo) => `<label style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px;"><span>${txt}</span>${campo}</label>`;
+    const filas = renglonesDe(productos, info);
     return `
       <div class="dm-manteles" style="margin-top:10px; padding:10px; border:1.5px solid var(--line); border-radius:10px;">
-        <b>🧺 Manteles</b>
+        <b>🧺 Mantel</b>
         <div class="dm-resumen" style="font-size:.9rem; opacity:.85; margin-top:4px;"></div>
-        ${fila('¿Cuántos cambian a lentejuela?', num('cambio', 'lentejuela'))}
-        ${fila('¿Cuántos cambian a corrugado?', num('cambio', 'corrugado'))}
-        <div style="margin-top:8px; font-size:.9rem; opacity:.85;">Extras (además de los de las mesas)</div>
-        ${TIPOS.map(([t, n]) => fila(n, num('extra', t))).join('')}
-        <div style="margin-top:8px; font-size:.9rem; opacity:.85;">Color de cada tipo</div>
-        ${TIPOS.map(([t, n]) => fila(n, `<input class="dm-color" data-tipo="${t}" maxlength="60" placeholder="Ej. beige" value="${esc(val.color[t] || '')}" style="width:150px;">`)).join('')}
+        <div class="dm-filas">${filas.map(f => fila(f, esc)).join('')}</div>
+        <button type="button" class="dm-agregar sec" style="margin-top:6px;">+ Otro mantel</button>
       </div>`;
   }
 
-  function leerValores(caja){
-    const v = { cambio: { lentejuela: 0, corrugado: 0 }, extra: { basico: 0, lentejuela: 0, corrugado: 0 }, color: {} };
-    caja.querySelectorAll('.dm-n').forEach(i => { v[i.dataset.grupo][i.dataset.tipo] = Math.max(0, Math.floor(Number(i.value) || 0)); });
-    caja.querySelectorAll('.dm-color').forEach(i => { v.color[i.dataset.tipo] = i.value.trim(); });
-    return v;
+  // Botones de agregar y quitar renglón (se conectan una vez por caja).
+  function conectar(box, esc, alCambiar){
+    if (!box || box.dataset.conectado) return;
+    box.dataset.conectado = '1';
+    box.addEventListener('click', (e) => {
+      if (e.target.closest('.dm-agregar')) {
+        const n = Number(box.dataset.incluidos) || 0;
+        const yaVan = leerFilas(box).reduce((t, f) => t + f.cantidad, 0);
+        box.querySelector('.dm-filas').insertAdjacentHTML('beforeend', fila({ tipo: 'basico', color: '', cantidad: Math.max(0, n - yaVan) || '' }, esc));
+      } else if (e.target.closest('.dm-quitar')) {
+        e.target.closest('.dm-fila').remove();
+      } else return;
+      if (alCambiar) alCambiar();
+    });
   }
 
-  // Texto en vivo: cuántos van de cada tipo y cuánto se suma al monto.
+  function leerFilas(box){
+    return [...box.querySelectorAll('.dm-fila')].map(f => ({
+      tipo: f.querySelector('.dm-tipo').value,
+      color: f.querySelector('.dm-color').value.trim(),
+      cantidad: Math.max(0, Math.floor(Number(f.querySelector('.dm-cant').value) || 0)),
+    })).filter(f => f.cantidad > 0);
+  }
+
+  // Reparte los renglones: los especiales usan primero los básicos incluidos de
+  // las mesas (cambio) y lo que sobre es extra; los básicos de más, extra.
+  // (El total cobrado es el mismo en cualquier orden: cambio = precio - $60.)
+  function repartir(filas, n){
+    let libres = n;
+    const salida = [];
+    for (const f of filas.filter(x => x.tipo !== 'basico')) {
+      const cambio = Math.min(f.cantidad, libres);
+      libres -= cambio;
+      if (cambio) salida.push({ grupo: 'cambio', tipo: f.tipo, cantidad: cambio, color: f.color });
+      if (f.cantidad - cambio) salida.push({ grupo: 'extra', tipo: f.tipo, cantidad: f.cantidad - cambio, color: f.color });
+    }
+    const basicos = [];
+    for (const f of filas.filter(x => x.tipo === 'basico')) {
+      const incluido = Math.min(f.cantidad, libres);
+      libres -= incluido;
+      if (incluido) basicos.push(f.color);
+      if (f.cantidad - incluido) salida.push({ grupo: 'extra', tipo: 'basico', cantidad: f.cantidad - incluido, color: f.color });
+    }
+    return { salida, coloresBasico: [...new Set(basicos.filter(Boolean))] };
+  }
+
+  // Texto en vivo: cuántos manteles traen las mesas y cuántos van (sin precios).
   function resumir(caja, productos, info){
     const box = caja.querySelector('.dm-manteles');
     if (!box) return { error: '' };
-    const v = leerValores(box);
     const n = incluidos(productos, info);
-    const cambiados = v.cambio.lentejuela + v.cambio.corrugado;
-    // Los paquetes que ya traen lentejuela o corrugado cuentan en el total (a su precio de paquete).
-    const esp = { lentejuela: 0, corrugado: 0 };
-    for (const p of productos || []) { const e = (info.especiales || {})[p.clave]; if (e) { esp.lentejuela += e.lentejuela * (Number(p.cantidad) || 0); esp.corrugado += e.corrugado * (Number(p.cantidad) || 0); } }
-    const porTipo = { basico: Math.max(0, n - cambiados) + v.extra.basico, lentejuela: Math.round(esp.lentejuela) + v.cambio.lentejuela + v.extra.lentejuela, corrugado: Math.round(esp.corrugado) + v.cambio.corrugado + v.extra.corrugado };
-    const total = porTipo.basico + porTipo.lentejuela + porTipo.corrugado;
-    const cargo = Object.entries(v.cambio).reduce((t, [k, c]) => t + c * info.precios[info.claves.cambio[k]], 0)
-      + Object.entries(v.extra).reduce((t, [k, c]) => t + c * info.precios[info.claves.extra[k]], 0);
-    const error = cambiados > n ? `Se cambian ${cambiados} manteles pero las mesas solo traen ${n} básicos. Si son más, ponlos como extra.` : '';
-    const tipos = TIPOS.filter(([t]) => porTipo[t]).map(([t, nom]) => `${porTipo[t]} ${nom.toLowerCase()}`).join(' · ');
-    box.querySelector('.dm-resumen').innerHTML = error ? `⚠️ ${error}`
-      : `Las mesas traen <b>${n}</b> básico${n === 1 ? '' : 's'}. Van <b>${total}</b> manteles${tipos ? ': ' + tipos : ''}.`;
-    return { error, cargo, total };
+    box.dataset.incluidos = n;
+    // Al poner mesas sale solo el renglón de básico con la cantidad de mesas; si
+    // nadie lo ha tocado, sigue a las mesas cuando cambian.
+    const filas = box.querySelectorAll('.dm-fila');
+    if (!filas.length && n > 0) {
+      box.querySelector('.dm-filas').insertAdjacentHTML('beforeend', fila({ tipo: 'basico', color: '', cantidad: n }, (s) => s));
+      box.querySelector('.dm-fila').dataset.auto = '1';
+    } else if (filas.length === 1 && filas[0].dataset.auto === '1') {
+      filas[0].querySelector('.dm-cant').value = n || '';
+    }
+    if (!box.dataset.vigila) {
+      box.dataset.vigila = '1';
+      box.addEventListener('input', (e) => { const f = e.target.closest('.dm-fila'); if (f) delete f.dataset.auto; });
+    }
+    const total = leerFilas(box).reduce((t, f) => t + f.cantidad, 0);
+    box.querySelector('.dm-resumen').innerHTML = n || total
+      ? `Las mesas traen <b>${n}</b> mantel${n === 1 ? '' : 'es'} · Anotados: <b>${total}</b>${total < n ? ` · ⚠️ faltan ${n - total} por anotar` : ''}`
+      : 'Sin mesas. Agrega manteles solo si los lleva aparte.';
+    return { error: '', total };
   }
 
   // Productos finales: los demás + cambios y extras de mantel (con su color),
@@ -91,18 +146,16 @@ window.DimaManteles = (function(){
     const box = caja.querySelector('.dm-manteles');
     const lista = (productos || []).filter(p => !esMantel(info, p.clave)).map(p => ({ ...p }));
     if (!box) return lista;
-    const v = leerValores(box);
+    const { salida, coloresBasico } = repartir(leerFilas(box), incluidos(lista, info));
     const conMesas = lista.find(p => (info.basicos || {})[p.clave]);
     if (conMesas) {
-      const sin = String(conMesas.nota || '').split(/[,;·]/).map(t => t.trim()).filter(t => t && !/mantel b[aá]sico/i.test(t));
-      if (v.color.basico) sin.push(`mantel básico ${v.color.basico}`);
-      conMesas.nota = sin.join(', ').slice(0, 150) || null;
+      const otras = String(conMesas.nota || '').split(/[,;·]/).map(t => t.trim()).filter(t => t && !/mantel b[aá]sico/i.test(t));
+      if (coloresBasico.length) otras.push(`mantel básico ${coloresBasico.join(' y ')}`);
+      conMesas.nota = otras.join(', ').slice(0, 150) || null;
     }
-    for (const [grupo, cuantos] of [['cambio', v.cambio], ['extra', v.extra]]) {
-      for (const [t, c] of Object.entries(cuantos)) if (c > 0) lista.push({ clave: info.claves[grupo][t], cantidad: c, nota: v.color[t] || null });
-    }
+    for (const s of salida) lista.push({ clave: info.claves[s.grupo][s.tipo], cantidad: s.cantidad, nota: s.color || null });
     return lista;
   }
 
-  return { html, separar, resumir, aplicar, esMantel };
+  return { html, conectar, resumir, aplicar, esMantel, repartir };
 })();
