@@ -87,7 +87,7 @@ const TEMAS = {
       '• Si un cliente cambia su pedido te suena la app y te llega aquí ("✏️ Cambio en el pedido"). Diana lo confirma; entonces al equipo le llega "🔄 Cambió el pedido" y tienen que volver a tocar "Enterado". Los cambios se piden con 24 h de anticipación; si faltan menos, llega como URGENTE.\n' +
       '• Comandas en papel de El Vaso Maíz: tómales foto y mándamela aquí. Te muestro lo que leí; si algo está mal, contéstame encima con la corrección, y tocas "✅ Guardar evento" (no hace falta decir cómo pagaron el anticipo: lo registras después en la app con "💵 Registrar pago"). También en el calendario: "➕ Capturar evento" → "📷 Llenar con la foto de una comanda".\n' +
       '• En la comanda, el espacio de "Mantel" lleva el tipo y el color (ej. "básico beige"), no la cantidad: los manteles salen de las mesas, uno por mesa.\n' +
-      '• Cada mesa trae su mantel básico. En "🧺 Manteles" pones cuántos cambian a lentejuela o corrugado, los extras y el color de cada tipo; el precio se calcula solo y sale desglosado en el recibo.\n' +
+      '• Cada mesa trae su mantel básico. En "🧺 Mantel" pones cada tipo (básico, lentejuela o corrugado) con su color y cantidad; el precio se calcula solo y sale desglosado en el recibo.\n' +
       '• También puedes mandarme el pedido escrito: /comanda y el pedido en el mismo mensaje. Si falta algo (color o estilo del mantel, color de los cerezos, temática de los personalizados…) te pregunto antes de guardar.\n' +
       '• Cuando se registra un anticipo o un pago de El Vaso Maíz te llega aquí el recibo en PDF para mandárselo al cliente; también con "🧾 Mandar recibo" en el evento del calendario.\n' +
       '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',

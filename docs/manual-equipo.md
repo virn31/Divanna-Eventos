@@ -92,8 +92,8 @@ llegan a la coordinadora ("Isabella confirmó EVT-… · 3 de 4") y al completar
 - **Mantel:** en la comanda, el espacio de "Mantel" lleva el **tipo y el color** (ej. "básico beige",
   "lentejuela dorado"), no la cantidad: los manteles salen de las mesas (uno por mesa). Si ahí solo va un
   número, DiMa avisa que falta el tipo y el color.
-- **Manteles en la app:** cada mesa trae su mantel básico. En "🧺 Manteles" se pone cuántos cambian a
-  lentejuela o corrugado, los extras y el color de cada tipo. El precio se calcula solo y sale desglosado en el recibo.
+- **Manteles en la app:** cada mesa trae su mantel básico. En "🧺 Mantel" se pone cada tipo (básico,
+  lentejuela o corrugado) con su color y cantidad; al poner las mesas sale solo el básico con la cantidad de mesas. El precio se calcula solo y sale desglosado en el recibo.
 - **Pedido escrito:** en Telegram, `/comanda` y el pedido en el mismo mensaje; en la app, "📝 Llenar con el pedido
   escrito". Si falta algo (tipo y color del mantel, color de los cerezos, temática de los personalizados…), DiMa
   pregunta y no deja guardar hasta que se conteste.
