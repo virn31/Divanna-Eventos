@@ -28,16 +28,16 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Rama `manteles-origen-decorador` (2026-11-06, SIN PUBLICAR, 431 pruebas pasan, caché v32):** detalle en `docs/decisiones.md` 2026-11-06.
+**PUBLICADO 2026-11-06, `main` b33dcc3 (rama `manteles-origen-decorador`, 431 pruebas, caché v32; verificado que producción sirve v32 y el Mantel nuevo). Revertir: `git revert -m 1 b33dcc3`.** Falta: `/configurar` en el bot (para que `/comanda` salga en el menú) y probar en teléfono: capturar con Mantel, editar productos (monto y recibo), autorizar (Autorizado_Por), pedido de DiMa con cliente decorador, `/comanda` con algo incompleto. detalle en `docs/decisiones.md` 2026-11-06.
 - Origen = quién lo creó (`DiMa`, `Formulario`, `Diana`, `Eden`, `Mario`, `Ángela`…); los viejos `Chat DiMa`/`Manual` se leen con el nombre nuevo.
 - 🧺 Selector de manteles (`brigadas/manteles.js`) en ➕ Capturar evento y en "Hora y productos": básico incluido por mesa, cambio a lentejuela +$140 / corrugado +$60, extras $60/$200/$120, color por tipo. Se suma solo al monto. La comanda por foto ya conserva la nota (tipo y color) de cada producto.
 - Recibo: se rehace y se manda solo al editar un evento autorizado (✏️ Editar, Hora y productos, mover fecha). Muestra manteles por tipo, cambios/extras con precio y el descuento de decorador.
 - Decorador: `CLIENTES.Tipo_Cliente = Decorador` (o `Profesional` mientras se renombra) → 10% del total, también en DiMa.
 - App sin precios de manteles (solo cantidades y color; el desglose con precios va en el recibo). Comanda por foto o pedido escrito (`/comanda …` en Telegram, "📝 Llenar con el pedido escrito" en la app): DiMa pregunta lo que falte y no deja guardar hasta contestar.
 - Quién autorizó: columna `EVENTOS.Autorizado_Por` (texto de una línea, ya creada por Víctor el 2026-11-06). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
-- **Antes de publicar:** probar en Preview: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
+- Pruebas pendientes en producción: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
 
-**Actualizado:** 2026-11-04 · **Producción:** `main` en `6ae181d` (caché v31, sin cambio). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **411 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-06 · **Producción:** `main` en `b33dcc3` (caché v32). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **411 pruebas pasan** en `main`.
 
 **Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
 
