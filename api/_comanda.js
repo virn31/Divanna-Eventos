@@ -254,10 +254,8 @@ function faltantes(d, { pideForma = true } = {}) {
   if (!d.clienteNombre) f.push('nombre del cliente');
   if (String(d.clienteTelefono || '').length !== 10) f.push('teléfono del cliente (10 dígitos)');
   if (!d.fecha) f.push('fecha del evento');
-  if (!d.servicios) f.push('qué lleva');
-  if (!d.montoContratado) f.push('total contratado');
-  if (pideForma && d.anticipo && !d.formaAnticipo) f.push('cómo pagó el anticipo (efectivo, transferencia o depósito)');
-  if ((d.preguntas || []).length) f.push('contestar las preguntas');
+  // Solo nombre, teléfono y fecha bloquean (Víctor 2026-11-07). Las preguntas de
+  // DiMa y lo que falte se muestran como aviso y se completan después.
   return f;
 }
 
@@ -333,7 +331,7 @@ function textoBorrador(d, id) {
     `💵 Total ${d.montoContratado ? pesos(d.montoContratado) : '—'} · Anticipo ${d.anticipo ? `${pesos(d.anticipo)}${d.formaAnticipo ? ' (' + d.formaAnticipo.toLowerCase() + ')' : ''}` : '—'}`,
     ...(d.notas ? [`📝 ${d.notas}`] : []),
     ...(d.dudas.length ? ['', '⚠️ Revisa:', ...d.dudas.map(x => `• ${x}`)] : []),
-    ...((d.preguntas || []).length ? ['', '❓ Antes de guardar, contéstame:', ...d.preguntas.map(x => `• ${x}`)] : []),
+    ...((d.preguntas || []).length ? ['', '❓ Si puedes, contéstame (no es obligatorio para guardar):', ...d.preguntas.map(x => `• ${x}`)] : []),
     ...(falta.length ? ['', `❗ Falta para guardar: ${falta.join(', ')}.`] : []),
     '',
     'Contéstame ENCIMA de este mensaje con las respuestas o correcciones (ej. "manteles lentejuela rosa, cerezos blancos, la fecha es el 28").',
