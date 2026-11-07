@@ -2448,6 +2448,23 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields.Cliente[0] === 'recCLIENTEVIEJO01',
     'capturar: si el teléfono ya existe, usa ese cliente (no lo duplica)');
 
+  // Regla 2026-11-07: con solo nombre, teléfono y fecha el evento se guarda.
+  reset();
+  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00003' }] }, {},
+    { id: 'recEVCAPTURA00003', fields: { Folio_Evento: 'EVT-CP3', Fecha_Evento: '2026-12-22', Autorizacion_Diana: 'SI' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Luna', clienteTelefono: '667 111 2233', fecha: '2026-12-22' } }, res);
+  {
+    const alta = (llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')) || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+    ok(res.code === 200 && alta.Fecha_Evento === '2026-12-22' && alta.Cliente[0] === 'recCLIENTEVIEJO01' && !('Monto_Estimado_IA' in alta) && !('Negocio' in alta),
+      'capturar: con solo nombre, teléfono y fecha se guarda (sin negocio, monto ni qué lleva)');
+  }
+  reset();
+  respuestas = [ADMIN];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Luna', clienteTelefono: '6671112233' } }, res);
+  ok(res.code === 400 && res.body.error.includes('fecha') && !llamadas.some(l => l.method === 'POST'), 'capturar: sin fecha no se guarda');
+
   reset();
   respuestas = [GERENTE];
   res = resMock();
@@ -2900,8 +2917,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
     const pedidoVision = llamadasClaude[0];
     ok(res.code === 200 && res.body.datos.clienteTelefono === '6961007116' && res.body.datos.servicios.includes('45 sillas Jardín') && res.body.datos.notas.includes('Nº 2000')
-      && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')) && pedidoVision.messages[0].content[0].type === 'image' && pedidoVision.tools[0].strict === true,
-      'comanda: en la app DiMa lee la foto y devuelve los datos del formulario con lo que falta');
+      && Array.isArray(res.body.faltan) && !res.body.faltan.length && pedidoVision.messages[0].content[0].type === 'image' && pedidoVision.tools[0].strict === true,
+      'comanda: en la app DiMa lee la foto y devuelve los datos del formulario (con nombre, teléfono y fecha no falta nada)');
 
     // La API rechaza un enum con tipo ['string', 'null'] (error 400 en producción el 2026-10-30).
     const com = require(path.join(repo, 'api/_comanda.js'));
@@ -2948,7 +2965,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'No se sabe' });
     res = resMock();
     await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', imagen: { base64: 'A'.repeat(400), tipo: 'image/jpeg' } } }, res);
-    ok(res.code === 200 && !res.body.datos.formaAnticipo && res.body.faltan.some(f => f.includes('cómo pagó el anticipo')), 'comanda: "No se sabe" en la forma de pago queda vacío y se pregunta');
+    ok(res.code === 200 && !res.body.datos.formaAnticipo && !res.body.faltan.length, 'comanda: "No se sabe" en la forma de pago queda vacío y no impide guardar (se registra después)');
 
     reset();
     respuestas = [ADMIN];
@@ -3075,8 +3092,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && !pf([{ clave: 'dv_arco_cerezos', cantidad: 1, nota: 'cerezos blancos' }, { clave: 'dv_personalizado', cantidad: 50, nota: 'Frozen, Sofía' }], ['arco de cerezos blancos', '50 personalizados']).length,
       'preguntas: color de los cerezos y temática de los personalizados');
     const conPreg = comP.aCaptura({ ...LEIDA, forma_anticipo: 'Efectivo', preguntas: ['¿De qué color las sillas?'] });
-    ok(comP.faltantes(conPreg).includes('contestar las preguntas') && comP.textoBorrador(conPreg, 'recCOMANDA0000009').includes('❓ Antes de guardar'),
-      'preguntas: con preguntas abiertas no se puede guardar y el borrador las muestra');
+    ok(!comP.faltantes(conPreg).length && comP.textoBorrador(conPreg, 'recCOMANDA0000009').includes('¿De qué color las sillas?'),
+      'preguntas: las preguntas abiertas se muestran pero no impiden guardar');
+    ok(JSON.stringify(comP.faltantes({ clienteNombre: '', clienteTelefono: '69610', fecha: '' })) === JSON.stringify(['nombre del cliente', 'teléfono del cliente (10 dígitos)', 'fecha del evento'])
+      && !comP.faltantes({ clienteNombre: 'Perla', clienteTelefono: '6961007116', fecha: '2026-11-27' }).length,
+      'captura: solo nombre, teléfono (10 dígitos) y fecha son obligatorios');
 
     // Pedido escrito en la app y respuestas a las preguntas.
     reset();
@@ -3103,8 +3123,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 30, chat: { id: 111, type: 'private' }, text: '/comanda Perla Ayon 696 100 7116, 27 nov, 4 mesas, 45 sillas' } } }, res);
     const borradorTexto = telegram.filter(t => t.metodo === 'sendMessage').pop();
     ok(res.code === 200 && borradorTexto && borradorTexto.body.text.includes('Borrador: recCOMANDA0000002') && borradorTexto.body.text.includes('¿De qué color las sillas?')
-      && !JSON.stringify(borradorTexto.body.reply_markup || {}).includes('cm:g:'),
-      'comanda: por Telegram /comanda lee el pedido escrito; con preguntas abiertas no sale Guardar');
+      && JSON.stringify(borradorTexto.body.reply_markup || {}).includes('cm:g:'),
+      'comanda: por Telegram /comanda lee el pedido escrito; con preguntas abiertas igual sale Guardar');
   }
   // ---------- Carpeta de Google Drive (api/_drive.js) ----------
   {

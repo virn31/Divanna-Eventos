@@ -517,34 +517,36 @@ function montoValido(valor) {
   return Number.isFinite(n) && n > 0 && n <= 10000000 ? n : null;
 }
 
+// Captura manual (calendario, comanda por foto o escrita): lo ÚNICO obligatorio es
+// nombre, teléfono y fecha (Víctor 2026-11-07). Lo demás (negocio, qué lleva,
+// monto, hora, lugar…) se completa después con ✏️ Editar.
 async function capturarEvento(colaborador, b) {
   const nombre = String(b.clienteNombre || '').trim().slice(0, 80);
   const tel = String(b.clienteTelefono || '').replace(/\D/g, '').slice(-10);
-  const negocio = b.negocio;
   if (!nombre) return { error: 'Escribe el nombre del cliente.' };
   if (tel.length !== 10) return { error: 'El teléfono del cliente debe tener 10 dígitos.' };
-  if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio)) return { error: 'Elige el negocio.' };
-  if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && negocio === negocioDeGerencia(colaborador.gerente))) return { error: `Solo puedes capturar eventos de ${textoGerencia(colaborador)}.`, codigo: 403 };
   if (!esFecha(b.fecha)) return { error: 'Elige la fecha del evento.' };
+  // Sin negocio: el de la gerencia de quien captura; Diana y Víctor pueden dejarlo vacío.
+  const negocio = [NEGOCIOS.DV, NEGOCIOS.VM].includes(b.negocio) ? b.negocio
+    : (colaborador.gerente ? negocioDeGerencia(colaborador.gerente) : '');
+  if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && negocio === negocioDeGerencia(colaborador.gerente))) return { error: `Solo puedes capturar eventos de ${textoGerencia(colaborador)}.`, codigo: 403 };
   const hora = String(b.hora || '');
   if (hora && !esHora(hora)) return { error: 'La hora debe ser como 18:00.' };
   const horas = b.horasServicio === '' || b.horasServicio == null ? null : Number(b.horasServicio);
   if (horas !== null && !(horas >= 1 && horas <= 12)) return { error: 'Las horas de servicio van de 1 a 12.' };
   const servicios = String(b.servicios || '').trim().slice(0, 4000);
-  if (!servicios) return { error: 'Escribe qué lleva el evento (uno por línea).' };
-  const contratado = montoValido(b.montoContratado);
-  if (!contratado) return { error: 'Escribe el monto contratado.' };
+  const contratado = montoValido(b.montoContratado) || 0;
   const anticipo = b.anticipo === '' || b.anticipo == null ? null : montoValido(b.anticipo);
   if (b.anticipo && !anticipo) return { error: 'El anticipo no es un monto válido.' };
   if (anticipo && !FORMAS_PAGO.includes(b.formaAnticipo)) return { error: 'Elige cómo se pagó el anticipo.' };
   const productos = normalizarProductos(Array.isArray(b.productos) ? b.productos : []);
   const manteles = resumenManteles(productos);
   if (manteles.error) return { error: manteles.error };
-  if (anticipo && anticipo > contratado + manteles.cargo) return { error: 'El anticipo es mayor que lo contratado.' };
+  if (anticipo && contratado && anticipo > contratado + manteles.cargo) return { error: 'El anticipo es mayor que lo contratado.' };
   const invitados = Number(b.invitados) > 0 && Number(b.invitados) < 100000 ? Math.round(Number(b.invitados)) : null;
 
   // Eden (Divanna) no captura eventos con el salón; Mario (Casa Isabella) solo esos.
-  if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, { Negocio: negocio, Servicios_Solicitados: servicios, Productos: JSON.stringify(productos) })) {
+  if (colaborador.rol !== ROLES.ADMIN && (servicios || productos.length) && !esDeSuGerencia(colaborador, { Negocio: negocio, Servicios_Solicitados: servicios, Productos: JSON.stringify(productos) })) {
     return { error: colaborador.gerente === GERENCIAS.CI ? 'Solo puedes capturar eventos que lleven Casa Isabella (agrega el salón).' : 'Los eventos con Casa Isabella los captura su gerente o Diana.', codigo: 403 };
   }
 
@@ -560,7 +562,7 @@ async function capturarEvento(colaborador, b) {
   const decorador = esDecorador(cliente.fields);
   const sinDescuento = redondo(contratado + manteles.cargo);
   const total = decorador ? conDescuento(sinDescuento) : sinDescuento;
-  if (anticipo && anticipo > total) return { error: 'El anticipo es mayor que lo contratado (ya con el 10% de decorador).' };
+  if (anticipo && total && anticipo > total) return { error: 'El anticipo es mayor que lo contratado (ya con el 10% de decorador).' };
 
   const folio = `EVT-${Date.now().toString().slice(-6)}`;
   const items = servicios.split('\n').map(s => s.trim()).filter(Boolean);
@@ -568,11 +570,11 @@ async function capturarEvento(colaborador, b) {
     Folio_Evento: folio,
     Estado: 'Reservacion confirmada',
     Cliente: [cliente.id],
-    Negocio: negocio,
+    ...(negocio ? { Negocio: negocio } : {}),
     Fecha_Evento: b.fecha,
     Servicios_Solicitados: servicios,
     Autorizacion_Diana: 'SI',
-    Monto_Estimado_IA: total,
+    ...(total ? { Monto_Estimado_IA: total } : {}),
     Items_Detallados_Cotizacion: items.join('\n'),
     Checklist_Items: items.join('\n'),
     Checklist_Items_Marcados: '[]',
@@ -602,12 +604,12 @@ async function capturarEvento(colaborador, b) {
   if (anticipo) {
     await airtable(TABLA_COBROS, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
       Concepto: `${folio} · anticipo a ${colaborador.nombre}`, Monto: anticipo, Forma: b.formaAnticipo, Fecha: hoyCuliacan(),
-      Negocio: negocio, Evento: [eventoId], Recibido_Por: 'Diana', Reportado_Por: [colaborador.id],
+      ...(negocio ? { Negocio: negocio } : {}), Evento: [eventoId], Recibido_Por: 'Diana', Reportado_Por: [colaborador.id],
     } }] }) });
     anticipoGuardado = true;
   }
   const google = await sincronizarEvento(eventoId);
-  const diaLleno = await avisarSiLleno(b.fecha, negocio);
+  const diaLleno = negocio ? await avisarSiLleno(b.fecha, negocio) : null;
   // Sin recibo automático con el anticipo (Víctor 2026-11-07): se manda con 🧾 Mandar recibo si el cliente lo pide.
   const recibo = null;
   return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google, total, cargoManteles: manteles.cargo, decorador };

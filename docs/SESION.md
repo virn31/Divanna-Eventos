@@ -28,6 +28,8 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
+**PUBLICADO 2026-11-07 (rama `captura-minima`, caché v35, 474 pruebas):** captura manual (calendario, comanda por foto, `/comanda`) solo exige nombre, teléfono y fecha; preguntas de DiMa y lo demás no bloquean. Revertir: `git revert -m 1 <merge>`.
+
 **PUBLICADO 2026-11-07 (rama `cierre-cuadre-reembolsos` unida a `main`, incluye `produccion-staff-etapas`; 471 pruebas). Revertir: `git revert -m 1 <merge>`. Falta: `/configurar` en el bot (para `/gasto`) y probar en teléfono.** Antes: (rama sin publicar; base = `produccion-staff-etapas` + `main`, caché v34, 468 pruebas):** cierre al terminar, reembolsos por colaborador (PAGOS_REEMBOLSO), botones del cuadre, sin recibos automáticos, `/gasto` con Tipo, dashboard en 4 ventanas. Detalle en `docs/decisiones.md` 2026-11-07. **Antes de publicar:** verificar en el esquema de Airtable los nombres asumidos (abajo), probar en Preview y `/configurar` en el bot. Confirmados por Víctor: PAGOS_REEMBOLSO.Colaborador y Gastos = links, Registrado_Por = texto, Forma = Efectivo/Transferencia. Ya confirmados por Víctor: Pagado_Con "Inversión personal", Categoria "Remodelacion", MOVIMIENTOS_CAJA.Tipo "Gasto externo".
 
 **PUBLICADO 2026-11-06, `main` b33dcc3 (rama `manteles-origen-decorador`, 431 pruebas, caché v32; verificado que producción sirve v32 y el Mantel nuevo). Revertir: `git revert -m 1 b33dcc3`.** Falta: `/configurar` en el bot (para que `/comanda` salga en el menú) y probar en teléfono: capturar con Mantel, editar productos (monto y recibo), autorizar (Autorizado_Por), pedido de DiMa con cliente decorador, `/comanda` con algo incompleto. detalle en `docs/decisiones.md` 2026-11-06.

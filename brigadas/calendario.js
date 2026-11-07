@@ -366,7 +366,7 @@ window.DimaCalendario = (function(){
       pintarManteles(todos);
       fotoNotas = d.notas || '';
       const avisos = [...(d.dudas || []), ...(r.faltan || []).filter(x => x !== 'contestar las preguntas').map(x => 'Falta: ' + x)];
-      msg.innerHTML = (preguntasPendientes.length ? '❓ Antes de guardar, contesta lo que pregunta DiMa.' : '✅ Listo, revisa cada dato antes de guardar.')
+      msg.innerHTML = (preguntasPendientes.length ? '❓ DiMa tiene preguntas; puedes contestarlas o guardar así (solo nombre, teléfono y fecha son obligatorios).' : '✅ Listo, revisa cada dato antes de guardar.')
         + `${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`
         + (preguntasPendientes.length ? `<div class="cal-lleno" style="margin-top:8px;"><b>❓ Preguntas de DiMa</b><br>${preguntasPendientes.map(p => '• ' + e(p)).join('<br>')}
           <textarea id="calNResp" rows="3" maxlength="1000" placeholder="Contesta aquí (ej. manteles lentejuela rosa, cerezos blancos)" style="width:100%; margin-top:6px; padding:8px; border-radius:8px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
@@ -380,7 +380,6 @@ window.DimaCalendario = (function(){
     const v = (id) => panel.querySelector('#' + id).value;
     const msg = panel.querySelector('#calNMsg');
     const negocio = v('calNNeg');
-    if(preguntasPendientes.length){ msg.textContent = '❓ Primero contesta las preguntas de DiMa (arriba): el pedido tiene que quedar sin dudas.'; return; }
     const mant = resumirManteles();
     if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
     const filas = !panel.querySelector('#calProdsCaja').hidden ? filasProductos() : [];
