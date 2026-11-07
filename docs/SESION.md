@@ -37,7 +37,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Quién autorizó: columna `EVENTOS.Autorizado_Por` (texto de una línea, ya creada por Víctor el 2026-11-06). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
 - Pruebas pendientes en producción: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
 
-**Actualizado:** 2026-11-06 · **Producción:** `main` en `b33dcc3` (caché v32). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **431 pruebas pasan** en `main`.
+**Actualizado:** 2026-11-06 · **Producción:** `main` en `2a66c21` (caché v33). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **431 pruebas pasan** en `main`.
 
 **Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
 
@@ -65,7 +65,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Se le unió `main` hasta 1f38c60 (caché v28). **Al volver a unirle `main` (trae v29) subir la caché a v30** y correr pruebas (las de `editar` y `_cambios.js` cambiaron).
 - **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
 
-**Rama `buscar-producto` (2026-11-06, sin publicar, caché v33):** buscador 🔎 en cada renglón de producto (➕ Capturar evento y Hora y productos): escribes "mesita" y elige "Mesita de herrería extra" (sin acentos ni mayúsculas; en rojo si no hay nada). `brigadas/buscar-producto.js`.
+**PUBLICADO 2026-11-06, `main` 2a66c21 (rama `buscar-producto`, caché v33; verificado en producción). Revertir: `git revert -m 1 2a66c21`.** buscador 🔎 en cada renglón de producto (➕ Capturar evento y Hora y productos): escribes "mesita" y elige "Mesita de herrería extra" (sin acentos ni mayúsculas; en rojo si no hay nada). `brigadas/buscar-producto.js`.
 
 **Idea aprobada para después (Víctor 2026-11-06, "me gusta la opción 2 pero no en este momento"):** que la gerencia le diga a DiMa por Telegram o el dashboard "agrega tambor plateado, $250, tenemos 4" → DiMa muestra cómo queda, se confirma y queda en una tabla PRODUCTOS de Airtable (cotiza, inventario y recibo). Requiere pasar el catálogo de `_productos.js` / `_dima-catalogo.js` a Airtable. Productos que faltan hoy: tambores, figuras de coroplast de varias medidas (hoy una sola, $150), ¿mesita para pastel = mesita de herrería?
 
