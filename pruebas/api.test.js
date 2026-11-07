@@ -1771,6 +1771,30 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const altaTipo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
   ok(res.code === 200 && altaTipo.body.records[0].fields.Tipo === 'Extra', 'gasto: la app guarda el tipo elegido (Evento, General o Extra)');
 
+  // Opciones nuevas del formulario: textos exactos de Airtable.
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [] }, { records: [{ id: REP_FIN.id, fields: { Estado: 'Abierto' } }] }, { records: [{ id: 'recGASTONUEVO0003' }] }, {}];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Pintura del salón', categoria: 'Remodelacion', monto: '1500', pagadoCon: 'Inversión personal', tipo: 'General' });
+  const altaRemo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(res.code === 200 && altaRemo && altaRemo.body.records[0].fields.Categoria === 'Remodelacion' && altaRemo.body.records[0].fields.Pagado_Con === 'Inversión personal',
+    'gasto: se guarda con Categoria "Remodelacion" y Pagado_Con "Inversión personal" (textos exactos de Airtable)');
+
+  reset();
+  respuestas = [ADMIN];
+  res = await fin(tokenAdmin, undefined, 'GET', {});
+  ok(res.code === 200 && (res.body.pagadoCon || []).includes('Inversión personal') && (res.body.categorias || []).includes('Remodelacion'),
+    'gasto: el formulario de la app ofrece "Inversión personal" y "Remodelacion"');
+
+  {
+    // Un gasto pagado con inversión personal no aparece en reembolsos (aunque Airtable lo devolviera).
+    const INV = { id: 'recGASTOINVPERS02', fields: { Concepto: 'Pintura', Monto: 1500, Fecha: '2026-11-05', Pagado_Con: 'Inversión personal', Categoria: 'Remodelacion', Reportado_Por: ['recCOLABMARIO0001'] } };
+    reset();
+    respuestas = [ADMIN, { records: [INV] }, { records: [] }];
+    res = resMock();
+    await require(path.join(repo, 'api/finanzas.js'))({ method: 'GET', headers: auth(tokenAdmin), query: { vista: 'reembolsos' } }, res);
+    ok(res.code === 200 && res.body.filas.length === 0 && res.body.total === 0, 'reembolsos: un gasto con Pagado_Con "Inversión personal" no aparece');
+  }
+
   // /gasto por Telegram: pregunta el tipo con botones y confirma con lo guardado.
   reset();
   respuestas = [{ records: [ADMIN_T] }];

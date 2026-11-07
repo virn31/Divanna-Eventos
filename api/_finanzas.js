@@ -28,8 +28,9 @@ const TABLES = {
 };
 const ESTADOS = { ABIERTO: 'Abierto', ENVIADO: 'Enviado', ACLARACION: 'Aclaración', APROBADO: 'Aprobado' };
 const NEGOCIOS = { DV: 'Divanna Eventos', VM: 'El Vaso Maiz', AMBOS: 'Ambos' };
-const CATEGORIAS = ['Combustible', 'Inventario', 'Brigada', 'Nomina', 'Otros'];
-const PAGADO_CON = ['Dinero del negocio', 'Dinero propio'];
+const CATEGORIAS = ['Combustible', 'Inventario', 'Brigada', 'Nomina', 'Remodelacion', 'Otros'];
+// "Inversión personal" y "Remodelacion": nombres exactos de las opciones de Airtable (no se reembolsa la inversión personal).
+const PAGADO_CON = ['Dinero del negocio', 'Dinero propio', 'Inversión personal'];
 // GASTOS.Tipo: del evento, general del negocio o extra (pedido de Víctor 2026-11-07).
 const TIPOS_GASTO = ['Evento', 'General', 'Extra'];
 const FORMAS = ['Efectivo', 'Transferencia', 'Depósito'];
@@ -316,7 +317,7 @@ async function agregarGasto(colaborador, body) {
   if (!concepto) return { error: 'Escribe en qué se gastó.' };
   if (!valor) return { error: 'Escribe un monto válido.' };
   if (!CATEGORIAS.includes(body.categoria)) return { error: 'Elige la categoría del gasto.' };
-  if (!PAGADO_CON.includes(body.pagadoCon)) return { error: 'Indica si fue con dinero del negocio o con dinero propio.' };
+  if (!PAGADO_CON.includes(body.pagadoCon)) return { error: 'Indica si fue con dinero del negocio o con dinero propio (o inversión personal).' };
   const foto = validarFoto(body.foto);
   if (!foto.ok) return { error: foto.error };
   const eventos = await eventosDelDia(colaborador, fecha);
