@@ -2035,7 +2035,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && vq.porAclarar.map(e => e.folio).join() === 'EVT-Q1,EVT-Q4' && vq.porAclarar[0].saldo === 2000 && vq.porAclarar[0].cliente === 'Pepe'
     && vq.deben.map(e => e.folio).join() === 'EVT-Q2' && vq.cobradoDeMas.map(e => e.folio).join() === 'EVT-Q3' && vq.conPerdida.map(e => e.folio).join() === 'EVT-Q4',
     'cuadre: detecta lo que no cuadra, lo que se debe, lo cobrado de más y los eventos con pérdida');
-  ok(vq.efectivo.entregadoBrigadas === 3000 && vq.efectivo.pagadoEfectivo === 1500 && vq.efectivo.sinDestino === 2500 && vq.clientes[0].cliente === 'Pepe' && vq.clientes[0].cancelados === 1,
+  ok(vq.porCobrar.total > 0 && Math.abs(vq.cobranza.reduce((t, c) => t + c.pendiente, 0) - vq.porCobrar.total) < 0.01,
+    'clientes: la cobranza por cliente suma lo mismo que "por cobrar"');
+  ok(vq.clientes.every(c => c.gastos > 0 || c.margen === null) && vq.semana && typeof vq.semana.gastosPorTipo === 'object',
+    'clientes: sin gastos registrados el margen no repite lo contratado; la semana trae gastos por tipo');
+  ok(vq.efectivo.entregadoBrigadas === 3000 && vq.efectivo.pagadoEfectivo === 1500 && vq.efectivo.sinDestino === 2500 && vq.clientes.some(c => c.cliente === 'Pepe' && c.cancelados === 1) && vq.clientes[0].cliente === 'Sin cliente ligado',
     'cuadre: efectivo sin destino (entregado + pagos en efectivo − destinos) y clientes a vigilar');
 
   reset();

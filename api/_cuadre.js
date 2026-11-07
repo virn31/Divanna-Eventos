@@ -134,7 +134,7 @@ async function datosCuadre() {
   const lista = eventos.map(e => dineroDelEvento(e, cobros, ok, gastosValidos));
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
   lista.forEach(e => { e.brigadaNombre = nombreBrigada.get(e.brigadaId) || ''; });
-  return { hoy, eventos: lista, cobros, aprobados, ok, caja, reembolsado };
+  return { hoy, eventos: lista, cobros, aprobados, ok, caja, reembolsado, gastos: gastosValidos };
 }
 
 // Efectivo de Diana: lo que le entregaron las brigadas (reportes aprobados) y lo
@@ -189,19 +189,26 @@ async function vistaCuadre() {
   // Clientes: dónde se queda el dinero (adeudos, cancelaciones, margen).
   const porCliente = new Map();
   for (const e of d.eventos) {
-    if (!e.clienteId) continue;
-    const c = porCliente.get(e.clienteId) || { clienteId: e.clienteId, cliente: nombres.get(e.clienteId) || 'Sin nombre', eventos: 0, cancelados: 0, contratado: 0, pendiente: 0, margen: 0 };
+    // Eventos sin cliente ligado van en una fila aparte (si no, la tabla sumaría menos que "por cobrar").
+    const clave = e.clienteId || 'sin-cliente';
+    const c = porCliente.get(clave) || { clienteId: e.clienteId, cliente: e.clienteId ? nombres.get(e.clienteId) || 'Sin nombre' : 'Sin cliente ligado', eventos: 0, cancelados: 0, contratado: 0, pendiente: 0, margen: 0, gastos: 0 };
     c.eventos++;
     if (e.cancelado) c.cancelados++;
     else {
       c.contratado += e.contratado;
-      c.pendiente += Math.max(0, e.saldo);
+      // Mismo criterio que "por cobrar" (abajo), para que la tabla sume lo mismo.
+      if (e.saldo > TOLERANCIA && e.estado !== ESTADOS.OTRO) c.pendiente += e.saldo;
       c.margen += e.margen;
+      c.gastos += e.gastos;
     }
-    porCliente.set(e.clienteId, c);
+    porCliente.set(clave, c);
   }
-  const clientes = [...porCliente.values()]
-    .filter(c => c.pendiente > TOLERANCIA || c.cancelados || c.margen < 0)
+  // Sin gastos registrados el "margen" sería igual a lo contratado: se manda null (la app pone "—").
+  const todosClientes = [...porCliente.values()].map(c => ({ ...c, pendiente: redondo(c.pendiente), contratado: redondo(c.contratado), margen: c.gastos > 0 ? redondo(c.margen) : null }));
+  // Cobranza: todos los que deben (sin recortar), para que sume lo mismo que "por cobrar".
+  const cobranza = todosClientes.filter(c => c.pendiente > TOLERANCIA).sort((a, b) => b.pendiente - a.pendiente);
+  const clientes = todosClientes
+    .filter(c => c.pendiente > TOLERANCIA || c.cancelados || (c.margen != null && c.margen < 0))
     .sort((a, b) => b.pendiente - a.pendiente || b.cancelados - a.cancelados)
     .slice(0, 15);
   // Para el buenos días: eventos de hoy y mañana, y lo que falta por cobrar.
@@ -214,7 +221,19 @@ async function vistaCuadre() {
   const mananaEv = vigentes.filter(e => e.fecha === fechaManana).sort(porHora).map(conCliente);
   const pendientes = vigentes.filter(e => e.saldo > TOLERANCIA && e.estado !== ESTADOS.OTRO);
   const porCobrar = { eventos: pendientes.length, total: redondo(pendientes.reduce((t, e) => t + e.saldo, 0)) };
-  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, efectivo: efectivoDe(d), hoy: hoyEv, manana: mananaEv, porCobrar };
+  // Semana en curso (lunes a hoy): gastos por tipo (Evento, General, Extra).
+  const lunes = new Date(`${d.hoy}T12:00:00Z`);
+  lunes.setUTCDate(lunes.getUTCDate() - ((lunes.getUTCDay() + 6) % 7));
+  const desdeSemana = lunes.toISOString().slice(0, 10);
+  const gastosPorTipo = {};
+  for (const g of d.gastos || []) {
+    const fecha = g.fields.Fecha || '';
+    if (fecha < desdeSemana || fecha > d.hoy) continue;
+    const tipo = g.fields.Tipo || 'Sin tipo';
+    gastosPorTipo[tipo] = redondo((gastosPorTipo[tipo] || 0) + (Number(g.fields.Monto) || 0));
+  }
+  const semana = { desde: desdeSemana, hasta: d.hoy, gastosPorTipo, eventos: vigentes.filter(e => e.fecha >= desdeSemana && e.fecha <= d.hoy).length };
+  return { desde: FECHA_INICIO, porAclarar, deben, otros, cobradoDeMas, conPerdida, clientes, cobranza, efectivo: efectivoDe(d), hoy: hoyEv, manana: mananaEv, porCobrar, semana };
 }
 
 // Resumen para DiMa (solo Admin).
@@ -228,7 +247,7 @@ function cuadreParaDima(v) {
     `EXPLICADOS COMO "OTRO": ${v.otros.length ? '\n' + v.otros.map(lineaEv).join('\n') : 'ninguno'}`,
     `COBRADO DE MÁS (entró más de lo contratado, revisar si es error de captura): ${v.cobradoDeMas.length ? '\n' + v.cobradoDeMas.map(lineaEv).join('\n') : 'ninguno'}`,
     `EVENTOS CON PÉRDIDA (gastos mayores que lo contratado): ${v.conPerdida.length ? '\n' + v.conPerdida.map(lineaEv).join('\n') : 'ninguno'}`,
-    `CLIENTES A VIGILAR (adeudos, cancelaciones o margen negativo): ${v.clientes.length ? '\n' + v.clientes.map(c => `${c.cliente}: ${c.eventos} eventos, ${c.cancelados} cancelados, contratado ${pesos(c.contratado)}, pendiente ${pesos(c.pendiente)}, margen ${pesos(c.margen)}`).join('\n') : 'ninguno'}`,
+    `CLIENTES A VIGILAR (adeudos, cancelaciones o margen negativo): ${v.clientes.length ? '\n' + v.clientes.map(c => `${c.cliente}: ${c.eventos} eventos, ${c.cancelados} cancelados, contratado ${pesos(c.contratado)}, pendiente ${pesos(c.pendiente)}, margen ${c.margen == null ? "sin gastos registrados" : pesos(c.margen)}`).join('\n') : 'ninguno'}`,
     `EFECTIVO DE DIANA: le entregaron las brigadas ${pesos(ef.entregadoBrigadas)}, le pagaron en efectivo ${pesos(ef.pagadoEfectivo)}; destinos registrados ${Object.entries(ef.destinos).map(([k, x]) => `${k} ${pesos(x)}`).join(', ') || 'ninguno'}; declarado en caja ${pesos(ef.enCaja)}; SIN DESTINO ${pesos(ef.sinDestino)}${ef.excedente ? `; OJO: hay ${pesos(ef.excedente)} más registrado como destino de lo que entró` : ''}.`,
   ].join('\n\n');
 }
