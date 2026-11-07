@@ -28,9 +28,33 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-02 (cierre) · **Rama de trabajo:** `produccion-staff-etapas` (sin publicar; ya trae todo lo de `main`) · **Producción:** `main` en `1f38c60`. Otra rama sin publicar: `entrenar-dima`. **403 pruebas pasan** en la rama.
+**PUBLICADO 2026-11-06, `main` b33dcc3 (rama `manteles-origen-decorador`, 431 pruebas, caché v32; verificado que producción sirve v32 y el Mantel nuevo). Revertir: `git revert -m 1 b33dcc3`.** Falta: `/configurar` en el bot (para que `/comanda` salga en el menú) y probar en teléfono: capturar con Mantel, editar productos (monto y recibo), autorizar (Autorizado_Por), pedido de DiMa con cliente decorador, `/comanda` con algo incompleto. detalle en `docs/decisiones.md` 2026-11-06.
+- Origen = quién lo creó (`DiMa`, `Formulario`, `Diana`, `Eden`, `Mario`, `Ángela`…); los viejos `Chat DiMa`/`Manual` se leen con el nombre nuevo.
+- 🧺 Selector de manteles (`brigadas/manteles.js`) en ➕ Capturar evento y en "Hora y productos": básico incluido por mesa, cambio a lentejuela +$140 / corrugado +$60, extras $60/$200/$120, color por tipo. Se suma solo al monto. La comanda por foto ya conserva la nota (tipo y color) de cada producto.
+- Recibo: se rehace y se manda solo al editar un evento autorizado (✏️ Editar, Hora y productos, mover fecha). Muestra manteles por tipo, cambios/extras con precio y el descuento de decorador.
+- Decorador: `CLIENTES.Tipo_Cliente = Decorador` (o `Profesional` mientras se renombra) → 10% del total, también en DiMa.
+- App sin precios de manteles (solo cantidades y color; el desglose con precios va en el recibo). Comanda por foto o pedido escrito (`/comanda …` en Telegram, "📝 Llenar con el pedido escrito" en la app): DiMa pregunta lo que falte y no deja guardar hasta contestar.
+- Quién autorizó: columna `EVENTOS.Autorizado_Por` (texto de una línea, ya creada por Víctor el 2026-11-06). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
+- Pruebas pendientes en producción: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
 
-**Publicado hoy (2026-11-02), `main` 1f38c60 (rama `editar-evento-cliente`):**
+**Actualizado:** 2026-11-06 · **Producción:** `main` en `2a66c21` (caché v33). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **431 pruebas pasan** en `main`.
+
+**Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
+
+**Costos (análisis 2026-11-04):** operación ~$900–1 300 MXN/mes (Airtable $300, Claude Pro $380, IA en producción ~$120–300 a ~$2 MXN por conversación, + Vercel Pro $380 recomendado porque Hobby no admite uso comercial) contra >20 eventos/mes × ~$1 900. Se paga con 1 evento al mes atribuible a DiMa. Noviembre llevaba US$57.81 en créditos de la consola, casi todo sesiones de Claude Code: Víctor tiene plan Pro → cambiar Claude Code con `/logout` + `/login` (cuenta con suscripción) y bajar el límite mensual de la consola; no apagar la recarga (DiMa en producción usa esos créditos).
+
+**Publicado 2026-11-03 noche, `main` fea6518 (rama `cobro-visible`):** caja **💵 Cobrar** en cada tarjeta (forma de pago, "Liquidó todo" o abono; se pliega al guardar; no sale si ya está pagado). Liquidado + recogido = `Estado Cerrado` (`cerrarSiTermino` en `api/_cargos.js`, al cobrar y al marcar recolección). Pagos desde el dashboard no cierran solos. Decisión en `docs/decisiones.md`. No probado en teléfono. Revertir: `git revert -m 1 fea6518`. Roles ya puestos: Eden `Gerente Divanna`, Mario `Gerente Casa Isabella`, Ángela `Lider de brigada` + casilla; ya entran y ven sus eventos.
+
+**Incidente 2026-11-03 noche — "se cayeron los PIN":** a Eden, Ángela y Mario se les puso en Airtable un Rol "Gerente …" antes de publicar la rama que lo reconoce → "Usuario o PIN incorrecto" en la APK. Mario además tenía Activo desmarcado. Se corrigió con otro Claude con acceso a Airtable (roles de vuelta a `Lider de brigada`, Activo de Mario) y luego se **publicó `gerentes-por-negocio`** (`main` f6cc9da, caché v30; incluye 20f7adb: el Rol se lee sin espacios, porque en Airtable la opción es " Gerente Divanna"). **Regla:** nunca poner en Airtable un Rol que producción no conozca todavía. Revertir: `git revert -m 1 f6cc9da` y roles a `Lider de brigada`. Falta: en Airtable poner Eden → `Gerente Divanna` y Mario → `Gerente Casa Isabella` (Ángela sigue `Lider de brigada` + casilla) y probar en sus teléfonos que ven sus eventos. El token de Airtable de `keys\airtable dima os.txt` da 403 en esta base (no sirve). `produccion-staff-etapas`: al unirle `main` ya trae v31 → subir a v32.
+
+**Arreglo publicado 2026-11-03, `main` f9f3138 (rama `arreglo-editar-pedido`):** en el dashboard, el ✏️ Editar de los eventos autorizados mostraba vacía la casilla "qué lleva" (el GET no mandaba `Servicios_Solicitados` en `eventos`). Solo cambia el API, sin subir caché. Revertir: `git revert -m 1 f9f3138`. Confirmado con Víctor: Ángela edita solo El Vaso Maíz desde la APK; Diana y Víctor desde el dashboard (no se le abre el dashboard a Ángela).
+
+**Publicado hoy (2026-11-03), `main` f6584ea (rama `editar-pedido`):**
+- ✏️ **Editar evento, cliente y pedido**: además de cliente/fecha/lugar/invitados, ahora se cambia **qué lleva** (un artículo por línea; en evento autorizado es también la lista de carga y se conservan las palomitas de lo que no cambió) y el **monto contratado** (solo Diana y Víctor, en el dashboard). Ángela en la app, solo El Vaso Maíz, sin monto.
+- Casilla "avisar al equipo" (marcada por defecto): mismo aviso que un cambio del cliente confirmado (Telegram con Confirmar, push, se borra "Enterado", se reenvía producción). Google Calendar se actualiza. Decisión en `docs/decisiones.md` 2026-11-03.
+- Caché **v29**. No probado en teléfono ni contra Airtable real. Revertir: `git revert -m 1 f6584ea`.
+
+**Publicado el 2026-11-02, `main` 1f38c60 (rama `editar-evento-cliente`):**
 - En la app **todos** (líder, asistente, encargada, gerente) ven nombre, teléfono (toca para llamar) y correo del cliente al inicio de Resumen: el encargado atiende al cliente de principio a fin.
 - **✏️ Editar evento y cliente** (nombre, teléfono, correo, ubicación, fecha, invitados, fuera de la ciudad): Diana y Víctor en el dashboard (eventos y pedidos); Ángela en la app, solo eventos de El Vaso Maíz. Fecha o lugar nuevos se pasan a Google Calendar. Ojo: nombre/teléfono/correo son del registro de CLIENTES (cambian en todos los eventos de ese cliente).
 - Verificado que producción sirve la versión nueva (caché v27). No probado en teléfono ni contra Airtable real. Revertir: `git revert -m 1 1f38c60`.
@@ -38,11 +62,17 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 **Rama `produccion-staff-etapas` (para Ángela, El Vaso Maíz; detalle en `docs/decisiones.md` 2026-11-02):**
 - Equipo de producción en "Asignar"; solo el encargado tiene **🚀 Listo para staff**; etapas por Telegram para el staff (`Estatus_Logistico`); **🆘 SOS** por Telegram (`/sos`, `api/_etapas.js`).
-- Ya se le unió `main` (caché subida a **v28** para no chocar con la v27 publicada).
+- Se le unió `main` hasta 1f38c60 (caché v28). **Al volver a unirle `main` (trae v29) subir la caché a v30** y correr pruebas (las de `editar` y `_cambios.js` cambiaron).
 - **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
 
+**PUBLICADO 2026-11-06, `main` 2a66c21 (rama `buscar-producto`, caché v33; verificado en producción). Revertir: `git revert -m 1 2a66c21`.** buscador 🔎 en cada renglón de producto (➕ Capturar evento y Hora y productos): escribes "mesita" y elige "Mesita de herrería extra" (sin acentos ni mayúsculas; en rojo si no hay nada). `brigadas/buscar-producto.js`.
+
+**Idea aprobada para después (Víctor 2026-11-06, "me gusta la opción 2 pero no en este momento"):** que la gerencia le diga a DiMa por Telegram o el dashboard "agrega tambor plateado, $250, tenemos 4" → DiMa muestra cómo queda, se confirma y queda en una tabla PRODUCTOS de Airtable (cotiza, inventario y recibo). Requiere pasar el catálogo de `_productos.js` / `_dima-catalogo.js` a Airtable. Productos que faltan hoy: tambores, figuras de coroplast de varias medidas (hoy una sola, $150), ¿mesita para pastel = mesita de herrería?
+
 **Siguiente, en orden:**
-1. Víctor/Diana prueban en el teléfono el teléfono del cliente y ✏️ Editar (cerrar y abrir la APK si no aparece).
+0. Evento de prueba → `Origen = Manual`. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable.
+1. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): ven sus eventos, 👷 Asignar, ✏️ Editar y 💵 Cobrar (un abono chico; luego un liquidado en evento ya recogido → se cierra). Revisar que Eden no vea los de Casa Isabella.
+1b. Decidir si los pagos de Diana/Víctor desde el dashboard también cierran el evento al liquidar.
 2. Crear los 2 campos de Airtable → probar `produccion-staff-etapas` en Preview (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot → decidir si se manda a todos el botón 🆘.
 3. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
 

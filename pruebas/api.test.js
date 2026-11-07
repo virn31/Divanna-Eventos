@@ -141,6 +141,7 @@ global.fetch = async (url, opts = {}) => {
   }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
   const r = respuestas.shift() || { records: [] };
+  if (r.__error) return { ok: false, status: r.__error, json: async () => r, text: async () => JSON.stringify(r) };
   return { ok: true, status: 200, json: async () => r, text: async () => '' };
 };
 
@@ -212,12 +213,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ---------- Pedido por formulario ----------
   reset();
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000001', fields: {} }] }, { records: [{}] }];
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000001', fields: {} }] }, { records: [{ id: 'recEVFORMULARIO01' }] }];
   res = resMock();
   await pedido({ method: 'POST', body: { nombre: 'Ana <b>', telefono: '667 123 4567', email: 'ana@x.com', negocio: 'Ambos', tipoEvento: 'XV', fecha: '2026-12-12', invitados: '80', ubicacion: 'Las Quintas', servicios: '10 mesas\n80 sillas' } }, res);
   const ev = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields;
   ok(res.code === 200 && /^EVT-\d{6}$/.test(res.body.folio), 'formulario: 200 con folio');
   ok(ev.Autorizacion_Diana === 'Pendiente' && !ev.Negocio && ev.Notas.includes('Negocio solicitado: Ambos') && !('Monto_Estimado_IA' in ev), 'formulario: evento pendiente, sin estimado');
+  const origenForm = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+  ok(origenForm && origenForm.body.records[0].fields.Origen === 'Formulario' && origenForm.body.typecast === true && !('Origen' in ev),
+    'origen: el pedido del formulario guarda Origen = Formulario aparte del evento (si la columna falta, el pedido no se cae)');
   ok(correos.length === 1 && correos[0].html.includes('Ana &lt;b&gt;'), 'formulario: correo al equipo con HTML escapado');
   reset();
   res = resMock();
@@ -273,10 +277,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Rosa', telefono: '6679990001', email: null, negocio: 'Ambos', tipo_evento: 'Cumpleaños', fecha: '2026-11-21', hora_inicio: '18:00', horas_servicio: 2, invitados: 100, ubicacion: 'Las Quintas', servicios: 'Paquete 5\n2 paquetes 50 Antonella', productos: [{ clave: 'vm_paquete_5', cantidad: 1, nota: null }, { clave: 'dv_paq50_antonella', cantidad: 2, nota: 'manteles rosa' }, { clave: 'inventada', cantidad: 3, nota: null }], monto_estimado: 14200, fuera_de_ciudad: false, indicaciones: null, preferencia_contacto: 'no_preguntado' } },
   ] }];
   // Cliente, cliente nuevo, evento creado; luego eventos cercanos, inventario y personal del semáforo.
-  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000001' }] },
+  respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000003', fields: {} }] }, { records: [{ id: 'recEVTNUEVO000001' }] }, {},
     { records: [] }, { records: [{ id: 'recINVTIFF0000001', fields: { Item: 'Silla Antonella grande', Categoria: 'Silla Antonella', Cantidad_Total: 113 } }] }, { records: [] }];
   res = await chat({ historial });
-  const patchSemaforo = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].id === 'recEVTNUEVO000001');
+  const patchSemaforo = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].id === 'recEVTNUEVO000001' && 'Disponibilidad' in l.body.records[0].fields);
   ok(patchSemaforo && patchSemaforo.body.records[0].fields.Disponibilidad === '🟡 Amarillo' && patchSemaforo.body.records[0].fields.Disponibilidad_Detalle.includes('Sin conteo en INVENTARIO'), 'semáforo: al registrar se guarda en el evento (aquí amarillo: faltan conteos)');
   ok(correos.some(c => c.text.includes('🟡 Amarillo') && c.text.includes('Confirmar al cliente antes de')), 'semáforo: el aviso a Diana trae el semáforo y el plazo de 12 h');
   ok(res.body.texto.includes('Ya tenemos todos los datos') && res.body.texto.includes('no mayor a 12 horas') && !res.body.texto.includes('Amarillo'), 'DiMa: al cliente le dice que ya están los datos y que se le confirma en 12 h, sin semáforo');
@@ -499,6 +503,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patch = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && res.body.googleOk && patch.Autorizacion_Diana === 'SI' && patch.Monto_Estimado_IA === 4500 && patch.Checklist_Items === '10 mesas\n80 sillas', 'admin autoriza: SI, monto y checklist');
   ok(correos.length === 1 && correos[0].to === 'ana@x.com', 'admin autoriza: correo de cotización al cliente');
+  ok(patch.Autorizado_Por === 'Diana', 'autorizar: se guarda quién lo autorizó (Autorizado_Por), el origen no cambia');
+  reset();
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Servicios_Solicitados: 'a' } },
+    { __error: 422, error: { type: 'UNKNOWN_FIELD_NAME', message: 'Unknown field name: "Autorizado_Por"' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'autorizar', monto: '1000', items: 'a' } }, res);
+  const patchesAut = llamadas.filter(l => l.method === 'PATCH').map(l => l.body.records[0].fields);
+  ok(res.code === 200 && patchesAut.length >= 2 && 'Autorizado_Por' in patchesAut[0] && !('Autorizado_Por' in patchesAut[1]) && patchesAut[1].Autorizacion_Diana === 'SI',
+    'autorizar: si falta la columna Autorizado_Por en Airtable, se autoriza igual sin ese dato');
 
   reset();
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Fecha_Evento: '2026-12-12', Servicios_Solicitados: 'Paquete 3' } }, {}];
@@ -524,7 +537,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestas = [
     ADMIN,
     { records: [] },
-    { records: [{ id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Autorizacion_Diana: 'Pendiente', Cliente: ['recCLIENTE0000001'], Monto_Estimado_IA: 6000 } }] },
+    { records: [{ id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1', Autorizacion_Diana: 'Pendiente', Cliente: ['recCLIENTE0000001'], Monto_Estimado_IA: 6000, Servicios_Solicitados: '10 mesas\n80 sillas' } }] },
     { records: [{ id: 'recCLIENTE0000001', fields: { Nombre: 'Ana' } }] },
     { records: [] },
   ];
@@ -532,6 +545,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'GET', query: {}, headers: auth(tokenAdmin) }, res);
   ok(res.code === 200 && res.body.pedidos[0].montoEstimado === 6000 && res.body.pedidos[0].clienteNombre === 'Ana', 'dashboard GET: pedido con estimado de DiMa');
   ok(res.body.eventos[0].dinero && res.body.eventos[0].dinero.total === 6000 && res.body.eventos[0].dinero.resta === 6000, 'dashboard GET: cada evento trae su dinero para la ficha de Diana');
+  ok(res.body.eventos[0].servicios === '10 mesas\n80 sillas', 'dashboard GET: cada evento trae qué lleva para el ✏️ Editar (antes llegaba vacío)');
 
   // ---------- App de brigadas por rol ----------
   reset();
@@ -923,6 +937,25 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && bal.Detalle_Completo.includes('Reembolsos pendientes (gastos con dinero propio): $300') && bal.Detalle_Completo.includes('1 gasto ($200) en reportes sin aprobar'),
     'balance: solo cuentan los gastos y cobros de reportes aprobados (más los capturados a mano) y avisa lo pendiente');
   ok(bal.Por_Cobrar === 2000 && bal.Detalle_Completo.includes('Por cobrar a clientes (eventos de la semana): $2,000 en 1 evento'), 'balance: incluye lo por cobrar a clientes y lo guarda');
+  const { origenDeEvento } = require(path.join(repo, 'api/_origen.js'));
+  ok(origenDeEvento({ Origen: 'Chat DiMa', Notas: 'Pedido desde el formulario' }) === 'DiMa' && origenDeEvento({ Notas: 'Pedido armado con DiMa en la página web.' }) === 'DiMa'
+    && origenDeEvento({ Notas: 'Pedido desde el formulario de la página web.' }) === 'Formulario' && origenDeEvento({ Notas: 'Evento capturado a mano por Eden' }) === 'Eden'
+    && origenDeEvento({ Origen: 'Manual', Notas: 'Evento capturado a mano por Mario López en el calendario (5 nov).' }) === 'Mario' && origenDeEvento({ Origen: 'Diana' }) === 'Diana'
+    && origenDeEvento({}) === 'Sin dato', 'origen: quién lo creó (DiMa, Formulario o el nombre de quien lo capturó); los viejos "Manual" se leen de Notas');
+  reset();
+  respuestas = [{ records: [] }, { records: [] }, { records: [] },
+    { records: [{ fields: { Monto_Estimado_IA: 3000, Origen: 'Chat DiMa' } }, { fields: { Monto_Estimado_IA: 1900, Notas: 'Evento capturado a mano por Diana' } }] },
+    { records: [{ fields: { Notas: 'Pedido armado con DiMa en la página web.', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 2500 } }, { fields: { Origen: 'Chat DiMa', Autorizacion_Diana: 'Pendiente' } }] },
+    {}];
+  res = resMock();
+  await balance({ headers: {}, query: {} }, res);
+  const balOrigen = llamadas.find(l => l.method === 'POST').body.records[0].fields.Detalle_Completo;
+  const lecturaNuevos = llamadas.filter(l => !l.method || l.method === 'GET').pop();
+  ok(balOrigen.includes('DiMa: 1 evento · $3,000') && balOrigen.includes('Diana: 1 evento · $1,900')
+    && balOrigen.includes('Eventos de la semana por quién los autorizó:\n  Sin dato: 1 evento · $3,000\n  Diana: 1 evento · $1,900')
+    && balOrigen.includes('Pedidos que entraron esta semana') && balOrigen.includes('DiMa: 2 pedidos, 1 autorizado · $2,500')
+    && lecturaNuevos && decodeURIComponent(lecturaNuevos.url).includes('CREATED_TIME()'),
+    'balance: ventas de la semana y pedidos nuevos por origen (cuánto trae DiMa)');
 
   // Por cobrar evento por evento.
   const { calcularPorCobrar } = require(path.join(repo, 'api/_finanzas.js'));
@@ -1212,7 +1245,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   reset();
   respuestas = [
-    GERENTE, BRIGADA_VM,
+    GERENTE, BRIGADA_VM, { fields: {} },
     { records: [{ id: 'recEVENTO0000VM01' }, { id: 'recEVENTO0000VM02' }] },
     { records: [] },
     { records: [{ id: 'recEVENTO0000VM02', fields: { Folio_Evento: 'EVT-VM2', Negocio: 'El Vaso Maiz', Encargada: [ENCARG.id] } }] },
@@ -1582,6 +1615,89 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: EV_PEND.id, accion: 'confirmar_cambio' } }, res);
   ok(res.code === 403 && llamadas.length === 1, 'cambio: solo Diana y Víctor confirman cambios');
 
+  // ---------- ✏️ Editar el pedido a mano (qué lleva y monto) ----------
+  const EV_ED = { id: 'recEVENTOEDITA001', fields: { ...EV_PEND.fields, Cambio_Cliente: '', Servicios_Solicitados: 'Mesa\nSillas\nMantel',
+    Checklist_Items: 'Mesa\nSillas\nMantel', Checklist_Items_Marcados: '[0,2]', Monto_Estimado_IA: 4000 } };
+  reset();
+  respuestas = [ADMIN, EV_ED, {}, EV_ED, { records: [ADMIN, LIDER_CAMBIO] }, { records: [ADMIN, LIDER_CAMBIO] }, { records: [ADMIN_T, LIDER_CAMBIO] }, { records: [] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: ' Sillas\n\nMantel\nCopas ', monto: '5000' } }, res);
+  const edPedido = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  const avisoEd = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '222');
+  ok(res.code === 200 && edPedido.Servicios_Solicitados === 'Sillas\nMantel\nCopas' && edPedido.Checklist_Items === 'Sillas\nMantel\nCopas' && edPedido.Items_Detallados_Cotizacion === 'Sillas\nMantel\nCopas'
+    && edPedido.Checklist_Items_Marcados === '[1]' && edPedido.Monto_Estimado_IA === 5000 && edPedido.Enterado_Por === '',
+    'editar pedido: Diana cambia lo que lleva y el monto; la lista de carga conserva las palomitas de lo que sigue igual');
+  ok(avisoEd && avisoEd.body.text.startsWith('🔄 Cambió el pedido EVT-CM1') && avisoEd.body.text.includes('Diana modificó el pedido') && avisoEd.body.text.includes('Copas') && !avisoEd.body.text.includes('$')
+    && botonesDe(avisoEd).join() === `cf:${EV_ED.id}` && res.body.avisados === 1,
+    'editar pedido: se avisa a la brigada con lo nuevo (sin montos) y botón Confirmar');
+
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Mesa\nSillas', avisarEquipo: false } }, res);
+  const edSinAviso = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edSinAviso.Checklist_Items === 'Mesa\nSillas' && edSinAviso.Checklist_Items_Marcados === '[0]' && !('Enterado_Por' in edSinAviso) && !telegram.length,
+    'editar pedido: sin "avisar al equipo" se guarda sin mandar avisos');
+
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Mesa\nSillas\nMantel', invitados: '90' } }, res);
+  const edIgual = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edIgual.Invitados === 90 && !('Servicios_Solicitados' in edIgual) && !('Checklist_Items_Marcados' in edIgual) && !telegram.length,
+    'editar pedido: si lo que lleva no cambió no se toca la lista de carga ni se avisa');
+
+  reset();
+  respuestas = [ADMIN, EV_ED];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: '  \n ' } }, res);
+  ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'editar pedido: no se deja el pedido vacío');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3' } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM01', accion: 'editar', servicios: 'Paquete 5', monto: '9000' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'editar pedido: la gerente no cambia el monto');
+
+  reset();
+  respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3', Checklist_Items: 'Paquete 3' } }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenGer), body: { eventoId: 'recEVENTO0000VM01', accion: 'editar', servicios: 'Paquete 5', avisarEquipo: false } }, res);
+  const edGer = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edGer.Servicios_Solicitados === 'Paquete 5' && edGer.Checklist_Items === 'Paquete 5' && !('Monto_Estimado_IA' in edGer),
+    'editar pedido: la gerente cambia lo que lleva un evento de El Vaso Maíz');
+
+  // Gerentes por negocio (2026-11-03): Eden Divanna sin Casa Isabella, Mario solo Casa Isabella.
+  {
+    const S = require('../api/_sesion');
+    const EV_DV = { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas y sillas' };
+    const EV_CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    const EV_VM = { Negocio: 'El Vaso Maiz' };
+    ok(S.eventoDeGerencia('Divanna Eventos', EV_DV) && !S.eventoDeGerencia('Divanna Eventos', EV_CI) && !S.eventoDeGerencia('Divanna Eventos', EV_VM),
+      'gerentes: Divanna ve sus eventos, no los de Casa Isabella ni El Vaso Maíz');
+    ok(S.eventoDeGerencia('Casa Isabella', EV_CI) && !S.eventoDeGerencia('Casa Isabella', EV_DV) && S.eventoDeGerencia('El Vaso Maiz', EV_VM),
+      'gerentes: Casa Isabella solo los que llevan el salón; El Vaso Maíz igual que antes');
+    ok(S.gerenciaDe({ Gerente_Vaso_Maiz: true }) === 'El Vaso Maiz' && S.gerenciaDe({ Rol: 'Gerente Casa Isabella' }) === 'Casa Isabella' && S.gerenciaDe({ Rol: 'Gerente Divanna' }) === 'Divanna Eventos' && S.gerenciaDe({ Rol: 'Lider de brigada' }) === null && S.rolDe({ Rol: 'Gerente Divanna' }) === 'Lider de brigada',
+      'gerentes: la casilla de Ángela sigue valiendo; el Rol "Gerente …" marca a cada gerente y cuenta como líder');
+    const MARIO = { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario', Rol: 'Gerente Casa Isabella', Activo: true } };
+    ok(S.puedeOperarEvento(S.gerenciaDe(MARIO.fields) && { id: MARIO.id, rol: 'Lider de brigada', gerente: 'Casa Isabella' }, { ...EV_DV, Encargada: [MARIO.id] }),
+      'gerentes: Mario opera un evento de Divanna donde Eden lo asignó');
+    const EDEN = { id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: 'Gerente Divanna', Activo: true } };
+    const tokenEden = (await login(EDEN)).body.token;
+    reset();
+    respuestas = [EDEN, { id: 'recEVENTO0000CI01', fields: { Folio_Evento: 'EVT-CI1', Autorizacion_Diana: 'SI', ...EV_CI } }];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenEden), body: { eventoId: 'recEVENTO0000CI01', accion: 'editar', invitados: '50' } }, res);
+    ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'gerentes: Eden no edita un evento de Casa Isabella');
+    reset();
+    respuestas = [EDEN, { id: 'recEVENTO0000DV01', fields: { Folio_Evento: 'EVT-DV1', Autorizacion_Diana: 'SI', Brigada_Asignada: [], ...EV_DV } }, { records: [MARIO, ENCARG] }, {}, { records: [] }];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenEden), body: { eventoId: 'recEVENTO0000DV01', accion: 'asignar', brigadaId: '', encargadaIds: [MARIO.id] } }, res);
+    const patchEden = llamadas.find(l => l.method === 'PATCH');
+    ok(res.code === 200 && patchEden && JSON.stringify(patchEden.body.records[0].fields.Encargada) === JSON.stringify([MARIO.id]) && !('Encargado_Produccion' in patchEden.body.records[0].fields),
+      'gerentes: Eden asigna a Mario en un evento de Divanna (sin producción)');
+  }
+
   // Diana es la jefa de todo: invita a cualquier chica y elige producción desde el dashboard.
   reset();
   respuestas = [ADMIN, EV_STAFF, { records: [EV_STAFF] }, { records: [ZOE_OTRA] }, { records: [] }, { records: [{ id: 'recINVITA00000030' }] }];
@@ -1692,7 +1808,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   // La gerente ve de un reporte "Ambos" solo lo de El Vaso Maíz.
   const REP_AMBOS = { id: 'recREPORTEAMBOS01', fields: { Fecha: hoyCln, Colaborador: [LIDER.id], Estado: 'Enviado', Negocio: 'Ambos', GASTOS: ['recGASTOVM0000001', 'recGASTODV0000001'], COBROS: ['recCOBRODV0000001'] } };
   reset();
-  respuestas = [GERENTE, { records: [] }, BRIGADA_VM, { records: [] }, { records: [] }, { records: [] },
+  respuestas = [GERENTE, { records: [] }, BRIGADA_VM, { records: [] }, { fields: {} }, { records: [] }, { records: [] },
     { records: [REP_AMBOS] },
     { records: [{ id: 'recGASTOVM0000001', fields: { Monto: 100, Negocio: 'El Vaso Maiz', Reporte: [REP_AMBOS.id] } }, { id: 'recGASTODV0000001', fields: { Monto: 900, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },
     { records: [{ id: 'recCOBRODV0000001', fields: { Monto: 5000, Negocio: 'Divanna Eventos', Reporte: [REP_AMBOS.id] } }] },
@@ -2033,7 +2149,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // ➕ Capturar evento (los que se apartaron fuera del chat).
   reset();
-  respuestas = [GERENTE, { records: [] }, { records: [{ id: 'recCLIENTENUEVO01', fields: { Nombre: 'Laura Pérez' } }] }, { records: [{ id: 'recEVCAPTURA00001' }] }, {},
+  respuestas = [GERENTE, { records: [] }, { records: [{ id: 'recCLIENTENUEVO01', fields: { Nombre: 'Laura Pérez' } }] }, { records: [{ id: 'recEVCAPTURA00001' }] }, {}, {},
     { id: 'recEVCAPTURA00001', fields: { Folio_Evento: 'EVT-CAP', Fecha_Evento: '2026-12-20', Hora_Inicio: '17:00', Horas_Servicio: 2, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Ubicacion: 'Las Quintas' } }, {}];
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'capturar_evento', clienteNombre: 'Laura Pérez', clienteTelefono: '667 123 4567', negocio: 'El Vaso Maiz',
@@ -2047,9 +2163,66 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(antCap && antCap.body.records[0].fields.Monto === 1000 && antCap.body.records[0].fields.Recibido_Por === 'Diana' && antCap.body.records[0].fields.Forma === 'Transferencia'
     && googleCal.some(g => g.op === 'insert' && g.requestBody.start.dateTime === '2026-12-20T17:00:00'),
     'capturar: el anticipo queda como pago recibido (cuadre) y el evento sale en Google');
+  const origenCap = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+  ok(origenCap && origenCap.body.records[0].id === 'recEVCAPTURA00001' && origenCap.body.records[0].fields.Origen === 'Ángela' && origenCap.body.records[0].fields.Autorizado_Por === 'Ángela',
+    'origen: el evento capturado a mano guarda quién lo capturó, que también es quien lo autorizó');
+
+  // Manteles (Víctor 2026-11-06): 1 básico incluido por mesa; cambio = diferencia; extras a precio completo.
+  {
+    const P = require(path.join(repo, 'api/_productos.js'));
+    const m = P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 10 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }, { clave: 'dv_cambio_corrugado', cantidad: 2 }, { clave: 'dv_mantel', cantidad: 2 }]);
+    ok(m.incluidos === 10 && m.porTipo.basico === 7 && m.porTipo.lentejuela === 3 && m.porTipo.corrugado === 2 && m.total === 12 && m.cargo === 3 * 140 + 2 * 60 + 2 * 60 && !m.error,
+      'manteles: 10 mesas = 10 básicos incluidos; 3 a lentejuela (+$140) y 2 a corrugado (+$60) cobran la diferencia; extra básico $60');
+    ok(P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }]).error.includes('solo traen 2'),
+      'manteles: no se cambian más manteles de los que traen las mesas');
+    const paq = P.resumenManteles([{ clave: 'dv_paq50_tiffany_lentejuela', cantidad: 1 }]);
+    ok(paq.cargo === 0 && paq.porTipo.corrugado === 5, 'manteles: el paquete que ya trae mantel especial respeta su precio (sin cargo aparte)');
+    ok(P.inventarioRequerido([{ clave: 'dv_mesa_mantel', cantidad: 10 }, { clave: 'dv_cambio_lentejuela', cantidad: 3 }])['Mantel'] === 7,
+      'manteles: el inventario aparta 7 básicos y 3 lentejuela, no 10 + 3');
+    const info = P.infoManteles();
+    // App (brigadas/manteles.js): renglones tipo-color-cantidad → cambios y extras.
+    const ctx = { window: {} };
+    require('vm').runInNewContext(require('fs').readFileSync(path.join(repo, 'brigadas/manteles.js'), 'utf8'), ctx);
+    const rep = ctx.window.DimaManteles.repartir([{ tipo: 'basico', color: 'beige', cantidad: 7 }, { tipo: 'lentejuela', color: 'rosa', cantidad: 3 }, { tipo: 'corrugado', color: 'dorado', cantidad: 2 }], 10);
+    const prodsRep = rep.salida.map(x => ({ clave: x.grupo === 'cambio' ? `dv_cambio_${x.tipo}` : ({ basico: 'dv_mantel', lentejuela: 'dv_mantel_lentejuela', corrugado: 'dv_mantel_corrugado' })[x.tipo], cantidad: x.cantidad }));
+    const mRep = P.resumenManteles([{ clave: 'dv_mesa_mantel', cantidad: 10 }, ...prodsRep]);
+    ok(mRep.porTipo.basico === 7 && mRep.porTipo.lentejuela === 3 && mRep.porTipo.corrugado === 2 && mRep.cargo === 660 && rep.coloresBasico[0] === 'beige',
+      'manteles (app): 10 mesas con 7 básicos beige, 3 lentejuela y 2 corrugado = 12 manteles y $660 aparte');
+    const rep2 = ctx.window.DimaManteles.repartir([{ tipo: 'lentejuela', color: '', cantidad: 12 }], 10);
+    ok(rep2.salida.find(x => x.grupo === 'cambio').cantidad === 10 && rep2.salida.find(x => x.grupo === 'extra').cantidad === 2,
+      'manteles (app): 12 de lentejuela con 10 mesas = 10 cambios y 2 extra');
+    const aj = P.ajustarManteles([{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_cambio_lentejuela', cantidad: 3, nota: 'rosa' }]);
+    ok(aj.find(x => x.clave === 'dv_cambio_lentejuela').cantidad === 2 && aj.find(x => x.clave === 'dv_mantel_lentejuela').cantidad === 1 && !P.resumenManteles(aj).error,
+      'manteles: si la comanda trae más cambios que mesas, lo que sobra pasa a extra y se puede guardar');
+    ok(info.precios.dv_mantel === 60 && info.precios.dv_mantel_lentejuela === 200 && info.precios.dv_mantel_corrugado === 120 && info.basicos.dv_mesa_10_jardin === 1 && !info.basicos.dv_cambio_lentejuela,
+      'manteles: precios de renta básico $60, lentejuela $200, corrugado $120 para el selector');
+
+    // Capturar: los manteles se suman al monto y al decorador se le resta 10% del total.
+    reset();
+    respuestas = [ADMIN, { records: [{ id: 'recCLIDECORADOR01', fields: { Nombre: 'Deco Fiestas', Tipo_Cliente: 'Decorador' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] }, {}];
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Deco Fiestas', clienteTelefono: '6671234567', negocio: 'Divanna Eventos',
+      fecha: '2026-12-22', servicios: '10 mesas con mantel lentejuela', montoContratado: '2200',
+      productos: [{ clave: 'dv_mesa_10_jardin', cantidad: 10, nota: 'mantel básico beige' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: 'rosa' }] } }, res);
+    const evDeco = (llamadas.find(l => l.method === 'POST' && l.url.includes('tblY6U7Y9F6M9tQ7a')) || llamadas.filter(l => l.method === 'POST')[0] || {}).body;
+    const fDeco = evDeco && evDeco.records[0].fields;
+    ok(res.code === 200 && fDeco && fDeco.Monto_Estimado_IA === 3240 && fDeco.Notas.includes('decorador') && res.body.cargoManteles === 1400 && res.body.decorador === true,
+      'capturar: $2,200 + 10 cambios a lentejuela ($1,400) = $3,600, menos 10% de decorador = $3,240');
+    const origenDeco = llamadas.find(l => l.method === 'PATCH' && l.body.records[0].fields.Origen);
+    ok(origenDeco && origenDeco.body.records[0].fields.Origen === 'Diana', 'origen: lo que captura Diana dice "Diana"');
+
+    // Recibo: total de manteles, cambios con su precio y el descuento de decorador.
+    const S = require(path.join(repo, 'api/_sheets.js'));
+    const lineas = S.articulosDe({ f: { Negocio: 'Divanna Eventos', Monto_Estimado_IA: 3240, Notas: fDeco ? fDeco.Notas : '' },
+      productos: [{ clave: 'dv_mesa_10_jardin', cantidad: 10, nota: 'mantel básico beige' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: 'rosa' }] }, 'Divanna Eventos');
+    const fila = (t) => lineas.find(l => l[0] === t);
+    ok(!fila('Mantel') && fila('Mantel lentejuela')[1] === 10 && fila('Manteles en total')[1] === 10 && fila('Cambio de mantel básico a lentejuela')[3] === 140
+      && fila('Descuento decorador 10%')[3] === -360,
+      'recibo: dice cuántos manteles van, el cambio a lentejuela con su precio y el descuento de decorador');
+  }
 
   reset();
-  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] },
+  respuestas = [ADMIN, { records: [{ id: 'recCLIENTEVIEJO01', fields: { Nombre: 'Decoraciones Luna', Telefono_WhatsApp: '+526671112233' } }] }, { records: [{ id: 'recEVCAPTURA00002' }] }, {},
     { id: 'recEVCAPTURA00002', fields: { Folio_Evento: 'EVT-CP2', Fecha_Evento: '2026-12-21', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}];
   res = resMock();
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'capturar_evento', clienteNombre: 'Luna', clienteTelefono: '6671112233', negocio: 'Divanna Eventos',
@@ -2603,7 +2776,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset();
     respuestas = [{ records: [DIANA_TG] },
       { id: 'recCOMANDA0000001', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_B), Foto: [{ url: 'https://dl.airtable.com/comanda.jpg', filename: 'comanda.jpg' }] } },
-      { records: [] }, { records: [{ id: 'recCLIENTECOMAND1', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00001' }] }, {},
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND1', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00001' }] }, {}, {},
       { id: 'recEVCOMANDA00001', fields: { Folio_Evento: 'EVT-CMD', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb9', data: 'cm:g:recCOMANDA0000001', message: { message_id: 22, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
@@ -2632,7 +2805,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset();
     respuestas = [{ records: [DIANA_TG] },
       { id: 'recCOMANDA0000002', fields: { Estado: 'Pendiente', Colaborador: ['recCOLAB000000001'], Datos: JSON.stringify(DATOS_SIN_FORMA) } },
-      { records: [] }, { records: [{ id: 'recCLIENTECOMAND2', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00002' }] },
+      { records: [] }, { records: [{ id: 'recCLIENTECOMAND2', fields: { Nombre: 'Perla Ayon' } }] }, { records: [{ id: 'recEVCOMANDA00002' }] }, {},
       { id: 'recEVCOMANDA00002', fields: { Folio_Evento: 'EVT-CMD2', Fecha_Evento: '2026-11-27', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI' } }, {}, {}, {}];
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cb10', data: 'cm:g:recCOMANDA0000002', message: { message_id: 31, chat: { id: 111, type: 'private' }, text: '🧾 Comanda leída' } } } }, res);
@@ -2670,6 +2843,51 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     await telegramApi({ method: 'POST', headers: tgHeaders, body: fotoDiana }, res);
     ok(!telegram.some(t => t.body && String(t.body.text || '').includes('SIN SALDO')) && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('sin saldo para usar la IA')),
       'comanda: el aviso de falta de saldo no se repite a cada foto');
+
+    // Pedido 100% sin dudas (Víctor 2026-11-06): DiMa pregunta lo que falta y no deja guardar.
+    const comP = require(path.join(repo, 'api/_comanda.js'));
+    const pf = (prods, lineas) => comP.aCaptura({ negocio: 'Divanna Eventos', productos: prods, lineas, preguntas: [] }).preguntas;
+    ok(pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: null }], ['10 mesas']).some(q => q.includes('tipo de mantel'))
+      && pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel básico' }], ['10 mesas']).some(q => q.includes('color'))
+      && !pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel lentejuela rosa' }, { clave: 'dv_cambio_lentejuela', cantidad: 10, nota: null }], ['10 mesas']).length,
+      'preguntas: si lleva mesas, DiMa pide el tipo y el color del mantel');
+    ok(pf([{ clave: 'dv_mesa_mantel', cantidad: 10, nota: 'mantel lentejuela rosa' }], ['10 mesas']).some(q => q.includes('lentejuela') && q.includes('cuántas mesas')),
+      'preguntas: si dice lentejuela pero no se está cobrando, pregunta para cuántas mesas');
+    const pfDeco = pf([{ clave: 'dv_arco_cerezos', cantidad: 1, nota: null }, { clave: 'dv_personalizado', cantidad: 50, nota: null }], ['arco de cerezos', '50 personalizados']);
+    ok(pfDeco.some(q => q.includes('cerezos')) && pfDeco.some(q => q.includes('temática'))
+      && !pf([{ clave: 'dv_arco_cerezos', cantidad: 1, nota: 'cerezos blancos' }, { clave: 'dv_personalizado', cantidad: 50, nota: 'Frozen, Sofía' }], ['arco de cerezos blancos', '50 personalizados']).length,
+      'preguntas: color de los cerezos y temática de los personalizados');
+    const conPreg = comP.aCaptura({ ...LEIDA, forma_anticipo: 'Efectivo', preguntas: ['¿De qué color las sillas?'] });
+    ok(comP.faltantes(conPreg).includes('contestar las preguntas') && comP.textoBorrador(conPreg, 'recCOMANDA0000009').includes('❓ Antes de guardar'),
+      'preguntas: con preguntas abiertas no se puede guardar y el borrador las muestra');
+
+    // Pedido escrito en la app y respuestas a las preguntas.
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, preguntas: [] });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', texto: 'Perla Ayon 696 100 7116, 27 de noviembre 5 pm, 4 mesas mantel básico beige' } }, res);
+    ok(res.code === 200 && res.body.datos.clienteNombre === 'Perla Ayon' && llamadasClaude[0].messages[0].content[0].type === 'text'
+      && llamadasClaude[0].messages[0].content[0].text.includes('Lee este pedido escrito'),
+      'comanda: en la app se puede llenar con el pedido escrito');
+    reset();
+    respuestas = [ADMIN];
+    respuestasClaude = claudeLee({ ...LEIDA, preguntas: [] });
+    res = resMock();
+    await dash({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'leer_comanda', previo: { clienteNombre: 'Perla Ayon', preguntas: ['¿Color?'] }, respuestas: 'beige' } }, res);
+    ok(res.code === 200 && llamadasClaude[0].messages[0].content[0].text.includes('Corrección de Diana') && llamadasClaude[0].messages[0].content[0].text.includes('beige'),
+      'comanda: las respuestas a las preguntas de DiMa corrigen lo leído');
+
+    // Pedido escrito por Telegram: /comanda y el pedido.
+    reset();
+    respuestas = [{ records: [DIANA_TG] }, { records: [{ id: 'recCOMANDA0000002' }] }];
+    respuestasClaude = claudeLee({ ...LEIDA, forma_anticipo: 'Efectivo', preguntas: ['¿De qué color las sillas?'] });
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 30, chat: { id: 111, type: 'private' }, text: '/comanda Perla Ayon 696 100 7116, 27 nov, 4 mesas, 45 sillas' } } }, res);
+    const borradorTexto = telegram.filter(t => t.metodo === 'sendMessage').pop();
+    ok(res.code === 200 && borradorTexto && borradorTexto.body.text.includes('Borrador: recCOMANDA0000002') && borradorTexto.body.text.includes('¿De qué color las sillas?')
+      && !JSON.stringify(borradorTexto.body.reply_markup || {}).includes('cm:g:'),
+      'comanda: por Telegram /comanda lee el pedido escrito; con preguntas abiertas no sale Guardar');
   }
   // ---------- Carpeta de Google Drive (api/_drive.js) ----------
   {
@@ -2874,5 +3092,27 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [EV_D, { id: 'recINVMANTEL00001', fields: { Item: 'Mantel blanco', Precio_Reposicion: 400 } }, {}, { records: [] }];
     const rApp = await agregarCargo({ id: 'recCOLAB000000001', nombre: 'Diana', rol: 'Admin' }, { eventoId: EV_D.id, articuloId: 'recINVMANTEL00001', cantidad: 2, gravedad: 'menor' });
     ok(rApp.ok && rApp.cargo.total === 80 && rApp.cargo.gravedad === 'menor', 'cargos: en la app el daño menor se cobra al 10% del precio de reposición');
+
+    // Cierre automático: liquidado + recogido = Estado Cerrado (pedido de Víctor 2026-11-03).
+    const { cerrarSiTermino } = require(path.join(repo, 'api/_cargos.js'));
+    const EV_CIERRE = (extra) => ({ id: 'recEVENTOCIERRE01', fields: { Folio_Evento: 'EVT-CR1', Monto_Estimado_IA: 1000, COBROS: ['recCOBROCIERRE001'], Estado: 'Confirmado', ...extra } });
+    const COBRO_CIERRE = (monto) => ({ records: [{ id: 'recCOBROCIERRE001', fields: { Monto: monto, Evento: ['recEVENTOCIERRE01'] } }] });
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true }), COBRO_CIERRE(1000), {}];
+    let cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    let patchCierre = llamadas.find(l => l.method === 'PATCH');
+    ok(cerro === true && patchCierre && patchCierre.body.records[0].fields.Estado === 'Cerrado', 'cobro: liquidado y ya recogido, el evento se cierra');
+    reset();
+    respuestas = [EV_CIERRE({}), COBRO_CIERRE(1000)];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: liquidado antes de recoger, el evento sigue abierto (la brigada lo sigue viendo)');
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true }), COBRO_CIERRE(600)];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: con un abono el evento no se cierra');
+    reset();
+    respuestas = [EV_CIERRE({ Checklist_Recoleccion: true, Monto_Estimado_IA: 0, COBROS: [] })];
+    cerro = await cerrarSiTermino('recEVENTOCIERRE01');
+    ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: un evento sin monto no se cierra solo');
   }
 })();

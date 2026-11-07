@@ -11,7 +11,7 @@
 //   producción ya se había mandado, se le reenvía la lista actualizada.
 // - Con menos de 24 h para el evento el cambio va marcado como URGENTE.
 
-const { ROLES, COLABORADORES_TABLE, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, esDeSuGerencia, gerenciaDe: gerenciaColaborador } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -32,12 +32,12 @@ async function airtable(path, options = {}) {
 
 const fechaCorta = () => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
 
-// Admin y, si el evento es de El Vaso Maíz, la gerente: { admins: [ids], gerentes: [ids] }.
+// Admin y el gerente del negocio del evento: { admins: [ids], gerentes: [ids] }.
+// La gerencia se filtra aquí con gerenciaDe (ver api/_sesion.js).
 async function gerenciaDe(eventoFields) {
-  const formula = encodeURIComponent(`AND({Activo}, OR({Rol} = "${ROLES.ADMIN}", {Gerente_Vaso_Maiz}))`);
-  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
+  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
   const admins = data.records.filter(r => r.fields.Rol === ROLES.ADMIN).map(r => r.id);
-  const gerentes = esVasoMaiz(eventoFields || {}) ? data.records.filter(r => r.fields.Rol !== ROLES.ADMIN && r.fields.Gerente_Vaso_Maiz).map(r => r.id) : [];
+  const gerentes = data.records.filter(r => r.fields.Rol !== ROLES.ADMIN && esDeSuGerencia({ gerente: gerenciaColaborador(r.fields) }, eventoFields || {})).map(r => r.id);
   return { admins, gerentes };
 }
 
@@ -74,7 +74,7 @@ function equipoDelEvento(eventoFields, colaboradores) {
   const ids = new Set([...(eventoFields.Encargada || []), ...(eventoFields.Encargado_Produccion || [])]);
   colaboradores.forEach(c => {
     if ((c.fields.Brigada || []).some(b => brigadas.includes(b))) ids.add(c.id);
-    if (esVasoMaiz(eventoFields) && c.fields.Gerente_Vaso_Maiz) ids.add(c.id);
+    if (esDeSuGerencia({ gerente: gerenciaColaborador(c.fields) }, eventoFields)) ids.add(c.id);
   });
   return [...ids];
 }
@@ -98,22 +98,33 @@ async function confirmarCambio(eventoId, f, colaborador, colaboradores) {
   }
   await airtable(EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: campos }] }) });
 
+  return avisarEquipoCambio(eventoId, f, colaborador, colaboradores, {
+    servicios: c.servicios, indicaciones: c.indicaciones, horaInicio: c.horaInicio,
+    explicacion: 'El cliente pidió un cambio y la gerencia ya lo confirmó. Ahora lleva:',
+  });
+}
+
+// Avisa al equipo del evento (menos a quien hizo el cambio) que el pedido
+// cambió, con el botón "Confirmar", y reenvía la producción si ya se había
+// mandado. Lo usan el cambio del cliente confirmado y ✏️ Editar del dashboard.
+async function avisarEquipoCambio(eventoId, f, colaborador, colaboradores, { servicios, indicaciones, horaInicio, explicacion }) {
   const equipo = equipoDelEvento(f, colaboradores).filter(id => id !== colaborador.id);
   let porTelegram = 0, porPush = 0;
   const erroresAvisos = [];
   if (equipo.length) {
     const titulo = `🔄 Cambió el pedido ${f.Folio_Evento || ''}`.trim();
+    const hora = horaInicio || f.Hora_Inicio;
     const texto = [
-      `${titulo}${f.Fecha_Evento ? ' (' + f.Fecha_Evento + (f.Hora_Inicio || c.horaInicio ? ' · ' + (c.horaInicio || f.Hora_Inicio) : '') + ')' : ''}`,
-      'El cliente pidió un cambio y la gerencia ya lo confirmó. Ahora lleva:',
+      `${titulo}${f.Fecha_Evento ? ' (' + f.Fecha_Evento + (hora ? ' · ' + hora : '') + ')' : ''}`,
+      explicacion,
       '',
-      c.servicios,
-      c.indicaciones ? `\n📌 ${c.indicaciones}` : null,
+      servicios,
+      indicaciones ? `\n📌 ${indicaciones}` : null,
       '',
       'Confirma que lo viste con el botón o en la app ("Enterado").',
     ].filter(l => l !== null).join('\n');
     [porPush, porTelegram] = await Promise.all([
-      enviarPushEquipo({ titulo, cuerpo: 'La gerencia confirmó un cambio. Toca para verlo.', soloColaboradores: equipo }),
+      enviarPushEquipo({ titulo, cuerpo: 'La gerencia cambió el pedido. Toca para verlo.', soloColaboradores: equipo }),
       enviarTelegramEquipo({ texto, soloColaboradores: equipo, errores: erroresAvisos, botones: botonConfirmar(eventoId) }),
     ]);
   }
@@ -138,4 +149,4 @@ async function descartarCambio(eventoId, f, colaborador) {
   return {};
 }
 
-module.exports = { avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento };
+module.exports = { avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento, avisarEquipoCambio };

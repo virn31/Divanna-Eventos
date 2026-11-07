@@ -3,7 +3,7 @@
 // día. Lo usan la app (api/brigada-eventos.js) y el bot de Telegram (api/telegram.js).
 // También la confirmación "Enterado" de un evento asignado (app y botón de Telegram).
 
-const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz, formulaGerencia, GERENCIAS, eventoDeGerencia, gerenciaDe, puestoGerente } = require('./_sesion');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
@@ -59,6 +59,8 @@ function formatearEvento(r) {
     folio: r.fields.Folio_Evento || '',
     negocio: r.fields.Negocio || '',
     vasoMaiz: esVasoMaiz(r.fields),
+    // Gerencias a las que les toca el evento (El Vaso Maiz, Divanna Eventos, Casa Isabella).
+    gerencias: Object.values(GERENCIAS).filter(g => eventoDeGerencia(g, r.fields)),
     brigadaId: (r.fields.Brigada_Asignada || [])[0] || '',
     encargadaIds: r.fields.Encargada || [],
     // Encargado de producción de El Vaso Maíz y su última respuesta (api/_produccion.js).
@@ -108,14 +110,24 @@ function formatearEvento(r) {
 // Se usa el campo de vínculo directo (array de IDs) en vez de una fórmula
 // ARRAYJOIN, porque Airtable resuelve ARRAYJOIN sobre un vínculo devolviendo
 // el NOMBRE del registro vinculado, no su ID — comparar por ID ahí nunca coincide.
-// La gerente de El Vaso Maíz ve, además de lo suyo, todos los eventos
-// autorizados y no cerrados de El Vaso Maíz.
+// Cada gerente (El Vaso Maíz, Divanna, Casa Isabella) ve, además de lo suyo,
+// todos los eventos autorizados y no cerrados de su negocio.
 async function alcanceDe(colaborador) {
   const alcance = await alcanceBase(colaborador);
   if (!colaborador.gerente || alcance.eventoIds === null) return alcance;
-  const formula = encodeURIComponent('AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0))');
-  const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formula}&fields%5B%5D=Folio_Evento&pageSize=100`);
-  return { ...alcance, eventoIds: [...new Set([...alcance.eventoIds, ...data.records.map(r => r.id)])] };
+  // Los eventos donde lo pusieron en "👷 Asignar" (de cualquier negocio).
+  const propio = colaborador.rol === ROLES.ENCARGADA ? [] : await airtableGet(`${COLABORADORES_TABLE}/${colaborador.id}?returnFieldsByFieldId=true`)
+    .then(r => r.fields[CAMPO_EVENTOS_DE_ENCARGADA] || [])
+    .catch(err => { console.error('No se pudieron leer los eventos asignados al gerente:', err.message); return []; });
+  const formula = encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", ${formulaGerencia(colaborador.gerente)})`);
+  const ids = [];
+  let offset = '';
+  do {
+    const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formula}&fields%5B%5D=Folio_Evento&pageSize=100${offset ? `&offset=${encodeURIComponent(offset)}` : ''}`);
+    ids.push(...data.records.map(r => r.id));
+    offset = data.offset || '';
+  } while (offset && ids.length < 500);
+  return { ...alcance, eventoIds: [...new Set([...alcance.eventoIds, ...propio, ...ids])] };
 }
 
 async function alcanceBase(colaborador) {
@@ -158,13 +170,26 @@ async function clientesDe(registros) {
 // quien entrega y cobra (veDinero en api/_cargos.js).
 async function leerEventos(ids, { soloHoy = false, conDinero = false } = {}) {
   if (ids && ids.length === 0) return [];
-  const condiciones = ['{Estado} != "Cerrado"'];
-  if (ids) condiciones.push(`OR(${ids.map(id => `RECORD_ID()="${id}"`).join(',')})`);
-  if (soloHoy) condiciones.push(`DATESTR({Fecha_Evento}) = "${hoyCuliacan()}"`);
-  const formula = encodeURIComponent(`AND(${condiciones.join(', ')})`);
-  const data = await airtableGet(
-    `${TABLES.EVENTOS}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc`
-  );
+  // Por tandas de 80 IDs (la URL tiene límite) y con paginación: un gerente
+  // de Divanna puede tener más de 100 eventos abiertos.
+  const tandas = ids ? Array.from({ length: Math.ceil(ids.length / 80) }, (_, i) => ids.slice(i * 80, i * 80 + 80)) : [null];
+  const records = [];
+  for (const tanda of tandas) {
+    const condiciones = ['{Estado} != "Cerrado"'];
+    if (tanda) condiciones.push(`OR(${tanda.map(id => `RECORD_ID()="${id}"`).join(',')})`);
+    if (soloHoy) condiciones.push(`DATESTR({Fecha_Evento}) = "${hoyCuliacan()}"`);
+    const formula = encodeURIComponent(`AND(${condiciones.join(', ')})`);
+    let offset = '';
+    do {
+      const pagina = await airtableGet(
+        `${TABLES.EVENTOS}?filterByFormula=${formula}&sort%5B0%5D%5Bfield%5D=Fecha_Evento&sort%5B0%5D%5Bdirection%5D=asc${offset ? `&offset=${encodeURIComponent(offset)}` : ''}`
+      );
+      records.push(...pagina.records);
+      offset = pagina.offset || '';
+    } while (offset && records.length < 600);
+  }
+  if (tandas.length > 1) records.sort((a, b) => String(a.fields.Fecha_Evento || '').localeCompare(String(b.fields.Fecha_Evento || '')));
+  const data = { records };
   const eventos = data.records.map(formatearEvento);
   // Todos ven nombre, teléfono y correo del cliente: el encargado lo atiende de
   // principio a fin. Si no se puede leer, la app sigue sin esos datos.
@@ -210,14 +235,20 @@ async function alertasEquipoDeHoy(eventoIdsPropios) {
 
 // Para la "vista equipo" de los Admin: brigadas y encargadas activas para
 // elegir a quién ver.
-async function opcionesVista() {
+// conGerentes (para "👷 Asignar"): además de las encargadas salen los gerentes
+// (Ángela, Eden, Mario), para que se asignen a sí mismos o entre ellos. El
+// gerente asignado ve ese evento aunque no sea de su negocio (alcanceDe).
+async function opcionesVista(conGerentes = false) {
+  const formula = conGerentes ? '{Activo}' : `AND({Activo}, {Rol} = "${ROLES.ENCARGADA}")`;
   const [brigadas, encargadas] = await Promise.all([
     airtableGet(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada&sort%5B0%5D%5Bfield%5D=Nombre_Brigada`),
-    airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(`AND({Activo}, {Rol} = "${ROLES.ENCARGADA}")`)}&fields%5B%5D=Nombre`),
+    airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(formula)}${conGerentes ? '' : '&fields%5B%5D=Nombre'}`),
   ]);
   return {
     brigadas: brigadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre_Brigada || 'Sin nombre' })),
-    encargadas: encargadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre || 'Sin nombre' })),
+    encargadas: encargadas.records
+      .filter(r => !conGerentes || r.fields.Rol === ROLES.ENCARGADA || gerenciaDe(r.fields))
+      .map(r => ({ id: r.id, nombre: `${r.fields.Nombre || 'Sin nombre'}${conGerentes && r.fields.Rol !== ROLES.ENCARGADA ? ` (${puestoGerente(gerenciaDe(r.fields))})` : ''}` })),
   };
 }
 

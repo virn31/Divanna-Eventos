@@ -16,6 +16,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { calcularPorCobrar } = require('./_finanzas');
+const { origenDeEvento, autorizadoPor } = require('./_origen');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -141,6 +142,8 @@ module.exports = async (req, res) => {
     let ingresosTotales = 0;
     let ingresosPorNegocio = {};
     let numEventos = 0;
+    const ventasPorOrigen = {}; // { 'DiMa': { eventos, monto }, ... }
+    const ventasPorAutorizo = {}; // { 'Diana': { eventos, monto }, ... }
     let porCobrar = null; // null = no se pudo calcular (se dice en el texto)
     try {
       const eventosData = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formulaEventos}`);
@@ -152,10 +155,36 @@ module.exports = async (req, res) => {
         ingresosTotales += monto;
         const negocio = r.fields.Negocio || 'Sin especificar';
         ingresosPorNegocio[negocio] = (ingresosPorNegocio[negocio] || 0) + monto;
+        const origen = origenDeEvento(r.fields);
+        const o = ventasPorOrigen[origen] || (ventasPorOrigen[origen] = { eventos: 0, monto: 0 });
+        o.eventos++;
+        o.monto += monto;
+        const quien = autorizadoPor(r.fields);
+        const a = ventasPorAutorizo[quien] || (ventasPorAutorizo[quien] = { eventos: 0, monto: 0 });
+        a.eventos++;
+        a.monto += monto;
       });
     } catch (e) {
       console.error('Error calculando ingresos de la semana:', e.message);
       avisosLectura.push('No se pudieron leer los eventos: los ingresos y lo por cobrar NO son reales.');
+    }
+
+    // Pedidos que ENTRARON en la semana (fecha de creación, no del evento), por
+    // origen: cuántos trae DiMa y cuántos ya autorizó Diana. Si falla, solo se omite.
+    let pedidosPorOrigen = null;
+    try {
+      const formulaNuevos = encodeURIComponent(`AND(IS_AFTER(CREATED_TIME(), '${inicioExclusivo}T00:00:00.000Z'), IS_BEFORE(CREATED_TIME(), '${finExclusivo}T00:00:00.000Z'))`);
+      const campos = ['Origen', 'Notas', 'Autorizacion_Diana', 'Monto_Estimado_IA'].map(c => `fields[]=${c}`).join('&');
+      const nuevos = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formulaNuevos}&${campos}`);
+      pedidosPorOrigen = {};
+      (nuevos.records || []).forEach(r => {
+        const origen = origenDeEvento(r.fields);
+        const o = pedidosPorOrigen[origen] || (pedidosPorOrigen[origen] = { pedidos: 0, autorizados: 0, monto: 0 });
+        o.pedidos++;
+        if (r.fields.Autorizacion_Diana === 'SI') { o.autorizados++; o.monto += r.fields.Monto_Estimado_IA || 0; }
+      });
+    } catch (e) {
+      console.error('Error leyendo pedidos nuevos de la semana:', e.message);
     }
 
     const utilidad = ingresosTotales - gastosTotales;
@@ -163,11 +192,23 @@ module.exports = async (req, res) => {
     // Guardar el registro en BALANCES (sin tocar Periodo/Negocio para evitar
     // errores de opciones de singleSelect que no conocemos de antemano).
     const desglose = (obj) => Object.entries(obj).map(([k, v]) => `  ${k}: $${v.toLocaleString('es-MX')}`).join('\n') || '  (sin registros)';
+    const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`;
+    const textoOrigen =
+      (Object.keys(ventasPorOrigen).length
+        ? `🧭 Eventos de la semana por origen:\n${Object.entries(ventasPorOrigen).map(([k, v]) => `  ${k}: ${plural(v.eventos, 'evento')} · $${v.monto.toLocaleString('es-MX')}`).join('\n')}\n\n`
+        : '') +
+      (Object.keys(ventasPorAutorizo).length
+        ? `✅ Eventos de la semana por quién los autorizó:\n${Object.entries(ventasPorAutorizo).map(([k, v]) => `  ${k}: ${plural(v.eventos, 'evento')} · $${v.monto.toLocaleString('es-MX')}`).join('\n')}\n\n`
+        : '') +
+      (pedidosPorOrigen && Object.keys(pedidosPorOrigen).length
+        ? `📥 Pedidos que entraron esta semana:\n${Object.entries(pedidosPorOrigen).map(([k, v]) => `  ${k}: ${plural(v.pedidos, 'pedido')}, ${v.autorizados} autorizado${v.autorizados === 1 ? '' : 's'}${v.monto ? ` · $${v.monto.toLocaleString('es-MX')}` : ''}`).join('\n')}\n\n`
+        : '');
 
     const detalleCompleto =
       `📊 Aquí está tu balance semanal completo (${inicio} a ${fin}):\n\n` +
       `💰 Ingresos aproximados (eventos autorizados esta semana, ${numEventos} evento${numEventos === 1 ? '' : 's'}):\n${desglose(ingresosPorNegocio)}\n` +
       `Total ingresos: $${ingresosTotales.toLocaleString('es-MX')}\n\n` +
+      textoOrigen +
       `💸 Gastos registrados:\n${desglose(gastosPorNegocio)}\n` +
       `Total gastos: $${gastosTotales.toLocaleString('es-MX')}\n\n` +
       `💵 Cobrado por las brigadas (reportes aprobados):\n${desglose(cobrosPorForma)}\n` +

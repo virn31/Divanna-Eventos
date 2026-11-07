@@ -19,7 +19,7 @@
 // Requiere en Vercel: TELEGRAM_BOT_TOKEN y TELEGRAM_WEBHOOK_SECRET (Telegram lo
 // manda en cada llamada; así nadie más puede hacerse pasar por Telegram).
 
-const { ROLES, iniciarSesion } = require('./_sesion');
+const { ROLES, iniciarSesion, puestoGerente } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
 const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const {
@@ -108,13 +108,14 @@ function ayuda(colaborador) {
     '/sos — emergencia: alerta con tu ubicación a todo el equipo',
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
+  if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
   if (veDinero(colaborador)) comandos.push('/daño — anotar lo que se rompió o faltó en un evento');
   comandos.push('/salir — desvincular este Telegram');
-  const puesto = colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
+  const puesto = colaborador.gerente ? puestoGerente(colaborador.gerente) : (ROL_TEXTO[colaborador.rol] || colaborador.rol);
   return `${colaborador.nombre} (${puesto})\n\n${comandos.join('\n')}\n\n` +
     (puedeUsarDima(colaborador) ? '💬 Para preguntarle a DiMa, escríbele aquí sin comando.\n' : '') +
     `Aquí te llegan las emergencias${colaborador.rol === ROLES.ADMIN ? ', los pedidos nuevos y el balance semanal' : ''}.\n` +
@@ -196,6 +197,7 @@ async function configurarBot() {
       { command: 'alertas', description: 'Emergencias y alertas de hoy' },
       { command: 'sos', description: 'Emergencia: alerta con tu ubicación a todo el equipo' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
+      { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
@@ -426,6 +428,8 @@ async function responder(mensaje) {
     case '/dano':
       await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
       return reportarDanos(colaborador, texto.slice(primera.length).trim());
+    case '/comanda':
+      return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);
     case '/instrucciones': return instrucciones(colaborador, await puedeCoordinar(colaborador));
     case '/alertas': return colaborador.rol === ROLES.STAFF ? ayuda(colaborador) : listaAlertas();

@@ -10,7 +10,7 @@
 // sobre la lista ordenada de chicas), así no hay que guardar estado aparte.
 
 const crypto = require('crypto');
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, GERENCIAS } = require('./_sesion');
 const { ventanaPersonalVasoMaiz } = require('./_productos');
 const { enviarTelegram } = require('./_telegram');
 
@@ -117,7 +117,8 @@ async function eventosConfirmadosDe(colaboradorId) {
 // /staff es solo para Diana y Víctor (Admin) y para quien tenga marcado
 // Coordina_Staff en COLABORADORES (Ángela). Decisión de Víctor 2026-10-28.
 async function puedeCoordinar(colaborador) {
-  return colaborador.rol === ROLES.ADMIN || !!colaborador.coordinaStaff || !!colaborador.gerente;
+  // El staff es de El Vaso Maíz: solo su gerente (los de Divanna y Casa Isabella no).
+  return colaborador.rol === ROLES.ADMIN || !!colaborador.coordinaStaff || colaborador.gerente === GERENCIAS.VM;
 }
 
 // ---------- Textos ----------

@@ -76,6 +76,8 @@ evento hoy, el evento queda en emergencia. Después puede escribir qué pasa y t
 
 ## Gerente de El Vaso Maíz
 
+> Hay también gerente de **Divanna** (Eden; no ve los eventos que llevan Casa Isabella) y de **Casa Isabella** (Mario; solo los eventos que llevan el salón). Tienen lo mismo que se describe aquí, menos el staff y la producción, que son solo de El Vaso Maíz. En "👷 Asignar" se puede elegir a cualquiera de los tres gerentes; quien quede asignado ve ese evento aunque no sea de su negocio.
+
 - En la app ve **todos** los eventos autorizados de El Vaso Maíz, aunque no se los asignen.
 - En cada uno tiene **👷 Asignar**: elige brigada y encargada y toca **Guardar y avisar**. A ellas les llega el
   aviso con **Confirmar** y a Diana y Víctor se les avisa qué asignó.
@@ -102,6 +104,11 @@ evento hoy, el evento queda en emergencia. Después puede escribir qué pasa y t
 - **Mantel:** en la comanda, el espacio de "Mantel" lleva el **tipo y el color** (ej. "básico beige",
   "lentejuela dorado"), no la cantidad: los manteles salen de las mesas (uno por mesa). Si ahí solo va un
   número, DiMa avisa que falta el tipo y el color.
+- **Manteles en la app:** cada mesa trae su mantel básico. En "🧺 Mantel" se pone cada tipo (básico,
+  lentejuela o corrugado) con su color y cantidad; al poner las mesas sale solo el básico con la cantidad de mesas. El precio se calcula solo y sale desglosado en el recibo.
+- **Pedido escrito:** en Telegram, `/comanda` y el pedido en el mismo mensaje; en la app, "📝 Llenar con el pedido
+  escrito". Si falta algo (tipo y color del mantel, color de los cerezos, temática de los personalizados…), DiMa
+  pregunta y no deja guardar hasta que se conteste.
 - La gerente solo puede capturar comandas de El Vaso Maíz.
 - **Recibo:** cuando se registra un anticipo o un pago, a Diana y Víctor (y a la gerente si es de El Vaso Maíz)
   les llega por Telegram el recibo en PDF para reenviárselo al cliente. También se pide cuando quieran con

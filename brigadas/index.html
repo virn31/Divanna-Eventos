@@ -387,6 +387,8 @@
 </div>
 
 <script src="alertas.js"></script>
+<script src="buscar-producto.js"></script>
+<script src="manteles.js"></script>
 <script src="calendario.js"></script>
 <script src="dinero.js"></script>
 <script>
@@ -434,9 +436,12 @@
 
   // Brigadas y encargadas para la gerente de El Vaso Maíz (null para los demás).
   let opcionesAsignar = null;
+  // Negocio que gerencia quien entró ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
+  let miGerencia = null;
+  const esDeMiGerencia = (ev) => !!miGerencia && (ev.gerencias || []).includes(miGerencia);
 
   function bloqueAsignar(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     return `
       <details class="asignar-box" data-caja="asig-${esc(ev.id)}">
         <summary>👷 Asignar brigada y encargada</summary>
@@ -445,7 +450,7 @@
           ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
         </select>
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
-        ${opcionesAsignar.produccion ? `
+        ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
           <div style="margin-top:10px; font-weight:800;">👩‍🍳 Equipo de producción</div>
           ${opcionesAsignar.produccion.map(p => `<label><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
           <div class="asig-msg">Quién prepara (1, 2 o más). Puede estar también en el staff. Les llega un aviso por Telegram con el botón 🆘.</div>
@@ -471,13 +476,13 @@
       </div>`;
   }
 
-  // ✏️ Editar evento y cliente (solo la gerente, en eventos de El Vaso Maíz).
+  // ✏️ Editar evento, cliente y pedido (solo la gerente, en eventos de El Vaso Maíz; sin monto).
   function bloqueEditar(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
     return `
       <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
-        <summary>✏️ Editar evento y cliente</summary>
+        <summary>✏️ Editar evento, cliente y pedido</summary>
         <label class="ed-label">Nombre del cliente</label>
         <input type="text" class="ed-nombre" maxlength="200" value="${esc(ev.clienteNombre)}">
         <label class="ed-label">Teléfono (10 dígitos)</label>
@@ -491,6 +496,9 @@
         <label class="ed-label">Invitados</label>
         <input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${ev.invitados ? esc(ev.invitados) : ''}">
         <label><input type="checkbox" class="ed-fuera" ${ev.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <label class="ed-label">Pedido: qué lleva (un artículo por línea; también es la lista de carga)</label>
+        <textarea class="ed-servicios" maxlength="5000" rows="5">${esc(ev.servicios)}</textarea>
+        <label><input type="checkbox" class="ed-avisar" checked> Si cambia lo que lleva, avisar al equipo del evento</label>
         <button class="asig-guardar ed-guardar" data-evento="${esc(ev.id)}">Guardar cambios</button>
         <div class="asig-msg ed-msg"></div>
       </details>`;
@@ -504,7 +512,7 @@
     btn.disabled = true;
     msg.textContent = 'Guardando…';
     try {
-      await api('/api/dashboard-eventos', {
+      const r = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -512,10 +520,12 @@
           clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
           ubicacion: v('.ed-ubicacion'), fecha: v('.ed-fecha'), invitados: v('.ed-invitados'),
           fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+          servicios: caja.querySelector('.ed-servicios').value,
+          avisarEquipo: caja.querySelector('.ed-avisar').checked,
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = 'Guardado.';
+      msg.textContent = r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.';
       ultimaFoto = null;
       setTimeout(() => loadEventos(true), 800);
     } catch(e){
@@ -538,7 +548,7 @@
   };
 
   function bloqueStaff(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
     if(staffError) return `<div class="asignar-box">🧑‍🍳 Staff: no se pudo leer la lista. Toca actualizar o usa /staff en Telegram.</div>`;
     const s = staffEventos && staffEventos[ev.id];
     if(!s) return '';
@@ -578,7 +588,7 @@
   // Quién tiene la producción del evento y su última respuesta (solo la gerente).
   // Equipo de producción y si el encargado ya avisó "Listo para staff".
   function lineaProduccion(ev){
-    if(!opcionesAsignar || !ev.vasoMaiz || (!ev.produccionId && !(ev.equipoProduccionIds || []).length)) return '';
+    if(!opcionesAsignar || !esDeMiGerencia(ev) || miGerencia !== 'El Vaso Maiz' || (!ev.produccionId && !(ev.equipoProduccionIds || []).length)) return '';
     const nombre = (id) => ((opcionesAsignar.produccion || []).find(x => x.id === id) || {}).nombre || 'asignado';
     const equipo = (ev.equipoProduccionIds || []).filter(id => id !== ev.produccionId).map(nombre);
     const lista = ev.produccionLista
@@ -718,6 +728,8 @@
     recargar: () => { ultimaFoto = null; loadEventos(true); },
     esAdmin: () => !!sesion && sesion.rol === 'Admin',
     eventos: () => eventosActuales,
+    // Al cobrar se pliega la tarjeta del evento.
+    alCobrar: (id) => fichasAbiertas.delete(id),
   });
   let eventosActuales = [];
 
@@ -772,6 +784,7 @@
       html += `
         <div class="event-card ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" data-id="${ev.id}" data-din-ev="${ev.id}">
           ${fichaEvento(ev)}
+          ${DimaDinero.cobroRapido(ev)}
           <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
             ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
@@ -1171,7 +1184,8 @@
       // No se borra lo que la gerente está escribiendo en ✏️ Editar.
       if(silencioso && mainContent.querySelector('.editar-box[data-sucio], .editar-box :focus')) return;
       ultimaFoto = foto;
-      const rolTexto = data.colaborador.gerente ? 'Gerente de El Vaso Maíz' : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      const rolTexto = data.colaborador.gerente ? (data.colaborador.puesto || 'Gerente') : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      miGerencia = data.colaborador.gerencia || null;
       opcionesAsignar = data.opcionesAsignar || null;
       staffEventos = data.staffEventos || null;
       staffError = !!data.staffError;
@@ -1391,7 +1405,7 @@
     const rev = finDatos.revision;
     const tarjeta = (r) => `
       <div class="fin-caja">
-        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloVasoMaiz ? ' <small>(solo lo de El Vaso Maíz)</small>' : ''}</h4>
+        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloNegocio || r.soloVasoMaiz ? ` <small>(solo lo de ${esc(r.soloNegocio || 'El Vaso Maíz')})</small>` : ''}</h4>
         <div>Gastos ${pesos(r.totalGastos)} · Cobros ${pesos(r.totalCobros)} · Efectivo entregado ${pesos(r.efectivoEntregado)}${r.reembolsoPendiente ? ' · reembolso ' + pesos(r.reembolsoPendiente) : ''}</div>
         ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, '⚠️ sin ticket')}</div></div>`).join('')}
         ${r.cobros.map(c => `<div class="fin-item"><div>Cobro ${esc(c.concepto)} · ${pesos(c.monto)}</div><div>${fotoLink(c.foto, '')}</div></div>`).join('')}
@@ -1403,7 +1417,7 @@
 
   function pintarFinanzas(){
     const tabs = finDatos.revision && finDatos.puedeReportar ? `
-      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">🌽 Administración El Vaso Maíz</button></div>` : '';
+      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">${miGerencia === 'Divanna Eventos' ? '🪑 Administración Divanna' : '🌽 Administración El Vaso Maíz'}</button></div>` : '';
     $('finCuerpo').innerHTML = tabs + (finTab === 'admin' && finDatos.revision ? pintarRevision() : pintarMiReporte());
     $('finCuerpo').querySelectorAll('.fin-tabs button').forEach(b => b.addEventListener('click', () => { finTab = b.dataset.tab; pintarFinanzas(); }));
     const sel = $('finFechaSel');

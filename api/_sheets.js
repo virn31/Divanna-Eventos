@@ -17,8 +17,9 @@
 // GOOGLE_SERVICE_ACCOUNT_EMAIL.
 
 const { google } = require('googleapis');
-const { esVasoMaiz } = require('./_sesion');
-const { PRODUCTOS, leerProductos, inventarioRequerido } = require('./_productos');
+const { esVasoMaiz, esDeSuGerencia, gerenciaDe, negocioDeGerencia } = require('./_sesion');
+const { PRODUCTOS, leerProductos, inventarioRequerido, resumenManteles } = require('./_productos');
+const { tieneDescuento, redondo, DESCUENTO_DECORADOR } = require('./_decorador');
 const { enviarDocumento } = require('./_telegram');
 const { totalDelEvento, leerCargos } = require('./_cargos');
 
@@ -109,26 +110,48 @@ async function leerDatos(eventoId) {
 function articulosDe(d, negocio) {
   const propios = d.productos.filter(p => (PRODUCTOS[p.clave].negocio || DV) === negocio);
   // Daños y faltantes que anotó la brigada (api/_cargos.js): en la hoja del primer negocio.
-  const cargos = negocio === negociosDe(d.f)[0] ? leerCargos(d.f.Cargos_Extra) : [];
+  const primero = negocio === negociosDe(d.f)[0];
+  const cargos = primero ? leerCargos(d.f.Cargos_Extra) : [];
+  // Descuento de decorador (api/_decorador.js): el monto ya lo trae restado; en el
+  // recibo se ve cuánto fue. Va en la hoja del primer negocio, como los cargos.
+  const monto = Number(d.f.Monto_Estimado_IA) || 0;
+  const descuento = primero && tieneDescuento(d.f) && monto > 0 ? redondo(monto / (1 - DESCUENTO_DECORADOR) - monto) : 0;
   if (negocio === VM) {
     return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || ''])
-      .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']));
+      .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
+      .concat(descuento ? [[1, 'Descuento decorador 10%', '', -descuento, `-$${descuento.toLocaleString('es-MX')} (ya restado del total)`]] : []);
   }
   // Divanna: como el recibo de papel, por artículo (mesas, sillas, manteles...).
   // En los manteles va el tipo y color que se anotó en la nota de las mesas o el
   // paquete (ej. "mantel básico beige"): solo el pedazo que habla del mantel.
-  const detalleMantel = (cat) => [...new Set(propios
-    .filter(p => /^Mantel/.test(cat) && (PRODUCTOS[p.clave].componentes || {})[cat])
-    .flatMap(p => String(p.nota || '').split(/[,;·]/).map(t => t.trim()).filter(t => /mantel/i.test(t))))].join(' · ');
-  const lineas = Object.entries(inventarioRequerido(propios)).map(([cat, n]) => [cat, n, detalleMantel(cat)]);
+  // Cada tipo se queda con lo que habla de él: "mantel lentejuela rosa" va en
+  // Mantel lentejuela; en los cambios y extras de mantel, su nota completa (el color).
+  const tipoDe = (t) => /lentejuela/i.test(t) ? 'Mantel lentejuela' : /corrugad/i.test(t) ? 'Mantel corrugado' : 'Mantel';
+  const detalleMantel = (cat) => !/^Mantel/.test(cat) ? '' : [...new Set(propios.flatMap(p => {
+    const nota = String(p.nota || '').trim();
+    if (PRODUCTOS[p.clave].precio) return nota && (PRODUCTOS[p.clave].componentes || {})[cat] > 0 ? [nota] : [];
+    return nota.split(/[,;·]/).map(t => t.trim()).filter(t => /mantel/i.test(t) && tipoDe(t) === cat);
+  }))].join(' · ');
+  const lineas = Object.entries(inventarioRequerido(propios)).filter(([, n]) => n > 0).map(([cat, n]) => [cat, n, detalleMantel(cat)]);
   for (const p of propios) {
     if (!Object.keys(PRODUCTOS[p.clave].componentes || {}).length) lineas.push([PRODUCTOS[p.clave].nombre, p.cantidad, p.nota || '']);
+  }
+  // Manteles (Víctor 2026-11-06): cuántos van en total y, con su precio, los
+  // cambios a especial (la diferencia) y los extras; ya van sumados al total.
+  const m = resumenManteles(propios);
+  if (m.total) {
+    const tipos = [['básico', m.porTipo.basico], ['lentejuela', m.porTipo.lentejuela], ['corrugado', m.porTipo.corrugado]].filter(([, n]) => n).map(([t, n]) => `${n} ${t}`).join(' · ');
+    lineas.push(['Manteles en total', m.total, `${tipos}${m.incluidos ? ` (${m.incluidos} incluidos con las mesas)` : ''}`]);
+  }
+  for (const p of propios) {
+    if (PRODUCTOS[p.clave].precio) lineas.push([PRODUCTOS[p.clave].nombre.replace(/ \([^)]*\$[^)]*\)$/, ''), p.cantidad, p.nota || '', PRODUCTOS[p.clave].precio]);
   }
   // Pedidos viejos sin productos: lo que Diana escribió al autorizar.
   if (!lineas.length) {
     (d.f.Items_Detallados_Cotizacion || d.f.Checklist_Items || '').split('\n').map(t => t.trim()).filter(Boolean).forEach(t => lineas.push([t, '', '']));
   }
   for (const c of cargos) lineas.push([`Cargo extra: ${c.descripcion}`, c.cantidad, `$${c.total.toLocaleString('es-MX')}${c.nota ? ' · ' + c.nota : ''}`]);
+  if (descuento) lineas.push(['Descuento decorador 10%', 1, 'Ya restado del total', -descuento]);
   return lineas;
 }
 
@@ -155,7 +178,7 @@ function celdasRecibo(d, negocio, pestana) {
     poner('B13', extra);
     lineas.slice(0, caben).forEach((l, i) => {
       const n = p.articulos.desde + i;
-      out.push({ range: rango(pestana, `A${n}:E${n}`), values: [[l[0], l[1], l[2], '', `=IF(D${n}="","",B${n}*D${n})`]] });
+      out.push({ range: rango(pestana, `A${n}:E${n}`), values: [[l[0], l[1], l[2], l[3] == null ? '' : l[3], `=IF(D${n}="","",B${n}*D${n})`]] });
     });
     poner('D29', total);
     poner('D30', d.pagado);
@@ -281,7 +304,7 @@ async function reciboPdf(folio, negocio) {
 }
 
 // Actualiza la hoja y manda el recibo en PDF por Telegram a Diana y Víctor (y a
-// la gerente si es de El Vaso Maíz) para que se lo reenvíen al cliente.
+// al gerente del negocio del evento) para que se lo reenvíen al cliente.
 // Devuelve { ok, enviados } o { ok: false, error }. Nunca lanza.
 async function enviarRecibo(eventoId, motivo = '') {
   if (!sheetsConfigurado()) return { ok: false, error: 'Google Sheets todavía no está configurado.' };
@@ -290,9 +313,9 @@ async function enviarRecibo(eventoId, motivo = '') {
     if (!s.ok) return s;
     const d = await leerDatos(eventoId);
     const negocios = negociosDe(d.f).filter(configurado);
-    const formula = encodeURIComponent('AND({Activo}, OR({Rol} = "Admin", {Gerente_Vaso_Maiz}))');
-    const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${formula}`)).records || [])
-      .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || negocios.includes(VM)));
+    // Admin y el gerente del negocio del evento (gerenciaDe, ver _sesion.js).
+    const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${encodeURIComponent('{Activo}')}`)).records || [])
+      .filter(c => c.fields.Telegram_Chat_ID && (c.fields.Rol === 'Admin' || esDeSuGerencia({ gerente: gerenciaDe(c.fields) }, d.f)));
     if (!gente.length) return { ok: false, error: 'Nadie tiene Telegram vinculado para recibir el recibo.' };
     const resta = Math.max(0, d.total - d.pagado);
     const texto = `🧾 Recibo ${d.folio}${motivo ? ' · ' + motivo : ''}\n${d.cliente || 'Cliente'} · ${d.f.Fecha_Evento || ''}\nTotal ${dinero(d.total)} · Pagado ${dinero(d.pagado)} · Resta ${dinero(resta)}\nReenvíaselo al cliente.`;
@@ -302,7 +325,7 @@ async function enviarRecibo(eventoId, motivo = '') {
       const pdf = await reciboPdf(d.folio, negocio);
       const nombre = `Recibo ${d.folio}${negocios.length > 1 ? (negocio === VM ? ' El Vaso Maiz' : ' Divanna') : ''}.pdf`;
       for (const c of gente) {
-        if (negocio === DV && c.fields.Rol !== 'Admin') continue; // la gerente solo lo de El Vaso Maíz
+        if (c.fields.Rol !== 'Admin' && negocioDeGerencia(gerenciaDe(c.fields)) !== negocio) continue; // cada gerente solo el recibo de su negocio
         const r = await enviarDocumento(c.fields.Telegram_Chat_ID, pdf, nombre, texto);
         if (r.ok) enviados++; else errores.push(`${c.fields.Nombre || 'alguien'}: ${r.error}`);
       }

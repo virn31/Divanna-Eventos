@@ -252,4 +252,20 @@ Total de cargos extra del evento: ${pesos(cargosExtraTotal)}.`
   return { aviso: 'Registrado', textoFinal: `✅ Registrado en ${folio} y sumado a lo que debe el cliente. Diana ya está avisada.`, cargosExtraTotal };
 }
 
-module.exports = { veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };
+// Cierra el evento (Estado = Cerrado) cuando ya terminó: el cliente liquidó
+// todo y ya se recogió el mobiliario. Si liquida antes del evento no se cierra
+// (la brigada y producción lo siguen viendo); se cierra al marcar la recolección.
+// Pedido de Víctor 2026-11-03. Devuelve true si lo cerró.
+async function cerrarSiTermino(eventoId) {
+  const r = await airtable(`${TABLES.EVENTOS}/${eventoId}`);
+  const f = r.fields;
+  if (f.Estado === 'Cerrado' || f.Cancelado) return false;
+  const recogido = !!f.Checklist_Recoleccion || f.Estatus_Logistico === 'Cerrado';
+  if (!recogido) return false;
+  const d = (await dineroParaApp([r])).get(r.id);
+  if (!d || !(d.total > 0) || d.resta > 0) return false;
+  await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: eventoId, fields: { Estado: 'Cerrado' } }] }) });
+  return true;
+}
+
+module.exports = { cerrarSiTermino, veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };

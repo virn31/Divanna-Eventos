@@ -30,17 +30,19 @@
 const { enviarCotizacionPorCorreo } = require('./_google-integrations');
 const C = require('./_calendario');
 const { sincronizarEvento } = C;
-const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz, esDeSuGerencia, GERENCIAS, NOMBRE_GERENCIA, gerenciaDe, puestoGerente } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
-const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
+const { tieneDescuento, conDescuento, redondo } = require('./_decorador');
+const { origenDePersona } = require('./_origen');
+const { normalizarProductos, leerProductos, resumenManteles, infoManteles, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
 const { avisarEquipoProduccion } = require('./_etapas');
-const { confirmarCambio, descartarCambio } = require('./_cambios');
+const { confirmarCambio, descartarCambio, avisarEquipoCambio } = require('./_cambios');
 const Comanda = require('./_comanda');
 const { enviarRecibo } = require('./_sheets');
 const { leerCambio, notasSinConversacion } = require('./_pedidos');
@@ -94,9 +96,59 @@ async function clientesPorId(ids) {
 // ✏️ Diana corrige a mano los datos del evento y del cliente desde el dashboard.
 // Solo se escriben los campos que vienen en la petición. Si el evento no tiene
 // cliente y se escribe un nombre o teléfono, se crea el cliente y se vincula.
+// También el pedido (decisión de Víctor 2026-11-03): lo que se pidió (que en un
+// evento autorizado es también la lista de carga) y el monto (solo Admin; la
+// gerente no ve montos). Si cambia lo pedido de un evento autorizado se avisa
+// al equipo igual que un cambio del cliente confirmado.
 const TEXTO = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
-async function editarEvento(eventoId, f, body) {
+
+// Al cambiar la lista de carga se conservan las palomitas de los artículos que
+// siguen igual (las marcas guardan el número de renglón, no el texto).
+function marcadosConservados(viejos, marcadosJson, nuevos) {
+  let marcados = [];
+  try { marcados = JSON.parse(marcadosJson || '[]'); } catch (e) { marcados = []; }
+  const pendientes = marcados.map(i => viejos[i]).filter(t => t !== undefined);
+  const resultado = [];
+  nuevos.forEach((t, j) => {
+    const k = pendientes.indexOf(t);
+    if (k !== -1) { resultado.push(j); pendientes.splice(k, 1); }
+  });
+  return JSON.stringify(resultado);
+}
+
+async function editarEvento(eventoId, f, body, colaborador) {
   const evento = {};
+  const esAdmin = colaborador.rol === ROLES.ADMIN;
+  const autorizado = f.Autorizacion_Diana === 'SI';
+  let pedidoCambio = false;
+  if (body.servicios !== undefined) {
+    const lista = itemsDeTexto(TEXTO(body.servicios, 5000));
+    // Vacío solo se acepta si ya estaba vacío (pedidos viejos sin lista).
+    if (!lista.length && itemsDeTexto(f.Servicios_Solicitados).length) return { error: 'El pedido no puede quedar vacío' };
+    const texto = lista.join('\n');
+    if (lista.length && texto !== itemsDeTexto(f.Servicios_Solicitados).join('\n')) {
+      pedidoCambio = true;
+      evento.Servicios_Solicitados = texto;
+      if (autorizado) {
+        evento.Items_Detallados_Cotizacion = texto;
+        evento.Checklist_Items = texto;
+        evento.Checklist_Items_Marcados = marcadosConservados(itemsDeTexto(f.Checklist_Items), f.Checklist_Items_Marcados, lista);
+      }
+    }
+  }
+  if (body.monto !== undefined && body.monto !== '' && body.monto !== null) {
+    if (!esAdmin) return { error: 'Solo Diana o Víctor cambian el monto.', codigo: 403 };
+    const monto = Number(body.monto);
+    if (!(monto > 0 && monto < 10000000)) return { error: 'Monto inválido' };
+    evento.Monto_Estimado_IA = Math.round(monto * 100) / 100;
+  }
+  const avisar = autorizado && pedidoCambio && body.avisarEquipo !== false;
+  if (avisar) {
+    // El equipo vuelve a confirmar que vio el evento con el cambio.
+    evento.Enterado_Por = '';
+    evento.Enterado_Hora = null;
+    evento.Notas = `${f.Notas || ''}\n--- Pedido modificado a mano por ${colaborador.nombre} (${new Date().toISOString().slice(0, 10)}) ---`.slice(-90000);
+  }
   const ubicacion = TEXTO(body.ubicacion, 500);
   if (ubicacion !== undefined) evento.Ubicacion = ubicacion;
   if (body.fecha !== undefined) {
@@ -138,9 +190,15 @@ async function editarEvento(eventoId, f, body) {
     evento.Cliente = [(await res.json()).records[0].id];
   }
   if (Object.keys(evento).length) await airtablePatch(TABLES.EVENTOS, eventoId, evento);
-  // Fecha o lugar distintos: se actualiza Google Calendar.
-  const google = evento.Fecha_Evento !== undefined || evento.Ubicacion !== undefined ? await sincronizarEvento(eventoId) : null;
-  return { google };
+  // Fecha, lugar o pedido distintos: se actualiza Google Calendar.
+  const google = evento.Fecha_Evento !== undefined || evento.Ubicacion !== undefined || pedidoCambio ? await sincronizarEvento(eventoId) : null;
+  const aviso = avisar
+    ? await avisarEquipoCambio(eventoId, { ...f, ...evento }, colaborador, await colaboradoresActivos(), {
+      servicios: evento.Servicios_Solicitados,
+      explicacion: `${colaborador.nombre || 'La gerencia'} modificó el pedido. Ahora lleva:`,
+    })
+    : null;
+  return { google, aviso };
 }
 
 async function ultimoBalance() {
@@ -260,14 +318,14 @@ async function resolverPedido(req, res, colaborador) {
   const inventario = Array.isArray((req.body || {}).articulos) ? await cargarInventario() : [];
 
   if (accion === 'editar') {
-    // La gerente edita solo eventos de El Vaso Maíz (igual que al asignar).
-    if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) {
-      res.status(403).json({ error: 'Solo puedes editar eventos de El Vaso Maíz.' });
+    // Cada gerente edita solo eventos de su negocio (igual que al asignar).
+    if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) {
+      res.status(403).json({ error: `Solo puedes editar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` });
       return;
     }
-    const r = await editarEvento(eventoId, f, req.body || {});
-    if (r.error) { res.status(400).json({ error: r.error }); return; }
-    res.status(200).json({ success: true, google: r.google });
+    const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
+    if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
+    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0, recibo: await reciboAlEditar(eventoId, f, colaborador) });
     return;
   }
 
@@ -292,8 +350,8 @@ async function resolverPedido(req, res, colaborador) {
 
   if (accion === 'asignar') {
     const esAdmin = colaborador.rol === ROLES.ADMIN;
-    if (!esAdmin && !esVasoMaiz(f)) {
-      res.status(403).json({ error: 'Solo puedes asignar eventos de El Vaso Maíz.' });
+    if (!esAdmin && !esDeSuGerencia(colaborador, f)) {
+      res.status(403).json({ error: `Solo puedes asignar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` });
       return;
     }
     const b = req.body || {};
@@ -304,10 +362,12 @@ async function resolverPedido(req, res, colaborador) {
     }
     // Encargado de producción (opcional; solo si viene en la petición): debe estar
     // entre las opciones de quien asigna. '' lo quita.
-    const cambiaProduccion = typeof b.produccionId === 'string';
+    // Producción es solo de El Vaso Maíz: Admin o su gerente.
+    const puedeProduccion = esAdmin || colaborador.gerente === GERENCIAS.VM;
+    const cambiaProduccion = typeof b.produccionId === 'string' && puedeProduccion;
     // Equipo de producción (opcional; solo si viene): 1, 2 o más personas de las
     // mismas opciones que el encargado. El encargado siempre queda en el equipo.
-    const cambiaEquipo = Array.isArray(b.equipoProduccionIds);
+    const cambiaEquipo = Array.isArray(b.equipoProduccionIds) && puedeProduccion;
     if ((cambiaProduccion && b.produccionId) || cambiaEquipo) {
       const opciones = await opcionesProduccion(colaborador);
       if (cambiaProduccion && b.produccionId && !opciones.some(o => o.id === b.produccionId)) {
@@ -324,7 +384,8 @@ async function resolverPedido(req, res, colaborador) {
     const encargadoFinal = cambiaProduccion ? b.produccionId : produccionAntes;
     const colaboradores = await colaboradoresActivos();
     // Solo se aceptan encargadas activas con ese rol.
-    const encargadas = colaboradores.filter(c => c.fields.Rol === ROLES.ENCARGADA && b.encargadaIds.includes(c.id)).map(c => c.id);
+    // Encargadas activas o gerentes (se pueden asignar a sí mismos o entre ellos).
+    const encargadas = colaboradores.filter(c => (c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)) && b.encargadaIds.includes(c.id)).map(c => c.id);
     const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
     if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
     if (cambiaEquipo) campos.Equipo_Produccion = [...new Set([...b.equipoProduccionIds, ...(encargadoFinal ? [encargadoFinal] : [])])];
@@ -399,6 +460,11 @@ async function resolverPedido(req, res, colaborador) {
   }
 
   if (accion === 'invitar_staff') {
+    // El staff (chicas por Telegram) es solo de El Vaso Maíz.
+    if (colaborador.rol !== ROLES.ADMIN && colaborador.gerente !== GERENCIAS.VM) {
+      res.status(403).json({ error: 'El staff es solo de El Vaso Maíz.' });
+      return;
+    }
     const ids = (req.body || {}).colaboradorIds;
     if (!Array.isArray(ids) || !ids.length || ids.length > 60 || !ids.every(id => /^rec[A-Za-z0-9]{14}$/.test(id))) {
       res.status(400).json({ error: 'Elige al menos a una persona.' });
@@ -413,8 +479,14 @@ async function resolverPedido(req, res, colaborador) {
   if (accion === 'agenda') {
     const campos = agendaDesdeDashboard(req.body, inventario);
     if (!Object.keys(campos).length) { res.status(400).json({ error: 'Nada que guardar' }); return; }
+    const manteles = Array.isArray((req.body || {}).productos) ? montoPorManteles(f, normalizarProductos(req.body.productos)) : {};
+    if (manteles.error) { res.status(400).json({ error: manteles.error }); return; }
+    if (manteles.monto !== undefined) campos.Monto_Estimado_IA = manteles.monto;
     await airtablePatch(TABLES.EVENTOS, eventoId, campos);
-    res.status(200).json({ success: true, resumen: campos.Resumen_Capacidad || '', google: await sincronizarEvento(eventoId) });
+    res.status(200).json({
+      success: true, resumen: campos.Resumen_Capacidad || '', google: await sincronizarEvento(eventoId),
+      monto: campos.Monto_Estimado_IA, recibo: await reciboAlEditar(eventoId, f, colaborador),
+    });
     return;
   }
 
@@ -433,7 +505,9 @@ async function resolverPedido(req, res, colaborador) {
     return;
   }
 
-  await airtablePatch(TABLES.EVENTOS, eventoId, {
+  // Quién autorizó (EVENTOS.Autorizado_Por). Si la columna aún no existe en
+  // Airtable, se autoriza igual sin ese dato.
+  const camposAutorizar = {
     Autorizacion_Diana: 'SI',
     Monto_Estimado_IA: montoNum,
     Items_Detallados_Cotizacion: listaItems.join('\n'),
@@ -441,7 +515,14 @@ async function resolverPedido(req, res, colaborador) {
     Checklist_Items_Marcados: '[]',
     ...(instrucciones !== null ? { Instrucciones_Equipo: instrucciones } : {}),
     ...agendaDesdeDashboard(req.body, inventario),
-  });
+  };
+  try {
+    await airtablePatch(TABLES.EVENTOS, eventoId, { ...camposAutorizar, Autorizado_Por: origenDePersona(colaborador.nombre) });
+  } catch (err) {
+    if (!/UNKNOWN_FIELD_NAME|Autorizado_Por/.test(err.message)) throw err;
+    console.error('Falta la columna EVENTOS.Autorizado_Por, se autoriza sin ella:', err.message);
+    await airtablePatch(TABLES.EVENTOS, eventoId, camposAutorizar);
+  }
 
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
   // fallan no se deshace la autorización, solo se reporta.
@@ -484,7 +565,7 @@ async function resolverPedido(req, res, colaborador) {
 
 // Calendario (api/_calendario.js): Diana, Víctor y la gerente (ella solo El Vaso Maíz).
 const ACCIONES_CALENDARIO = {
-  calendario_mover: C.mover,
+  calendario_mover: moverConRecibo,
   calendario_cancelar: C.cancelar,
   borrar_evento: C.borrar,
   bloquear_dia: C.bloquear,
@@ -518,10 +599,40 @@ async function capturarConFoto(colaborador, body) {
 }
 
 // 🧾 Mandar recibo (calendario): Diana y Víctor cualquiera; la gerente los de El Vaso Maíz.
+// Manteles (Víctor 2026-11-06): al cambiar los productos, lo que cambian los
+// manteles cambiados o extra se suma (o resta) solo al monto contratado; si el
+// cliente es decorador, también con su 10%. Devuelve { monto } o { error } o {}.
+function montoPorManteles(f, productosNuevos) {
+  const nuevo = resumenManteles(productosNuevos);
+  if (nuevo.error) return { error: nuevo.error };
+  const diferencia = nuevo.cargo - resumenManteles(leerProductos(f.Productos)).cargo;
+  const monto = Number(f.Monto_Estimado_IA) || 0;
+  if (!diferencia || !(monto > 0)) return {};
+  const ajuste = tieneDescuento(f) ? conDescuento(diferencia) : diferencia;
+  return { monto: Math.max(0, redondo(monto + ajuste)) };
+}
+
+// Al editar un evento autorizado desde la web, el recibo se rehace (la pestaña
+// del folio se sobrescribe, el viejo desaparece) y se manda por Telegram.
+async function reciboAlEditar(eventoId, f, colaborador) {
+  if (f.Autorizacion_Diana !== 'SI') return null;
+  const r = await enviarRecibo(eventoId, `actualizado por ${colaborador.nombre}`).catch(err => ({ ok: false, error: err.message }));
+  return r && r.error === 'Google Sheets todavía no está configurado.' ? null : r;
+}
+
+async function moverConRecibo(colaborador, body) {
+  const r = await C.mover(colaborador, body);
+  if (r.ok) {
+    const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
+    r.recibo = await reciboAlEditar(body.eventoId, f, colaborador);
+  }
+  return r;
+}
+
 async function reciboAPeticion(colaborador, body) {
   if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
   const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
-  if (colaborador.rol !== ROLES.ADMIN && !esVasoMaiz(f)) return { error: 'Solo puedes mandar recibos de El Vaso Maíz.', codigo: 403 };
+  if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) return { error: `Solo puedes mandar recibos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.`, codigo: 403 };
   if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
   const r = await enviarRecibo(body.eventoId, `lo pidió ${colaborador.nombre}`);
   return r.ok ? { ok: true, enviados: r.enviados } : { error: r.error };
@@ -553,7 +664,7 @@ module.exports = async (req, res) => {
         res.status(200).json({ success: true, ...r });
         return;
       }
-      // Fuera de Admin, solo la gerente de El Vaso Maíz y solo para asignar, invitar staff o editar.
+      // Fuera de Admin, solo los gerentes (cada uno su negocio) y solo para asignar, invitar staff o editar.
       if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes((req.body || {}).accion))) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
@@ -598,6 +709,8 @@ module.exports = async (req, res) => {
         fecha: r.fields.Fecha_Evento || '',
         ubicacion: r.fields.Ubicacion || '',
         invitados: r.fields.Invitados || null,
+        // Qué lleva: el ✏️ Editar lo muestra para corregirlo (antes llegaba vacío).
+        servicios: r.fields.Servicios_Solicitados || '',
         brigadaId: brigadaIds[0] || '',
         encargadaIds: r.fields.Encargada || [],
         vasoMaiz: esVasoMaiz(r.fields),
@@ -691,7 +804,7 @@ module.exports = async (req, res) => {
     // Opciones para asignar: todas las brigadas y las encargadas activas.
     const brigadas = brigadasData.records.map(b => ({ id: b.id, nombre: b.fields.Nombre_Brigada || 'Brigada', lider: b.fields.Lider || '' }));
     const encargadas = await colaboradoresActivos()
-      .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA).map(c => ({ id: c.id, nombre: c.fields.Nombre || '' })))
+      .then(cs => cs.filter(c => c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)).map(c => ({ id: c.id, nombre: `${c.fields.Nombre || ''}${c.fields.Rol !== ROLES.ENCARGADA ? ` (${puestoGerente(gerenciaDe(c.fields))})` : ''}` })))
       .catch(err => { console.error('No se pudo leer COLABORADORES:', err.message); return []; });
     // Lo mismo que tiene la gerente en su app (Diana es la jefa de todo, 2026-10-29):
     // invitar staff por evento y elegir al encargado de producción. Si falla, se dice.
@@ -703,7 +816,7 @@ module.exports = async (req, res) => {
     // 💰 Dinero de cada evento (api/_cargos.js), igual que en la ficha de la app. Si falla, se dice.
     const dinero = await dineroParaApp(eventosData.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
     eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
-    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), manteles: infoManteles(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

@@ -9,6 +9,8 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { normalizarProductos, capacidadEvento, inicioEvento } = require('./_productos');
+const { ORIGENES } = require('./_origen');
+const { esDecorador, tieneDescuento, conDescuento, MARCA_DECORADOR } = require('./_decorador');
 const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
 
 // Plazo que DiMa le promete al cliente para confirmar su cotización.
@@ -103,6 +105,20 @@ function camposAgenda(datos) {
   return fields;
 }
 
+// Escribe la columna Origen. typecast crea la opción si aún no existe; si la
+// columna no existe, solo queda en el log (el origen sigue en Notas).
+async function guardarOrigen(eventoId, valor) {
+  if (!eventoId) return;
+  try {
+    await airtableRequest(TABLES.EVENTOS, {
+      method: 'PATCH',
+      body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: valor } }], typecast: true }),
+    });
+  } catch (err) {
+    console.error('No se pudo guardar Origen:', err.message);
+  }
+}
+
 // origen: 'formulario' o 'chat'. notasExtra: texto adicional para Notas (ej. la conversación).
 async function crearPedido(datos, { origen, notasExtra = '' }) {
   const diezDigitos = datos.telefonoDigitos.slice(-10);
@@ -127,9 +143,14 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
 
   // 2. Evento pendiente de cotizar
   const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  // Cliente decorador (Tipo_Cliente en Airtable): 10% menos sobre el total estimado.
+  const decorador = esDecorador(cliente.fields);
+  const montoSinDescuento = datos.montoEstimado;
+  if (decorador && datos.montoEstimado > 0) datos = { ...datos, montoEstimado: conDescuento(datos.montoEstimado) };
   const montoValido = datos.montoEstimado > 0 && datos.montoEstimado < 10000000;
   const notas = [
     origen === 'chat' ? 'Pedido armado con DiMa en la página web.' : 'Pedido desde el formulario de la página web.',
+    decorador ? MARCA_DECORADOR : '',
     datos.tipoEvento ? `Tipo de evento: ${datos.tipoEvento}` : '',
     datos.negocio && !NEGOCIOS_VALIDOS.includes(datos.negocio) ? `Negocio solicitado: ${datos.negocio}` : '',
     enTemporadaAlta(datos.fecha) ? `🎄 Temporada alta (${textoTemporada()}): sin paquetes regulares.` : '',
@@ -160,6 +181,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     body: JSON.stringify({ records: [{ fields: eventoFields }] }),
   });
   const eventoId = creado && creado.records && creado.records[0] && creado.records[0].id;
+
+  await guardarOrigen(eventoId, origen === 'chat' ? ORIGENES.CHAT : ORIGENES.FORMULARIO);
 
   // 3. Semáforo de agenda: se guarda en el evento y va en los avisos. Si falla,
   // el pedido sigue registrado y el dashboard lo recalcula al abrirse.
@@ -195,7 +218,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})\n` + avisoFuera +
       `${datos.nombre} · ${telefono}\n` +
       `📅 ${datos.fecha}${datos.horaInicio ? ' · 🕒 ' + datos.horaInicio : ''}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}${datos.ubicacion ? ' · 📍 ' + datos.ubicacion : ''}\n` +
-      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}${decorador ? ' (ya con 10% de decorador)' : ''}\n` : '') +
+      (decorador && !montoValido ? '🏷️ Cliente decorador: 10% de descuento sobre el total.\n' : '') +
       `\n${datos.servicios}\n` +
       (agenda.Resumen_Capacidad ? `\n${agenda.Resumen_Capacidad}\n` : '') +
       (datos.indicaciones ? `\n📌 ${datos.indicaciones}\n` : '') +
@@ -214,7 +238,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
       `Fecha: ${datos.fecha}${datos.horaInicio ? ' a las ' + datos.horaInicio : ''}\n` +
       `Invitados: ${datos.invitados > 0 ? datos.invitados : 'sin especificar'}\n` +
       `Ubicación: ${datos.ubicacion || 'sin especificar'}\n` +
-      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}${decorador ? ' (ya con 10% de decorador)' : ''}\n` : '') +
+      (decorador && !montoValido ? 'Cliente decorador: 10% de descuento sobre el total.\n' : '') +
       `\nLo que necesita:\n${datos.servicios}\n\n` +
       (agenda.Resumen_Capacidad ? `Capacidad:\n${agenda.Resumen_Capacidad}\n\n` : '') +
       (datos.indicaciones ? `Indicaciones del cliente:\n${datos.indicaciones}\n\n` : '') +
@@ -222,7 +247,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   });
   await avisoTelegram;
 
-  return { folio, disponibilidad };
+  return { folio, disponibilidad, decorador, monto: montoValido ? datos.montoEstimado : null, montoSinDescuento };
 }
 
 // Resumen de un pedido por folio, con el teléfono del cliente, o null. Solo
@@ -319,6 +344,8 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
   if (!r) throw new Error(`No existe el evento ${folio}`);
+  // Cliente decorador (marca en Notas al crear el pedido): el nuevo estimado también lleva su 10%.
+  if (tieneDescuento(r.fields) && montoEstimado > 0) montoEstimado = conDescuento(Number(montoEstimado));
   const autorizado = r.fields.Autorizacion_Diana === 'SI';
   const urgente = cambioUrgente(r.fields.Fecha_Evento, r.fields.Hora_Inicio);
   const fecha = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
@@ -357,7 +384,7 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
     method: 'PATCH',
     body: JSON.stringify({ records: [{ id: r.id, fields }] }),
   });
-  return { eventoId: r.id, autorizado, urgente, negocio: r.fields.Negocio || '', fecha: r.fields.Fecha_Evento || '', campos: r.fields };
+  return { eventoId: r.id, autorizado, urgente, negocio: r.fields.Negocio || '', fecha: r.fields.Fecha_Evento || '', campos: r.fields, montoEstimado: cambio.montoEstimado };
 }
 
 // Notas sin la plática con DiMa, para mostrar en la app: la conversación sigue

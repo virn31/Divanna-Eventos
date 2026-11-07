@@ -25,6 +25,7 @@ window.DimaCalendario = (function(){
     s.textContent = `
       .cal-panel{position:fixed; inset:0; z-index:70; overflow-y:auto; background:var(--ink-2); color:var(--paper); padding:16px 16px 40px; font-size:1rem;}
       .cal-panel[hidden]{display:none;}
+      .cal-panel [data-buscar-producto].sin-resultado{border-color:#e05555;}
       .cal-cont{max-width:760px; margin:0 auto;}
       .cal-top{display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:1.15rem;}
       .cal-top button, .cal-nav button{border:1.5px solid var(--line); background:var(--ink); color:var(--paper); border-radius:10px; padding:8px 14px; font:inherit; font-weight:700; cursor:pointer;}
@@ -119,7 +120,7 @@ window.DimaCalendario = (function(){
     }
     const lista = diaSel ? (porDia[diaSel] || []) : datos.eventos;
     const bloqueos = diaSel ? (bloqDia[diaSel] || []) : datos.bloqueos;
-    const negociosBloqueo = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Ambos', 'Divanna Eventos', 'El Vaso Maiz'];
+    const negociosBloqueo = datos.negociosBloqueo || (datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Ambos', 'Divanna Eventos', 'El Vaso Maiz']);
     panel.querySelector('#calCuerpo').innerHTML = `
       ${datos.puedeEditar ? `<div class="cal-form" style="margin-top:12px;"><button data-cal="nuevo">➕ Capturar evento</button></div><div id="calNuevo"></div>` : ''}
       <div class="cal-nav"><button data-cal="mes" data-n="-1">‹</button><span>${e(textoMes(mes))}</span><button data-cal="mes" data-n="1">›</button></div>
@@ -134,7 +135,7 @@ window.DimaCalendario = (function(){
         <div class="cal-sec">📆 Google Calendar</div>
         <div class="cal-sub">Los eventos que se autorizaron antes de conectar Google no están en Calendar ni en las hojas de pedidos (Sheets). Este botón los pasa (de hoy en adelante, 20 por vez).</div>
         <div class="cal-form"><button class="sec" data-cal="sincronizar">🔄 Pasar los eventos a Google</button><div class="cal-msg" id="calSyncMsg"></div></div>` : ''}
-      ${datos.puedeEditar ? `
+      ${datos.puedeEditar && negociosBloqueo.length ? `
         <div class="cal-sec">⛔ Bloquear un día</div>
         <div class="cal-sub">DiMa ya no ofrece ese día a los clientes de ese negocio.</div>
         <div class="cal-form" id="calBloq">
@@ -159,22 +160,47 @@ window.DimaCalendario = (function(){
 
   // ---------- ➕ Capturar evento (los que se apartaron fuera del chat) ----------
   // Entra ya autorizado; el anticipo queda como pago a Diana (cuadre).
+  const esMantel = (clave) => !!(window.DimaManteles && DimaManteles.esMantel(datos.manteles, clave));
   function filaProducto(){
     const e = o.esc;
-    return `<div class="cal-prod" style="display:flex; gap:6px;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoVM || []).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"></div>`;
+    return `<div class="cal-prod" style="display:flex; flex-wrap:wrap; gap:6px;"><input type="search" data-buscar-producto placeholder="🔎 Buscar producto (ej. mesita)" style="flex-basis:100%;"><select class="calProdClave" style="flex:1;"><option value="">— producto —</option>${(datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).filter(p => !esMantel(p.clave)).map(p => `<option value="${e(p.clave)}">${e(p.nombre)}</option>`).join('')}</select><input class="calProdCant" type="number" min="1" placeholder="Cant." style="width:80px;"><input class="calProdNota" maxlength="150" placeholder="Nota: color, variante…" style="flex-basis:100%;"></div>`;
+  }
+  // Productos escritos en el formulario (sin manteles).
+  const filasProductos = () => [...panel.querySelectorAll('.cal-prod')]
+    .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value), nota: f.querySelector('.calProdNota').value.trim() || null }))
+    .filter(p => p.clave && p.cantidad > 0);
+  // 🧺 Selector de manteles (brigadas/manteles.js) y el total con lo que suman.
+  function pintarManteles(productos){
+    const caja = panel.querySelector('#calManteles');
+    if(!caja) return;
+    caja.innerHTML = datos.manteles && window.DimaManteles ? DimaManteles.html(productos || [], datos.manteles, o.esc) : '';
+    if(window.DimaManteles) DimaManteles.conectar(caja.querySelector('.dm-manteles'), o.esc, resumirManteles);
+    resumirManteles();
+  }
+  function resumirManteles(){
+    const caja = panel.querySelector('#calNuevo');
+    const neg = panel.querySelector('#calNNeg');
+    const mant = panel.querySelector('#calManteles');
+    if(!caja || !mant || !datos.manteles || !window.DimaManteles) return { error: '', cargo: 0 };
+    mant.hidden = neg && neg.value === 'El Vaso Maiz';
+    if(mant.hidden) return { error: '', cargo: 0 };
+    const r = DimaManteles.resumir(caja, filasProductos(), datos.manteles);
+    return r;
   }
 
   function formularioNuevo(){
     const e = o.esc;
     const caja = panel.querySelector('#calNuevo');
     if(caja.innerHTML){ caja.innerHTML = ''; return; }
-    const negocios = datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Divanna Eventos', 'El Vaso Maiz'];
+    const negocios = datos.negociosGerente || (datos.soloVasoMaiz ? ['El Vaso Maiz'] : ['Divanna Eventos', 'El Vaso Maiz']);
     caja.innerHTML = `
       <div class="cal-ev" style="--c:var(--maiz);">
         <b>➕ Capturar evento</b>
         <div class="cal-sub">Para los eventos que ya se apartaron por teléfono o en persona. Entra ya autorizado y avisa al calendario de Google.</div>
         <div class="cal-form">
           <button class="sec" data-cal="leer-foto">📷 Llenar con la foto de una comanda</button>
+          <button class="sec" data-cal="mostrar-texto">📝 Llenar con el pedido escrito</button>
+          <div id="calNTextoCaja" hidden><textarea id="calNTexto" rows="4" maxlength="4000" placeholder="Pega o escribe el pedido: cliente, teléfono, fecha, hora, lugar, qué lleva (con colores y estilos), total y anticipo" style="width:100%; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea><button data-cal="leer-texto" style="margin-top:6px;">Leer pedido</button></div>
           <input type="file" id="calNFoto" accept="image/*" hidden>
           <div class="cal-msg" id="calNFotoMsg"></div>
           <input id="calNNombre" maxlength="80" placeholder="Nombre del cliente">
@@ -188,7 +214,8 @@ window.DimaCalendario = (function(){
           <input id="calNInv" type="number" min="1" placeholder="Invitados">
           <textarea id="calNServ" rows="4" maxlength="4000" placeholder="Qué lleva, uno por línea (sale como checklist de carga)" style="padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
           <div id="calProdsCaja"><div class="cal-sub">${datos.catalogo ? 'Productos del catálogo (con esto salen la producción, el personal y el inventario)' : 'El Vaso Maíz: paquetes y piezas (con esto sale la producción y el personal)'}</div><div id="calProds">${filaProducto()}</div><button class="sec" data-cal="otro-producto">+ Otro producto</button></div>
-          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (total)">
+          <div id="calManteles"></div>
+          <input id="calNMonto" inputmode="decimal" placeholder="Monto contratado (los manteles especiales y extra se suman solos)">
           <div style="display:flex; gap:6px;"><input id="calNAnt" inputmode="decimal" placeholder="Anticipo ya recibido (si hubo)" style="flex:1;"><select id="calNAntForma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></div>
           <input id="calNInstr" maxlength="2000" placeholder="Instrucciones para el equipo (opcional)">
           <button data-cal="capturar">Guardar evento</button>
@@ -200,6 +227,9 @@ window.DimaCalendario = (function(){
     const ver = () => { prods.hidden = !datos.catalogo && negSel.value !== 'El Vaso Maiz'; };
     negSel.addEventListener('change', ver); ver();
     caja.querySelector('#calNFoto').addEventListener('change', (ev) => leerFoto(ev.target.files[0]));
+    pintarManteles([]);
+    caja.addEventListener('input', resumirManteles);
+    caja.addEventListener('change', resumirManteles);
   }
 
   // 📷 Foto de la comanda: se achica en el teléfono (máx. 1600 px, JPG), DiMa la lee y llena el formulario.
@@ -283,7 +313,43 @@ window.DimaCalendario = (function(){
     try {
       const foto = await achicar(archivo);
       const r = await mandarFoto(foto, msg);
+      llenarConLectura(r);
+      fotoComanda = foto;
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer la foto, intenta de nuevo.');
+    }
+  }
+
+  // 📝 Pedido escrito (texto pegado o dictado): DiMa lo lee igual que una comanda.
+  // ❓ Respuestas a las preguntas de DiMa: se mandan con lo ya leído y vuelve a llenar.
+  async function leerTexto(boton, conRespuestas){
+    const msg = panel.querySelector('#calNFotoMsg');
+    const caja = panel.querySelector(conRespuestas ? '#calNResp' : '#calNTexto');
+    const texto = caja ? caja.value.trim() : '';
+    if(!texto){ msg.textContent = conRespuestas ? '⚠️ Escribe las respuestas.' : '⚠️ Escribe o pega el pedido.'; return; }
+    boton.disabled = true;
+    msg.textContent = conRespuestas ? '❓ DiMa está revisando tus respuestas…' : '📝 DiMa está leyendo el pedido… (unos segundos)';
+    try {
+      const r = await post(conRespuestas ? { accion: 'leer_comanda', previo: ultimaLectura, respuestas: texto } : { accion: 'leer_comanda', texto });
+      llenarConLectura(r);
+    } catch(err){
+      if(err.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer, intenta de nuevo.');
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  // Llena el formulario con lo que leyó DiMa y muestra sus preguntas.
+  let ultimaLectura = null, preguntasPendientes = [];
+  function llenarConLectura(r){
+    const e = o.esc;
+    const msg = panel.querySelector('#calNFotoMsg');
+    {
       const d = r.datos;
+      ultimaLectura = d;
+      preguntasPendientes = d.preguntas || [];
       const poner = (id, valor) => { const el = panel.querySelector('#' + id); if(el && valor !== '' && valor != null) el.value = valor; };
       poner('calNNombre', d.clienteNombre); poner('calNTel', d.clienteTelefono); poner('calNFecha', d.fecha); poner('calNHora', d.hora);
       poner('calNHoras', d.horasServicio); poner('calNLugar', d.ubicacion); poner('calNInv', d.invitados); poner('calNServ', d.servicios);
@@ -291,18 +357,20 @@ window.DimaCalendario = (function(){
       const neg = panel.querySelector('#calNNeg');
       if([...neg.options].some(op => op.value === d.negocio)){ neg.value = d.negocio; neg.dispatchEvent(new Event('change')); }
       const lista = panel.querySelector('#calProds');
-      const validos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      const todos = (d.productos || []).filter(p => (datos.catalogo || datos.catalogoGerente || datos.catalogoVM || []).some(c => c.clave === p.clave));
+      const validos = todos.filter(p => !esMantel(p.clave));
       if(validos.length){
         lista.innerHTML = validos.map(() => filaProducto()).join('');
-        [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; });
+        [...lista.querySelectorAll('.cal-prod')].forEach((fila, i) => { fila.querySelector('.calProdClave').value = validos[i].clave; fila.querySelector('.calProdCant').value = validos[i].cantidad; fila.querySelector('.calProdNota').value = validos[i].nota || ''; });
       }
-      fotoComanda = foto;
+      pintarManteles(todos);
       fotoNotas = d.notas || '';
-      const avisos = [...(d.dudas || []), ...(r.faltan || []).map(x => 'Falta: ' + x)];
-      msg.innerHTML = `✅ Listo, revisa cada dato antes de guardar.${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`;
-    } catch(err){
-      if(err.message === 'sesion') return;
-      msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo leer la foto, intenta de nuevo.');
+      const avisos = [...(d.dudas || []), ...(r.faltan || []).filter(x => x !== 'contestar las preguntas').map(x => 'Falta: ' + x)];
+      msg.innerHTML = (preguntasPendientes.length ? '❓ Antes de guardar, contesta lo que pregunta DiMa.' : '✅ Listo, revisa cada dato antes de guardar.')
+        + `${d.notas ? '<br>📝 ' + e(d.notas) : ''}${avisos.length ? '<br>⚠️ ' + avisos.map(e).join('<br>⚠️ ') : ''}`
+        + (preguntasPendientes.length ? `<div class="cal-lleno" style="margin-top:8px;"><b>❓ Preguntas de DiMa</b><br>${preguntasPendientes.map(p => '• ' + e(p)).join('<br>')}
+          <textarea id="calNResp" rows="3" maxlength="1000" placeholder="Contesta aquí (ej. manteles lentejuela rosa, cerezos blancos)" style="width:100%; margin-top:6px; padding:8px; border-radius:8px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;"></textarea>
+          <button data-cal="responder-dima" style="margin-top:6px;">Enviar respuestas</button></div>` : '');
     }
   }
   let fotoNotas = '';
@@ -312,9 +380,12 @@ window.DimaCalendario = (function(){
     const v = (id) => panel.querySelector('#' + id).value;
     const msg = panel.querySelector('#calNMsg');
     const negocio = v('calNNeg');
-    const productos = !panel.querySelector('#calProdsCaja').hidden ? [...panel.querySelectorAll('.cal-prod')]
-      .map(f => ({ clave: f.querySelector('.calProdClave').value, cantidad: Number(f.querySelector('.calProdCant').value) }))
-      .filter(p => p.clave && p.cantidad > 0) : [];
+    if(preguntasPendientes.length){ msg.textContent = '❓ Primero contesta las preguntas de DiMa (arriba): el pedido tiene que quedar sin dudas.'; return; }
+    const mant = resumirManteles();
+    if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
+    const filas = !panel.querySelector('#calProdsCaja').hidden ? filasProductos() : [];
+    const conManteles = negocio !== 'El Vaso Maiz' && datos.manteles && window.DimaManteles;
+    const productos = conManteles ? DimaManteles.aplicar(panel.querySelector('#calNuevo'), filas, datos.manteles) : filas;
     b.disabled = true;
     msg.textContent = 'Guardando…';
     try {
@@ -324,8 +395,9 @@ window.DimaCalendario = (function(){
         servicios: v('calNServ'), productos, montoContratado: v('calNMonto'), anticipo: v('calNAnt'), formaAnticipo: v('calNAntForma'), instrucciones: v('calNInstr'),
         ...(fotoComanda ? { fotoComanda, notas: [fotoNotas, 'Capturado desde foto de comanda.'].filter(Boolean).join(' ') } : {}),
       });
-      fotoComanda = null; fotoNotas = '';
-      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
+      fotoComanda = null; fotoNotas = ''; ultimaLectura = null; preguntasPendientes = [];
+      const monto = d.total ? ` Total: $${Number(d.total).toLocaleString('es-MX')}${d.decorador ? ' (ya con 10% de decorador)' : ''}.` : '';
+      msg.innerHTML = `✅ Evento ${e(d.folio)} guardado${d.clienteNuevo ? ' (cliente nuevo)' : ` (cliente ya registrado: ${e(d.cliente || '')})`}.${d.anticipoGuardado ? ' Anticipo registrado.' : ''}${monto}${d.google ? (d.google.ok ? ' 📆 En Google.' : ` ⚠️ ${e(d.google.error || 'Google no se actualizó')}`) : ''}${lleno(d)}${d.recibo ? (d.recibo.ok ? ' 🧾 Recibo enviado por Telegram.' : ` ⚠️ El recibo no salió: ${e(d.recibo.error)}`) : ''} Ahora asígnale brigada en el dashboard.`;
       if(v('calNFecha')){ mes = v('calNFecha').slice(0, 7); diaSel = v('calNFecha'); }
       setTimeout(cargar, 3500);
     } catch(err){
@@ -352,6 +424,9 @@ window.DimaCalendario = (function(){
     if(accion === 'otro-producto'){ panel.querySelector('#calProds').insertAdjacentHTML('beforeend', filaProducto()); return; }
     if(accion === 'capturar'){ capturar(b); return; }
     if(accion === 'leer-foto'){ panel.querySelector('#calNFoto').click(); return; }
+    if(accion === 'mostrar-texto'){ const c = panel.querySelector('#calNTextoCaja'); c.hidden = !c.hidden; if(!c.hidden) panel.querySelector('#calNTexto').focus(); return; }
+    if(accion === 'leer-texto'){ leerTexto(b, false); return; }
+    if(accion === 'responder-dima'){ leerTexto(b, true); return; }
     const tarjeta = b.closest('.cal-ev');
     const zona = tarjeta && tarjeta.querySelector('.cal-zona');
     const evento = tarjeta && datos.eventos.find(x => x.id === tarjeta.dataset.ev);

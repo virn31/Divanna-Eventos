@@ -8,7 +8,7 @@
 // quién va la respuesta; solo se aceptan respuestas a mensajes del propio bot.
 // El staff de El Vaso Maíz no usa /mensaje: habla con su coordinadora.
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, puestoGerente } = require('./_sesion');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
@@ -46,7 +46,7 @@ function esRespuestaMensaje(mensaje) {
 async function mensajeAAdmins(colaborador, texto) {
   const limpio = String(texto || '').trim().slice(0, MAX_TEXTO);
   if (!limpio) return null;
-  const puesto = colaborador.gerente ? ' (Gerente de El Vaso Maíz)' : '';
+  const puesto = colaborador.gerente ? ` (${puestoGerente(colaborador.gerente)})` : '';
   const n = await enviarTelegramEquipo({
     roles: [ROLES.ADMIN],
     texto: `✉️ Mensaje de ${colaborador.nombre}${puesto}:\n\n${limpio}`,

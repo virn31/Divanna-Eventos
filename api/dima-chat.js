@@ -140,7 +140,7 @@ const TOOLS = [
         servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). El equipo usa estas líneas como checklist de carga.' },
         productos: {
           type: 'array',
-          description: 'Lo mismo que "servicios" pero con las claves del catálogo, para revisar inventario y personal. Un renglón por producto con su cantidad (paquetes como unidades: 100 personas Antonella = dv_paq50_antonella x 2; piezas sueltas por pieza: 20 sillas Tiffany = dv_silla_tiffany x 20). Si el paquete deja la silla a elección, agrega también las sillas elegidas como renglón aparte (solo apartan inventario, no las cobres de nuevo). Los personalizados (diseños para los platos o vasos) no se preparan: vm_personalizado en El Vaso Maíz o dv_personalizado en Divanna, nunca vm_pieza. No cuentes dos veces los manteles: dv_mesa_10_jardin y dv_mesa_mantel ya traen su mantel y los paquetes de mesas también; dv_mantel es solo para manteles ADEMÁS de esos (10 mesas con mantel = dv_mesa_mantel x 10, sin dv_mantel). Usa la nota para color, sabor o variante; en copas, manteles y platos base anota el modelo y el color que eligió el cliente (la gerencia asigna las piezas exactas de bodega). Lo que no esté en el catálogo va como "otro" con su descripción en la nota.\nCLAVES:\n' +
+          description: 'Lo mismo que "servicios" pero con las claves del catálogo, para revisar inventario y personal. Un renglón por producto con su cantidad (paquetes como unidades: 100 personas Antonella = dv_paq50_antonella x 2; piezas sueltas por pieza: 20 sillas Tiffany = dv_silla_tiffany x 20). Si el paquete deja la silla a elección, agrega también las sillas elegidas como renglón aparte (solo apartan inventario, no las cobres de nuevo). Los personalizados (diseños para los platos o vasos) no se preparan: vm_personalizado en El Vaso Maíz o dv_personalizado en Divanna, nunca vm_pieza. No cuentes dos veces los manteles: dv_mesa_10_jardin y dv_mesa_mantel ya traen su mantel y los paquetes de mesas también; dv_mantel es solo para manteles básicos ADEMÁS de esos (10 mesas con mantel = dv_mesa_mantel x 10, sin dv_mantel). Si el cliente quiere el mantel de las mesas corrugado o de lentejuela, agrega dv_cambio_corrugado o dv_cambio_lentejuela por cada mesa que cambia (no el mantel suelto); los extras especiales son dv_mantel_corrugado y dv_mantel_lentejuela. Usa la nota para color, sabor o variante; en copas, manteles y platos base anota el modelo y el color que eligió el cliente (la gerencia asigna las piezas exactas de bodega). Lo que no esté en el catálogo va como "otro" con su descripción en la nota.\nCLAVES:\n' +
             CLAVES.map(c => `${c}: ${PRODUCTOS[c].nombre}`).join('\n'),
           items: {
             type: 'object',
@@ -212,7 +212,7 @@ ${drive.hayPromociones
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
 FLUJO DE LA COTIZACIÓN:
-1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas. Con esos datos se llena la comanda y el recibo del cliente: procura tener también su nombre completo, la dirección exacta del evento (calle, número y colonia o salón) y, en cada producto, el modelo y color que eligió (va en la nota del producto). Si lleva mesas o paquete de mesas, pregunta el TIPO de mantel (básico, lentejuela o corrugado) y el COLOR, y anótalos en la nota del producto que trae las mesas (ej. "mantel básico beige"); la cantidad de manteles sale de las mesas, no la pidas aparte. Pídelo con naturalidad, sin interrogatorio.
+1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas. Con esos datos se llena la comanda y el recibo del cliente: procura tener también su nombre completo, la dirección exacta del evento (calle, número y colonia o salón) y, en cada producto, el modelo y color que eligió (va en la nota del producto). Si lleva mesas o paquete de mesas, pregunta el TIPO de mantel (básico, lentejuela o corrugado) y el COLOR, y anótalos en la nota del producto que trae las mesas (ej. "mantel básico beige"); la cantidad de manteles sale de las mesas, no la pidas aparte. El básico ya va incluido; si lo quiere corrugado o de lentejuela, cobra solo la diferencia por mantel (+$60 o +$140) y regístralo con dv_cambio_corrugado o dv_cambio_lentejuela. Pídelo con naturalidad, sin interrogatorio.
 2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente." Después, en su momento, la POLÍTICA DE PAGO del catálogo (anticipo, liquidación ${HORAS_LIQUIDACION} h antes y, si lleva mobiliario, el depósito en garantía).
 3. VENTA CRUZADA, una vez y antes de pedir datos de contacto: si el cliente solo ha hablado de un negocio, ofrécele el otro en una o dos frases, ligadas a su evento.
    - Si pidió snacks de El Vaso Maíz, ofrece el mobiliario (mesas, sillas, mantelería) y la decoración de Divanna (aro, mampara, arcos de cerezos).
@@ -421,7 +421,7 @@ async function registrarPedido(input, historial, folioPrevio) {
       folio: folioPrevio,
       nombre: datos.nombre,
       servicios: datos.servicios,
-      montoEstimado: datos.montoEstimado,
+      montoEstimado: cambio.montoEstimado,
       indicaciones: datos.indicaciones,
       urgente: cambio.urgente,
       autorizado: cambio.autorizado,
@@ -433,7 +433,7 @@ async function registrarPedido(input, historial, folioPrevio) {
         (cambio.urgente ? ' Faltan menos de 24 horas para el evento.' : '') +
         (cambio.autorizado ? ' El pedido ya estaba autorizado: confírmalo o descártalo en el dashboard.' : '') +
         `\n\nAsí queda ahora:\n${datos.servicios}\n\n` +
-        (datos.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
+        (cambio.montoEstimado > 0 ? `Nuevo estimado de DiMa: $${cambio.montoEstimado.toLocaleString('es-MX')}\n\n` : '') +
         `Conversación:\n${transcripcion(historial)}`,
     });
     const texto = cambio.urgente
@@ -442,12 +442,16 @@ async function registrarPedido(input, historial, folioPrevio) {
     return { texto, folio: folioPrevio };
   }
 
-  const { folio } = await crearPedido(datos, {
+  const { folio, decorador, monto, montoSinDescuento } = await crearPedido(datos, {
     origen: 'chat',
     notasExtra: `\nConversación con DiMa:\n${transcripcion(historial)}`,
   });
   const aviso = datos.fueraDeCiudad ? ' Como es fuera de la ciudad, el equipo de logística te confirma la cobertura y el costo de traslado.' : '';
-  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${aviso}`, folio };
+  // Cliente decorador (Tipo_Cliente en Airtable): DiMa le confirma su 10%.
+  const descuento = !decorador ? ''
+    : monto ? ` Como cliente decorador tienes 10% de descuento sobre el total: de $${montoSinDescuento.toLocaleString('es-MX')} queda en $${monto.toLocaleString('es-MX')}.`
+      : ' Como cliente decorador tienes 10% de descuento sobre el total.';
+  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${descuento}${aviso}`, folio };
 }
 
 // Canal interno: la app manda { modo: 'equipo', historial: [{ rol: 'yo' | 'dima', texto }] }.

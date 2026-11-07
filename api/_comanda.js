@@ -12,9 +12,9 @@
 // Al guardar con anticipo, sale el recibo (api/_sheets.js).
 
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { PRODUCTOS, CLAVES } = require('./_productos');
+const { PRODUCTOS, CLAVES, cargoManteles, resumenManteles, ajustarManteles } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
-const { ROLES } = require('./_sesion');
+const { ROLES, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
 
 const MODELO = 'claude-sonnet-5-5';
@@ -93,7 +93,7 @@ const HERRAMIENTA = {
   input_schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['negocio', 'cliente_nombre', 'cliente_telefono', 'fecha', 'hora', 'horas_servicio', 'ubicacion', 'invitados', 'productos', 'lineas', 'total', 'anticipo', 'forma_anticipo', 'numero_recibo', 'notas', 'dudas'],
+    required: ['negocio', 'cliente_nombre', 'cliente_telefono', 'fecha', 'hora', 'horas_servicio', 'ubicacion', 'invitados', 'productos', 'lineas', 'total', 'anticipo', 'forma_anticipo', 'numero_recibo', 'notas', 'dudas', 'preguntas'],
     properties: {
       negocio: { type: 'string', enum: ['Divanna Eventos', 'El Vaso Maiz'] },
       cliente_nombre: nulo('string'),
@@ -119,22 +119,34 @@ const HERRAMIENTA = {
       numero_recibo: { ...nulo('string'), description: 'Número o folio impreso o escrito en el papel.' },
       notas: { ...nulo('string'), description: 'Otros datos útiles (fecha y hora de entrega, colores, indicaciones).' },
       dudas: { type: 'array', items: { type: 'string' }, description: 'Lo que no se lee bien o hay que confirmar (tachones, números dudosos, datos que faltan).' },
+      preguntas: { type: 'array', items: { type: 'string' }, description: 'Preguntas cortas para quien mandó el pedido, sobre los detalles que faltan para prepararlo sin dudas (ver DETALLES OBLIGATORIOS). Vacío si el pedido está 100% claro.' },
     },
   },
 };
 
 function sistema() {
   const catalogo = CLAVES.filter(k => k !== 'otro').map(k => `${k}: ${PRODUCTOS[k].nombre}${PRODUCTOS[k].negocio === 'El Vaso Maiz' ? ' (El Vaso Maíz)' : ''}`).join('\n');
-  return `Eres DiMa, la asistente de Divanna Eventos (renta de mobiliario y decoración) y El Vaso Maíz (snacks para eventos), en Culiacán. Diana llena a mano comandas/recibos en papel y te manda la foto. Léela con cuidado y entrega los datos con la herramienta datos_comanda.
+  return `Eres DiMa, la asistente de Divanna Eventos (renta de mobiliario y decoración) y El Vaso Maíz (snacks para eventos), en Culiacán. Diana llena a mano comandas/recibos en papel y te manda la foto, o te escribe el pedido en texto. Léelo con cuidado y entrega los datos con la herramienta datos_comanda.
+El negocio tiene muchas variables: el pedido tiene que quedar 100% claro para prepararlo sin llamar al cliente. Lo que falte va en "preguntas" (no se puede guardar hasta que lo contesten).
 
 Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que todavía no pasa. Horas como "6 pm" → 18:00.
 - El negocio: El Vaso Maíz si es comanda de snacks (esquites, tostilocos, papas, raspados, paquetes de snacks); si no, Divanna Eventos.
 - No inventes: si un dato no está o no se lee, ponlo en null y explícalo en "dudas". Si un número está tachado o es dudoso, di cuál leíste y que hay que confirmarlo.
 - "lineas": cada artículo con su cantidad como está escrito (sale como lista de carga). Incluye también los que no tienen cantidad.
 - "productos": además, los que correspondan con seguridad a una clave del catálogo, con su cantidad (de mesas, sillas, manteles, platos, copas y paquetes).
-- MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel básico beige") y elige la clave según el tipo (paquete con lentejuela o corrugado si así lo dice). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
-- No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. "Mantel extra" es solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2.
+- MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel lentejuela rosa"). Las mesas traen mantel básico: si dice lentejuela o corrugado, agrega además dv_cambio_lentejuela o dv_cambio_corrugado con la misma cantidad de mesas (o un paquete que ya traiga ese mantel, si lo escrito es un paquete). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
+- No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. Los manteles extra (dv_mantel básico, dv_mantel_corrugado, dv_mantel_lentejuela) son solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2; "10 mesas, mantel lentejuela" = dv_mesa_mantel x 10 + dv_cambio_lentejuela x 10.
 - PERSONALIZADOS: "personalizados" son los diseños impresos para los platos o vasos (con el nombre o tema del festejado), NO son snacks ni piezas que se preparan. En El Vaso Maíz van como vm_personalizado y en Divanna como dv_personalizado. Nunca los pongas como vm_pieza ni en un paquete.
+- DETALLES OBLIGATORIOS (si falta alguno, pregúntalo en "preguntas", una pregunta corta por cosa, ej. "¿De qué color los cerezos?"):
+  · Manteles (de las mesas o paquetes, y extras): tipo (básico, lentejuela o corrugado) y color. Si dice lentejuela o corrugado, que la clave sea la de ese mantel (dv_cambio_* o el paquete que lo trae) para que se cobre el precio correcto; si no queda claro para cuántas mesas, pregúntalo.
+  · Sillas Tiffany o Antonella, copas, platos base y servilletas: modelo y color.
+  · Cerezos (arco, medio arco, marco, túnel): color de la flor.
+  · Personalizados (platos o vasos), lona, mampara con lona: temática o diseño, y el nombre o texto que lleva.
+  · Aro, mampara, shimmer y paquetes de decoración: colores de los globos o de la decoración.
+  · Números o letras LED: qué número o qué letras.
+  · El Vaso Maíz: sabores o toppings cuando el producto deja elegir (raspados, sabritas preparadas, paquetes con opciones).
+  · Lo que diga "otro" o no esté en el catálogo: qué es exactamente.
+  Si en la nota ya viene el dato (ej. "mantel lentejuela rosa", "cerezos blancos"), no preguntes. Si la respuesta de Diana es que todavía no se sabe, quita la pregunta y anótalo en "notas" como pendiente.
 - Total y anticipo: los que están escritos. No calcules precios.
 - Si no está escrita la forma de pago del anticipo, pon "No se sabe" y NO lo pongas en "dudas" (se registra después en la app).
 
@@ -187,7 +199,7 @@ function aCaptura(x) {
   const tel = String(x.cliente_telefono || '').replace(/\D/g, '').slice(-10);
   const lineas = (x.lineas || []).map(t => String(t).trim()).filter(Boolean).slice(0, 80);
   const limpios = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
-  const productos = sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas);
+  const productos = ajustarManteles(sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas));
   const notas = [x.numero_recibo ? `Comanda de papel Nº ${x.numero_recibo}.` : '', x.notas || ''].filter(Boolean).join(' ');
   return {
     negocio: x.negocio === 'El Vaso Maiz' ? 'El Vaso Maiz' : 'Divanna Eventos',
@@ -200,12 +212,37 @@ function aCaptura(x) {
     invitados: Number(x.invitados) > 0 ? Math.round(Number(x.invitados)) : '',
     servicios: lineas.join('\n'),
     productos,
-    montoContratado: Number(x.total) > 0 ? Number(x.total) : '',
+    // El total del papel ya trae los manteles; capturarEvento los vuelve a sumar.
+    montoContratado: Number(x.total) > 0 ? Math.max(0, Number(x.total) - cargoManteles(productos)) || Number(x.total) : '',
     anticipo: Number(x.anticipo) > 0 ? Number(x.anticipo) : '',
     formaAnticipo: FORMAS.includes(x.forma_anticipo) ? x.forma_anticipo : '',
     notas: notas.slice(0, 1500),
     dudas: (x.dudas || []).map(String).filter(Boolean).slice(0, 12),
+    preguntas: unicas([...(x.preguntas || []).map(String), ...preguntasFijas(productos, lineas)]).slice(0, 12),
   };
+}
+
+const unicas = (lista) => [...new Set(lista.map(t => t.trim()).filter(Boolean))];
+
+// Revisión fija (además de lo que pregunte Claude), para lo que más se olvida
+// (Víctor 2026-11-06): el tipo y color del mantel, que el estilo escrito coincida
+// con lo que se cobra, el color de los cerezos y la temática de los personalizados.
+function preguntasFijas(productos, lineas) {
+  const p = [];
+  const notas = productos.map(x => String(x.nota || '')).join(' · ');
+  const todo = `${lineas.join(' · ')} · ${notas}`.toLowerCase();
+  const m = resumenManteles(productos);
+  const llevaManteles = m.incluidos > 0 || m.total > 0;
+  if (llevaManteles && !/mantel[^·,;]*(b[aá]sico|lentejuela|corrugad)/.test(todo)) p.push('¿Qué tipo de mantel (básico, lentejuela o corrugado) y de qué color?');
+  else if (llevaManteles && !/mantel[^·,;]*\s(blanc|negr|beige|ros|dorad|plat|azul|rojo|roja|verde|morad|lila|gris|crema|champ|vino|amarill|naranj|marfil|perla|fucsia|turques|cafe|café|chocolate|[a-záéíóú]+\s?(claro|fuerte|pastel))/.test(todo)) p.push('¿De qué color van los manteles?');
+  for (const [estilo, cat] of [['lentejuela', 'lentejuela'], ['corrugad', 'corrugado']]) {
+    if (new RegExp(`mantel[^·,;]*${estilo}`).test(todo) && !m.porTipo[cat]) p.push(`Dice mantel ${cat}: ¿para cuántas mesas? (así se cobra el precio de ${cat})`);
+  }
+  const conCerezos = productos.some(x => /cerezo/i.test(PRODUCTOS[x.clave].nombre)) || /cerezo/.test(todo);
+  if (conCerezos && !/cerezos?\s+(de\s+color\s+)?[a-záéíóú]{3,}/.test(todo.replace(/cerezos?\s+(con|de)\s+\d/g, ''))) p.push('¿De qué color van los cerezos?');
+  const personalizados = productos.filter(x => /personalizado|lona/.test(x.clave));
+  if (personalizados.some(x => !String(x.nota || '').trim()) && !/tem[aá]tica|tema |dise[nñ]o|nombre/.test(todo)) p.push('¿De qué temática y con qué nombre o texto van los personalizados?');
+  return p;
 }
 
 // Lo que todavía falta para poder guardar (las mismas reglas de capturarEvento).
@@ -220,17 +257,18 @@ function faltantes(d, { pideForma = true } = {}) {
   if (!d.servicios) f.push('qué lleva');
   if (!d.montoContratado) f.push('total contratado');
   if (pideForma && d.anticipo && !d.formaAnticipo) f.push('cómo pagó el anticipo (efectivo, transferencia o depósito)');
+  if ((d.preguntas || []).length) f.push('contestar las preguntas');
   return f;
 }
 
 // Lee una foto (o corrige un borrador con texto). Devuelve { datos } o { error }.
-async function leer({ foto = null, pista = '', previo = null, correccion = '' }) {
+async function leer({ foto = null, pista = '', previo = null, correccion = '', pedidoTexto = '' }) {
   const contenido = [];
   if (foto) contenido.push({ type: 'image', source: { type: 'base64', media_type: foto.tipo, data: foto.base64 } });
-  let texto = foto ? 'Lee esta comanda.' : 'Corrige estos datos de una comanda.';
+  let texto = foto ? 'Lee esta comanda.' : pedidoTexto ? `Lee este pedido escrito:\n${String(pedidoTexto).slice(0, 4000)}` : 'Corrige estos datos de una comanda.';
   if (pista) texto += `\nNota de quien la manda: ${String(pista).slice(0, 500)}`;
   if (previo) texto += `\nLo que ya habías leído (JSON): ${JSON.stringify(previo).slice(0, 6000)}`;
-  if (correccion) texto += `\nCorrección de Diana (tiene prioridad sobre lo leído): ${String(correccion).slice(0, 1000)}\nDevuelve todos los datos ya corregidos; quita de "dudas" lo que la corrección resolvió.`;
+  if (correccion) texto += `\nCorrección de Diana (tiene prioridad sobre lo leído): ${String(correccion).slice(0, 1000)}\nDevuelve todos los datos ya corregidos; quita de "dudas" y de "preguntas" lo que la corrección resolvió.`;
   contenido.push({ type: 'text', text: texto });
   const respuesta = await llamarClaude({
     model: MODELO,
@@ -252,20 +290,27 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '' })
 
 async function leerParaFormulario(colaborador, body) {
   if (!puedeLeer(colaborador)) return { error: 'Solo Diana, Víctor y la gerente capturan eventos.', codigo: 403 };
-  if (!fotoValida(body.imagen)) return { error: 'Manda una foto (JPG o PNG) de menos de 5 MB.' };
+  const pedidoTexto = typeof body.texto === 'string' ? body.texto.trim().slice(0, 4000) : '';
+  const respuestas = typeof body.respuestas === 'string' ? body.respuestas.trim().slice(0, 1000) : '';
+  const previo = respuestas && body.previo && typeof body.previo === 'object' ? body.previo : null;
+  if (!previo && !pedidoTexto && !fotoValida(body.imagen)) return { error: 'Manda una foto (JPG o PNG) de menos de 5 MB.' };
   let r;
   try {
-    r = await leer({ foto: body.imagen, pista: body.pista });
+    r = previo ? await leer({ previo, correccion: respuestas })
+      : pedidoTexto ? await leer({ pedidoTexto })
+        : await leer({ foto: body.imagen, pista: body.pista });
   } catch (err) {
     if (esSinSaldo(err)) throw err; // dashboard-eventos avisa y contesta el mensaje de saldo
     await avisarFalla('app', err);
     return { error: 'DiMa no pudo leer la foto en este momento. Intenta de nuevo en un minuto; si sigue, llena el formulario a mano.', codigo: 502 };
   }
   if (r.error) return r;
-  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz.');
+  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift(avisoOtroNegocio(colaborador, r.datos.negocio));
   return { ok: true, datos: r.datos, faltan: faltantes(r.datos) };
 }
-const puedeCapturarNegocio = (c, negocio) => c.rol === ROLES.ADMIN || (c.gerente && negocio === 'El Vaso Maiz');
+// Cada gerente captura en su negocio (Casa Isabella: Divanna, con el salón).
+const puedeCapturarNegocio = (c, negocio) => c.rol === ROLES.ADMIN || (!!c.gerente && negocio === negocioDeGerencia(c.gerente));
+const avisoOtroNegocio = (c, negocio) => `La comanda parece de ${negocio === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}; tú solo puedes capturar eventos de ${NOMBRE_GERENCIA[c.gerente] || 'tu negocio'} (corrígelo si me equivoqué).`;
 
 // ---------- Telegram: borrador con botones ----------
 
@@ -288,9 +333,10 @@ function textoBorrador(d, id) {
     `💵 Total ${d.montoContratado ? pesos(d.montoContratado) : '—'} · Anticipo ${d.anticipo ? `${pesos(d.anticipo)}${d.formaAnticipo ? ' (' + d.formaAnticipo.toLowerCase() + ')' : ''}` : '—'}`,
     ...(d.notas ? [`📝 ${d.notas}`] : []),
     ...(d.dudas.length ? ['', '⚠️ Revisa:', ...d.dudas.map(x => `• ${x}`)] : []),
+    ...((d.preguntas || []).length ? ['', '❓ Antes de guardar, contéstame:', ...d.preguntas.map(x => `• ${x}`)] : []),
     ...(falta.length ? ['', `❗ Falta para guardar: ${falta.join(', ')}.`] : []),
     '',
-    'Si algo está mal, contéstame ENCIMA de este mensaje con la corrección (ej. "la fecha es el 28 de noviembre, anticipo en transferencia").',
+    'Contéstame ENCIMA de este mensaje con las respuestas o correcciones (ej. "manteles lentejuela rosa, cerezos blancos, la fecha es el 28").',
     `Borrador: ${id}`,
   ];
   return lineas.join('\n').slice(0, 4000);
@@ -323,7 +369,7 @@ const esRespuestaComanda = (mensaje) => !!(mensaje.reply_to_message && mensaje.r
 
 // Devuelve { texto, botones } para contestar en el chat.
 async function atenderFoto(mensaje, colaborador) {
-  if (!puedeLeer(colaborador)) return { texto: 'Las fotos de comandas las leo solo para Diana, Víctor y la gerente de El Vaso Maíz.' };
+  if (!puedeLeer(colaborador)) return { texto: 'Las fotos de comandas las leo solo para Diana, Víctor y los gerentes.' };
   await telegramApi('sendMessage', { chat_id: mensaje.chat.id, text: '📷 Leyendo la comanda, dame unos segundos…' }).catch(() => {});
   let foto;
   try { foto = await descargarFotoTelegram(mensaje); } catch (err) { return { texto: `No pude abrir la foto: ${err.message}` }; }
@@ -337,13 +383,37 @@ async function atenderFoto(mensaje, colaborador) {
     return { texto: 'No pude leer la comanda en este momento. Mándala otra vez en un minuto; si sigue, captúrala en la app.' };
   }
   if (r.error) return { texto: r.error };
-  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift('La comanda parece de Divanna; tú solo puedes capturar eventos de El Vaso Maíz (corrígelo si es de El Vaso Maíz).');
+  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift(avisoOtroNegocio(colaborador, r.datos.negocio));
   const creado = await airtable(TABLA, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
     Resumen: `${r.datos.clienteNombre || 'Sin nombre'} · ${r.datos.fecha || 'sin fecha'}`.slice(0, 100),
     Datos: JSON.stringify(r.datos), Estado: 'Pendiente', Colaborador: [colaborador.id],
   } }] }) });
   const id = creado.records[0].id;
   await subirAdjunto(id, 'Foto', foto).catch(err => console.error('No se pudo guardar la foto de la comanda:', err.message));
+  return { texto: textoBorrador(r.datos, id), botones: botonesBorrador(id, r.datos) };
+}
+
+// Pedido escrito en Telegram: /comanda y el pedido en el mismo mensaje. Mismo
+// borrador que la foto (preguntas, correcciones encima, Guardar / Descartar).
+async function atenderTexto(pedidoTexto, colaborador, chatId) {
+  if (!puedeLeer(colaborador)) return { texto: 'Los pedidos por texto los leo solo para Diana, Víctor y los gerentes.' };
+  if (!pedidoTexto) return { texto: 'Escríbeme el pedido en el mismo mensaje, por ejemplo:\n/comanda Laura Pérez 667 123 4567, sábado 28 a las 6 pm en Las Quintas, 10 mesas con mantel lentejuela rosa, arco de cerezos blancos, total $4,500, anticipo $1,000 en efectivo' };
+  await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+  let r;
+  try {
+    r = await leer({ pedidoTexto });
+  } catch (err) {
+    if (esSinSaldo(err)) throw err;
+    await avisarFalla('Telegram (texto)', err);
+    return { texto: 'No pude leer el pedido en este momento. Mándalo otra vez en un minuto; si sigue, captúralo en la app.' };
+  }
+  if (r.error) return { texto: 'No entendí el pedido; escríbelo con cliente, teléfono, fecha y qué lleva.' };
+  if (!puedeCapturarNegocio(colaborador, r.datos.negocio)) r.datos.dudas.unshift(avisoOtroNegocio(colaborador, r.datos.negocio));
+  const creado = await airtable(TABLA, { method: 'POST', body: JSON.stringify({ records: [{ fields: {
+    Resumen: `${r.datos.clienteNombre || 'Sin nombre'} · ${r.datos.fecha || 'sin fecha'}`.slice(0, 100),
+    Datos: JSON.stringify(r.datos), Estado: 'Pendiente', Colaborador: [colaborador.id],
+  } }] }) });
+  const id = creado.records[0].id;
   return { texto: textoBorrador(r.datos, id), botones: botonesBorrador(id, r.datos) };
 }
 
@@ -400,4 +470,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
 }
 
-module.exports = { HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderCorreccion, atenderBoton, textoBorrador, MARCA };
+module.exports = { HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
