@@ -115,8 +115,15 @@ const PRODUCTOS = {
   dv_silla_jardin: { nombre: 'Silla Jardinera', negocio: DV, componentes: { 'Silla Jardín': 1 } },
   dv_silla_tiffany: { nombre: 'Silla Tiffany', negocio: DV, componentes: { 'Silla Tiffany': 1 } },
   dv_silla_antonella: { nombre: 'Silla Antonella', negocio: DV, componentes: { 'Silla Antonella': 1 } },
-  dv_mantel: { nombre: 'Mantel extra', negocio: DV, componentes: { 'Mantel': 1 } },
-  dv_mantel_corrugado: { nombre: 'Mantel corrugado', negocio: DV, componentes: { 'Mantel corrugado': 1 } },
+  // Manteles (Víctor 2026-11-06): cada mesa trae su mantel básico incluido. Se
+  // cambia a especial cobrando la diferencia contra el básico, y los extras van
+  // a precio completo. Esos precios se suman solos al monto contratado
+  // (cargoManteles); los paquetes ya traen su mantel y respetan su precio.
+  dv_mantel: { nombre: 'Mantel básico extra ($60)', negocio: DV, precio: 60, componentes: { 'Mantel': 1 } },
+  dv_mantel_lentejuela: { nombre: 'Mantel lentejuela extra ($200)', negocio: DV, precio: 200, componentes: { 'Mantel lentejuela': 1 } },
+  dv_mantel_corrugado: { nombre: 'Mantel corrugado extra ($120)', negocio: DV, precio: 120, componentes: { 'Mantel corrugado': 1 } },
+  dv_cambio_lentejuela: { nombre: 'Cambio de mantel básico a lentejuela (+$140 c/u)', negocio: DV, precio: 140, cambioMantel: true, componentes: { 'Mantel': -1, 'Mantel lentejuela': 1 } },
+  dv_cambio_corrugado: { nombre: 'Cambio de mantel básico a corrugado (+$60 c/u)', negocio: DV, precio: 60, cambioMantel: true, componentes: { 'Mantel': -1, 'Mantel corrugado': 1 } },
   dv_copa_globo: { nombre: 'Copa globo', negocio: DV, componentes: { 'Copa globo': 1 } },
   dv_copa_francesa: { nombre: 'Copa francesa', negocio: DV, componentes: { 'Copa francesa': 1 } },
   dv_plato_base: { nombre: 'Plato base (porta plato)', negocio: DV, componentes: { 'Plato base': 1 } },
@@ -370,7 +377,93 @@ function capacidadEvento(lista, horasServicio) {
 
 // Lista para el dashboard (selector de productos).
 function catalogoParaDashboard() {
-  return CLAVES.map(clave => ({ clave, nombre: PRODUCTOS[clave].nombre, negocio: PRODUCTOS[clave].negocio || '' }));
+  return CLAVES.map(clave => {
+    const p = PRODUCTOS[clave];
+    const c = { clave, nombre: p.nombre, negocio: p.negocio || '' };
+    // Para el selector de manteles: cuántos básicos trae cada unidad y el precio de los de mantel.
+    const basicos = (p.componentes || {})['Mantel'] || 0;
+    if (basicos > 0 && !p.precio) c.mantelesBasicos = basicos;
+    if (p.precio) c.precio = p.precio;
+    return c;
+  });
+}
+
+// ---------- Manteles ----------
+const PRECIO_MANTEL = { basico: 60, lentejuela: 200, corrugado: 120 };
+const CLAVES_MANTEL = { extra: { basico: 'dv_mantel', lentejuela: 'dv_mantel_lentejuela', corrugado: 'dv_mantel_corrugado' }, cambio: { lentejuela: 'dv_cambio_lentejuela', corrugado: 'dv_cambio_corrugado' } };
+const esClaveMantel = (clave) => !!(PRODUCTOS[clave] && PRODUCTOS[clave].precio && PRODUCTOS[clave].negocio === DV && (/mantel/.test(clave) || PRODUCTOS[clave].cambioMantel));
+
+// Resumen de manteles de un evento: básicos incluidos por las mesas y paquetes,
+// cambios a especial, extras, cuántos van de cada tipo y lo que se cobra aparte.
+function resumenManteles(lista) {
+  const r = { incluidos: 0, especiales: { lentejuela: 0, corrugado: 0 }, cambios: { lentejuela: 0, corrugado: 0 }, extras: { basico: 0, lentejuela: 0, corrugado: 0 }, cargo: 0 };
+  for (const p of lista || []) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod) continue;
+    if (prod.precio) r.cargo += prod.precio * p.cantidad;
+    if (prod.cambioMantel) r.cambios[p.clave === CLAVES_MANTEL.cambio.lentejuela ? 'lentejuela' : 'corrugado'] += p.cantidad;
+    else if (prod.precio && esClaveMantel(p.clave)) {
+      const tipo = Object.keys(CLAVES_MANTEL.extra).find(t => CLAVES_MANTEL.extra[t] === p.clave);
+      r.extras[tipo] += p.cantidad;
+    } else {
+      // Mesas y paquetes: sus básicos (se pueden cambiar) y los especiales que ya traen los paquetes.
+      const c = prod.componentes || {};
+      r.incluidos += (c['Mantel'] || 0) * p.cantidad;
+      r.especiales.lentejuela += (c['Mantel lentejuela'] || 0) * p.cantidad;
+      r.especiales.corrugado += (c['Mantel corrugado'] || 0) * p.cantidad;
+    }
+  }
+  r.incluidos = Math.round(r.incluidos);
+  const cambiados = r.cambios.lentejuela + r.cambios.corrugado;
+  r.porTipo = {
+    basico: Math.max(0, r.incluidos - cambiados) + r.extras.basico,
+    lentejuela: Math.round(r.especiales.lentejuela) + r.cambios.lentejuela + r.extras.lentejuela,
+    corrugado: Math.round(r.especiales.corrugado) + r.cambios.corrugado + r.extras.corrugado,
+  };
+  r.total = r.porTipo.basico + r.porTipo.lentejuela + r.porTipo.corrugado;
+  r.error = cambiados > r.incluidos
+    ? `Se cambian ${cambiados} manteles pero las mesas solo traen ${r.incluidos} básicos. Si son más, agrégalos como extra.`
+    : '';
+  return r;
+}
+
+// Si hay más cambios a especial que básicos en las mesas (ej. lo leído de una
+// comanda), lo que sobra pasa a extra de ese tipo: así siempre se puede guardar.
+function ajustarManteles(lista) {
+  let libres = resumenManteles(lista).incluidos;
+  const salida = [];
+  for (const p of lista || []) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod || !prod.cambioMantel) { salida.push(p); continue; }
+    const cambio = Math.min(p.cantidad, libres);
+    libres -= cambio;
+    if (cambio) salida.push({ ...p, cantidad: cambio });
+    if (p.cantidad - cambio) {
+      const tipo = p.clave === CLAVES_MANTEL.cambio.lentejuela ? 'lentejuela' : 'corrugado';
+      salida.push({ ...p, clave: CLAVES_MANTEL.extra[tipo], cantidad: p.cantidad - cambio });
+    }
+  }
+  return salida;
+}
+
+// Lo que se cobra aparte por manteles (cambios + extras), en pesos.
+const cargoManteles = (lista) => resumenManteles(lista).cargo;
+
+// Para el selector de manteles de la app y el dashboard (brigadas/manteles.js).
+function infoManteles() {
+  const basicos = {};
+  const especiales = {};
+  const precios = {};
+  for (const clave of CLAVES) {
+    const p = PRODUCTOS[clave];
+    const c = p.componentes || {};
+    if (p.precio && esClaveMantel(clave)) precios[clave] = p.precio;
+    else {
+      if ((c['Mantel'] || 0) > 0) basicos[clave] = c['Mantel'];
+      if (c['Mantel lentejuela'] || c['Mantel corrugado']) especiales[clave] = { lentejuela: c['Mantel lentejuela'] || 0, corrugado: c['Mantel corrugado'] || 0 };
+    }
+  }
+  return { basicos, especiales, precios, claves: CLAVES_MANTEL };
 }
 
 module.exports = {
@@ -398,4 +491,11 @@ module.exports = {
   textoProductos,
   capacidadEvento,
   catalogoParaDashboard,
+  PRECIO_MANTEL,
+  CLAVES_MANTEL,
+  esClaveMantel,
+  resumenManteles,
+  cargoManteles,
+  infoManteles,
+  ajustarManteles,
 };

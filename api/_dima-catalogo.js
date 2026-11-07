@@ -110,7 +110,7 @@ OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar apa
 CATÁLOGO REAL DE DIVANNA EVENTOS (mobiliario, vajilla y decoración):
 MOBILIARIO: Mesa cuadrada o redonda con 10 sillas Jardinera = $220 (incluye mantel en variedad de colores). Silla Jardinera = $15/pieza, Silla Tiffany = $18/pieza, Silla Antonella = $50/pieza.
 REGLA DE UPGRADE DE SILLA (MUY IMPORTANTE, evita duplicar piezas): si el cliente pide cambiar la Jardinera por Tiffany o Antonella, el cálculo es: (mesa sola) = $220 − (10 × $15) = $70, más el número de sillas nuevas al precio pleno. Ejemplo: mesa + 10 sillas Antonella = $70 + (10 × $50) = $570 total (NUNCA $220 + $500 = $720, eso duplicaría las sillas).
-MANTEL suelto/extra (solo para mesas fuera del paquete de $220) = $50. Mantel Corrugado = $120.
+MANTELES (renta por pieza, en cualquier evento y lugar): básico = $60, corrugado = $120, lentejuela = $200. Cada mesa de $220 (y las mesas de los paquetes) ya trae su mantel básico incluido: si el cliente lo quiere corrugado o de lentejuela, se cobra solo la DIFERENCIA por mantel (corrugado +$60, lentejuela +$140), con las claves dv_cambio_corrugado / dv_cambio_lentejuela (una por mesa que cambia; no agregues además el mantel suelto). Manteles ADEMÁS de los de las mesas = extra a precio completo (dv_mantel básico $60, dv_mantel_corrugado $120, dv_mantel_lentejuela $200). Los paquetes que ya traen lentejuela o corrugado se cobran a su precio de paquete, sin diferencia. Se pueden mezclar (ej. 10 mesas: 7 básicos y 3 lentejuela = 3 cambios a lentejuela, +$420).
 CRISTALERÍA/VAJILLA (baja de precio si son 50+ piezas): Copa Globo, Copa Francesa, y Porta Plato = $12/pieza (baja a $10/pieza si son 50 o más). Vaso = $4 (sin descuento). Plato Trinche = $5 (sin descuento). Servilleta = $5/pieza.
 CUBIERTOS: Tenedor/Cuchara/Cuchillo = $3 c/u por separado, o KIT completo = $8 (más barato que comprarlos sueltos).
 PERSONALIZADO en plato = $12/pieza: diseño CIRCULAR impreso en cartulina couché barnizada que va sobre el porta plato (no es un plato con nombre grabado). El diseño lo coordina con el cliente el encargado asignado a su evento.
@@ -136,7 +136,7 @@ LETREROS, MAMPARAS Y PERSONALIZADOS (MUY IMPORTANTE, aquí se confunden los clie
 CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el cliente pregunta por rentar un salón/lugar para su evento, esto es lo que se ofrece):
 - Ubicación: Col. Guadalupe Victoria, Culiacán. Capacidad máxima: 80 personas.
 - Incluye siempre: alberca, asador, hielera, bocina y 5 horas de evento. NO tiene área refrigerada.
-- DE LUNES A JUEVES: 30 personas = $1,800 (3 mesas y 30 sillas, SIN mantel; si quiere mantel se agrega del catálogo de Divanna, $50 por mesa). Cada mesa extra de 10 personas = +$400. Salida a más tardar a las 10 pm.
+- DE LUNES A JUEVES: 30 personas = $1,800 (3 mesas y 30 sillas, SIN mantel; si quiere mantel se agrega del catálogo de Divanna como extra: básico $60, corrugado $120 o lentejuela $200 por mesa). Cada mesa extra de 10 personas = +$400. Salida a más tardar a las 10 pm.
 - VIERNES, SÁBADO Y DOMINGO: 30 personas = $3,000 y 50 personas = $4,000, con mobiliario con mantel básico. Cada mesa extra de 10 personas = +$500 (por eso 50 personas = $4,000).
 - Tope: de 70 a 80 personas el salón no pasa de $4,500 (ya no aplica cálculo por mesa).
 (Precios de los flyers de Casa Isabella, confirmados por Víctor el 2026-11-01.)

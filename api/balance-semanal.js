@@ -16,7 +16,7 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { calcularPorCobrar } = require('./_finanzas');
-const { origenDeEvento } = require('./_origen');
+const { origenDeEvento, autorizadoPor } = require('./_origen');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -142,7 +142,8 @@ module.exports = async (req, res) => {
     let ingresosTotales = 0;
     let ingresosPorNegocio = {};
     let numEventos = 0;
-    const ventasPorOrigen = {}; // { 'Chat DiMa': { eventos, monto }, ... }
+    const ventasPorOrigen = {}; // { 'DiMa': { eventos, monto }, ... }
+    const ventasPorAutorizo = {}; // { 'Diana': { eventos, monto }, ... }
     let porCobrar = null; // null = no se pudo calcular (se dice en el texto)
     try {
       const eventosData = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formulaEventos}`);
@@ -158,6 +159,10 @@ module.exports = async (req, res) => {
         const o = ventasPorOrigen[origen] || (ventasPorOrigen[origen] = { eventos: 0, monto: 0 });
         o.eventos++;
         o.monto += monto;
+        const quien = autorizadoPor(r.fields);
+        const a = ventasPorAutorizo[quien] || (ventasPorAutorizo[quien] = { eventos: 0, monto: 0 });
+        a.eventos++;
+        a.monto += monto;
       });
     } catch (e) {
       console.error('Error calculando ingresos de la semana:', e.message);
@@ -191,6 +196,9 @@ module.exports = async (req, res) => {
     const textoOrigen =
       (Object.keys(ventasPorOrigen).length
         ? `🧭 Eventos de la semana por origen:\n${Object.entries(ventasPorOrigen).map(([k, v]) => `  ${k}: ${plural(v.eventos, 'evento')} · $${v.monto.toLocaleString('es-MX')}`).join('\n')}\n\n`
+        : '') +
+      (Object.keys(ventasPorAutorizo).length
+        ? `✅ Eventos de la semana por quién los autorizó:\n${Object.entries(ventasPorAutorizo).map(([k, v]) => `  ${k}: ${plural(v.eventos, 'evento')} · $${v.monto.toLocaleString('es-MX')}`).join('\n')}\n\n`
         : '') +
       (pedidosPorOrigen && Object.keys(pedidosPorOrigen).length
         ? `📥 Pedidos que entraron esta semana:\n${Object.entries(pedidosPorOrigen).map(([k, v]) => `  ${k}: ${plural(v.pedidos, 'pedido')}, ${v.autorizados} autorizado${v.autorizados === 1 ? '' : 's'}${v.monto ? ` · $${v.monto.toLocaleString('es-MX')}` : ''}`).join('\n')}\n\n`

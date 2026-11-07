@@ -35,7 +35,9 @@ const { enviarPushEquipo } = require('./_push');
 const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
-const { normalizarProductos, leerProductos, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
+const { tieneDescuento, conDescuento, redondo } = require('./_decorador');
+const { origenDePersona } = require('./_origen');
+const { normalizarProductos, leerProductos, resumenManteles, infoManteles, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
 const { opcionesProduccion, avisarAsignacion } = require('./_produccion');
@@ -322,7 +324,7 @@ async function resolverPedido(req, res, colaborador) {
     }
     const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
     if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
-    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0 });
+    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0, recibo: await reciboAlEditar(eventoId, f, colaborador) });
     return;
   }
 
@@ -456,8 +458,14 @@ async function resolverPedido(req, res, colaborador) {
   if (accion === 'agenda') {
     const campos = agendaDesdeDashboard(req.body, inventario);
     if (!Object.keys(campos).length) { res.status(400).json({ error: 'Nada que guardar' }); return; }
+    const manteles = Array.isArray((req.body || {}).productos) ? montoPorManteles(f, normalizarProductos(req.body.productos)) : {};
+    if (manteles.error) { res.status(400).json({ error: manteles.error }); return; }
+    if (manteles.monto !== undefined) campos.Monto_Estimado_IA = manteles.monto;
     await airtablePatch(TABLES.EVENTOS, eventoId, campos);
-    res.status(200).json({ success: true, resumen: campos.Resumen_Capacidad || '', google: await sincronizarEvento(eventoId) });
+    res.status(200).json({
+      success: true, resumen: campos.Resumen_Capacidad || '', google: await sincronizarEvento(eventoId),
+      monto: campos.Monto_Estimado_IA, recibo: await reciboAlEditar(eventoId, f, colaborador),
+    });
     return;
   }
 
@@ -476,7 +484,9 @@ async function resolverPedido(req, res, colaborador) {
     return;
   }
 
-  await airtablePatch(TABLES.EVENTOS, eventoId, {
+  // Quién autorizó (EVENTOS.Autorizado_Por). Si la columna aún no existe en
+  // Airtable, se autoriza igual sin ese dato.
+  const camposAutorizar = {
     Autorizacion_Diana: 'SI',
     Monto_Estimado_IA: montoNum,
     Items_Detallados_Cotizacion: listaItems.join('\n'),
@@ -484,7 +494,14 @@ async function resolverPedido(req, res, colaborador) {
     Checklist_Items_Marcados: '[]',
     ...(instrucciones !== null ? { Instrucciones_Equipo: instrucciones } : {}),
     ...agendaDesdeDashboard(req.body, inventario),
-  });
+  };
+  try {
+    await airtablePatch(TABLES.EVENTOS, eventoId, { ...camposAutorizar, Autorizado_Por: origenDePersona(colaborador.nombre) });
+  } catch (err) {
+    if (!/UNKNOWN_FIELD_NAME|Autorizado_Por/.test(err.message)) throw err;
+    console.error('Falta la columna EVENTOS.Autorizado_Por, se autoriza sin ella:', err.message);
+    await airtablePatch(TABLES.EVENTOS, eventoId, camposAutorizar);
+  }
 
   // Integraciones de Google: igual que cuando Diana decía SI por WhatsApp. Si
   // fallan no se deshace la autorización, solo se reporta.
@@ -527,7 +544,7 @@ async function resolverPedido(req, res, colaborador) {
 
 // Calendario (api/_calendario.js): Diana, Víctor y la gerente (ella solo El Vaso Maíz).
 const ACCIONES_CALENDARIO = {
-  calendario_mover: C.mover,
+  calendario_mover: moverConRecibo,
   calendario_cancelar: C.cancelar,
   borrar_evento: C.borrar,
   bloquear_dia: C.bloquear,
@@ -561,6 +578,36 @@ async function capturarConFoto(colaborador, body) {
 }
 
 // 🧾 Mandar recibo (calendario): Diana y Víctor cualquiera; la gerente los de El Vaso Maíz.
+// Manteles (Víctor 2026-11-06): al cambiar los productos, lo que cambian los
+// manteles cambiados o extra se suma (o resta) solo al monto contratado; si el
+// cliente es decorador, también con su 10%. Devuelve { monto } o { error } o {}.
+function montoPorManteles(f, productosNuevos) {
+  const nuevo = resumenManteles(productosNuevos);
+  if (nuevo.error) return { error: nuevo.error };
+  const diferencia = nuevo.cargo - resumenManteles(leerProductos(f.Productos)).cargo;
+  const monto = Number(f.Monto_Estimado_IA) || 0;
+  if (!diferencia || !(monto > 0)) return {};
+  const ajuste = tieneDescuento(f) ? conDescuento(diferencia) : diferencia;
+  return { monto: Math.max(0, redondo(monto + ajuste)) };
+}
+
+// Al editar un evento autorizado desde la web, el recibo se rehace (la pestaña
+// del folio se sobrescribe, el viejo desaparece) y se manda por Telegram.
+async function reciboAlEditar(eventoId, f, colaborador) {
+  if (f.Autorizacion_Diana !== 'SI') return null;
+  const r = await enviarRecibo(eventoId, `actualizado por ${colaborador.nombre}`).catch(err => ({ ok: false, error: err.message }));
+  return r && r.error === 'Google Sheets todavía no está configurado.' ? null : r;
+}
+
+async function moverConRecibo(colaborador, body) {
+  const r = await C.mover(colaborador, body);
+  if (r.ok) {
+    const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
+    r.recibo = await reciboAlEditar(body.eventoId, f, colaborador);
+  }
+  return r;
+}
+
 async function reciboAPeticion(colaborador, body) {
   if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
   const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
@@ -745,7 +792,7 @@ module.exports = async (req, res) => {
     // 💰 Dinero de cada evento (api/_cargos.js), igual que en la ficha de la app. Si falla, se dice.
     const dinero = await dineroParaApp(eventosData.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
     eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
-    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
+    res.status(200).json({ eventos, pedidos, balance, catalogo: catalogoParaDashboard(), manteles: infoManteles(), inventario, personalBase: PERSONAL_BASE_VASO_MAIZ, brigadas, encargadas, staffEventos, staffError, produccion });
   } catch (err) {
     console.error('Error en dashboard-eventos:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });
