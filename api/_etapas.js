@@ -23,6 +23,7 @@ const { ESTADOS, fechaTexto, horaTexto } = require('./_staff');
 const { alcanceDe } = require('./_eventos');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { textoUbicacion, notificarEquipo } = require('./_alertas');
+const { tocaCerrar } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -91,6 +92,7 @@ function aEvento(r) {
     respuesta: f.Produccion_Respuesta || '',
     checklistItems: (f.Checklist_Items || '').split('\n').map(s => s.trim()).filter(Boolean),
     checklistMarcados: f.Checklist_Items_Marcados || '[]',
+    campos: f,
   };
 }
 
@@ -234,11 +236,15 @@ async function marcarEtapa(colaborador, indice, eventoId) {
   }
   const campos = { Estatus_Logistico: etapa.valor };
   if (etapa.valor === 'Salió del almacén') campos.Timestamp_Salida = new Date().toISOString();
+  // 🏁 Terminado: también cierra el evento (Estado), salvo que el cuadre esté por aclarar.
+  const cierra = tocaCerrar(ev.campos, campos);
+  if (cierra) campos.Estado = 'Cerrado';
   await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: ev.id, fields: campos }] }) });
   const siguiente = ETAPAS_STAFF.indexOf(etapa) + 1;
   return {
     aviso: `Listo: ${etapa.texto}`,
-    textoFinal: `✅ ${etapa.texto} · lo marcó ${colaborador.nombre} (${horaCorta(new Date().toISOString())})`,
+    textoFinal: `✅ ${etapa.texto} · lo marcó ${colaborador.nombre} (${horaCorta(new Date().toISOString())})`
+      + (etapa.valor !== 'Cerrado' ? '' : cierra ? '\n🔒 Evento cerrado.' : ev.campos.Estado === 'Cerrado' ? '' : '\n⏳ El evento queda abierto hasta que Diana aclare el cuadre.'),
     botones: siguiente < ETAPAS_STAFF.length ? botonesEtapas(ev.id, siguiente) : null,
   };
 }

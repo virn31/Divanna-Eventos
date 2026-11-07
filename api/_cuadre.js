@@ -17,7 +17,7 @@ const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
-const { totalDelEvento } = require('./_cargos');
+const { totalDelEvento, tocaCerrar } = require('./_cargos');
 
 const MODELO = 'claude-sonnet-5-5';
 let clienteIA = null;
@@ -230,11 +230,15 @@ function cuadreParaDima(v) {
 
 // ---------- Respuestas de Diana (dashboard y Telegram) ----------
 
+// Guarda la respuesta de Diana. Si la logística ya terminó y el cuadre deja de
+// estar "Por aclarar", el evento se cierra en el mismo PATCH (regla de cierre).
 async function anotar(eventoId, f, campos, linea) {
+  const cierra = tocaCerrar(f, campos);
   await airtable(TABLES.EVENTOS, {
     method: 'PATCH',
-    body: JSON.stringify({ records: [{ id: eventoId, fields: { ...campos, Cuadre_Notas: f.Cuadre_Notas ? `${f.Cuadre_Notas}\n${linea}` : linea } }] }),
+    body: JSON.stringify({ records: [{ id: eventoId, fields: { ...campos, ...(cierra ? { Estado: 'Cerrado' } : {}), Cuadre_Notas: f.Cuadre_Notas ? `${f.Cuadre_Notas}\n${linea}` : linea } }] }),
   });
+  return cierra;
 }
 
 async function saldoActual(eventoId) {
@@ -265,23 +269,23 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
     });
     const saldo = redondo(dinero.saldo - valor);
     const recibo = sheetsConfigurado() ? await enviarRecibo(eventoId, `pago de ${pesos(valor)}`) : null;
-    await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
-    return { ok: true, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
+    return { ok: true, cerro, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'debe') {
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.DEBE }, `[${ahoraTexto()}] ${quien}: el cliente sigue debiendo ${pesos(dinero.saldo)}.`);
-    return { ok: true, texto: `⏳ Anotado: ${f.Folio_Evento} sigue debiendo ${pesos(dinero.saldo)}. Queda en "por cobrar".` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.DEBE }, `[${ahoraTexto()}] ${quien}: el cliente sigue debiendo ${pesos(dinero.saldo)}.`);
+    return { ok: true, cerro, texto: `⏳ Anotado: ${f.Folio_Evento} sigue debiendo ${pesos(dinero.saldo)}. Queda en "por cobrar".` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'descuento') {
     if (!(dinero.saldo > TOLERANCIA)) return { error: 'Este evento no tiene saldo pendiente.' };
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.CUADRADO, Descuento: redondo(dinero.descuento + dinero.saldo) }, `[${ahoraTexto()}] ${quien}: descuento o cortesía de ${pesos(dinero.saldo)}.`);
-    return { ok: true, texto: `🎁 Anotado: descuento de ${pesos(dinero.saldo)} en ${f.Folio_Evento}. Ya cuadra.` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.CUADRADO, Descuento: redondo(dinero.descuento + dinero.saldo) }, `[${ahoraTexto()}] ${quien}: descuento o cortesía de ${pesos(dinero.saldo)}.`);
+    return { ok: true, cerro, texto: `🎁 Anotado: descuento de ${pesos(dinero.saldo)} en ${f.Folio_Evento}. Ya cuadra.` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'otro') {
     const texto = String(nota || '').trim().slice(0, 500);
     if (!texto) return { error: 'Escribe qué pasó con ese dinero.' };
-    await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.OTRO }, `[${ahoraTexto()}] ${quien}: ${texto}`);
-    return { ok: true, texto: `📝 Anotado en ${f.Folio_Evento}: ${texto}` };
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: ESTADOS.OTRO }, `[${ahoraTexto()}] ${quien}: ${texto}`);
+    return { ok: true, cerro, texto: `📝 Anotado en ${f.Folio_Evento}: ${texto}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   return { error: 'Respuesta inválida' };
 }

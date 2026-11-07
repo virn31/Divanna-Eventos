@@ -252,6 +252,17 @@ Total de cargos extra del evento: ${pesos(cargosExtraTotal)}.`
   return { aviso: 'Registrado', textoFinal: `✅ Registrado en ${folio} y sumado a lo que debe el cliente. Diana ya está avisada.`, cargosExtraTotal };
 }
 
+// Regla de cierre (Víctor 2026-11-07): un evento se cierra cuando la logística
+// terminó (Estatus_Logistico = Cerrado) y el cuadre no está "Por aclarar". Si el
+// cuadre dice "Debe", se cierra igual y el saldo sigue en cobranza (Clientes).
+// f = campos del evento; cambios = lo que se va a guardar en el mismo PATCH.
+// Solo se aplica cuando alguien marca el fin del evento o aclara el cuadre:
+// nunca se recorren eventos viejos para cerrarlos.
+function tocaCerrar(f, cambios = {}) {
+  const g = { ...(f || {}), ...cambios };
+  return !g.Cancelado && g.Estado !== 'Cerrado' && g.Estatus_Logistico === 'Cerrado' && g.Cuadre_Estado !== 'Por aclarar';
+}
+
 // Cierra el evento (Estado = Cerrado) cuando ya terminó: el cliente liquidó
 // todo y ya se recogió el mobiliario. Si liquida antes del evento no se cierra
 // (la brigada y producción lo siguen viendo); se cierra al marcar la recolección.
@@ -268,4 +279,4 @@ async function cerrarSiTermino(eventoId) {
   return true;
 }
 
-module.exports = { cerrarSiTermino, veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };
+module.exports = { tocaCerrar, cerrarSiTermino, veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };

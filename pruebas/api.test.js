@@ -1520,6 +1520,34 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(!llamadas.some(l => l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Faltan artículos')),
     'etapas: igual que en la app, no se sale del almacén con artículos sin marcar como cargados');
 
+  // 🏁 Terminado cierra el evento (Estatus_Logistico y Estado), salvo cuadre por aclarar. Evento simulado.
+  const EV_ET_CURSO = { ...EV_ET_LISTO, fields: { ...EV_ET_LISTO.fields, Estatus_Logistico: 'Evento en curso', Estado: 'Confirmado' } };
+  reset();
+  respuestas = [{ records: [ROSA] }, EV_ET_CURSO, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:4:${EV_ET.id}`, 321) }, res);
+  const patchFin = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(patchFin.Estatus_Logistico === 'Cerrado' && patchFin.Estado === 'Cerrado'
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('🔒 Evento cerrado')),
+    'cierre: "Evento terminado" por Telegram pone Estatus_Logistico y Estado en Cerrado y lo confirma');
+
+  reset();
+  respuestas = [{ records: [ROSA] }, { ...EV_ET_CURSO, fields: { ...EV_ET_CURSO.fields, Cuadre_Estado: 'Por aclarar' } }, { records: [INV_ROSA] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonEt(`et:4:${EV_ET.id}`, 321) }, res);
+  const patchFin2 = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(patchFin2.Estatus_Logistico === 'Cerrado' && !('Estado' in patchFin2)
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('hasta que Diana aclare')),
+    'cierre: con el cuadre "Por aclarar" la logística termina pero el evento sigue abierto');
+
+  {
+    const { tocaCerrar } = require(path.join(repo, 'api/_cargos.js'));
+    ok(tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Debe' }) && tocaCerrar({ Estatus_Logistico: 'Cerrado' })
+      && !tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' }) && !tocaCerrar({ Estatus_Logistico: 'Evento en curso', Cuadre_Estado: 'Cuadrado' })
+      && !tocaCerrar({ Estatus_Logistico: 'Cerrado', Cancelado: true }) && tocaCerrar({ Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' }, { Cuadre_Estado: 'Debe' }),
+      'cierre: regla = logística cerrada y cuadre no "Por aclarar" ("Debe" también cierra; el saldo queda en cobranza)');
+  }
+
   // Confirmar un evento cuya producción ya está lista: le llegan de una vez sus etapas y el botón 🆘.
   const INV_ROSA_PEND = { id: 'recINVITAROSA0002', fields: { Evento: [EV_ET.id], Colaborador: [ROSA.id], Invito: [GERENTE.id], Estado: 'Invitada', Fecha_Evento: hoyCln } };
   reset();
@@ -2026,6 +2054,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbQ2', data: `cd:pe:${EQ1.id}`, message: { message_id: 81, chat: { id: 222, type: 'private' }, text: 'x' } } } }, res);
   ok(!llamadas.some(l => l.method === 'POST' || l.method === 'PATCH') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('solo para Diana y Víctor')),
     'cuadre: nadie más puede contestar el cuadre');
+
+  // Regla de cierre: Diana contesta "Sigue debiendo" de un evento con la logística cerrada → se cierra y queda en cobranza.
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { id: EQ1.id, fields: { ...EQ1.fields, COBROS: [], Estatus_Logistico: 'Cerrado', Cuadre_Estado: 'Por aclarar' } }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:d:${EQ1.id}`) }, res);
+  const cierreDebe = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+  ok(cierreDebe.Cuadre_Estado === 'Debe' && cierreDebe.Estado === 'Cerrado' && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('🔒 Evento cerrado')),
+    'cierre: "Sigue debiendo" en un evento ya terminado lo cierra (Diana desde Telegram) y el saldo sigue por cobrar');
 
   // ---------- Calendario del equipo ----------
   const LIDER_CAL = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };

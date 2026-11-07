@@ -21,7 +21,7 @@ const { textoEnterado } = require('./_eventos');
 const { leerUbicacion, textoUbicacion, notificarEquipo } = require('./_alertas');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
-const { agregarCargo, quitarCargo } = require('./_cargos');
+const { agregarCargo, quitarCargo, tocaCerrar } = require('./_cargos');
 
 const TABLES = {
   EVENTOS: 'tblzLAin65BZPP2c6',
@@ -141,6 +141,7 @@ module.exports = async (req, res) => {
         }
 
         fieldsToUpdate.Estatus_Logistico = valor;
+        if (tocaCerrar(eventoData.fields, fieldsToUpdate)) fieldsToUpdate.Estado = 'Cerrado';
         if (valor === 'Salió del almacén') {
           fieldsToUpdate.Timestamp_Salida = new Date().toISOString();
         }
