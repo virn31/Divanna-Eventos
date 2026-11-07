@@ -18,6 +18,7 @@ const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { telegramApi, enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { totalDelEvento, tocaCerrar } = require('./_cargos');
+const R = require('./_reembolsos');
 
 const MODELO = 'claude-sonnet-5-5';
 let clienteIA = null;
@@ -38,7 +39,8 @@ const FECHA_INICIO = '2026-10-29';
 const TOLERANCIA = 0.5;
 const ESTADOS = { POR_ACLARAR: 'Por aclarar', CUADRADO: 'Cuadrado', DEBE: 'Debe', DESCUENTO: 'Descuento', OTRO: 'Otro' };
 const FORMAS = { e: 'Efectivo', t: 'Transferencia', d: 'Depósito' };
-const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', caja: 'Sigue en caja', var: 'Varios' };
+// rb (Reembolso) no se anota en CAJA: el pago queda en PAGOS_REEMBOLSO y de ahí descuenta.
+const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', ext: 'Gasto externo (remodelación)', rb: 'Reembolso', caja: 'Sigue en caja', var: 'Varios' };
 const MARCA_MONTO = '✍️ ¿Cuánto te pagaron y cómo? ';
 const MARCA_OTRO = '❓ ¿Qué pasó con el dinero de ';
 const MARCA_VARIOS = '💼 ¿Qué se hizo con el efectivo? ';
@@ -116,13 +118,15 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
 async function datosCuadre() {
   const hoy = hoyCuliacan();
   const desde = `NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${FECHA_INICIO}")))`;
-  const [eventos, cobros, aprobados, gastos, caja, brigadas] = await Promise.all([
+  const [eventos, cobros, aprobados, gastos, caja, brigadas, reembolsado] = await Promise.all([
     todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND(OR({Autorizacion_Diana} = "SI", {Cancelado}), ${desde})`)}`),
     todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent('{Estado} = "Aprobado"')}&fields%5B%5D=Efectivo_Entregado&fields%5B%5D=Fecha`),
     todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${FECHA_INICIO}")))`)}`),
     todas(`${TABLES.CAJA}`),
     todas(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada`),
+    // Reembolsos pagados en efectivo: salen del efectivo de Diana.
+    R.reembolsadoEnEfectivo().catch(err => { console.error('Cuadre: no se pudieron leer los reembolsos:', err.message); return 0; }),
   ]);
   const ok = new Set(aprobados.map(r => r.id));
   // Gastos que cuentan: capturados a mano o de reportes aprobados.
@@ -130,7 +134,7 @@ async function datosCuadre() {
   const lista = eventos.map(e => dineroDelEvento(e, cobros, ok, gastosValidos));
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
   lista.forEach(e => { e.brigadaNombre = nombreBrigada.get(e.brigadaId) || ''; });
-  return { hoy, eventos: lista, cobros, aprobados, ok, caja };
+  return { hoy, eventos: lista, cobros, aprobados, ok, caja, reembolsado };
 }
 
 // Efectivo de Diana: lo que le entregaron las brigadas (reportes aprobados) y lo
@@ -143,6 +147,7 @@ function efectivoDe(d) {
     if (m.fields.Tipo === TIPOS_CAJA.caja) continue;
     destinos[m.fields.Tipo || 'Varios'] = (destinos[m.fields.Tipo || 'Varios'] || 0) + (Number(m.fields.Monto) || 0);
   }
+  if (d.reembolsado > 0) destinos[TIPOS_CAJA.rb] = (destinos[TIPOS_CAJA.rb] || 0) + d.reembolsado;
   const conDestino = Object.values(destinos).reduce((t, v) => t + v, 0);
   // "Sigue en caja": vale la última declaración.
   const ultimaCaja = d.caja.filter(m => m.fields.Tipo === TIPOS_CAJA.caja).sort((a, b) => (b.fields.Fecha || '').localeCompare(a.fields.Fecha || '') || (b.createdTime || '').localeCompare(a.createdTime || ''))[0];
@@ -291,20 +296,35 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
 }
 
 // Destino del efectivo sin destino (se asigna todo lo pendiente). tipo: clave de TIPOS_CAJA.
-async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto }) {
+async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto, colaboradorId }) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor.', codigo: 403 };
   const nombreTipo = TIPOS_CAJA[tipo];
   if (!nombreTipo) return { error: 'Destino inválido' };
   const ef = efectivoDe(await datosCuadre());
+  if (tipo === 'rb') return reembolsoDesdeCaja(colaborador, ef, colaboradorId);
   const valor = montoTexto ? monto(montoTexto) : (tipo === 'caja' ? redondo(ef.sinDestino + ef.enCaja) : ef.sinDestino);
   if (!valor) return { error: 'No hay efectivo sin destino.' };
   const texto = String(nota || '').trim().slice(0, 300);
   if (tipo === 'var' && !texto) return { error: 'Escribe qué se hizo con el efectivo.' };
   await airtable(TABLES.CAJA, {
     method: 'POST',
-    body: JSON.stringify({ records: [{ fields: { Concepto: texto || nombreTipo, Fecha: hoyCuliacan(), Monto: valor, Tipo: nombreTipo, Registrado_Por: colaborador.nombre } }] }),
+    // typecast: "Gasto externo (remodelación)" puede no existir todavía como opción de Tipo.
+    body: JSON.stringify({ records: [{ fields: { Concepto: texto || nombreTipo, Fecha: hoyCuliacan(), Monto: valor, Tipo: nombreTipo, Registrado_Por: colaborador.nombre } }], typecast: true }),
   });
   return { ok: true, texto: tipo === 'caja' ? `💼 Anotado: tienes ${pesos(valor)} en caja.` : `✅ Anotado: ${pesos(valor)} → ${nombreTipo}${texto ? ' (' + texto + ')' : ''}.` };
+}
+
+// 💵 Reembolso: el efectivo sin destino se usó para reembolsar a alguien del equipo.
+// Sin colaboradorId devuelve a quién se le debe (para elegir); con él, paga en
+// efectivo lo que alcance (lo pendiente o el efectivo sin destino, lo menor).
+async function reembolsoDesdeCaja(colaborador, ef, colaboradorId) {
+  const { filas } = await R.vistaReembolsos(colaborador);
+  if (!filas || !filas.length) return { error: 'No hay reembolsos pendientes.' };
+  if (!colaboradorId) return { ok: true, elegir: filas.map(f => ({ colaboradorId: f.colaboradorId, nombre: f.nombre, pendiente: f.pendiente })), texto: '¿A quién le reembolsaste?' };
+  const fila = filas.find(f => f.colaboradorId === colaboradorId);
+  if (!fila) return { error: 'Esa persona no tiene reembolsos pendientes.' };
+  const valor = ef.sinDestino > TOLERANCIA ? Math.min(fila.pendiente, ef.sinDestino) : fila.pendiente;
+  return R.pagarReembolso(colaborador, { colaboradorId, monto: String(valor), forma: 'Efectivo' });
 }
 
 // ---------- Preguntas automáticas (cron de las 8:00) ----------
@@ -318,10 +338,12 @@ function botonesEvento(id) {
   ];
 }
 
+// Mismos destinos que la app (🔍 Cuadre del dashboard).
 const botonesCaja = () => [
   [{ texto: '🏦 Lo deposité', dato: 'cj:dep' }, { texto: '🧾 Gasto del negocio', dato: 'cj:gas' }],
-  [{ texto: '👛 Retiro personal', dato: 'cj:ret' }, { texto: '💼 Sigue en caja', dato: 'cj:caja' }],
-  [{ texto: '✍️ Repartido / otra cosa', dato: 'cj:var' }],
+  [{ texto: '👛 Retiro personal', dato: 'cj:ret' }, { texto: '🔨 Gasto externo (remodelación)', dato: 'cj:ext' }],
+  [{ texto: '💵 Reembolso', dato: 'cj:rb' }, { texto: '💼 Sigue en caja', dato: 'cj:caja' }],
+  [{ texto: '✍️ Otro', dato: 'cj:var' }],
 ];
 
 // ---------- Tono (pedido de Víctor 2026-10-29) ----------
@@ -454,8 +476,13 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
       await telegramApi('sendMessage', { chat_id: chatId, text: `${MARCA_VARIOS}Escribe qué se hizo (ej. deposité 3000 y pagué la gasolina con 500):`, reply_markup: { force_reply: true } });
       return { aviso: 'Escribe qué se hizo' };
     }
-    const r = await destinoCaja(colaborador, { tipo: accion });
-    return r.error ? { aviso: r.error, alerta: true } : { aviso: 'Anotado', textoFinal: r.texto };
+    const r = await destinoCaja(colaborador, { tipo: accion, colaboradorId: ID.test(id || '') ? id : '' });
+    if (r.error) return { aviso: r.error, alerta: true };
+    if (r.elegir) {
+      await enviarTelegram(chatId, '💵 ¿A quién le reembolsaste en efectivo?', r.elegir.map(f => [{ texto: `${f.nombre} · ${pesos(f.pendiente)}`, dato: `cj:rb:${f.colaboradorId}` }]));
+      return { aviso: 'Elige a quién' };
+    }
+    return { aviso: 'Guardado', textoFinal: r.texto };
   }
   if (!ID.test(id || '')) return { aviso: '' };
   if (accion === 'pm' || accion === 'o') {

@@ -1281,8 +1281,11 @@
             <button class="msgcli-enviar caja-acc" data-tipo="dep">🏦 Lo deposité</button>
             <button class="msgcli-enviar caja-acc" data-tipo="gas">🧾 Gasto del negocio</button>
             <button class="msgcli-enviar caja-acc" data-tipo="ret">👛 Retiro personal</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="ext">🔨 Gasto externo (remodelación)</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="rb">💵 Reembolso</button>
             <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="caja">💼 Sigue en caja</button>
           </div>
+          <div class="instr-fila" id="cajaElegir"></div>
           <div class="instr-fila"><input id="cajaNota" maxlength="300" placeholder="¿Repartido? Ej. deposité 3000 y 500 fueron de gasolina" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
             <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="var">Anotar</button></div>
           <div class="instr-msg" id="cajaMsg"></div>` : ''}
@@ -1329,8 +1332,15 @@
     cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = true; });
     msg.textContent = 'Guardando…';
     try {
-      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '' }) });
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '', colaboradorId: btn.dataset.colab || '' }) });
       msg.textContent = d.texto || '✅ Anotado';
+      // 💵 Reembolso: primero se elige a quién (igual que en Telegram).
+      if(d.elegir){
+        $('cajaElegir').innerHTML = d.elegir.map(f => `<button class="msgcli-enviar caja-acc" data-tipo="rb" data-colab="${esc(f.colaboradorId)}">${esc(f.nombre)} · ${$$(f.pendiente)}</button>`).join('');
+        cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = false; });
+        $('cajaElegir').querySelectorAll('.caja-acc').forEach(b => b.addEventListener('click', () => destinoCaja(b)));
+        return;
+      }
       cuadreFirma = '';
       setTimeout(() => cargarCuadre(true), 2500);
     } catch(e){

@@ -1974,7 +1974,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   }
 
   reset();
-  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
+  respuestas = [ADMIN, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, EVS_HIST, GASTOS_HIST, COBROS_HIST, APROB_HIST];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Divanna tuvo su mejor mes en julio.' }] }];
   res = resMock();
   await chatApi({ method: 'POST', headers: auth(tokenAdmin), body: { modo: 'equipo', historial: [{ rol: 'yo', texto: 'Dame el balance, ¿cuáles son las mejores temporadas?' }] } }, res);
@@ -2000,6 +2000,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     { records: [{ fields: { Monto: 1800, Evento_Relacionado: [EQ4.id] } }] },
     { records: [{ fields: { Tipo: 'Depósito al banco', Monto: 2000, Fecha: hoyCln } }] },
     { records: [{ id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'Brigada Edén' } }] },
+    { records: [] }, // PAGOS_REEMBOLSO en efectivo
   ];
   reset();
   respuestas = [ADMIN, ...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
@@ -2076,7 +2077,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
   reset();
   const EHOY = { id: 'recEVCUADREHOY001', fields: { Folio_Evento: 'EVT-H1', Fecha_Evento: hoyCln, Hora_Inicio: '17:00', Monto_Estimado_IA: 3000, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: [CLI1] } };
-  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }];
+  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un gran día. Te paso el resumen 👇' }] }];
   const rSin = await Qmod.preguntasDelDia();
   const sinPend = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
@@ -2109,6 +2110,48 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const retiro = llamadas.find(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'));
   ok(retiro && retiro.body.records[0].fields.Tipo === 'Retiro personal' && retiro.body.records[0].fields.Monto === 2500 && retiro.body.records[0].fields.Registrado_Por === 'Diana',
     'cuadre: el efectivo sin destino queda anotado (aquí, retiro personal) sin juzgar');
+
+  {
+    // Botones del efectivo (mismos que la app): gasto externo y reembolso.
+    const MARIO = 'recCOLABMARIO0001';
+    const G_MARIO = { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 1080.34, Fecha: '2026-11-01', Pagado_Con: 'Dinero propio', Reportado_Por: [MARIO] } }] };
+    const N_MARIO = { records: [{ id: MARIO, fields: { Nombre: 'Mario Samano' } }] };
+    ok(JSON.stringify(require(path.join(repo, 'api/_cuadre.js')).TIPOS_CAJA) && ['dep', 'gas', 'ret', 'ext', 'rb', 'caja'].every(k => require(path.join(repo, 'api/_cuadre.js')).TIPOS_CAJA[k]),
+      'cuadre: destinos del efectivo = Lo deposité, Gasto del negocio, Retiro personal, Gasto externo (remodelación), Reembolso, Sigue en caja');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), { records: [{ id: 'recCAJA000000002' }] }];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:ext') }, res);
+    const externo = llamadas.find(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'));
+    ok(externo && externo.body.records[0].fields.Tipo === 'Gasto externo (remodelación)' && externo.body.records[0].fields.Monto === 2500 && externo.body.typecast === true,
+      'cuadre: 🔨 Gasto externo (remodelación) anota el efectivo sin destino');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:rb') }, res);
+    const elegir = telegram.find(t => t.metodo === 'sendMessage' && t.body.text.includes('¿A quién le reembolsaste'));
+    ok(elegir && elegir.body.reply_markup.inline_keyboard[0][0].callback_data === `cj:rb:${MARIO}` && elegir.body.reply_markup.inline_keyboard[0][0].text === 'Mario Samano · $1,080.34'
+      && !llamadas.some(l => l.method === 'POST'),
+      'cuadre: 💵 Reembolso pregunta a quién, con lo que se le debe a cada uno');
+
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO, G_MARIO, { records: [] }, N_MARIO, { records: [{ id: 'recPAGOREEMB00003' }] }, {}];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cj:rb:${MARIO}`) }, res);
+    const pagoCaja = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    ok(pagoCaja && pagoCaja.body.records[0].fields.Monto === 1080.34 && pagoCaja.body.records[0].fields.Forma === 'Efectivo' && !llamadas.some(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'))
+      && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('$1,080.34 a Mario Samano')),
+      'cuadre: el reembolso en efectivo queda en PAGOS_REEMBOLSO (no en CAJA) y se confirma');
+
+    reset();
+    const conReembolso = datosQ(); conReembolso[6] = { records: [{ fields: { Monto: 1000, Forma: 'Efectivo' } }] };
+    respuestas = [ADMIN, ...conReembolso, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }];
+    res = await fin(tokenAdmin, undefined, 'GET', { vista: 'cuadre' });
+    ok(res.code === 200 && res.body.efectivo.sinDestino === 1500 && res.body.efectivo.destinos.Reembolso === 1000,
+      'cuadre: lo reembolsado en efectivo descuenta del efectivo sin destino');
+  }
 
   reset();
   respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
