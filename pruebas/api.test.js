@@ -1944,7 +1944,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const G_PEND = { records: [
       gR('recGASTOMARIO0001', 500, '2026-11-01', MARIO), gR('recGASTOMARIO0002', 580.34, '2026-11-03', MARIO),
       gR('recGASTOANGEL0001', 200, '2026-11-02', ANGEL),
-      gR('recGASTOINVERS001', 9000, '2026-11-02', MARIO, { Categoria: 'Inversión personal' }),
+      gR('recGASTOINVERS001', 9000, '2026-11-02', MARIO, { Pagado_Con: 'Inversión personal' }),
     ] };
     const NOMBRES_R = { records: [{ id: MARIO, fields: { Nombre: 'Mario Samano', Telegram_Chat_ID: '901' } }, { id: ANGEL, fields: { Nombre: 'Ángel Samano' } }] };
     const finR = require(path.join(repo, 'api/finanzas.js'));
@@ -2159,7 +2159,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ('cj:ext') }, res);
     const externo = llamadas.find(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'));
-    ok(externo && externo.body.records[0].fields.Tipo === 'Gasto externo (remodelación)' && externo.body.records[0].fields.Monto === 2500 && externo.body.typecast === true,
+    ok(externo && externo.body.records[0].fields.Tipo === 'Gasto externo' && externo.body.records[0].fields.Monto === 2500 && !externo.body.typecast,
       'cuadre: 🔨 Gasto externo (remodelación) anota el efectivo sin destino');
 
     reset();

@@ -40,7 +40,7 @@ const TOLERANCIA = 0.5;
 const ESTADOS = { POR_ACLARAR: 'Por aclarar', CUADRADO: 'Cuadrado', DEBE: 'Debe', DESCUENTO: 'Descuento', OTRO: 'Otro' };
 const FORMAS = { e: 'Efectivo', t: 'Transferencia', d: 'Depósito' };
 // rb (Reembolso) no se anota en CAJA: el pago queda en PAGOS_REEMBOLSO y de ahí descuenta.
-const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', ext: 'Gasto externo (remodelación)', rb: 'Reembolso', caja: 'Sigue en caja', var: 'Varios' };
+const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', ext: 'Gasto externo', rb: 'Reembolso', caja: 'Sigue en caja', var: 'Varios' };
 const MARCA_MONTO = '✍️ ¿Cuánto te pagaron y cómo? ';
 const MARCA_OTRO = '❓ ¿Qué pasó con el dinero de ';
 const MARCA_VARIOS = '💼 ¿Qué se hizo con el efectivo? ';
@@ -360,8 +360,7 @@ async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto, colabor
   if (tipo === 'var' && !texto) return { error: 'Escribe qué se hizo con el efectivo.' };
   await airtable(TABLES.CAJA, {
     method: 'POST',
-    // typecast: "Gasto externo (remodelación)" puede no existir todavía como opción de Tipo.
-    body: JSON.stringify({ records: [{ fields: { Concepto: texto || nombreTipo, Fecha: hoyCuliacan(), Monto: valor, Tipo: nombreTipo, Registrado_Por: colaborador.nombre } }], typecast: true }),
+    body: JSON.stringify({ records: [{ fields: { Concepto: texto || nombreTipo, Fecha: hoyCuliacan(), Monto: valor, Tipo: nombreTipo, Registrado_Por: colaborador.nombre } }] }),
   });
   return { ok: true, texto: tipo === 'caja' ? `💼 Anotado: tienes ${pesos(valor)} en caja.` : `✅ Anotado: ${pesos(valor)} → ${nombreTipo}${texto ? ' (' + texto + ')' : ''}.` };
 }

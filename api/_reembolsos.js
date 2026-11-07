@@ -1,7 +1,7 @@
 // api/_reembolsos.js
 // Reembolsos consolidados por colaborador (pedido de Víctor 2026-11-07).
 // - Pendiente: GASTOS con Pagado_Con = "Dinero propio" y Reembolsado sin marcar,
-//   sin la categoría "Inversión personal" (eso no se reembolsa). Una fila por
+//   ("Inversión personal" es otra opción de Pagado_Con: no se reembolsa). Una fila por
 //   colaborador (Reportado_Por) con su total.
 // - Cada pago, total o parcial, crea un registro en PAGOS_REEMBOLSO ligado a los
 //   gastos pendientes de esa persona en ese momento.
@@ -18,7 +18,6 @@ const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = { GASTOS: 'tblfuEW0oiX4xTw7T', PAGOS: 'tbln6uJwZMFd6nS0J' };
 // Nombres de opciones en Airtable (verificar contra el esquema antes de publicar).
 const DINERO_PROPIO = 'Dinero propio';
-const INVERSION_PERSONAL = 'Inversión personal';
 const FORMAS = ['Efectivo', 'Transferencia'];
 const TOLERANCIA = 0.5;
 const ID = /^rec[A-Za-z0-9]{14}$/;
@@ -59,7 +58,7 @@ const aGasto = (r) => ({
   concepto: r.fields.Concepto || '',
   monto: Number(r.fields.Monto) || 0,
   fecha: r.fields.Fecha || '',
-  categoria: r.fields.Categoria || '',
+  pagadoCon: r.fields.Pagado_Con || '',
   colaboradorId: (r.fields.Reportado_Por || [])[0] || '',
 });
 
@@ -79,7 +78,7 @@ async function datos() {
     todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(formula)}`),
     todas(TABLES.PAGOS),
   ]);
-  const pendientes = pendientesRaw.map(aGasto).filter(g => g.categoria !== INVERSION_PERSONAL && g.colaboradorId && g.monto > 0);
+  const pendientes = pendientesRaw.map(aGasto).filter(g => g.pagadoCon === DINERO_PROPIO && g.colaboradorId && g.monto > 0);
   // Gastos que algún pago ya cubrió (marcados Reembolsado): consumen lo pagado.
   const ligados = [...new Set(pagos.flatMap(p => p.fields.Gastos || []))];
   const cubiertos = ligados.length
