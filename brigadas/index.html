@@ -1365,6 +1365,7 @@
           <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
           ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
           ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
+          <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}"> ${esc(t)}</label>`).join(' ')}</div>
           ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
           <label>📷 Foto del ticket <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
           <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>` : ''}
@@ -1441,6 +1442,8 @@
   async function agregarGasto(){
     const boton = $('gAgregar');
     try {
+      const tipoGasto = (document.querySelector('input[name="gTipo"]:checked') || {}).value;
+      if(document.querySelector('input[name="gTipo"]') && !tipoGasto){ showToast('Elige el tipo del gasto: Evento, General o Extra.'); return; }
       boton.textContent = 'Guardando…';
       const foto = await comprimirFoto($('gFoto').files[0]);
       const d = await postFin({
@@ -1449,6 +1452,7 @@
         monto: $('gMonto').value,
         categoria: $('gCategoria').value,
         pagadoCon: (document.querySelector('input[name="gPagado"]:checked') || {}).value,
+        tipo: tipoGasto || '',
         negocio: $('gNegocio') ? $('gNegocio').value : '',
         eventoId: $('gEvento') ? $('gEvento').value : '',
         foto,

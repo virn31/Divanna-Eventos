@@ -31,6 +31,7 @@ const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_cu
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
+const { comandoGasto, botonGasto } = require('./_finanzas');
 const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
 const { reportarDanos, botonDanos } = require('./_danos');
@@ -109,7 +110,7 @@ function ayuda(colaborador) {
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
-  if (colaborador.rol === ROLES.ADMIN) comandos.push('/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
+  if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
@@ -198,6 +199,7 @@ async function configurarBot() {
       { command: 'sos', description: 'Emergencia: alerta con tu ubicación a todo el equipo' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
       { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
+      { command: 'gasto', description: 'Anotar un gasto: /gasto 350 gasolina (Admin)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
@@ -231,6 +233,13 @@ async function atenderBoton(cb) {
     const r = await Comanda.atenderBoton(accion, id, colaborador);
     if (r.texto) await editarTelegram(chatId, mensajeId, cb.message.text || '');
     await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
+    return;
+  }
+  if (tipo === 'gs') {
+    // /gasto: Diana elige el tipo (gs:<Evento|General|Extra>) y se guarda.
+    const r = await botonGasto(colaborador, accion, cb.message.text || '');
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, r.textoFinal);
     return;
   }
   if (tipo === 'dn') {
@@ -428,6 +437,8 @@ async function responder(mensaje) {
     case '/dano':
       await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
       return reportarDanos(colaborador, texto.slice(primera.length).trim());
+    case '/gasto':
+      return comandoGasto(colaborador, texto.slice(primera.length).trim());
     case '/comanda':
       return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);

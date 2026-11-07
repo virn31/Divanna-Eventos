@@ -425,8 +425,9 @@ function textoResumen(v, cuantos) {
     bloque('Hoy', v.hoy),
     bloque('Mañana', v.manana),
     v.porCobrar.eventos ? `💰 Falta por cobrar: ${pesos(v.porCobrar.total)} en ${v.porCobrar.eventos === 1 ? '1 evento' : v.porCobrar.eventos + ' eventos'}.` : '💰 No hay nada pendiente por cobrar.',
+    v.reembolsos && v.reembolsos.length ? `💵 Reembolsos pendientes: ${v.reembolsos.map(f => `${f.nombre} ${pesos(f.pendiente)}`).join(', ')}.` : null,
     cuantos ? `🔍 ${cuantos === 1 ? 'Un evento no cuadra' : cuantos + ' eventos no cuadran'}; te los paso abajo.` : '✅ Las cuentas cuadran.',
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 // Detalle de un evento, en plática (los números los pone el sistema).
@@ -455,6 +456,7 @@ async function adminsConTelegram() {
 // cuadran y no se han preguntado, un mensaje por evento con botones.
 async function preguntasDelDia() {
   const v = await vistaCuadre();
+  v.reembolsos = await R.datosReembolsos().catch(err => { console.error('Buenos días: no se pudieron leer los reembolsos:', err.message); return []; });
   const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
   const admins = await adminsConTelegram();
   if (!admins.length) console.error('Buenos días: ningún Admin activo tiene Telegram vinculado');

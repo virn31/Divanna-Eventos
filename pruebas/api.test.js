@@ -1763,6 +1763,32 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && altaGasto.body.records[0].fields.Negocio === 'Divanna Eventos' && altaGasto.body.records[0].fields.Reportado_Por[0] === LIDER.id,
     'reporte: el líder agrega un gasto (dinero propio) y se crea su reporte del día');
   ok(subida && subida.url.includes('/recGASTONUEVO0001/Attachments/uploadAttachment') && subida.body.contentType === 'image/jpeg', 'reporte: la foto del ticket se sube al gasto');
+  ok(altaGasto.body.records[0].fields.Tipo === 'General', 'gasto: una app vieja sin la pregunta de tipo guarda General (sin evento)');
+
+  reset();
+  respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }, { records: [] }, { records: [{ id: REP_FIN.id, fields: { Estado: 'Abierto' } }] }, { records: [{ id: 'recGASTONUEVO0002' }] }, {}];
+  res = await fin(tokenLider, { accion: 'gasto', fecha: hoyCln, concepto: 'Hielo', categoria: 'Otros', monto: '80', pagadoCon: 'Dinero del negocio', tipo: 'Extra' });
+  const altaTipo = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(res.code === 200 && altaTipo.body.records[0].fields.Tipo === 'Extra', 'gasto: la app guarda el tipo elegido (Evento, General o Extra)');
+
+  // /gasto por Telegram: pregunta el tipo con botones y confirma con lo guardado.
+  reset();
+  respuestas = [{ records: [ADMIN_T] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: msg('/gasto 350 gasolina', 111) }, res);
+  const preguntaGasto = telegram.find(t => t.metodo === 'sendMessage');
+  ok(preguntaGasto && preguntaGasto.body.text.startsWith('🧾 Gasto: $350 · gasolina') && botonesDe(preguntaGasto).join() === 'gs:Evento,gs:General,gs:Extra'
+    && !llamadas.some(l => l.method === 'POST'),
+    'gasto: /gasto pregunta el tipo con botones (Evento, General, Extra) antes de guardar');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { records: [{ id: 'recGASTOTELEG0001' }] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: { callback_query: { id: 'cbG', data: 'gs:General', message: { message_id: 82, chat: { id: 111, type: 'private' }, text: '🧾 Gasto: $1,080.34 · renta de bodega\n¿De qué tipo es?' } } } }, res);
+  const gastoTg = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+  ok(gastoTg && gastoTg.body.records[0].fields.Monto === 1080.34 && gastoTg.body.records[0].fields.Tipo === 'General' && gastoTg.body.records[0].fields.Concepto === 'renta de bodega'
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('✅ Guardado: $1,080.34 · renta de bodega · tipo General')),
+    'gasto: al tocar el tipo se guarda y se confirma con lo que quedó');
 
   reset();
   respuestas = [LIDER, BRIG_FIN, { records: [EV_FIN] }];
@@ -2049,7 +2075,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 400 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: no se registran pagos de un pedido sin autorizar');
 
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un día bonito. Te cuento con cariño: las cuentas de ayer no cuadraron en dos eventos. Va el detalle 👇' }] }];
   const Qmod = require(path.join(repo, 'api/_cuadre.js'));
   const rq = await Qmod.preguntasDelDia();
@@ -2065,19 +2091,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // Si DiMa mete cifras en el saludo (o falla), se usa un saludo de respaldo.
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hola Diana, faltan $2,000 en EVT-Q1.' }] }];
   await Qmod.preguntasDelDia();
   const saludoResp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
   ok(saludoResp && saludoResp.body.text.includes('Diana') && !saludoResp.body.text.includes('$') && !saludoResp.body.text.includes('EVT-'),
     'cuadre: si el saludo trae cifras o folios se descarta y sale uno de respaldo');
   const resumenQ = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111').find(t => t.body.text.startsWith('📋 Resumen del día'));
-  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
+  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('💵 Reembolsos pendientes: Ángel Samano $200') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
 
   // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
   reset();
   const EHOY = { id: 'recEVCUADREHOY001', fields: { Folio_Evento: 'EVT-H1', Fecha_Evento: hoyCln, Hora_Inicio: '17:00', Monto_Estimado_IA: 3000, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: [CLI1] } };
-  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [ADMIN_T] }];
+  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un gran día. Te paso el resumen 👇' }] }];
   const rSin = await Qmod.preguntasDelDia();
   const sinPend = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');

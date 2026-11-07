@@ -30,6 +30,8 @@ const ESTADOS = { ABIERTO: 'Abierto', ENVIADO: 'Enviado', ACLARACION: 'Aclaraci�
 const NEGOCIOS = { DV: 'Divanna Eventos', VM: 'El Vaso Maiz', AMBOS: 'Ambos' };
 const CATEGORIAS = ['Combustible', 'Inventario', 'Brigada', 'Nomina', 'Otros'];
 const PAGADO_CON = ['Dinero del negocio', 'Dinero propio'];
+// GASTOS.Tipo: del evento, general del negocio o extra (pedido de Víctor 2026-11-07).
+const TIPOS_GASTO = ['Evento', 'General', 'Extra'];
 const FORMAS = ['Efectivo', 'Transferencia', 'Depósito'];
 const MAX_MONTO = 1000000;
 const MAX_FOTO_BYTES = 3 * 1024 * 1024;
@@ -93,6 +95,7 @@ function aGasto(r) {
     categoria: f.Categoria || '',
     negocio: f.Negocio || '',
     pagadoCon: f.Pagado_Con || '',
+    tipo: f.Tipo || '',
     reembolsado: !!f.Reembolsado,
     eventoId: (f.Evento_Relacionado || [])[0] || '',
     reporteId: (f.Reporte || [])[0] || '',
@@ -219,7 +222,7 @@ async function nombresColaboradores(ids) {
 
 // Lo que ve la app/dashboard. fecha: día del reporte propio.
 async function vista(colaborador, fecha) {
-  const salida = { fecha, puedeReportar: puedeReportar(colaborador), categorias: CATEGORIAS, pagadoCon: PAGADO_CON, formas: FORMAS };
+  const salida = { fecha, puedeReportar: puedeReportar(colaborador), categorias: CATEGORIAS, pagadoCon: PAGADO_CON, tiposGasto: TIPOS_GASTO, formas: FORMAS };
   if (salida.puedeReportar) {
     const [mio, eventos, historial] = await Promise.all([
       reporteDe(colaborador.id, fecha),
@@ -321,12 +324,14 @@ async function agregarGasto(colaborador, body) {
   const negocio = negocios.length === 1 ? negocios[0] : body.negocio;
   if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio) || !negocios.includes(negocio)) return { error: 'Elige de qué negocio es el gasto.' };
   const eventoId = ID.test(body.eventoId || '') && eventos.some(e => e.id === body.eventoId) ? body.eventoId : '';
+  // La app pregunta el tipo; una app vieja (sin la pregunta) cae en Evento/General.
+  const tipo = TIPOS_GASTO.includes(body.tipo) ? body.tipo : (eventoId ? 'Evento' : 'General');
   const { reporte, error } = await reporteEditable(colaborador, fecha, eventos);
   if (error) return { error };
   const creado = await airtable(TABLES.GASTOS, {
     method: 'POST',
     body: JSON.stringify({ records: [{ fields: {
-      Concepto: concepto, Monto: valor, Fecha: fecha, Negocio: negocio, Categoria: body.categoria,
+      Concepto: concepto, Monto: valor, Fecha: fecha, Negocio: negocio, Categoria: body.categoria, Tipo: tipo,
       Pagado_Con: body.pagadoCon, Reporte: [reporte.id], Reportado_Por: [colaborador.id],
       ...(eventoId ? { Evento_Relacionado: [eventoId] } : {}),
     } }] }),
@@ -668,7 +673,40 @@ function historialParaDima(h) {
     `\n${filas}\n\nMEJORES MESES POR INGRESOS CONTRATADOS:\n${mejores}`;
 }
 
+// ---------- /gasto por Telegram (Diana y Víctor) ----------
+// "/gasto 350 gasolina" → DiMa pregunta el tipo con botones (gs:<tipo>) y guarda
+// el gasto con lo que dice el mensaje. Sin estado guardado: monto y concepto
+// viajan en el texto del mensaje. Se paga con dinero del negocio.
+const MARCA_GASTO = '🧾 Gasto: ';
+
+function comandoGasto(colaborador, texto) {
+  if (colaborador.rol !== ROLES.ADMIN) return 'Los gastos del equipo van en el reporte del día de la app (💰). Por aquí los capturan Diana y Víctor.';
+  const m = /^\$?\s*([\d.,]+)\s+(.+)$/.exec(String(texto || '').trim());
+  const valor = m ? monto(m[1]) : null;
+  const concepto = m ? m[2].trim().slice(0, 120) : '';
+  if (!valor || !concepto) return 'Escríbelo así: /gasto 350 gasolina';
+  return {
+    texto: `${MARCA_GASTO}${pesos(valor)} · ${concepto}\n¿De qué tipo es?`,
+    botones: [TIPOS_GASTO.map(t => ({ texto: t, dato: `gs:${t}` }))],
+  };
+}
+
+async function botonGasto(colaborador, tipo, textoMensaje) {
+  if (colaborador.rol !== ROLES.ADMIN) return { aviso: 'Esto es solo para Diana y Víctor.', alerta: true };
+  if (!TIPOS_GASTO.includes(tipo)) return { aviso: '' };
+  const t = String(textoMensaje || '');
+  const m = t.startsWith(MARCA_GASTO) ? /^\$([\d.,]+) · ([^\n]+)/.exec(t.slice(MARCA_GASTO.length)) : null;
+  const valor = m ? monto(m[1]) : null;
+  if (!valor) return { aviso: 'No encontré el gasto; escríbelo otra vez con /gasto.', alerta: true };
+  const campos = { Concepto: m[2].trim(), Monto: valor, Fecha: hoyCuliacan(), Tipo: tipo, Categoria: 'Otros', Pagado_Con: 'Dinero del negocio', Reportado_Por: [colaborador.id] };
+  await airtable(TABLES.GASTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
+  return { aviso: 'Guardado', textoFinal: `✅ Guardado: ${pesos(valor)} · ${campos.Concepto} · tipo ${tipo} · ${campos.Fecha} · dinero del negocio.` };
+}
+
 module.exports = {
+  comandoGasto,
+  botonGasto,
+  TIPOS_GASTO,
   historialMensual,
   calcularPorCobrar,
   porCobrarPeriodo,
