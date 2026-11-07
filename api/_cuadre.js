@@ -253,13 +253,38 @@ async function saldoActual(eventoId) {
   return { e, dinero: dineroDelEvento(e, cobros, new Set(), []) };
 }
 
-// tipo: pago | debe | descuento | otro. Devuelve { ok, texto } o { error }.
-async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota }) {
+// tipo: pago | debe | descuento | otro. recibio: 'brigada' si el efectivo lo
+// cobró la brigada (no Diana). unaVez: viene de un botón de Telegram; si ese
+// evento ya quedó contestado no se vuelve a registrar (botón viejo tocado otra vez).
+// Devuelve { ok, texto } o { error }.
+async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota, recibio, unaVez }) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor cuadran el dinero.', codigo: 403 };
   if (!ID.test(eventoId || '')) return { error: 'Parámetros inválidos' };
   const { e, dinero } = await saldoActual(eventoId);
   const f = e.fields;
   const quien = colaborador.nombre;
+  if (unaVez) {
+    const estado = f.Cuadre_Estado || '';
+    if (dinero.saldo <= TOLERANCIA || estado === ESTADOS.OTRO || (tipo === 'debe' && estado === ESTADOS.DEBE)) {
+      return { error: `Ya está contestado: ${dinero.saldo <= TOLERANCIA ? 'ya cuadra' : estado === ESTADOS.DEBE ? `sigue debiendo ${pesos(dinero.saldo)}` : 'explicado como "otro"'}.` };
+    }
+  }
+  if (tipo === 'pago' && recibio === 'brigada') {
+    // Lo cobró la brigada en efectivo: cuenta como cobro de la brigada (lo entrega en su reporte).
+    const valor = montoTexto === 'todo' ? (dinero.saldo > 0 ? dinero.saldo : null) : monto(montoTexto);
+    if (!valor) return { error: 'No hay saldo pendiente en este evento.' };
+    await airtable(TABLES.COBROS, {
+      method: 'POST',
+      body: JSON.stringify({ records: [{ fields: {
+        Concepto: `${f.Folio_Evento || ''} · efectivo que cobró la brigada (lo anotó ${quien})`, Monto: valor, Forma: FORMAS.e, Fecha: hoyCuliacan(),
+        ...(f.Negocio === 'Divanna Eventos' || f.Negocio === 'El Vaso Maiz' ? { Negocio: f.Negocio } : {}),
+        Evento: [eventoId], Reportado_Por: [colaborador.id],
+      } }] }),
+    });
+    const saldo = redondo(dinero.saldo - valor);
+    const cerro = await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: la brigada cobró ${pesos(valor)} en efectivo.`);
+    return { ok: true, cerro, texto: `✅ Guardado: ${pesos(valor)} en efectivo que cobró la brigada en ${f.Folio_Evento}. La brigada lo entrega en su reporte del día.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : ' Ya cuadra.'}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
+  }
   if (tipo === 'pago') {
     const valor = montoTexto === 'todo' ? (dinero.saldo > 0 ? dinero.saldo : null) : monto(montoTexto);
     if (!valor) return { error: 'Escribe cuánto te pagaron.' };
@@ -331,10 +356,10 @@ async function reembolsoDesdeCaja(colaborador, ef, colaboradorId) {
 
 function botonesEvento(id) {
   return [
-    [{ texto: '💵 Me pagaron todo en efectivo', dato: `cd:pe:${id}` }],
-    [{ texto: '🏦 Todo por transferencia', dato: `cd:pt:${id}` }, { texto: '✍️ Otra cantidad', dato: `cd:pm:${id}` }],
-    [{ texto: '⏳ Sigue debiendo', dato: `cd:d:${id}` }, { texto: '🎁 Descuento o cortesía', dato: `cd:x:${id}` }],
-    [{ texto: '❓ Otra cosa', dato: `cd:o:${id}` }],
+    [{ texto: '💵 Efectivo a Diana', dato: `cd:pe:${id}` }, { texto: '👷 Efectivo a la brigada', dato: `cd:pb:${id}` }],
+    [{ texto: '🏦 Transferencia', dato: `cd:pt:${id}` }, { texto: '✍️ Otro monto', dato: `cd:pm:${id}` }],
+    [{ texto: '⏳ Sigue debiendo', dato: `cd:d:${id}` }, { texto: '🎁 Cortesía', dato: `cd:x:${id}` }],
+    [{ texto: '❓ Otro', dato: `cd:o:${id}` }],
   ];
 }
 
@@ -491,9 +516,9 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
     await telegramApi('sendMessage', { chat_id: chatId, text: `${marca}\n${accion === 'pm' ? 'Escribe el monto y la forma, por ejemplo: 2000 efectivo' : 'Escribe qué pasó con ese dinero:'}`, reply_markup: { force_reply: true } });
     return { aviso: 'Escríbelo' };
   }
-  const opciones = { pe: { tipo: 'pago', monto: 'todo', forma: FORMAS.e }, pt: { tipo: 'pago', monto: 'todo', forma: FORMAS.t }, d: { tipo: 'debe' }, x: { tipo: 'descuento' } };
+  const opciones = { pe: { tipo: 'pago', monto: 'todo', forma: FORMAS.e }, pb: { tipo: 'pago', monto: 'todo', recibio: 'brigada' }, pt: { tipo: 'pago', monto: 'todo', forma: FORMAS.t }, d: { tipo: 'debe' }, x: { tipo: 'descuento' } };
   if (!opciones[accion]) return { aviso: '' };
-  const r = await aclarar(colaborador, { eventoId: id, ...opciones[accion] });
+  const r = await aclarar(colaborador, { eventoId: id, ...opciones[accion], unaVez: true });
   return r.error ? { aviso: r.error, alerta: true } : { aviso: 'Anotado', textoFinal: r.texto };
 }
 

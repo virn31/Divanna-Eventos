@@ -1242,17 +1242,18 @@
         ${e.notas ? `<div class="evento-sub">${esc(e.notas.trim().split('\n').pop())}</div>` : ''}
         ${conBotones ? `
           <div class="instr-fila">
-            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo">💵 Me pagaron todo (efectivo)</button>
-            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Transferencia">🏦 Todo por transferencia</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo">💵 Efectivo a Diana</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo" data-recibio="brigada">👷 Efectivo a la brigada</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Transferencia">🏦 Transferencia</button>
           </div>
           <div class="instr-fila">
-            <input class="cuadre-monto" inputmode="decimal" placeholder="Otra cantidad" style="max-width:140px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <input class="cuadre-monto" inputmode="decimal" placeholder="Otro monto" style="max-width:140px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
             <select class="cuadre-forma" style="padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select>
             <button class="msgcli-enviar cuadre-acc" data-tipo="pago">Registrar pago</button>
           </div>
           <div class="instr-fila">
             <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="debe">⏳ Sigue debiendo</button>
-            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="descuento">🎁 Descuento o cortesía</button>
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="descuento">🎁 Cortesía</button>
           </div>
           <div class="instr-fila">
             <input class="cuadre-nota" maxlength="500" placeholder="¿Otra cosa? Escribe qué pasó con ese dinero" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
@@ -1311,6 +1312,7 @@
     if(tipo === 'pago'){
       cuerpo.monto = btn.dataset.monto || caja.querySelector('.cuadre-monto').value;
       cuerpo.forma = btn.dataset.forma || caja.querySelector('.cuadre-forma').value;
+      if(btn.dataset.recibio) cuerpo.recibio = btn.dataset.recibio;
     }
     if(tipo === 'otro') cuerpo.nota = caja.querySelector('.cuadre-nota').value;
     caja.querySelectorAll('.cuadre-acc').forEach(b => { b.disabled = true; });

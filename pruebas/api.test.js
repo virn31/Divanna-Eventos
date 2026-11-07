@@ -2059,7 +2059,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     && llamadasClaude[0].messages[0].content.includes('Escríbele a Diana') && llamadasClaude[0].messages[0].content.includes('NO pongas montos'),
     'cuadre: primero un saludo amistoso con su nombre, escrito por DiMa sin cifras');
   ok(preguntaQ && preguntaQ.body.text.includes('el evento de Pepe (EVT-Q1)') && preguntaQ.body.text.includes('Brigada Edén reportó $3,000') && preguntaQ.body.text.includes('Me faltan $2,000')
-    && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
+    && botonesDe(preguntaQ).join() === `cd:pe:${EQ1.id},cd:pb:${EQ1.id},cd:pt:${EQ1.id},cd:pm:${EQ1.id},cd:d:${EQ1.id},cd:x:${EQ1.id},cd:o:${EQ1.id}`
     && llamadas.some(l => l.method === 'PATCH' && l.body.records[0].fields.Cuadre_Preguntado === hoyCln),
     'cuadre: luego el detalle con números exactos, la brigada sin acusarla y los botones; no vuelve a preguntar');
 
@@ -2168,6 +2168,22 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const cierreDebe = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
   ok(cierreDebe.Cuadre_Estado === 'Debe' && cierreDebe.Estado === 'Cerrado' && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('🔒 Evento cerrado')),
     'cierre: "Sigue debiendo" en un evento ya terminado lo cierra (Diana desde Telegram) y el saldo sigue por cobrar');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBROBRIG0001' }] }, {}];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:pb:${EQ1.id}`) }, res);
+  const cobroBrig = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+  ok(cobroBrig && cobroBrig.body.records[0].fields.Monto === 2000 && cobroBrig.body.records[0].fields.Forma === 'Efectivo' && !cobroBrig.body.records[0].fields.Recibido_Por
+    && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Guardado: $2,000 en efectivo que cobró la brigada')),
+    'cuadre: 👷 Efectivo a la brigada lo anota como cobro de la brigada y confirma lo guardado');
+
+  reset();
+  respuestas = [{ records: [ADMIN_T] }, { id: EQ1.id, fields: { ...EQ1.fields, Cuadre_Estado: 'Debe' } }, { records: [CQ1] }];
+  res = resMock();
+  await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:d:${EQ1.id}`) }, res);
+  ok(!llamadas.some(l => l.method === 'PATCH' || l.method === 'POST') && telegram.some(t => t.metodo === 'answerCallbackQuery' && t.body.text.includes('Ya está contestado')),
+    'cuadre: un botón viejo no vuelve a registrar lo que ya se contestó');
 
   // ---------- Calendario del equipo ----------
   const LIDER_CAL = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
