@@ -614,8 +614,11 @@ function montoPorManteles(f, productosNuevos) {
 
 // Al editar un evento autorizado desde la web, el recibo se rehace (la pestaña
 // del folio se sobrescribe, el viejo desaparece) y se manda por Telegram.
+const RECIBO_AL_EDITAR = false;
+// Regla de Víctor 2026-11-07: el recibo ya enviado no se rehace ni se reenvía solo;
+// sale únicamente con "🧾 Mandar recibo" cuando el cliente lo pide.
 async function reciboAlEditar(eventoId, f, colaborador) {
-  if (f.Autorizacion_Diana !== 'SI') return null;
+  if (!RECIBO_AL_EDITAR || f.Autorizacion_Diana !== 'SI') return null;
   const r = await enviarRecibo(eventoId, `actualizado por ${colaborador.nombre}`).catch(err => ({ ok: false, error: err.message }));
   return r && r.error === 'Google Sheets todavía no está configurado.' ? null : r;
 }

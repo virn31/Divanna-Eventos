@@ -2119,6 +2119,11 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cd:pt:${EQ1.id}`) }, res);
   ok(llamadas.some(l => l.method === 'POST' && l.body.records[0].fields.Forma === 'Transferencia' && l.body.records[0].fields.Monto === 2000)
     && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Ya cuadra')), 'cuadre: Diana contesta con un botón de Telegram y queda anotado');
+  {
+    const patchPago = (llamadas.find(l => l.method === 'PATCH') || { body: { records: [{ fields: {} }] } }).body.records[0].fields;
+    ok(patchPago.Estatus_Pago === 'Liquidado 100%' && patchPago.Monto_Adeudado === 0 && !telegram.some(t => t.metodo === 'sendDocument'),
+      'recibos: registrar un cobro solo lo anota en Airtable (Estatus_Pago, Monto_Adeudado), sin generar ni mandar el PDF');
+  }
 
   reset();
   respuestas = [{ records: [ADMIN_T] }, EQ1, { records: [CQ1] }, { records: [{ id: 'recCOBRODIANA003' }] }, {}];
@@ -2833,7 +2838,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       { records: [{ id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Telegram_Chat_ID: '111' } }, { id: 'recCOLAB000000008', fields: { Nombre: 'Ángela G', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Telegram_Chat_ID: '444' } }] }];
     const rec = await sh.enviarRecibo('recEVSHEETS00001', 'anticipo recibido');
     const doc = telegram.filter(t => t.metodo === 'sendDocument');
-    ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000')
+    ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000') && !doc[0].body.caption.includes('Reenvíaselo')
       && googleSheets.some(g => g.op === 'pdf' && g.url.includes('format=pdf') && g.url.includes('gid=3') && g.auth === 'Bearer tok'),
       'recibo: sale el PDF de la pestaña del evento y le llega a Diana por Telegram (de Divanna no a la gerente)');
     delete process.env.GOOGLE_SHEET_DIVANNA;

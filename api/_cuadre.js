@@ -246,6 +246,13 @@ async function anotar(eventoId, f, campos, linea) {
   return cierra;
 }
 
+// Al registrar un pago queda en Airtable lo que resta (Monto_Adeudado) y, si ya
+// no resta nada, Estatus_Pago = "Liquidado 100%" (opción que ya existe).
+function estadoDePago(saldo) {
+  const resta = redondo(Math.max(0, saldo));
+  return resta > TOLERANCIA ? { Monto_Adeudado: resta } : { Monto_Adeudado: 0, Estatus_Pago: 'Liquidado 100%' };
+}
+
 async function saldoActual(eventoId) {
   const e = await airtable(`${TABLES.EVENTOS}/${eventoId}`);
   const cobroIds = e.fields.COBROS || [];
@@ -282,7 +289,7 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       } }] }),
     });
     const saldo = redondo(dinero.saldo - valor);
-    const cerro = await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: la brigada cobró ${pesos(valor)} en efectivo.`);
+    const cerro = await anotar(eventoId, f, { ...estadoDePago(saldo), Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: la brigada cobró ${pesos(valor)} en efectivo.`);
     return { ok: true, cerro, texto: `✅ Guardado: ${pesos(valor)} en efectivo que cobró la brigada en ${f.Folio_Evento}. La brigada lo entrega en su reporte del día.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : ' Ya cuadra.'}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'pago') {
@@ -298,8 +305,9 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       } }] }),
     });
     const saldo = redondo(dinero.saldo - valor);
-    const recibo = sheetsConfigurado() ? await enviarRecibo(eventoId, `pago de ${pesos(valor)}`) : null;
-    const cerro = await anotar(eventoId, f, { Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
+    // Sin recibo automático (regla de Víctor 2026-11-07): el PDF sale solo si el cliente lo pide.
+    const recibo = null;
+    const cerro = await anotar(eventoId, f, { ...estadoDePago(saldo), Cuadre_Estado: saldo > TOLERANCIA ? ESTADOS.POR_ACLARAR : ESTADOS.CUADRADO }, `[${ahoraTexto()}] ${quien}: le pagaron ${pesos(valor)} (${forma}).${saldo > TOLERANCIA ? ` Falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más.` : ' Cuadrado.'}`);
     return { ok: true, cerro, texto: `✅ Anotado: ${pesos(valor)} en ${forma.toLowerCase()} de ${f.Folio_Evento}.${saldo > TOLERANCIA ? ` Todavía falta ${pesos(saldo)}.` : saldo < -TOLERANCIA ? ` Ojo: quedó ${pesos(-saldo)} de más que lo contratado.` : ' Ya cuadra.'}${recibo ? (recibo.ok ? ' 🧾 Te mandé el recibo actualizado.' : ` (El recibo no salió: ${recibo.error})`) : ''}` + (cerro ? ' 🔒 Evento cerrado.' : '') };
   }
   if (tipo === 'debe') {

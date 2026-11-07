@@ -454,7 +454,7 @@ window.DimaCalendario = (function(){
         <label class="cal-sub">¿Qué pagó el cliente? <select class="cal-pago-tipo"><option value="abono">Anticipo o abono</option><option value="todo">Liquidó todo lo que faltaba</option></select></label>
         <input class="cal-pago-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
         <label class="cal-sub">Forma de pago <select class="cal-pago-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
-        <button data-cal="pago">Guardar pago y mandar recibo</button><div class="cal-msg"></div></div>`;
+        <button data-cal="pago">Guardar pago</button><div class="cal-msg"></div></div>`;
       const tipo = zona.querySelector('.cal-pago-tipo'), monto = zona.querySelector('.cal-pago-monto');
       tipo.addEventListener('change', () => { monto.hidden = tipo.value === 'todo'; });
       return;
