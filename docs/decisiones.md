@@ -487,3 +487,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Cómo quedó:** el alcance por negocio no cambia. A Eden se le quita Casa Isabella en `alcanceDe`, `puedeOperarEvento` y el calendario (`ocultoParaGerente`), aunque le llegue por brigada o por Asignar. Origen ya guardaba el primer nombre. `avisosCompras` (`api/_produccion.js`, cron diario) avisa a la gerente de El Vaso Maíz a 7 y a 2 días, sin depender de que haya encargado; anota en `Produccion_Avisos` (`compras7:`/`compras2:`).
 **Límite:** no hay recetas en el sistema: el aviso dice qué se va a producir (productos y piezas), no kilos de insumo.
 **Descartado:** avisar solo el día exacto (un evento capturado a menos de una semana no recibiría aviso); una columna nueva para la bitácora.
+
+## 2026-11-09 — La APK deja de mostrar los eventos pagados que ya pasaron
+
+**Pedido de Víctor:** que un evento pagado ya no se vea en la pantalla de eventos de la APK. Eligió "pagado y ya pasado".
+**Cómo quedó:** sale desde 2 días después de la fecha del evento (el mobiliario se recoge al día siguiente) si está liquidado por cobros o por `Estatus_Pago` (`Liquidado 100%` o `Pagado - …`). Con daños por cobrar, abonos o crédito de decorador se queda. Solo filtra la lista de `api/brigada-eventos.js`: no toca `Estado`, así que el dashboard, el cuadre, el calendario y Telegram siguen igual.
+**Descartado:** ocultar al pagar (los clientes liquidan 24 h antes y la brigada no vería qué entregar); cerrar el evento (`Cerrado` también cambia cuadre y semáforo).
