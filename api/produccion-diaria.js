@@ -8,7 +8,7 @@
 // repite avisos ya enviados, así que correrlo dos veces no duplica mensajes.
 // También se puede llamar a mano con ?secreto=<CRON_SECRET> para probar.
 
-const { avisosDelDia } = require('./_produccion');
+const { avisosDelDia, avisosCompras } = require('./_produccion');
 const { preguntasDelDia, preguntaCaja } = require('./_cuadre');
 
 module.exports = async (req, res) => {
@@ -25,8 +25,11 @@ module.exports = async (req, res) => {
     const cuadre = await preguntasDelDia().catch(err => { console.error('Error en el cuadre diario:', err.message); return { error: err.message }; });
     const esLunes = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mazatlan', weekday: 'short' }).format(new Date()) === 'Mon';
     const caja = esLunes ? await preguntaCaja().catch(err => { console.error('Error en la pregunta de caja:', err.message); return { error: err.message }; }) : null;
+    // Compras de insumos de la gerente (7 y 2 días antes): al final, y si falla no detiene lo demás.
+    const compras = await avisosCompras().catch(err => { console.error('Error en los avisos de compras:', err.message); return { error: err.message }; });
     res.status(200).json({
       success: true,
+      compras,
       resultados: resultados.map(r => ({ tipo: r.tipo, fecha: r.fecha, enviados: r.enviados.length, fallidos: r.fallidos.length })),
       cuadre,
       caja,

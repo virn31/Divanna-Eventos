@@ -480,3 +480,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué así:** el borrador viaja en el mensaje del bot porque las funciones serverless no guardan estado y no se quiso escribir nada antes del sí.
 **Límite:** un "sí" suelto, sin contestar encima del borrador, no confirma: lo atiende la plática normal con DiMa.
 **Descartado:** guardar el borrador en Airtable con Activa = false (sería escribir antes de confirmar); campos nuevos para los colores.
+
+## 2026-11-09 — Gerentes, Eden sin Casa Isabella y compras de insumos de Ángela
+
+**Pedido de Víctor:** Eden, Mario y Ángela ven todo su negocio; Eden sin Casa Isabella; Origen manual con el nombre de quien capturó; Ángela recibe por Telegram los insumos una semana y dos días antes.
+**Cómo quedó:** el alcance por negocio no cambia. A Eden se le quita Casa Isabella en `alcanceDe`, `puedeOperarEvento` y el calendario (`ocultoParaGerente`), aunque le llegue por brigada o por Asignar. Origen ya guardaba el primer nombre. `avisosCompras` (`api/_produccion.js`, cron diario) avisa a la gerente de El Vaso Maíz a 7 y a 2 días, sin depender de que haya encargado; anota en `Produccion_Avisos` (`compras7:`/`compras2:`).
+**Límite:** no hay recetas en el sistema: el aviso dice qué se va a producir (productos y piezas), no kilos de insumo.
+**Descartado:** avisar solo el día exacto (un evento capturado a menos de una semana no recibiría aviso); una columna nueva para la bitácora.

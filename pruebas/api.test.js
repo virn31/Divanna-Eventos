@@ -3597,4 +3597,85 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const finanzas = fs.readFileSync(path.join(repo, 'api/_finanzas.js'), 'utf8');
     ok(/PAGADO_CON = \[[^\]]*'Inversión personal'/.test(finanzas) && /CATEGORIAS = \[[^\]]*'Remodelacion'/.test(finanzas), 'gastos: Inversión personal y Remodelacion (sin acento) como en Airtable');
   }
+
+  // ---------- Eden sin Casa Isabella, aunque se lo asignen ----------
+  {
+    const S = require('../api/_sesion');
+    const { alcanceDe } = require('../api/_eventos');
+    const eden = { id: 'recCOLABEDEN00001', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: 'recBRIGADAEDEN001' };
+    const mario = { id: 'recCOLABMARIO0001', rol: 'Lider de brigada', gerente: 'Casa Isabella' };
+    const CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    ok(!S.puedeOperarEvento(eden, { ...CI, Brigada_Asignada: [eden.brigadaId] }) && !S.puedeOperarEvento(eden, { ...CI, Encargada: [eden.id] }), 'gerentes: Eden no opera Casa Isabella aunque se la asignen');
+    ok(S.puedeOperarEvento(mario, { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas', Encargada: [mario.id] }), 'gerentes: Mario sigue pudiendo operar lo que le asignen');
+    ok(S.puedeOperarEvento({ id: 'x', rol: 'Admin', gerente: 'Divanna Eventos' }, CI), 'gerentes: el Admin ve Casa Isabella');
+    reset();
+    respuestas = [
+      { id: eden.brigadaId, fields: { Nombre_Brigada: 'Brigada Edén', EVENTOS: ['recEVDV1', 'recEVCI1'] } },
+      { fields: { fld52PrtsNA4CnRw2: ['recEVCI2'] } },
+      { records: [{ id: 'recEVDV2' }] },
+      { records: [{ id: 'recEVCI1' }, { id: 'recEVCI2' }] },
+    ];
+    const alcanceEden = await alcanceDe(eden);
+    ok(JSON.stringify(alcanceEden.eventoIds) === JSON.stringify(['recEVDV1', 'recEVDV2']), 'gerentes: lo asignado de Casa Isabella se le quita a Eden; lo de su negocio se queda');
+
+    reset();
+    const { vistaMes } = require('../api/_calendario');
+    const fila = (id, extra) => ({ id, fields: { Folio_Evento: id, Fecha_Evento: '2026-12-05', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', ...extra } });
+    respuestas = [{ records: [fila('recEVDV1', { Servicios_Solicitados: 'Mesas' }), fila('recEVCI1', { Servicios_Solicitados: 'Renta de Casa Isabella' })] }, { records: [] }, { records: [] }];
+    const mesEden = await vistaMes(eden, '2026-12');
+    const verIds = (v) => v.eventos.map(e => e.id).join();
+    ok(verIds(mesEden) === 'recEVDV1', 'gerentes: el calendario de Eden no trae Casa Isabella');
+    reset();
+    respuestas = [{ records: [fila('recEVDV1', { Servicios_Solicitados: 'Mesas' }), fila('recEVCI1', { Servicios_Solicitados: 'Renta de Casa Isabella' })] }, { records: [] }, { records: [] }];
+    ok(verIds(await vistaMes({ id: 'x', rol: 'Admin' }, '2026-12')) === 'recEVDV1,recEVCI1', 'gerentes: el calendario del Admin sí lo trae');
+  }
+
+  // ---------- Compras de insumos: la gerente, 7 y 2 días antes ----------
+  {
+    const { avisosCompras } = require('../api/_produccion');
+    const hoyC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const enDias = (n) => { const d = new Date(hoyC + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const ANGELA = { id: 'recCOLABANGELA001', fields: { Nombre: 'Angela Samano', Telegram_Chat_ID: '444', Gerente_Vaso_Maiz: true, Activo: true } };
+    const EV = (id, dias, extra = {}) => ({ id, fields: { Folio_Evento: id, Fecha_Evento: enDias(dias), Productos: '[{"clave":"vm_paquete_3","cantidad":1}]', ...extra } });
+    const textos = () => telegram.filter(t => t.metodo === 'sendMessage').map(t => t.body.text);
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM7', 7), EV('recEVVM2', 2)] }, {}, {}];
+    let rc = await avisosCompras();
+    const consultaCompras = decodeURIComponent(llamadas[1].url);
+    const patches = llamadas.filter(l => l.method === 'PATCH');
+    ok(rc.enviados.length === 2 && textos().some(t => t.includes('faltan 7 días') && t.includes('Hola Angela') && t.includes('compras de insumos')) && textos().some(t => t.includes('faltan 2 días')) && telegram.every(t => t.metodo !== 'sendMessage' || String(t.body.chat_id) === '444'),
+      'compras: a Ángela le llega el aviso una semana y dos días antes');
+    ok(patches.some(p => p.body.records[0].id === 'recEVVM7' && p.body.records[0].fields.Produccion_Avisos.startsWith('compras7:recCOLABANGELA001 ')) && patches.some(p => p.body.records[0].id === 'recEVVM2' && p.body.records[0].fields.Produccion_Avisos.startsWith('compras2:recCOLABANGELA001 ')),
+      'compras: cada aviso queda anotado en Produccion_Avisos');
+    ok(consultaCompras.includes(enDias(7)) && consultaCompras.includes(enDias(1)) && !consultaCompras.includes(enDias(8)) && !consultaCompras.includes('"' + hoyC + '"') && consultaCompras.includes('{Autorizacion_Diana} = "SI"') && consultaCompras.includes('{Estado} != "Cerrado"'),
+      'compras: solo eventos autorizados y abiertos de los próximos 7 días');
+    ok(!/encargadoId/.test(consultaCompras) && rc.fallidos.length === 0, 'compras: no depende de que haya encargado de producción');
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM7', 7, { Produccion_Avisos: 'compras7:recCOLABANGELA001 2026-11-01T00:00:00Z' })] }];
+    rc = await avisosCompras();
+    ok(rc.enviados.length === 0 && textos().length === 0 && !llamadas.some(l => l.method === 'PATCH'), 'compras: no se repite el aviso ya enviado');
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM4', 4)] }, {}];
+    rc = await avisosCompras();
+    ok(textos()[0].includes('faltan 4 días') && llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Produccion_Avisos.startsWith('compras7:'), 'compras: un evento capturado con menos de una semana también avisa');
+
+    reset();
+    respuestas = [{ records: [{ ...ANGELA, fields: { ...ANGELA.fields, Telegram_Chat_ID: '' } }] }, { records: [EV('recEVVM7', 7)] }];
+    rc = await avisosCompras();
+    ok(rc.fallidos.length === 1 && rc.fallidos[0].motivo.includes('Telegram') && !llamadas.some(l => l.method === 'PATCH'), 'compras: si no tiene Telegram se reporta y no se marca como enviado');
+
+    reset();
+    respuestas = [{ records: [] }];
+    rc = await avisosCompras();
+    ok(rc.enviados.length === 0 && llamadas.length === 1, 'compras: sin gerente no consulta eventos');
+  }
+
+  // ---------- Reglas de DiMa a la vista en el dashboard de Admin ----------
+  {
+    const tablero = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    ok(tablero.includes('id="entrenarReglas" open') && tablero.includes('📋 Reglas activas (') && /id="v-inicio"[\s\S]*id="entrenar"[\s\S]*id="v-finanzas"/.test(tablero), 'dashboard: Inicio tiene Entrenar a DiMa con las reglas abiertas');
+  }
 })();
