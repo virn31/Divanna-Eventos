@@ -3678,4 +3678,38 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const tablero = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
     ok(tablero.includes('id="entrenarReglas" open') && tablero.includes('📋 Reglas activas (') && /id="v-inicio"[\s\S]*id="entrenar"[\s\S]*id="v-finanzas"/.test(tablero), 'dashboard: Inicio tiene Entrenar a DiMa con las reglas abiertas');
   }
+
+  // ---------- APK: los eventos pagados que ya pasaron dejan de salir ----------
+  {
+    const { leerEventos } = require('../api/_eventos');
+    const hoyP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const enDiasP = (n) => { const d = new Date(hoyP + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const EV = (id, dias, extra) => ({ id, fields: { Folio_Evento: id, Fecha_Evento: enDiasP(dias), Estado: 'Reservacion confirmada', Monto_Estimado_IA: 1000, ...extra } });
+    const LIQ = { Estatus_Pago: 'Liquidado 100%' };
+    const lista = [
+      EV('recLIQPASADO', -2, LIQ),
+      EV('recPAGADOEF', -5, { Estatus_Pago: 'Pagado - Efectivo' }),
+      EV('recLIQAYER', -1, LIQ),
+      EV('recLIQHOY', 0, LIQ),
+      EV('recLIQFUTURO', 5, LIQ),
+      EV('recDEBE', -5, { Estatus_Pago: 'Pendiente - Efectivo' }),
+      EV('recSINPAGO', -5, {}),
+      EV('recDANOS', -5, { ...LIQ, Cargos_Extra_Total: 300 }),
+      EV('recCREDITO', -5, { Estatus_Pago: 'Decorador con crédito abierto - autorizado por Diana' }),
+    ];
+    const idsDe = (v) => v.map(e => e.id).join();
+    reset();
+    respuestas = [{ records: lista }];
+    let vistos = await leerEventos(null, { sinPagadosPasados: true });
+    ok(idsDe(vistos) === 'recLIQAYER,recLIQHOY,recLIQFUTURO,recDEBE,recSINPAGO,recDANOS,recCREDITO', 'apk: lo pagado sale desde 2 días después del evento; lo que debe, los daños y el crédito se quedan');
+    ok(!vistos.some(e => 'dinero' in e), 'apk: leer el dinero para ocultar no se lo manda a quien no lo ve (asistente)');
+    reset();
+    respuestas = [{ records: lista }];
+    ok((await leerEventos(null, {})).length === lista.length, 'apk: sin la opción no se oculta nada (Telegram y otros)');
+    reset();
+    respuestas = [{ records: [EV('recPORCOBROS', -3, { COBROS: ['recCOBRO1'] }), EV('recABONO', -3, { COBROS: ['recCOBRO2'] })] }, { records: [{ id: 'recCOBRO1', fields: { Evento: ['recPORCOBROS'], Monto: 1000 } }, { id: 'recCOBRO2', fields: { Evento: ['recABONO'], Monto: 400 } }] }];
+    vistos = await leerEventos(null, { conDinero: true, sinPagadosPasados: true });
+    ok(idsDe(vistos) === 'recABONO' && vistos[0].dinero.resta === 600, 'apk: también sale si los cobros ya cubren el total; un abono se queda');
+    ok(/leerEventos\(eventoIds, \{[^}]*sinPagadosPasados: true/.test(fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8')), 'apk: la pantalla de eventos usa el filtro');
+  }
 })();

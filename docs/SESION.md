@@ -28,61 +28,41 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**PUBLICADO 2026-11-07 (rama `captura-minima`, caché v35, 474 pruebas):** captura manual (calendario, comanda por foto, `/comanda`) solo exige nombre, teléfono y fecha; preguntas de DiMa y lo demás no bloquean. Revertir: `git revert -m 1 <merge>`.
+**Actualizado:** 2026-11-09 · **Rama de Estado:** `entrenar-dima` (igual a `main` más este commit de estado) · **Producción:** `main` en `b3c9c2b`, caché v36, **542 pruebas pasan**. Revertir lo publicado: `git revert -m 1 b3c9c2b` y push.
 
-**PUBLICADO 2026-11-07 (rama `cierre-cuadre-reembolsos` unida a `main`, incluye `produccion-staff-etapas`; 471 pruebas). Revertir: `git revert -m 1 <merge>`. Falta: `/configurar` en el bot (para `/gasto`) y probar en teléfono.** Antes: (rama sin publicar; base = `produccion-staff-etapas` + `main`, caché v34, 468 pruebas):** cierre al terminar, reembolsos por colaborador (PAGOS_REEMBOLSO), botones del cuadre, sin recibos automáticos, `/gasto` con Tipo, dashboard en 4 ventanas. Detalle en `docs/decisiones.md` 2026-11-07. **Antes de publicar:** verificar en el esquema de Airtable los nombres asumidos (abajo), probar en Preview y `/configurar` en el bot. Confirmados por Víctor: PAGOS_REEMBOLSO.Colaborador y Gastos = links, Registrado_Por = texto, Forma = Efectivo/Transferencia. Ya confirmados por Víctor: Pagado_Con "Inversión personal", Categoria "Remodelacion", MOVIMIENTOS_CAJA.Tipo "Gasto externo".
+**Hecho y publicado el 2026-11-09** (detalle en `docs/decisiones.md`, dos entradas de esa fecha):
+- `/entrenamiento`, `/reglas` y `/desactivar N` en Telegram, solo Admin (`api/_entrenamiento.js`). Solo guarda con ✅ o con "sí" contestado encima del borrador; un "sí" suelto no confirma.
+- Panel "🧠 Entrenar a DiMa y ver sus reglas" en Inicio del dashboard de Admin, con las reglas activas abiertas.
+- 4 reglas activas en CORRECCIONES_DIMA (autor Víctor): manteles, mesas y paquetes, sillas, y estilos ("avisa que primero tiene que quedar confirmado").
+- Nota `PENDIENTE COLORES:` → `COLORES DEFINIDOS:` y `PROVEEDOR EXTERNO:` en `EVENTOS.Instrucciones_Equipo` (`api/_colores.js`); aviso al gerente de Divanna.
+- Selector de manteles: Liso con 16 colores; corrugado y lentejuela con color escrito. La clave interna sigue siendo `basico`.
+- Eden sin Casa Isabella aunque se la asignen (alcance, operación y calendario). Eden, Mario y Ángela ven todo su negocio. Origen manual = primer nombre de quien capturó.
+- Aviso de compras a la gerente de El Vaso Maíz a 7 y 2 días (`avisosCompras`, cron diario 8:00). Dice productos y piezas, no kilos: no hay recetas.
+- Resumen de Telegram: "N eventos no cuadran (ayer)". `.gitignore` con `.claude/` y `*.bak`.
 
-**PUBLICADO 2026-11-06, `main` b33dcc3 (rama `manteles-origen-decorador`, 431 pruebas, caché v32; verificado que producción sirve v32 y el Mantel nuevo). Revertir: `git revert -m 1 b33dcc3`.** Falta: `/configurar` en el bot (para que `/comanda` salga en el menú) y probar en teléfono: capturar con Mantel, editar productos (monto y recibo), autorizar (Autorizado_Por), pedido de DiMa con cliente decorador, `/comanda` con algo incompleto. detalle en `docs/decisiones.md` 2026-11-06.
-- Origen = quién lo creó (`DiMa`, `Formulario`, `Diana`, `Eden`, `Mario`, `Ángela`…); los viejos `Chat DiMa`/`Manual` se leen con el nombre nuevo.
-- 🧺 Selector de manteles (`brigadas/manteles.js`) en ➕ Capturar evento y en "Hora y productos": básico incluido por mesa, cambio a lentejuela +$140 / corrugado +$60, extras $60/$200/$120, color por tipo. Se suma solo al monto. La comanda por foto ya conserva la nota (tipo y color) de cada producto.
-- Recibo: se rehace y se manda solo al editar un evento autorizado (✏️ Editar, Hora y productos, mover fecha). Muestra manteles por tipo, cambios/extras con precio y el descuento de decorador.
-- Decorador: `CLIENTES.Tipo_Cliente = Decorador` (o `Profesional` mientras se renombra) → 10% del total, también en DiMa.
-- App sin precios de manteles (solo cantidades y color; el desglose con precios va en el recibo). Comanda por foto o pedido escrito (`/comanda …` en Telegram, "📝 Llenar con el pedido escrito" en la app): DiMa pregunta lo que falte y no deja guardar hasta contestar.
-- Quién autorizó: columna `EVENTOS.Autorizado_Por` (texto de una línea, ya creada por Víctor el 2026-11-06). El balance la muestra junto al origen. El formulario de la página se queda (origen `Formulario`).
-- Pruebas pendientes en producción: capturar un evento con cambios de mantel, editar productos de uno autorizado (monto y recibo), un pedido por DiMa con un cliente decorador. Ya está la opción `Decorador` en `CLIENTES.Tipo_Cliente` (2026-11-06).
+**A medias:** nada de código. Este commit de estado está solo en `entrenar-dima`; en `main` este archivo sigue con el estado anterior hasta la próxima publicación.
 
-**Actualizado:** 2026-11-06 · **Producción:** `main` en `2a66c21` (caché v33). Ramas sin publicar: `produccion-staff-etapas` (para Ángela), `entrenar-dima`. **431 pruebas pasan** en `main`.
+**Verificado en producción:** caché v36, panel de reglas, selector y 401 sin sesión. **Sin probar en real:** comandos del bot, nota de colores con un cliente y el aviso de compras.
 
-**Publicado 2026-11-04, `main` 6ae181d (rama `feat/origen-pedidos`):** columna **`EVENTOS.Origen`** (selección única `Chat DiMa` / `Formulario` / `Manual`, ya creada por Víctor en Airtable; vacía en los eventos viejos). Chat y formulario la escriben en `crearPedido`; calendario y comanda en `capturarEvento`. Va en un PATCH aparte con `typecast` y try/catch: si falla, el pedido queda. Eventos sin Origen se deducen de `Notas` (`api/_origen.js`). El balance semanal trae "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`). Solo API, sin subir caché. Revertir: `git revert -m 1 6ae181d`. Falta: crear un evento de prueba en el calendario y ver `Origen = Manual` en Airtable.
+**Siguientes pasos, en orden:**
+1. Víctor: `/configurar` en Telegram y `/reglas` (deben salir 4).
+2. Probar `/entrenamiento` con una regla de prueba y quitarla con `/desactivar`.
+3. Revisar que a Ángela le llegue el aviso de compras en el cron de las 8:00 (si hay eventos de El Vaso Maíz autorizados en los próximos 7 días).
+4. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): sus eventos, 👷 Asignar, ✏️ Editar, 💵 Cobrar; Eden sin Casa Isabella.
+5. Evento de prueba capturado a mano: `Origen` = nombre de quien capturó.
+6. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola.
 
-**Costos (análisis 2026-11-04):** operación ~$900–1 300 MXN/mes (Airtable $300, Claude Pro $380, IA en producción ~$120–300 a ~$2 MXN por conversación, + Vercel Pro $380 recomendado porque Hobby no admite uso comercial) contra >20 eventos/mes × ~$1 900. Se paga con 1 evento al mes atribuible a DiMa. Noviembre llevaba US$57.81 en créditos de la consola, casi todo sesiones de Claude Code: Víctor tiene plan Pro → cambiar Claude Code con `/logout` + `/login` (cuenta con suscripción) y bajar el límite mensual de la consola; no apagar la recarga (DiMa en producción usa esos créditos).
+**Decisiones pendientes de Víctor:**
+- CONVERSACIONES: 37 filas vacías (la última del 17-jul) y ningún código la usa; las pláticas van en `EVENTOS.Notas`. ¿Se deja o se vuelve a llenar?
+- Recetas por producto, si se quiere que el aviso de compras diga kilos y litros.
+- "(ayer)" en el resumen: la cuenta incluye todos los eventos pasados sin aclarar, no solo los de ayer. ¿Se deja o se cuenta solo ayer?
+- `api/_dima-catalogo.js:111` aún dice "mesa cuadrada o redonda"; hoy manda la regla de sillas. ¿Se corrige el catálogo?
+- Casa Isabella: confirmar mesa extra de fin de semana ($500) y tope de $4,500 para 70 a 80 personas, que no vienen en los flyers.
 
-**Publicado 2026-11-03 noche, `main` fea6518 (rama `cobro-visible`):** caja **💵 Cobrar** en cada tarjeta (forma de pago, "Liquidó todo" o abono; se pliega al guardar; no sale si ya está pagado). Liquidado + recogido = `Estado Cerrado` (`cerrarSiTermino` en `api/_cargos.js`, al cobrar y al marcar recolección). Pagos desde el dashboard no cierran solos. Decisión en `docs/decisiones.md`. No probado en teléfono. Revertir: `git revert -m 1 fea6518`. Roles ya puestos: Eden `Gerente Divanna`, Mario `Gerente Casa Isabella`, Ángela `Lider de brigada` + casilla; ya entran y ven sus eventos.
+**Idea aprobada para después (2026-11-06):** decirle a DiMa "agrega tambor plateado, $250, tenemos 4" y que quede en una tabla PRODUCTOS de Airtable. Requiere pasar el catálogo a Airtable. Faltan tambores y figuras de coroplast de varias medidas.
 
-**Incidente 2026-11-03 noche — "se cayeron los PIN":** a Eden, Ángela y Mario se les puso en Airtable un Rol "Gerente …" antes de publicar la rama que lo reconoce → "Usuario o PIN incorrecto" en la APK. Mario además tenía Activo desmarcado. Se corrigió con otro Claude con acceso a Airtable (roles de vuelta a `Lider de brigada`, Activo de Mario) y luego se **publicó `gerentes-por-negocio`** (`main` f6cc9da, caché v30; incluye 20f7adb: el Rol se lee sin espacios, porque en Airtable la opción es " Gerente Divanna"). **Regla:** nunca poner en Airtable un Rol que producción no conozca todavía. Revertir: `git revert -m 1 f6cc9da` y roles a `Lider de brigada`. Falta: en Airtable poner Eden → `Gerente Divanna` y Mario → `Gerente Casa Isabella` (Ángela sigue `Lider de brigada` + casilla) y probar en sus teléfonos que ven sus eventos. El token de Airtable de `keys\airtable dima os.txt` da 403 en esta base (no sirve). `produccion-staff-etapas`: al unirle `main` ya trae v31 → subir a v32.
+**Pendientes viejos de Víctor:** precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; los 2 flyers de Casa Isabella leídos como "de la competencia" (borrar su descripción en Drive para que se relean); probar en teléfono `/daño`, cobro desde la ficha, foto de comanda, recibo y "Activar alertas".
 
-**Arreglo publicado 2026-11-03, `main` f9f3138 (rama `arreglo-editar-pedido`):** en el dashboard, el ✏️ Editar de los eventos autorizados mostraba vacía la casilla "qué lleva" (el GET no mandaba `Servicios_Solicitados` en `eventos`). Solo cambia el API, sin subir caché. Revertir: `git revert -m 1 f9f3138`. Confirmado con Víctor: Ángela edita solo El Vaso Maíz desde la APK; Diana y Víctor desde el dashboard (no se le abre el dashboard a Ángela).
+**Regla (incidente 2026-11-03):** nunca poner en Airtable un Rol que producción no conozca todavía.
 
-**Publicado hoy (2026-11-03), `main` f6584ea (rama `editar-pedido`):**
-- ✏️ **Editar evento, cliente y pedido**: además de cliente/fecha/lugar/invitados, ahora se cambia **qué lleva** (un artículo por línea; en evento autorizado es también la lista de carga y se conservan las palomitas de lo que no cambió) y el **monto contratado** (solo Diana y Víctor, en el dashboard). Ángela en la app, solo El Vaso Maíz, sin monto.
-- Casilla "avisar al equipo" (marcada por defecto): mismo aviso que un cambio del cliente confirmado (Telegram con Confirmar, push, se borra "Enterado", se reenvía producción). Google Calendar se actualiza. Decisión en `docs/decisiones.md` 2026-11-03.
-- Caché **v29**. No probado en teléfono ni contra Airtable real. Revertir: `git revert -m 1 f6584ea`.
-
-**Publicado el 2026-11-02, `main` 1f38c60 (rama `editar-evento-cliente`):**
-- En la app **todos** (líder, asistente, encargada, gerente) ven nombre, teléfono (toca para llamar) y correo del cliente al inicio de Resumen: el encargado atiende al cliente de principio a fin.
-- **✏️ Editar evento y cliente** (nombre, teléfono, correo, ubicación, fecha, invitados, fuera de la ciudad): Diana y Víctor en el dashboard (eventos y pedidos); Ángela en la app, solo eventos de El Vaso Maíz. Fecha o lugar nuevos se pasan a Google Calendar. Ojo: nombre/teléfono/correo son del registro de CLIENTES (cambian en todos los eventos de ese cliente).
-- Verificado que producción sirve la versión nueva (caché v27). No probado en teléfono ni contra Airtable real. Revertir: `git revert -m 1 1f38c60`.
-- El staff (solo Telegram) no ve el teléfono del cliente; Víctor no lo pidió.
-
-**Rama `produccion-staff-etapas` (para Ángela, El Vaso Maíz; detalle en `docs/decisiones.md` 2026-11-02):**
-- Equipo de producción en "Asignar"; solo el encargado tiene **🚀 Listo para staff**; etapas por Telegram para el staff (`Estatus_Logistico`); **🆘 SOS** por Telegram (`/sos`, `api/_etapas.js`).
-- Se le unió `main` hasta 1f38c60 (caché v28). **Al volver a unirle `main` (trae v29) subir la caché a v30** y correr pruebas (las de `editar` y `_cambios.js` cambiaron).
-- **BLOQUEA PUBLICAR:** crear en Airtable, tabla EVENTOS, `Equipo_Produccion` (link a COLABORADORES, varios) y `Produccion_Lista` (fecha con hora). Sin ellos falla "Guardar y avisar" de la app.
-
-**PUBLICADO 2026-11-06, `main` 2a66c21 (rama `buscar-producto`, caché v33; verificado en producción). Revertir: `git revert -m 1 2a66c21`.** buscador 🔎 en cada renglón de producto (➕ Capturar evento y Hora y productos): escribes "mesita" y elige "Mesita de herrería extra" (sin acentos ni mayúsculas; en rojo si no hay nada). `brigadas/buscar-producto.js`.
-
-**Idea aprobada para después (Víctor 2026-11-06, "me gusta la opción 2 pero no en este momento"):** que la gerencia le diga a DiMa por Telegram o el dashboard "agrega tambor plateado, $250, tenemos 4" → DiMa muestra cómo queda, se confirma y queda en una tabla PRODUCTOS de Airtable (cotiza, inventario y recibo). Requiere pasar el catálogo de `_productos.js` / `_dima-catalogo.js` a Airtable. Productos que faltan hoy: tambores, figuras de coroplast de varias medidas (hoy una sola, $150), ¿mesita para pastel = mesita de herrería?
-
-**Siguiente, en orden:**
-0. Evento de prueba → `Origen = Manual`. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable.
-1. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): ven sus eventos, 👷 Asignar, ✏️ Editar y 💵 Cobrar (un abono chico; luego un liquidado en evento ya recogido → se cierra). Revisar que Eden no vea los de Casa Isabella.
-1b. Decidir si los pagos de Diana/Víctor desde el dashboard también cierran el evento al liquidar.
-2. Crear los 2 campos de Airtable → probar `produccion-staff-etapas` en Preview (asignar equipo, Listo para staff, etapas, SOS con ubicación) → unir a `main` → `/configurar` en el bot → decidir si se manda a todos el botón 🆘.
-3. Reconocer y categorizar clientes; Fase 4 proveedores; pago automático.
-
-**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima` (`drive.js` árbol, `lecturas.js`, `mover-carpeta.js`, `bajar-fotos.js`, `probar-promos.js`/`probar-portarretrato.js` para probar la página en Edge con Drive simulado). Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
-
-**Pendientes de Víctor:**
-1. ~~Precios de Casa Isabella~~ RESUELTO 2026-11-01 (ddb8c00): valen los de los flyers (L-J $1,800 sin mantel, salida 10 pm, mesa extra $400; V-D $3,000 / 50 personas $4,000). Por confirmar: mesa extra de fin de semana ($500) y tope de $4,500 para 70 a 80 personas, que no vienen en los flyers.
-2. Los 2 flyers de Casa Isabella se leyeron como "de la competencia"; ya se corrigió la instrucción, pero las lecturas viejas siguen hasta que cambie la imagen (borrar su descripción en Drive para que se relean).
-3. De antes: precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; probar en el teléfono `/daño`, cobro desde la ficha, foto de comanda y recibo; "Activar alertas".
+**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima`. El token de `keys\airtable dima os.txt` da 403 en esta base. Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.

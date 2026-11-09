@@ -263,6 +263,14 @@ function tocaCerrar(f, cambios = {}) {
   return !g.Cancelado && g.Estado !== 'Cerrado' && g.Estatus_Logistico === 'Cerrado' && g.Cuadre_Estado !== 'Por aclarar';
 }
 
+// ¿El cliente ya pagó todo? Por el dinero registrado o por el Estatus_Pago que
+// puso Diana; con daños o faltantes por cobrar, el estatus solo no basta.
+function eventoPagado(f, dinero) {
+  if (dinero && dinero.total > 0 && dinero.resta <= 0) return true;
+  const marcado = /^Pagado\b/.test(f.Estatus_Pago || '') || f.Estatus_Pago === 'Liquidado 100%';
+  return marcado && !(Number(f.Cargos_Extra_Total) > 0);
+}
+
 // Cierra el evento (Estado = Cerrado) cuando ya terminó: el cliente liquidó
 // todo y ya se recogió el mobiliario. Si liquida antes del evento no se cierra
 // (la brigada y producción lo siguen viendo); se cierra al marcar la recolección.
@@ -279,4 +287,4 @@ async function cerrarSiTermino(eventoId) {
   return true;
 }
 
-module.exports = { tocaCerrar, cerrarSiTermino, veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };
+module.exports = { eventoPagado, tocaCerrar, cerrarSiTermino, veDinero, leerCargos, totalDelEvento, dineroParaApp, inventarioParaCargos, agregarCargo, quitarCargo, proponerLote, cerrarLote, textoLote, PORCENTAJE_DANO_MENOR };

@@ -54,7 +54,8 @@ module.exports = async (req, res) => {
     }
     const { brigada, eventoIds } = await alcanceDe(alcanceSolicitado(colaborador, req.query || {}));
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
-    const eventos = await leerEventos(eventoIds, { conDinero: veDinero(colaborador) });
+    // En la APK, lo pagado que ya pasó deja de salir (no se cierra: sigue en el dashboard y el cuadre).
+    const eventos = await leerEventos(eventoIds, { conDinero: veDinero(colaborador), sinPagadosPasados: true });
     // La gerente también ve e invita al staff de sus eventos. Si no se puede
     // leer, se dice (staffError) en vez de mostrar la lista vacía.
     let staffEventos = null, staffError = false, opcionesProduccion = null;

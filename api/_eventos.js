@@ -8,7 +8,7 @@ const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
 const { leerCambio } = require('./_pedidos');
-const { dineroParaApp } = require('./_cargos');
+const { dineroParaApp, eventoPagado } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = {
@@ -175,11 +175,22 @@ async function clientesDe(registros) {
   return mapa;
 }
 
+// Días después del evento en que un evento pagado sale de la APK: el mobiliario
+// se recoge al día siguiente y la brigada lo sigue necesitando (Víctor 2026-11-09).
+const DIAS_PARA_OCULTAR_PAGADO = 2;
+function yaPasoParaOcultar(fechaEvento) {
+  const fecha = String(fechaEvento || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const limite = new Date(`${hoyCuliacan()}T12:00:00Z`);
+  limite.setUTCDate(limite.getUTCDate() - DIAS_PARA_OCULTAR_PAGADO);
+  return fecha <= limite.toISOString().slice(0, 10);
+}
+
 // Eventos activos (no cerrados) de una lista de IDs, o de todos si ids = null.
 // soloHoy limita a los de la fecha de hoy en Culiacán. conDinero agrega a cada
 // evento su dinero (total, pagado, falta, cargos extra) y el cliente: solo para
 // quien entrega y cobra (veDinero en api/_cargos.js).
-async function leerEventos(ids, { soloHoy = false, conDinero = false } = {}) {
+async function leerEventos(ids, { soloHoy = false, conDinero = false, sinPagadosPasados = false } = {}) {
   if (ids && ids.length === 0) return [];
   // Por tandas de 80 IDs (la URL tiene límite) y con paginación: un gerente
   // de Divanna puede tener más de 100 eventos abiertos.
@@ -211,12 +222,19 @@ async function leerEventos(ids, { soloHoy = false, conDinero = false } = {}) {
     ev.clienteTelefono = c.Telefono_WhatsApp || '';
     ev.clienteEmail = c.Email || '';
   });
-  if (conDinero && eventos.length) {
+  const revisarPagados = sinPagadosPasados && data.records.some(r => yaPasoParaOcultar(r.fields.Fecha_Evento));
+  let dinero = null;
+  if ((conDinero || revisarPagados) && eventos.length) {
     // Si no se puede leer el dinero, la app sigue con los eventos y lo dice.
-    const dinero = await dineroParaApp(data.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
-    eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
+    dinero = await dineroParaApp(data.records).catch(err => { console.error('No se pudo leer el dinero de los eventos:', err.message); return null; });
   }
-  return eventos;
+  // El asistente no recibe el dinero aunque aquí se haya leído para ocultar.
+  if (conDinero && eventos.length) eventos.forEach(ev => { ev.dinero = dinero ? dinero.get(ev.id) || null : { error: true }; });
+  if (!revisarPagados) return eventos;
+  return eventos.filter((ev, i) => {
+    const f = data.records[i].fields;
+    return !(yaPasoParaOcultar(f.Fecha_Evento) && eventoPagado(f, dinero && dinero.get(ev.id)));
+  });
 }
 
 // Emergencias y alertas de seguridad activas hoy en eventos de OTRAS brigadas.
