@@ -25,9 +25,10 @@ const TABLES = {
 
 // Datos de Víctor (2026-10-28).
 const PERSONAL_BASE_VASO_MAIZ = 12;  // personas por día si no hay renglón en PERSONAL_DIA
-const EQUIPOS_VASO_MAIZ = 6;         // máximo de eventos de El Vaso Maíz al mismo tiempo
-const BRIGADAS_DIVANNA = 3;          // Ángel, Edén y Mario
-const PEDIDOS_POR_RUTA = 3;          // cada brigada lleva 2 o 3 pedidos por ruta
+// Diana 2026-11-02: El Vaso Maíz puede hacer hasta 10 eventos por día porque el
+// staff se aumenta con eventuales. El personal del día ya no llena el día: si no
+// alcanza, el semáforo sale amarillo (sumar eventuales), no rojo.
+const EQUIPOS_VASO_MAIZ = 10;        // máximo de eventos de El Vaso Maíz por día (y al mismo tiempo)
 const HORAS_AVISO_PROVEEDOR = 48;    // a proveedores aliados se les pide con 48 h mínimo
 const DIAS_VENTANA = 4;              // eventos que pueden traslaparse (manteles: hasta 3 días)
 
@@ -73,6 +74,8 @@ function eventoParaAgenda(r) {
     articulos: leerArticulos(f.Articulos),
     personal: f.Personal_Requerido || 0,
     autorizacion: f.Autorizacion_Diana || '',
+    // Ya recogido (checklist de recolección o estatus Cerrado): sus cosas vuelven a renta.
+    recogido: !!f.Checklist_Recoleccion || f.Estatus_Logistico === 'Cerrado',
     servicios: f.Servicios_Solicitados || '',
   };
 }
@@ -134,7 +137,7 @@ function evaluarDisponibilidad(ev, { otros = [], inventario = [], personalPorFec
 
   const horasFaltan = (inicio - ahora) / H;
   const demasiadoPronto = horasFaltan < HORAS_AVISO_PROVEEDOR;
-  const resto = otros.filter(o => o.id !== ev.id);
+  const resto = otros.filter(o => o.id !== ev.id && !o.recogido);
   const autorizados = resto.filter(o => o.autorizacion === 'SI');
   const pendientes = resto.filter(o => o.autorizacion === 'Pendiente');
   if (!ev.horaInicio) agregar('info', 'Sin hora registrada: se supuso que empieza a las 2 pm.');
@@ -188,9 +191,8 @@ function evaluarDisponibilidad(ev, { otros = [], inventario = [], personalPorFec
     const sinProductos = autorizados.filter(o => o.fecha === ev.fecha && !o.productos.length && !o.articulos.length && o.negocio !== 'El Vaso Maiz');
     if (sinProductos.length) agregar('amarillo', `Ese día hay ${sinProductos.length} evento(s) autorizado(s) sin productos registrados (${folios(sinProductos)}): revisar a mano lo que se llevan.`);
 
-    const entregas = autorizados.filter(o => o.fecha === ev.fecha && usaDivanna(o)).length + 1;
-    const capacidad = BRIGADAS_DIVANNA * PEDIDOS_POR_RUTA;
-    if (entregas > capacidad) agregar('amarillo', `Ese día ya serían ${entregas} entregas de Divanna (capacidad aprox. ${capacidad}: ${BRIGADAS_DIVANNA} brigadas x ${PEDIDOS_POR_RUTA} pedidos por ruta).`);
+    // Sin límite de entregas por día (Víctor 2026-11-02): manda el inventario y lo
+    // que falte se pide a proveedores aliados.
   }
 
   // ---------- El Vaso Maíz: personal ----------
@@ -222,7 +224,7 @@ function evaluarDisponibilidad(ev, { otros = [], inventario = [], personalPorFec
     if (equipos >= EQUIPOS_VASO_MAIZ) {
       agregar('rojo', `El Vaso Maíz: los ${EQUIPOS_VASO_MAIZ} equipos ya están ocupados en ese horario${conQuien}.`);
     } else if (libres < PERSONAS_POR_EQUIPO) {
-      agregar('rojo', `El Vaso Maíz: no queda personal libre en ese horario (cupo ${cupo}, ocupadas ${ocupadas}${conQuien}).`);
+      agregar('amarillo', `El Vaso Maíz: con el personal del día (${cupo}) no queda nadie libre en ese horario (ocupadas ${ocupadas}${conQuien}): sumar ${necesita.personas} eventuales.`);
     } else if (libres < necesita.personas) {
       const horas = Math.round(piezas * MINUTOS_POR_PIEZA.max / libres / 60 * 2) / 2;
       agregar('amarillo', `El Vaso Maíz: se necesitan ${necesita.personas} personas y quedan ${libres} libres${conQuien}. Con ${libres} la preparación tarda ~${horas} h; o sumar eventuales (cupo del día: ${cupo}).`);
@@ -259,6 +261,54 @@ function camposDisponibilidad(resultado) {
   };
 }
 
+// ---------- Día lleno (pedido de Víctor 2026-10-29) ----------
+// Con las mismas reglas del semáforo, por día y por negocio:
+// - Divanna: sin límite de entregas (Víctor 2026-11-02); solo se informa cuántas hay.
+// - El Vaso Maíz: eventos del día contra EQUIPOS_VASO_MAIZ (10). Las personas
+//   contra el personal del día solo se informan: el staff se aumenta (Diana 2026-11-02).
+// Lleno = ya no cabe uno más. Diana puede capturar uno más a mano (con aviso).
+const esDeVasoMaiz = (o) => o.negocio === 'El Vaso Maiz' || o.personal > 0 || piezasVasoMaiz(o.productos) > 0;
+const esDeDivanna = (o) => o.negocio === 'Divanna Eventos' || usaDivanna(o);
+
+function cupoDelDia(fecha, autorizados, personalPorFecha = {}) {
+  const delDia = autorizados.filter(o => o.fecha === fecha && o.autorizacion === 'SI');
+  const dv = delDia.filter(esDeDivanna).length;
+  const vm = delDia.filter(esDeVasoMaiz);
+  const personas = vm.reduce((t, o) => t + Math.max(o.personal || 0, PERSONAS_POR_EQUIPO), 0);
+  const cupoPersonas = personalPorFecha[fecha] != null ? personalPorFecha[fecha] : PERSONAL_BASE_VASO_MAIZ;
+  return {
+    'Divanna Eventos': { usados: dv, cupo: null, lleno: false, texto: `${dv} entregas` },
+    'El Vaso Maiz': {
+      usados: vm.length, cupo: EQUIPOS_VASO_MAIZ, personas, cupoPersonas,
+      lleno: vm.length >= EQUIPOS_VASO_MAIZ,
+      texto: `${vm.length} de ${EQUIPOS_VASO_MAIZ} eventos · ${personas} personas (personal del día: ${cupoPersonas}${personas > cupoPersonas ? ', sumar eventuales' : ''})`,
+    },
+  };
+}
+
+// Días llenos en un rango: [{ fecha, negocios: ['El Vaso Maiz', …], detalle, casaIsabella }].
+// También sale el día (con negocios vacío si hace falta) cuando Casa Isabella ya
+// está apartada por un evento autorizado: el salón es uno solo y se toma el día.
+async function diasLlenos(desde, hasta) {
+  const formula = `AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), NOT(IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${desde}"))), NOT(IS_AFTER({Fecha_Evento}, DATETIME_PARSE("${hasta}"))))`;
+  const registros = await todasLasPaginas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}`);
+  const eventos = registros.map(eventoParaAgenda);
+  // El cupo de personal solo hace falta si hay eventos de El Vaso Maíz.
+  const personalPorFecha = eventos.some(esDeVasoMaiz) ? await cargarPersonal() : {};
+  const fechas = [...new Set(eventos.map(e => e.fecha))].sort();
+  const llenos = [];
+  for (const fecha of fechas) {
+    const c = cupoDelDia(fecha, eventos, personalPorFecha);
+    const negocios = Object.keys(c).filter(n => c[n].lleno);
+    const casaIsabella = eventos.some(e => e.fecha === fecha && (usoPorPool(e)['Casa Isabella'] || 0) > 0);
+    if (negocios.length || casaIsabella) {
+      const detalle = negocios.map(n => `${n === 'El Vaso Maiz' ? 'El Vaso Maíz' : 'Divanna'}: ${c[n].texto}`).join(' · ') || 'Casa Isabella apartada';
+      llenos.push({ fecha, negocios, detalle, casaIsabella });
+    }
+  }
+  return llenos;
+}
+
 // Revisión completa con datos de Airtable (al registrar un pedido).
 async function revisarDisponibilidad(ev) {
   const [otros, inventario, personalPorFecha] = await Promise.all([
@@ -280,4 +330,5 @@ module.exports = {
   textoDisponibilidad,
   camposDisponibilidad,
   revisarDisponibilidad,
-};
+  cupoDelDia,
+  diasLlenos,};

@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
@@ -177,10 +177,72 @@
   .alert-btn.active.retraso{color:var(--ink); background:var(--warn);}
   .alert-btn.active.emergencia{color:var(--ink); background:#ff6b6b;}
   .alert-btn.active.seguridad{color:var(--ink); background:#ff9f4a;}
+  .enterado-btn{
+    width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1.5px solid var(--good);
+    background:var(--good); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;
+  }
+  .enterado-ok{margin-top:12px; font-size:0.82rem; font-weight:700; color:var(--good);}
   .motivo-tag{
     font-size:0.8rem; color:var(--muted); margin-top:8px; padding:8px 10px;
     background:var(--ink); border-radius:10px; border:1px solid var(--line);
   }
+
+  /* ---------- GERENTE: asignar eventos de El Vaso Maíz ---------- */
+  .asignar-box{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.85rem;}
+  .asignar-box summary{cursor:pointer; font-weight:800; color:var(--maiz);}
+  .asignar-box select{width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;}
+  .asignar-box label{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .asignar-box .asig-guardar{width:100%; margin-top:10px; padding:11px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .asignar-box .asig-msg{margin-top:8px; color:var(--muted); font-size:0.8rem;}
+  .asignar-box input:not([type=checkbox]), .asignar-box textarea{width:100%; margin-top:4px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .editar-box .ed-label{display:block; margin-top:10px; color:var(--muted); font-size:0.78rem;}
+  .cliente-box{margin-top:12px; padding:10px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.9rem; display:flex; flex-wrap:wrap; gap:6px 14px;}
+  .cliente-box a{color:var(--maiz); font-weight:800; text-decoration:none;}
+
+  /* ---------- CANAL CON DiMa (gerente) ---------- */
+  .dima-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); left:20px; z-index:40;
+    padding:0 18px; height:54px; border-radius:27px; border:none; background:var(--divanna); color:var(--ink);
+    font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+  }
+  .dima-fab[hidden], .dima-panel[hidden]{display:none;}
+
+  /* ---------- Reporte financiero del día ---------- */
+  .fin-btn{font-size:1.1rem; margin-right:8px;}
+  .fin-btn[hidden], .fin-panel[hidden]{display:none;}
+  .fin-panel{position:fixed; inset:0; z-index:60; overflow-y:auto; background:var(--ink-2); padding:16px 16px calc(24px + var(--safe-bottom));}
+  .fin-tabs{display:flex; gap:8px; margin:6px 0 12px;}
+  .fin-tabs button{flex:1; padding:10px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-weight:800;}
+  .fin-tabs button.activo{border-color:var(--maiz); color:var(--maiz);}
+  .fin-caja{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.88rem;}
+  .fin-caja h4{margin:0 0 8px; font-size:0.95rem;}
+  .fin-caja input, .fin-caja select, .fin-caja textarea{width:100%; margin-top:6px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .fin-caja textarea{min-height:64px; resize:vertical;}
+  .fin-caja label{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .fin-caja label input{width:auto; margin:0;}
+  .fin-item{display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);}
+  .fin-item small{color:var(--muted); display:block;}
+  .fin-item a{color:var(--maiz);}
+  .fin-quitar{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .fin-boton{width:100%; margin-top:10px; padding:12px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .fin-boton.secundario{background:var(--line); color:var(--paper);}
+  .fin-boton:disabled{opacity:.5;}
+  .fin-estado{padding:10px 12px; border-radius:10px; background:var(--ink); border:1.5px solid var(--maiz); font-weight:700;}
+  .fin-msg{margin-top:8px; color:var(--muted); font-size:0.85rem;}
+  .dima-panel{
+    position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
+    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
+    padding:14px 14px calc(14px + var(--safe-bottom));
+  }
+  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:800; margin-bottom:8px;}
+  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .dima-msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:120px;}
+  .dima-msg{max-width:85%; padding:10px 12px; border-radius:14px; font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
+  .dima-msg.yo{align-self:flex-end; background:var(--maiz); color:var(--ink);}
+  .dima-msg.dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
+  .dima-form{display:flex; gap:8px; margin-top:10px;}
+  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+  .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 
   /* ---------- INSTRUCCIONES DE DIANA / DEL CLIENTE ---------- */
   .instr-box{
@@ -264,6 +326,7 @@
     .spinner, .refresh-fab.spinning svg{animation:none;}
   }
 </style>
+<link rel="stylesheet" href="tema.css">
 </head>
 <body>
 
@@ -288,9 +351,13 @@
       <h2 id="brigadaNombre">Brigada</h2>
       <span id="brigadaDetalle">—</span>
     </div>
+    <div style="display:flex; align-items:center;">
+    <button class="icon-btn fin-btn" id="calBtn" aria-label="Calendario">📅</button>
+    <button class="icon-btn fin-btn" id="finBtn" aria-label="Reporte del día" hidden>💰</button>
     <button class="icon-btn" id="logoutBtn" aria-label="Cerrar sesión">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
+    </div>
   </header>
   <div id="vistaAdmin" class="vista-admin" hidden>
     <select id="vistaComo" aria-label="Ver la app como">
@@ -301,15 +368,29 @@
   </div>
   <div id="alertasBanner" class="alertas-banner" hidden></div>
   <main id="mainContent">
-    <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
+    <div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>
   </main>
   <button class="refresh-fab" id="refreshBtn" aria-label="Actualizar">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
   </button>
+  <div class="fin-panel" id="finPanel" hidden>
+    <div class="dima-top"><span>💰 Reporte del día</span><button id="finCerrar">✕ Cerrar</button></div>
+    <div id="finCuerpo"></div>
+  </div>
+  <button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
+  <div class="dima-panel" id="dimaPanel" hidden>
+    <div class="dima-top"><span>💬 DiMa, tu asistente</span><span><button id="dimaNueva">Nueva plática</button><button id="dimaCerrar">✕</button></span></div>
+    <div class="dima-msgs" id="dimaMsgs"></div>
+    <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de tus eventos"></textarea><button type="submit">Enviar</button></form>
+  </div>
   <div class="toast" id="toast"></div>
 </div>
 
 <script src="alertas.js"></script>
+<script src="buscar-producto.js"></script>
+<script src="manteles.js"></script>
+<script src="calendario.js"></script>
+<script src="dinero.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   // Sesión compartida con dashboard.html (mismo origen): { token, nombre, rol }.
@@ -344,8 +425,242 @@
       cerrarSesion(data.error || 'Tu sesión expiró, vuelve a entrar.');
       throw new Error('sesion');
     }
-    if(!res.ok) throw new Error(data.error || 'fail');
+    if(!res.ok){
+      // Sin JSON (413, 504 de Vercel…) el mensaje sale del código de estado.
+      const err = new Error(data.error || (res.status === 413 ? 'La foto pesa demasiado para mandarla.' : res.status >= 500 ? 'El servidor no respondió bien, intenta de nuevo.' : 'fail'));
+      err.status = res.status;
+      throw err;
+    }
     return data;
+  }
+
+  // Brigadas y encargadas para la gerente de El Vaso Maíz (null para los demás).
+  let opcionesAsignar = null;
+  // Negocio que gerencia quien entró ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
+  let miGerencia = null;
+  const esDeMiGerencia = (ev) => !!miGerencia && (ev.gerencias || []).includes(miGerencia);
+
+  function bloqueAsignar(ev){
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
+    return `
+      <details class="asignar-box" data-caja="asig-${esc(ev.id)}">
+        <summary>👷 Asignar brigada y encargada</summary>
+        <select class="asig-brigada">
+          <option value="">Sin brigada</option>
+          ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
+        </select>
+        ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
+        ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
+          <div style="margin-top:10px; font-weight:800;">👩‍🍳 Equipo de producción</div>
+          ${opcionesAsignar.produccion.map(p => `<label><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
+          <div class="asig-msg">Quién prepara (1, 2 o más). Puede estar también en el staff. Les llega un aviso por Telegram con el botón 🆘.</div>
+          <div style="margin-top:10px; font-weight:800;">🍳 Encargado de producción</div>
+          <select class="asig-produccion">
+            <option value="">Sin encargado de producción</option>
+            ${opcionesAsignar.produccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
+          </select>
+          <div class="asig-msg">Entra solo al equipo. Le llega por Telegram la lista de producción dos días antes y el mismo día, y solo esa persona tiene el botón "🚀 Listo para staff": al tocarlo, al staff le llegan sus etapas.</div>`
+          : `<div class="asig-msg">🍳 No se pudo leer quién puede hacer producción. Toca actualizar.</div>`}
+        <button class="asig-guardar" data-evento="${esc(ev.id)}">Guardar y avisar</button>
+        <div class="asig-msg asig-resultado"></div>
+      </details>`;
+  }
+
+  // 👤 Cliente del evento: todos lo ven (el encargado lo atiende de principio a fin).
+  function bloqueCliente(ev){
+    const dig = String(ev.clienteTelefono || '').replace(/\D/g, '');
+    return `<div class="cliente-box">
+        <span>👤 <b>${esc(ev.clienteNombre || 'Cliente sin nombre')}</b></span>
+        <span>📞 ${dig ? `<a href="tel:+${dig}">${esc(ev.clienteTelefono)}</a>` : 'sin teléfono'}</span>
+        ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
+      </div>`;
+  }
+
+  // ✏️ Editar evento, cliente y pedido (solo la gerente, en eventos de El Vaso Maíz; sin monto).
+  function bloqueEditar(ev){
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
+    const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
+    return `
+      <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
+        <summary>✏️ Editar evento, cliente y pedido</summary>
+        <label class="ed-label">Nombre del cliente</label>
+        <input type="text" class="ed-nombre" maxlength="200" value="${esc(ev.clienteNombre)}">
+        <label class="ed-label">Teléfono (10 dígitos)</label>
+        <input type="tel" class="ed-tel" inputmode="tel" maxlength="20" placeholder="6671234567" value="${esc(tel)}">
+        <label class="ed-label">Correo</label>
+        <input type="email" class="ed-email" maxlength="200" value="${esc(ev.clienteEmail)}">
+        <label class="ed-label">Ubicación / dirección del evento</label>
+        <textarea class="ed-ubicacion" maxlength="500" rows="2">${esc(ev.ubicacion)}</textarea>
+        <label class="ed-label">Fecha</label>
+        <input type="date" class="ed-fecha" value="${esc(String(ev.fecha || '').slice(0, 10))}">
+        <label class="ed-label">Invitados</label>
+        <input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${ev.invitados ? esc(ev.invitados) : ''}">
+        <label><input type="checkbox" class="ed-fuera" ${ev.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <label class="ed-label">Pedido: qué lleva (un artículo por línea; también es la lista de carga)</label>
+        <textarea class="ed-servicios" maxlength="5000" rows="5">${esc(ev.servicios)}</textarea>
+        <label><input type="checkbox" class="ed-avisar" checked> Si cambia lo que lleva, avisar al equipo del evento</label>
+        <button class="asig-guardar ed-guardar" data-evento="${esc(ev.id)}">Guardar cambios</button>
+        <div class="asig-msg ed-msg"></div>
+      </details>`;
+  }
+
+  async function guardarEdicion(btn){
+    const caja = btn.closest('.editar-box');
+    const msg = caja.querySelector('.ed-msg');
+    const v = sel => caja.querySelector(sel).value.trim();
+    if(!v('.ed-fecha')){ msg.textContent = 'Falta la fecha.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const r = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.evento, accion: 'editar',
+          clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
+          ubicacion: v('.ed-ubicacion'), fecha: v('.ed-fecha'), invitados: v('.ed-invitados'),
+          fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+          servicios: caja.querySelector('.ed-servicios').value,
+          avisarEquipo: caja.querySelector('.ed-avisar').checked,
+        }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.';
+      ultimaFoto = null;
+      setTimeout(() => loadEventos(true), 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Staff de El Vaso Maíz por evento (solo la gerente): lo mismo que /staff en Telegram.
+  let staffEventos = null;
+  let staffError = false;
+  const STAFF_ESTADO = {
+    confirmo: '✅ confirmó',
+    invitada: '⏳ invitada, esperando respuesta',
+    no_puede: '❌ dijo que no podía',
+    sin_telegram: '📵 no ha activado sus mensajes (pide su enlace en /staff)',
+    choque: '⛔ ya tiene otro evento a esa hora',
+  };
+
+  function bloqueStaff(ev){
+    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
+    if(staffError) return `<div class="asignar-box">🧑‍🍳 Staff: no se pudo leer la lista. Toca actualizar o usa /staff en Telegram.</div>`;
+    const s = staffEventos && staffEventos[ev.id];
+    if(!s) return '';
+    const confirmadas = s.chicas.filter(c => c.estado === 'confirmo').length;
+    const lista = s.chicas.length
+      ? s.chicas.map(c => {
+          const invitable = c.estado === 'libre' || c.estado === 'no_puede';
+          const nota = c.estado === 'choque' ? `${STAFF_ESTADO.choque} (${esc(c.choqueFolio)})` : (STAFF_ESTADO[c.estado] || '');
+          return `<label><input type="checkbox" class="staff-chica" value="${esc(c.id)}" ${invitable ? '' : 'disabled'}> ${esc(c.nombre)}${nota ? ` <span class="asig-msg">${nota}</span>` : ''}</label>`;
+        }).join('')
+      : '<div class="asig-msg">Aún no tienes personal agregado: usa "➕ Agregar personal" en /staff de Telegram.</div>';
+    return `
+      <details class="asignar-box" data-caja="staff-${esc(ev.id)}">
+        <summary>🧑‍🍳 Staff · ${confirmadas} de ${s.necesita || '?'} confirmadas</summary>
+        ${lista}
+        ${s.chicas.length ? `<button class="asig-guardar staff-invitar" data-evento="${esc(ev.id)}">📨 Invitar por Telegram</button>` : ''}
+        <div class="asig-msg staff-msg"></div>
+      </details>`;
+  }
+
+  // Cambio que pidió el cliente. Confirmado por la gerencia: lo ve todo el
+  // equipo. Pendiente: solo la gerente (el equipo se entera al confirmarse).
+  function avisoCambio(ev){
+    const c = ev.cambio;
+    if(!c) return '';
+    const cuando = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const antes = c.antes ? `<details><summary>Ver cómo estaba antes</summary>${esc(c.antes)}</details>` : '';
+    if(c.estado === 'confirmado'){
+      return `<div class="instr-box"><b>🔄 El pedido cambió (${cuando(c.confirmadoEl)})</b>El cliente pidió un cambio y la gerencia lo confirmó. Lo que hay que llevar ya está actualizado abajo.${antes}</div>`;
+    }
+    if(c.estado === 'pendiente' && opcionesAsignar){
+      return `<div class="instr-box"><b>${c.urgente ? '⚠️ URGENTE · ' : ''}✏️ El cliente pidió un cambio (${cuando(c.pedidoEl)})</b>Pendiente de que Diana lo confirme; el equipo todavía no lo sabe.<br><br>${esc(c.servicios)}${antes}</div>`;
+    }
+    return '';
+  }
+
+  // Quién tiene la producción del evento y su última respuesta (solo la gerente).
+  // Equipo de producción y si el encargado ya avisó "Listo para staff".
+  function lineaProduccion(ev){
+    if(!opcionesAsignar || !esDeMiGerencia(ev) || miGerencia !== 'El Vaso Maiz' || (!ev.produccionId && !(ev.equipoProduccionIds || []).length)) return '';
+    const nombre = (id) => ((opcionesAsignar.produccion || []).find(x => x.id === id) || {}).nombre || 'asignado';
+    const equipo = (ev.equipoProduccionIds || []).filter(id => id !== ev.produccionId).map(nombre);
+    const lista = ev.produccionLista
+      ? `🚀 Lista para staff desde las ${new Date(ev.produccionLista).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}. El staff marca sus etapas por Telegram (se ven en el estatus).`
+      : '⏳ Producción todavía no avisa que está lista.';
+    return `<div class="instr-box"><b>🍳 Producción: ${esc(ev.produccionId ? nombre(ev.produccionId) + ' (encargado)' : 'sin encargado')}${equipo.length ? ' · ' + esc(equipo.join(', ')) : ''}</b>${esc(lista)}<br>${esc(ev.produccionRespuesta || 'Todavía no responde.')}</div>`;
+  }
+
+  async function invitarStaff(btn){
+    const caja = btn.closest('.asignar-box');
+    const msg = caja.querySelector('.staff-msg');
+    const ids = [...caja.querySelectorAll('.staff-chica:checked')].map(c => c.value);
+    if(!ids.length){ msg.textContent = 'Marca a quién quieres invitar.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Enviando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.evento, accion: 'invitar_staff', colaboradorIds: ids }),
+      });
+      msg.textContent = (d.enviadas.length ? `📨 Invitación enviada a ${d.enviadas.join(', ')}. Te avisa Telegram cuando respondan.` : 'No se envió ninguna invitación nueva.')
+        + (d.fallidas.length ? ` ⚠️ No les llegó a: ${d.fallidas.join(', ')}. Avísales por otro medio.` : '');
+      // Se repinta para ver los ⏳; si a alguien no le llegó, el aviso se queda a la vista.
+      if(!d.fallidas.length){ ultimaFoto = null; setTimeout(() => loadEventos(true), 4000); }
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function guardarAsignacion(btn){
+    const caja = btn.closest('.asignar-box');
+    const msg = caja.querySelector('.asig-resultado');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.evento,
+          accion: 'asignar',
+          brigadaId: caja.querySelector('.asig-brigada').value,
+          encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+          // Si no se pudo leer la lista, no se manda (el servidor no toca al encargado actual).
+          ...(caja.querySelector('.asig-produccion') ? {
+            produccionId: caja.querySelector('.asig-produccion').value,
+            equipoProduccionIds: [...caja.querySelectorAll('.asig-equipo:checked')].map(c => c.value),
+          } : {}),
+        }),
+      });
+      const p = d.produccion, e = d.equipoProduccion;
+      const textoProduccion = (!p ? ''
+        : (p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
+          + (p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : ''))
+        + (!e ? ''
+        : (e.enviados.length ? ` 👩‍🍳 Equipo de producción avisado: ${e.enviados.join(', ')}.` : '')
+          + (e.fallidos.length ? ` ⚠️ No le llegó al equipo de producción: ${e.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : ''));
+      msg.textContent = !d.avisados ? 'Guardado. No hay nadie nuevo a quien avisar.'
+        : `Guardado. Avisos a ${d.avisados}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculados, app ${d.porPush}.`
+          + ((d.sinTelegram || []).length ? ` Sin Telegram: ${d.sinTelegram.join(', ')}.` : '')
+          + ((d.erroresAvisos || []).length ? ` ⚠️ ${d.erroresAvisos.join(' · ')}` : '');
+      msg.textContent += textoProduccion;
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   const ESTATUS_LOGISTICO_OPCIONES = [
@@ -393,7 +708,56 @@
     ).join('');
   }
 
+  // Pestañas de la ficha del evento (Resumen · Cargar · Tareas). El asistente
+  // abre en "Cargar", que es lo que le toca; los demás en "Resumen".
+  const pestanaPorEvento = {};
+  const pestanaInicial = () => document.body.classList.contains('rol-asistente') ? 'cargar' : 'resumen';
+  function mostrarPestana(card, tab){
+    card.querySelectorAll('.ev-tab').forEach(p => { p.hidden = p.dataset.tab !== tab; });
+    card.querySelectorAll('.ev-tab-btn').forEach(b => { const activa = b.dataset.tab === tab; b.classList.toggle('activa', activa); b.setAttribute('aria-selected', activa); });
+  }
+
+  // ---------- Ficha de identificación + 💰 Dinero ----------
+  // Cada evento se ve como una ficha corta (folio, hora, lugar, cliente y lo que
+  // falta por cobrar); al tocarla se abre todo lo demás. Se recuerda cuáles
+  // estaban abiertas entre repintados. El dinero lo ven líder, encargada y
+  // gerente (api/_cargos.js); el asistente no.
+  const fichasAbiertas = new Set();
+  DimaDinero.configurar({
+    api: (url, opciones) => api(url, opciones), esc, toast: (t) => showToast(t),
+    recargar: () => { ultimaFoto = null; loadEventos(true); },
+    esAdmin: () => !!sesion && sesion.rol === 'Admin',
+    eventos: () => eventosActuales,
+    // Al cobrar se pliega la tarjeta del evento.
+    alCobrar: (id) => fichasAbiertas.delete(id),
+  });
+  let eventosActuales = [];
+
+  function fichaEvento(ev){
+    const d = ev.dinero && !ev.dinero.error ? ev.dinero : null;
+    const avisos = [ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambio && ev.cambio.estado === 'pendiente' ? '✏️' : ''].filter(Boolean).join(' ');
+    const dineroTxt = DimaDinero.etiqueta(d);
+    const abierta = fichasAbiertas.has(ev.id);
+    return `<button type="button" class="ev-ficha" data-evento="${ev.id}" aria-expanded="${abierta}">
+        <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
+        <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
+        <span class="ficha-sub">${ev.horaInicio ? '🕒 ' + esc(ev.horaInicio) : '🕒 hora por confirmar'}${d && d.cliente ? ' · 👤 ' + esc(d.cliente) : ''}${ev.enteradoPor ? '' : ' · 🔔 sin confirmar'}</span>
+        <span class="ficha-fila">${dineroTxt}<span class="ficha-flecha">${abierta ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
+      </button>`;
+  }
+
+  function abrirFicha(b){
+    const card = b.closest('.event-card');
+    const abrir = !fichasAbiertas.has(card.dataset.id);
+    if(abrir) fichasAbiertas.add(card.dataset.id); else fichasAbiertas.delete(card.dataset.id);
+    card.classList.toggle('abierta', abrir);
+    card.querySelector('.ev-detalle').hidden = !abrir;
+    b.setAttribute('aria-expanded', abrir);
+    b.querySelector('.ficha-flecha').textContent = abrir ? 'Cerrar ▴' : 'Ver todo ▾';
+  }
+
   function renderEventos(eventos, alertasEquipo){
+    eventosActuales = eventos;
     const alertasHtml = renderAlertasEquipo(alertasEquipo);
     if(!eventos.length){
       mainContent.innerHTML = alertasHtml + `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
@@ -418,14 +782,10 @@
       const pct = Math.round((doneCount / stages.length) * 100);
 
       html += `
-        <div class="event-card" data-id="${ev.id}">
-          <div class="event-top">
-            <div>
-              <span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span>
-              <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')}</h3>
-              <div class="event-folio">${esc(ev.folio)}</div>
-            </div>
-          </div>
+        <div class="event-card ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" data-id="${ev.id}" data-din-ev="${ev.id}">
+          ${fichaEvento(ev)}
+          ${DimaDinero.cobroRapido(ev)}
+          <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
             ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
             ${ev.personalRequerido ? `<span>🧑‍🍳 ${ev.personalRequerido} personas</span>` : ''}
@@ -433,9 +793,35 @@
             <span>📍 ${esc(ev.estado)}</span>
           </div>
           ${ev.fueraDeCiudad ? `<div class="motivo-tag">🛣️ Fuera de la ciudad</div>` : ''}
+          ${ev.enteradoPor
+            ? `<div class="enterado-ok">👍 Enterado: ${esc(ev.enteradoPor)}</div>`
+            : sesion && sesion.rol !== 'Admin' ? `<button class="enterado-btn" data-evento="${ev.id}">👍 Enterado, ya vi este evento</button>` : ''}
+          ${avisoCambio(ev)}
+          <div class="ev-tabs" role="tablist">
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="resumen" role="tab">Resumen</button>
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="cargar" role="tab">Cargar${ev.checklistItems && ev.checklistItems.length ? ` <small>${ev.checklistItems.filter(i => i.marcado).length}/${ev.checklistItems.length}</small>` : ''}</button>
+            <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="tareas" role="tab">Tareas <small>${doneCount}/${stages.length}</small></button>
+            ${ev.dinero ? `<button class="ev-tab-btn" data-evento="${ev.id}" data-tab="dinero" role="tab">💰 Dinero</button>` : ''}
+          </div>
+          ${ev.dinero ? `<div class="ev-tab" data-tab="dinero">${DimaDinero.bloque(ev)}</div>` : ''}
+          <div class="ev-tab" data-tab="resumen">
+          ${bloqueCliente(ev)}
           ${ev.instrucciones ? `<div class="instr-box"><b>📌 Instrucciones</b>${esc(ev.instrucciones)}</div>` : ''}
+          ${lineaProduccion(ev)}
+          ${bloqueAsignar(ev)}
+          ${bloqueEditar(ev)}
+          ${bloqueStaff(ev)}
           ${ev.servicios ? `<div class="event-services">${esc(ev.servicios)}</div>` : ''}
+          <div class="estatus-row">
+            <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
+              ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
+            </select>
+            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+          </div>
+          </div>
+          <div class="ev-tab" data-tab="cargar">
           ${ev.articulos && ev.articulos.length ? `<div class="instr-box"><b>📦 Cargar exacto (modelo y color)</b>${ev.articulos.map(a => esc(a.cantidad + ' × ' + a.nombre)).join('<br>')}</div>` : ''}
+          ${!(ev.articulos && ev.articulos.length) && !(ev.checklistItems && ev.checklistItems.length) ? '<div class="event-services">Todavía no hay lista de carga para este evento.</div>' : ''}
 
           ${ev.checklistItems && ev.checklistItems.length ? `
             <div class="carga-box">
@@ -449,14 +835,19 @@
               ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">⚠️ Falta marcar todo para poder salir del almacén</div>` : ''}
             </div>
           ` : ''}
-
-          <div class="estatus-row">
-            <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
-              ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
-            </select>
-            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+          </div>
+          <div class="ev-tab" data-tab="tareas">
+          <div class="checklist" style="margin-top:14px;">
+            ${stages.map(s => `
+              <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
+                <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
+              </div>
+            `).join('')}
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
           </div>
 
+          <!-- Alertas: siempre a la vista, fuera de las pestañas. -->
           <div class="alert-actions">
             <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">🚦 Retraso</div>
             <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
@@ -466,19 +857,22 @@
           ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
           ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
           ${(ev.emergencia || ev.zonaAlertaSeguridad) && linkUbicacion(ev) ? `<div class="motivo-tag">${linkUbicacion(ev).replace('<br>', '')}</div>` : ''}
-
-          <div class="checklist" style="margin-top:14px;">
-            ${stages.map(s => `
-              <div class="check-item ${ev.checklist[s.key] ? 'done' : ''}" data-evento="${ev.id}" data-etapa="${s.key}">
-                <span class="box">${ev.checklist[s.key] ? '✓' : ''}</span> ${s.label}
-              </div>
-            `).join('')}
           </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
       `;
     });
+    // Al repintar (revisión automática) se respetan las cajas que estaban abiertas.
+    const abiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
+    abiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
+    DimaDinero.conectar(mainContent);
+    // Ficha con pestañas: se recuerda la pestaña de cada evento entre repintados.
+    mainContent.querySelectorAll('.event-card').forEach(card => mostrarPestana(card, pestanaPorEvento[card.dataset.id] || pestanaInicial()));
+    mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
+    mainContent.querySelectorAll('.ev-tab-btn').forEach(b => b.addEventListener('click', () => {
+      pestanaPorEvento[b.dataset.evento] = b.dataset.tab;
+      mostrarPestana(b.closest('.event-card'), b.dataset.tab);
+    }));
 
     document.querySelectorAll('.check-item').forEach(item => {
       item.addEventListener('click', () => toggleChecklist(item));
@@ -496,6 +890,35 @@
     document.querySelectorAll('.alert-btn').forEach(btn => {
       btn.addEventListener('click', () => manejarAlerta(btn));
     });
+
+    document.querySelectorAll('.asig-guardar:not(.ed-guardar)').forEach(btn => {
+      btn.addEventListener('click', () => guardarAsignacion(btn));
+    });
+    mainContent.querySelectorAll('.editar-box').forEach(caja => {
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      caja.addEventListener('change', () => { caja.dataset.sucio = '1'; });
+    });
+    mainContent.querySelectorAll('.ed-guardar').forEach(btn => btn.addEventListener('click', () => guardarEdicion(btn)));
+
+    document.querySelectorAll('.enterado-btn').forEach(btn => {
+      btn.addEventListener('click', () => marcarEnterado(btn));
+    });
+
+    document.querySelectorAll('.staff-invitar').forEach(btn => {
+      btn.addEventListener('click', () => invitarStaff(btn));
+    });
+  }
+
+  async function marcarEnterado(btn){
+    btn.disabled = true;
+    try {
+      await enviarEstatus({ eventoId: btn.dataset.evento, tipo: 'enterado' });
+      showToast('Listo, Diana y Víctor ya saben que lo viste');
+      loadEventos();
+    } catch(e){
+      btn.disabled = false;
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo confirmar, intenta de nuevo');
+    }
   }
 
   function enviarEstatus(payload){
@@ -696,7 +1119,13 @@
   }
 
   function cerrarSesion(mensaje){
-    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    try { localStorage.removeItem(SESION_KEY); sessionStorage.removeItem('dima_equipo'); } catch(e){}
+    dimaHistorial = [];
+    $('dimaPanel').hidden = true;
+    $('dimaFab').hidden = true;
+    $('finBtn').hidden = true;
+    $('finPanel').hidden = true;
+    DimaCalendario.cerrar();
     sesion = null;
     if(revisionTimer) clearInterval(revisionTimer);
     revisionTimer = null;
@@ -744,23 +1173,32 @@
 
   // silencioso: revisión automática, sin "Cargando…" y sin repintar si nada cambió.
   async function loadEventos(silencioso){
-    if(!silencioso) mainContent.innerHTML = `<div class="loader"><div class="spinner"></div> Cargando eventos…</div>`;
+    if(!silencioso) mainContent.innerHTML = `<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>`;
     try {
       const data = await api(urlEventos());
       pintarOpcionesVista(data.opciones);
       DimaAlertas.revisar(clavesDeAlertas(data));
       actualizarSeguimiento(data.eventos);
-      const foto = JSON.stringify([data.eventos, data.alertasEquipo]);
+      const foto = JSON.stringify([data.eventos, data.alertasEquipo, data.staffEventos || null]);
       if(silencioso && foto === ultimaFoto) return;
+      // No se borra lo que la gerente está escribiendo en ✏️ Editar.
+      if(silencioso && mainContent.querySelector('.editar-box[data-sucio], .editar-box :focus')) return;
       ultimaFoto = foto;
-      const rolTexto = ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol;
+      const rolTexto = data.colaborador.gerente ? (data.colaborador.puesto || 'Gerente') : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
+      miGerencia = data.colaborador.gerencia || null;
+      opcionesAsignar = data.opcionesAsignar || null;
+      staffEventos = data.staffEventos || null;
+      staffError = !!data.staffError;
+      $('dimaFab').hidden = !data.colaborador.gerente || !$('dimaPanel').hidden;
+      // Reporte del día: lo hacen el líder de brigada y la encargada (la gerente es líder).
+      $('finBtn').hidden = !['Lider de brigada', 'Encargada de evento'].includes(data.colaborador.rol);
       if(data.colaborador.rol === 'Admin'){
         const sel = $('vistaComo');
         $('brigadaNombre').textContent = 'Vista equipo';
         $('brigadaDetalle').textContent = `${data.colaborador.nombre} · viendo: ${sel.options[sel.selectedIndex].text}`;
       } else if(data.brigada){
         $('brigadaNombre').textContent = data.brigada.nombre;
-        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · ' + data.brigada.vehiculo : ''}`;
+        $('brigadaDetalle').textContent = `${data.colaborador.nombre} · ${rolTexto}${data.brigada.vehiculo ? ' · 🚗 ' + data.brigada.vehiculo : ''}`;
       } else {
         $('brigadaNombre').textContent = data.colaborador.nombre;
         $('brigadaDetalle').textContent = rolTexto;
@@ -801,6 +1239,285 @@
 
   pinInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loginBtn.click(); });
   usuarioInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pinInput.focus(); });
+
+  // ---------- Canal con DiMa (solo la gerente) ----------
+  // La plática vive en el navegador (sessionStorage) y se manda completa.
+  const DIMA_KEY = 'dima_equipo';
+  var dimaHistorial = [];
+  try { dimaHistorial = JSON.parse(sessionStorage.getItem(DIMA_KEY) || '[]'); } catch(e){ dimaHistorial = []; }
+
+  function pintarDima(){
+    const saludo = [{ rol: 'dima', texto: 'Hola 👋 Soy DiMa. Pregúntame lo que necesites de la app, Telegram, el staff o tus eventos.' }];
+    $('dimaMsgs').innerHTML = [...saludo, ...dimaHistorial].map(m => `<div class="dima-msg ${m.rol}">${esc(m.texto)}</div>`).join('');
+    $('dimaMsgs').scrollTop = $('dimaMsgs').scrollHeight;
+  }
+
+  async function enviarDima(e){
+    e.preventDefault();
+    const texto = $('dimaTexto').value.trim();
+    if(!texto) return;
+    $('dimaTexto').value = '';
+    dimaHistorial.push({ rol: 'yo', texto });
+    pintarDima();
+    $('dimaMsgs').insertAdjacentHTML('beforeend', '<div class="dima-msg dima" id="dimaEscribiendo">Escribiendo…</div>');
+    try {
+      const d = await api('/api/dima-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'equipo', historial: dimaHistorial.slice(-20) }),
+      });
+      dimaHistorial.push({ rol: 'dima', texto: d.texto });
+    } catch(err){
+      if(err.message === 'sesion') return;
+      dimaHistorial.pop();
+      $('dimaTexto').value = texto;
+      showToast(err.message && err.message !== 'fail' ? err.message : 'DiMa no pudo contestar, intenta de nuevo');
+    }
+    sessionStorage.setItem(DIMA_KEY, JSON.stringify(dimaHistorial.slice(-20)));
+    pintarDima();
+  }
+
+  // ---------- Reporte financiero del día (api/finanzas.js) ----------
+  // El líder o la encargada lo llena al final del día: gastos con foto del
+  // ticket (dinero del negocio o propio), cobros, efectivo entregado a Diana e
+  // insumos. Diana lo aprueba. La gerente además ve lo de El Vaso Maíz.
+  let finDatos = null, finFecha = null, finTab = 'mio';
+  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const hoyCln = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+  const ayerCln = () => { const d = new Date(`${hoyCln()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+  const ESTADO_TEXTO = {
+    Abierto: '📝 Sin enviar: cuando termines, toca "Enviar a Diana".',
+    'Enviado': '⏳ Enviado: Diana lo está revisando. Si cambias algo, hay que volver a enviarlo.',
+    'Aclaración': '✏️ Diana pidió una aclaración: corrígelo y vuelve a enviarlo.',
+    Aprobado: '✅ Aprobado por Diana. Ya no se puede cambiar.',
+  };
+
+  // Foto del ticket: se reduce en el teléfono (máx. 1600 px, JPG) antes de subirla.
+  function comprimirFoto(archivo){
+    return new Promise((resolve, reject) => {
+      if(!archivo) return resolve(null);
+      const img = new Image();
+      const url = URL.createObjectURL(archivo);
+      img.onload = () => {
+        const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        const datos = c.toDataURL('image/jpeg', 0.72);
+        resolve({ tipo: 'image/jpeg', base64: datos.split(',')[1], nombre: 'ticket.jpg' });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la foto.')); };
+      img.src = url;
+    });
+  }
+
+  async function abrirFinanzas(){
+    $('finPanel').hidden = false;
+    finFecha = finFecha || hoyCln();
+    await cargarFinanzas();
+  }
+
+  async function cargarFinanzas(){
+    $('finCuerpo').innerHTML = '<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>';
+    try {
+      finDatos = await api(`/api/finanzas?fecha=${finFecha}`);
+      if(!finDatos.puedeReportar) finTab = 'admin';
+      pintarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      $('finCuerpo').innerHTML = `<div class="fin-caja">⚠️ No se pudo cargar el reporte (${esc(e.message && e.message !== 'fail' ? e.message : 'sin conexión')}). Revisa tu señal e intenta de nuevo.</div>`;
+    }
+  }
+
+  function fotoLink(foto, faltaTexto){
+    return foto ? `<a href="${esc(foto.url)}" target="_blank" rel="noopener">📷 ver</a>` : `<small>${faltaTexto}</small>`;
+  }
+
+  function pintarMiReporte(){
+    const d = finDatos, r = d.miReporte;
+    const editable = !r || r.estado !== 'Aprobado';
+    const gastos = r ? r.gastos : [], cobros = r ? r.cobros : [];
+    const evento = (id) => (d.eventos.find(e => e.id === id) || {}).folio || '';
+    const ultimaRevision = r && r.revision ? r.revision.trim().split('\n').pop() : '';
+    const opcionesEventos = d.eventos.map(e => `<option value="${esc(e.id)}">${esc(e.folio)}${e.ubicacion ? ' · ' + esc(e.ubicacion) : ''}${e.montoAdeudado ? ' · debe ' + pesos(e.montoAdeudado) : ''}</option>`).join('');
+    return `
+      <div class="fin-caja">
+        <label>Día del reporte
+          <select id="finFechaSel">
+            <option value="${hoyCln()}" ${finFecha === hoyCln() ? 'selected' : ''}>Hoy (${hoyCln()})</option>
+            <option value="${ayerCln()}" ${finFecha === ayerCln() ? 'selected' : ''}>Ayer (${ayerCln()})</option>
+          </select>
+        </label>
+        <div class="fin-estado" style="margin-top:10px;">${r ? ESTADO_TEXTO[r.estado] || esc(r.estado) : '📝 Todavía no empiezas el reporte de este día.'}</div>
+        ${ultimaRevision ? `<div class="fin-msg">${esc(ultimaRevision)}</div>` : ''}
+        ${d.eventos.length ? `<div class="fin-msg">Tus eventos de este día: ${d.eventos.map(e => esc(e.folio)).join(', ')}</div>` : '<div class="fin-msg">No tienes eventos este día (puedes reportar gastos igual).</div>'}
+      </div>
+
+      <div class="fin-caja">
+        <h4>💸 Gastos · ${pesos(gastos.reduce((t, g) => t + g.monto, 0))}</h4>
+        ${gastos.length ? gastos.map(g => `
+          <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
+          <div>${fotoLink(g.foto, '⚠️ sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
+        ${editable ? `
+          <input id="gConcepto" maxlength="120" placeholder="¿En qué se gastó? (ej. Gasolina, hielo, comida)">
+          <input id="gMonto" inputmode="decimal" placeholder="Monto (ej. 350)">
+          <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+          ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
+          ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
+          <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}"> ${esc(t)}</label>`).join(' ')}</div>
+          ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
+          <label>📷 Foto del ticket <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
+          <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>` : ''}
+      </div>
+
+      <div class="fin-caja">
+        <h4>💵 Cobros · ${pesos(cobros.reduce((t, c) => t + c.monto, 0))}</h4>
+        ${cobros.length ? cobros.map(c => `
+          <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.forma)}</small></div>
+          <div>${fotoLink(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')} ${editable ? `<button class="fin-quitar" data-tipo="cobro" data-id="${esc(c.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin cobros.</div>'}
+        ${editable && d.eventos.length ? `
+          <select id="cEvento">${opcionesEventos}</select>
+          <input id="cMonto" inputmode="decimal" placeholder="Monto cobrado">
+          <select id="cForma">${d.formas.map(f => `<option>${esc(f)}</option>`).join('')}</select>
+          <label>📷 Foto del comprobante <input type="file" id="cFoto" accept="image/*" capture="environment"></label>
+          <button class="fin-boton" id="cAgregar">+ Agregar cobro</button>` : ''}
+      </div>
+
+      <div class="fin-caja">
+        <h4>🧾 Cierre del día</h4>
+        <label style="display:block;">Efectivo que le entregaste a Diana
+          <input id="fEfectivo" inputmode="decimal" placeholder="0" value="${r && r.efectivoEntregado ? esc(r.efectivoEntregado) : ''}" ${editable ? '' : 'disabled'}></label>
+        <label style="display:block;">Insumos que se usaron o sobraron
+          <textarea id="fInsumos" maxlength="3000" placeholder="Ej. sobraron 2 kg de fresa, se acabó el chamoy" ${editable ? '' : 'disabled'}>${esc(r ? r.insumos : '')}</textarea></label>
+        <label style="display:block;">Notas
+          <textarea id="fNotas" maxlength="3000" ${editable ? '' : 'disabled'}>${esc(r ? r.notas : '')}</textarea></label>
+        ${editable ? `<button class="fin-boton secundario" id="fGuardar">Guardar</button>
+          <button class="fin-boton" id="fEnviar">📨 Enviar a Diana</button>` : ''}
+        <div class="fin-msg" id="finMsg"></div>
+      </div>
+
+      ${(d.misReportes || []).length ? `<div class="fin-caja"><h4>📅 Mis reportes</h4>${d.misReportes.map(m => `
+        <div class="fin-item"><div>${esc(m.fecha)}<small>${esc(m.estado)}</small></div><div>gastos ${pesos(m.totalGastos)} · cobros ${pesos(m.totalCobros)}${m.reembolsoPendiente ? `<small>te deben ${pesos(m.reembolsoPendiente)}</small>` : ''}</div></div>`).join('')}</div>` : ''}`;
+  }
+
+  // Lo que ve la gerente: la administración de El Vaso Maíz (solo lectura).
+  function pintarRevision(){
+    const rev = finDatos.revision;
+    const tarjeta = (r) => `
+      <div class="fin-caja">
+        <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloNegocio || r.soloVasoMaiz ? ` <small>(solo lo de ${esc(r.soloNegocio || 'El Vaso Maíz')})</small>` : ''}</h4>
+        <div>Gastos ${pesos(r.totalGastos)} · Cobros ${pesos(r.totalCobros)} · Efectivo entregado ${pesos(r.efectivoEntregado)}${r.reembolsoPendiente ? ' · reembolso ' + pesos(r.reembolsoPendiente) : ''}</div>
+        ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, '⚠️ sin ticket')}</div></div>`).join('')}
+        ${r.cobros.map(c => `<div class="fin-item"><div>Cobro ${esc(c.concepto)} · ${pesos(c.monto)}</div><div>${fotoLink(c.foto, '')}</div></div>`).join('')}
+        ${r.insumos ? `<div class="fin-msg">Insumos: ${esc(r.insumos)}</div>` : ''}
+      </div>`;
+    return `${rev.pendientes.length ? '<h4>Por revisar (Diana los aprueba)</h4>' + rev.pendientes.map(tarjeta).join('') : '<div class="fin-msg">No hay reportes pendientes.</div>'}
+      ${rev.aprobados.length ? '<h4 style="margin-top:16px;">Aprobados (últimos 14 días)</h4>' + rev.aprobados.map(tarjeta).join('') : ''}`;
+  }
+
+  function pintarFinanzas(){
+    const tabs = finDatos.revision && finDatos.puedeReportar ? `
+      <div class="fin-tabs"><button data-tab="mio" class="${finTab === 'mio' ? 'activo' : ''}">Mi reporte</button><button data-tab="admin" class="${finTab === 'admin' ? 'activo' : ''}">${miGerencia === 'Divanna Eventos' ? '🪑 Administración Divanna' : '🌽 Administración El Vaso Maíz'}</button></div>` : '';
+    $('finCuerpo').innerHTML = tabs + (finTab === 'admin' && finDatos.revision ? pintarRevision() : pintarMiReporte());
+    $('finCuerpo').querySelectorAll('.fin-tabs button').forEach(b => b.addEventListener('click', () => { finTab = b.dataset.tab; pintarFinanzas(); }));
+    const sel = $('finFechaSel');
+    if(sel) sel.addEventListener('change', () => { finFecha = sel.value; cargarFinanzas(); });
+    if($('gAgregar')) $('gAgregar').addEventListener('click', agregarGasto);
+    if($('cAgregar')) $('cAgregar').addEventListener('click', agregarCobro);
+    if($('fGuardar')) $('fGuardar').addEventListener('click', () => guardarCierre(false));
+    if($('fEnviar')) $('fEnviar').addEventListener('click', () => guardarCierre(true));
+    $('finCuerpo').querySelectorAll('.fin-quitar').forEach(b => b.addEventListener('click', () => quitarFin(b)));
+  }
+
+  async function postFin(datos, boton){
+    if(boton) boton.disabled = true;
+    try {
+      return await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: finFecha, ...datos }) });
+    } finally {
+      if(boton) boton.disabled = false;
+    }
+  }
+
+  async function agregarGasto(){
+    const boton = $('gAgregar');
+    try {
+      const tipoGasto = (document.querySelector('input[name="gTipo"]:checked') || {}).value;
+      if(document.querySelector('input[name="gTipo"]') && !tipoGasto){ showToast('Elige el tipo del gasto: Evento, General o Extra.'); return; }
+      boton.textContent = 'Guardando…';
+      const foto = await comprimirFoto($('gFoto').files[0]);
+      const d = await postFin({
+        accion: 'gasto',
+        concepto: $('gConcepto').value,
+        monto: $('gMonto').value,
+        categoria: $('gCategoria').value,
+        pagadoCon: (document.querySelector('input[name="gPagado"]:checked') || {}).value,
+        tipo: tipoGasto || '',
+        negocio: $('gNegocio') ? $('gNegocio').value : '',
+        eventoId: $('gEvento') ? $('gEvento').value : '',
+        foto,
+      }, boton);
+      if(d.avisoFoto) showToast(d.avisoFoto);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      boton.textContent = '+ Agregar gasto';
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar el gasto');
+    }
+  }
+
+  async function agregarCobro(){
+    const boton = $('cAgregar');
+    try {
+      boton.textContent = 'Guardando…';
+      const foto = await comprimirFoto($('cFoto').files[0]);
+      const d = await postFin({ accion: 'cobro', eventoId: $('cEvento').value, monto: $('cMonto').value, forma: $('cForma').value, foto }, boton);
+      if(d.avisoFoto) showToast(d.avisoFoto);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      boton.textContent = '+ Agregar cobro';
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar el cobro');
+    }
+  }
+
+  async function quitarFin(boton){
+    try {
+      await postFin({ accion: 'quitar', tipo: boton.dataset.tipo, id: boton.dataset.id }, boton);
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      showToast(e.message && e.message !== 'fail' ? e.message : 'No se pudo quitar');
+    }
+  }
+
+  // Guarda efectivo, insumos y notas; con enviar=true además lo manda a Diana.
+  async function guardarCierre(enviarlo){
+    const msg = $('finMsg');
+    msg.textContent = 'Guardando…';
+    try {
+      await postFin({ accion: 'datos', efectivoEntregado: $('fEfectivo').value, insumos: $('fInsumos').value, notas: $('fNotas').value }, $('fGuardar'));
+      if(enviarlo){
+        await postFin({ accion: 'enviar' }, $('fEnviar'));
+        showToast('📨 Reporte enviado a Diana');
+      } else {
+        showToast('Guardado');
+      }
+      await cargarFinanzas();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.');
+    }
+  }
+
+  $('finBtn').addEventListener('click', abrirFinanzas);
+  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc }));
+  $('finCerrar').addEventListener('click', () => { $('finPanel').hidden = true; });
+
+  $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });
+  $('dimaCerrar').addEventListener('click', () => { $('dimaPanel').hidden = true; $('dimaFab').hidden = false; });
+  $('dimaNueva').addEventListener('click', () => { dimaHistorial = []; sessionStorage.removeItem(DIMA_KEY); pintarDima(); });
+  $('dimaForm').addEventListener('submit', enviarDima);
 
   refreshBtn.addEventListener('click', () => {
     if(!sesion) return;

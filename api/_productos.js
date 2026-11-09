@@ -16,14 +16,14 @@ const HORAS_SERVICIO_VASO_MAIZ = 2;
 // Cada equipo de El Vaso Maíz es de 2 personas (se pueden sumar eventuales).
 const PERSONAS_POR_EQUIPO = 2;
 
-// Reglas de ocupación del inventario (Víctor, 2026-10-28):
-// - mobiliario: sale en la ruta de logística del día del evento (una brigada
-//   lleva 2 o 3 pedidos por ruta), así que queda ocupado todo ese día, y
-//   regresa a bodega a más tardar a la 1 pm del día siguiente;
-// - mantel (textiles): 48 h de lavado después de regresar a bodega;
+// Reglas de ocupación del inventario (Víctor, 2026-10-28; ajustadas 2026-11-02):
+// - mobiliario: ocupado el día del evento y disponible a las 12 del día siguiente
+//   ("si están rentadas para hoy, mañana a medio día ya están disponibles");
+// - manteles: 24 h de lavado después de eso (Víctor 2026-11-02; antes 48 h);
+// - en cuanto la brigada marca la recolección, ya no apartan nada (_agenda.js);
 // - salon (Casa Isabella): solo las horas del evento.
-const HORA_REGRESO_SIGUIENTE_DIA = 13;
-const HORAS_LAVADO_MANTEL = 48;
+const HORA_REGRESO_SIGUIENTE_DIA = 12;
+const HORAS_LAVADO_MANTEL = 24;
 const HORAS_SALON = 5;           // Casa Isabella incluye 5 h de evento
 const HORA_INICIO_DEFAULT = '14:00'; // si no hay hora, se supone que empieza en la tarde
 const ZONA_HORARIA = '-07:00';   // Culiacán (Sinaloa no cambia de horario)
@@ -96,16 +96,18 @@ function mesas(personas, silla, mantel, conCubiertos) {
 
 const PRODUCTOS = {
   // ---------- El Vaso Maíz (piezas a preparar) ----------
-  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (55 pz)', negocio: VM, piezas: 55 },
-  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (75 pz)', negocio: VM, piezas: 75 },
-  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (90 pz)', negocio: VM, piezas: 90 },
-  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100 },
-  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (120 pz)', negocio: VM, piezas: 120 },
-  vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1 },
-  vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1 },
-  vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1 },
-  vm_maruchan: { nombre: 'Maruchan preparada (por pieza)', negocio: VM, piezas: 1 },
-  vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
+  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (60 pz)', negocio: VM, piezas: 60, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (80 pz)', negocio: VM, piezas: 80, contenido: { 'Fresas con crema': 10, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (110 pz)', negocio: VM, piezas: 110, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (130 pz)', negocio: VM, piezas: 130, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 20, 'Vasos Tostilocos': 20, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1, contenido: { 'Sabritas preparadas': 1 } },
+  vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Raspados': 1 } },
+  vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Elotes forrados': 1 } },
+  vm_maruchan: { nombre: 'Maruchan preparada (por pieza)', negocio: VM, piezas: 1, contenido: { 'Maruchan preparadas': 1 } },
+  vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz que se prepara (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
+  // Diseño impreso para el plato o vaso (Víctor 2026-11-02): no se prepara, no cuenta piezas ni personal.
+  vm_personalizado: { nombre: 'Personalizado de El Vaso Maíz (diseño para el plato o vaso, no se prepara)', negocio: VM },
 
   // ---------- Divanna: mobiliario por pieza ----------
   dv_mesa_10_jardin: { nombre: 'Mesa con 10 sillas Jardinera y mantel', negocio: DV, componentes: { 'Mesa': 1, 'Silla Jardín': 10, 'Mantel': 1 } },
@@ -113,8 +115,15 @@ const PRODUCTOS = {
   dv_silla_jardin: { nombre: 'Silla Jardinera', negocio: DV, componentes: { 'Silla Jardín': 1 } },
   dv_silla_tiffany: { nombre: 'Silla Tiffany', negocio: DV, componentes: { 'Silla Tiffany': 1 } },
   dv_silla_antonella: { nombre: 'Silla Antonella', negocio: DV, componentes: { 'Silla Antonella': 1 } },
-  dv_mantel: { nombre: 'Mantel extra', negocio: DV, componentes: { 'Mantel': 1 } },
-  dv_mantel_corrugado: { nombre: 'Mantel corrugado', negocio: DV, componentes: { 'Mantel corrugado': 1 } },
+  // Manteles (Víctor 2026-11-06): cada mesa trae su mantel básico incluido. Se
+  // cambia a especial cobrando la diferencia contra el básico, y los extras van
+  // a precio completo. Esos precios se suman solos al monto contratado
+  // (cargoManteles); los paquetes ya traen su mantel y respetan su precio.
+  dv_mantel: { nombre: 'Mantel básico extra ($60)', negocio: DV, precio: 60, componentes: { 'Mantel': 1 } },
+  dv_mantel_lentejuela: { nombre: 'Mantel lentejuela extra ($200)', negocio: DV, precio: 200, componentes: { 'Mantel lentejuela': 1 } },
+  dv_mantel_corrugado: { nombre: 'Mantel corrugado extra ($120)', negocio: DV, precio: 120, componentes: { 'Mantel corrugado': 1 } },
+  dv_cambio_lentejuela: { nombre: 'Cambio de mantel básico a lentejuela (+$140 c/u)', negocio: DV, precio: 140, cambioMantel: true, componentes: { 'Mantel': -1, 'Mantel lentejuela': 1 } },
+  dv_cambio_corrugado: { nombre: 'Cambio de mantel básico a corrugado (+$60 c/u)', negocio: DV, precio: 60, cambioMantel: true, componentes: { 'Mantel': -1, 'Mantel corrugado': 1 } },
   dv_copa_globo: { nombre: 'Copa globo', negocio: DV, componentes: { 'Copa globo': 1 } },
   dv_copa_francesa: { nombre: 'Copa francesa', negocio: DV, componentes: { 'Copa francesa': 1 } },
   dv_plato_base: { nombre: 'Plato base (porta plato)', negocio: DV, componentes: { 'Plato base': 1 } },
@@ -189,6 +198,26 @@ function normalizarProductos(lista) {
 // Lee EVENTOS.Productos (JSON). Si está vacío o roto, lista vacía.
 function leerProductos(texto) {
   try { return normalizarProductos(JSON.parse(texto || '[]')); } catch (e) { return []; }
+}
+
+// Lista de producción de El Vaso Maíz: cuánto de cada cosa hay que preparar
+// (los paquetes se desglosan según el catálogo). Lo que no tiene desglose
+// (pieza suelta) va aparte con su nota tal cual: no se adivina qué es.
+// { productos: [{ nombre, cantidad }], sinDesglose: [{ cantidad, nota }], piezas }
+function produccionVasoMaiz(lista) {
+  const totales = new Map();
+  const sinDesglose = [];
+  for (const p of lista) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod || prod.negocio !== VM || !prod.piezas) continue; // los personalizados no se preparan
+    if (!prod.contenido) { sinDesglose.push({ cantidad: p.cantidad, nota: p.nota || '' }); continue; }
+    for (const [nombre, n] of Object.entries(prod.contenido)) totales.set(nombre, (totales.get(nombre) || 0) + n * p.cantidad);
+  }
+  return {
+    productos: [...totales].map(([nombre, cantidad]) => ({ nombre, cantidad })),
+    sinDesglose,
+    piezas: piezasVasoMaiz(lista),
+  };
 }
 
 function piezasVasoMaiz(lista) {
@@ -348,7 +377,93 @@ function capacidadEvento(lista, horasServicio) {
 
 // Lista para el dashboard (selector de productos).
 function catalogoParaDashboard() {
-  return CLAVES.map(clave => ({ clave, nombre: PRODUCTOS[clave].nombre, negocio: PRODUCTOS[clave].negocio || '' }));
+  return CLAVES.map(clave => {
+    const p = PRODUCTOS[clave];
+    const c = { clave, nombre: p.nombre, negocio: p.negocio || '' };
+    // Para el selector de manteles: cuántos básicos trae cada unidad y el precio de los de mantel.
+    const basicos = (p.componentes || {})['Mantel'] || 0;
+    if (basicos > 0 && !p.precio) c.mantelesBasicos = basicos;
+    if (p.precio) c.precio = p.precio;
+    return c;
+  });
+}
+
+// ---------- Manteles ----------
+const PRECIO_MANTEL = { basico: 60, lentejuela: 200, corrugado: 120 };
+const CLAVES_MANTEL = { extra: { basico: 'dv_mantel', lentejuela: 'dv_mantel_lentejuela', corrugado: 'dv_mantel_corrugado' }, cambio: { lentejuela: 'dv_cambio_lentejuela', corrugado: 'dv_cambio_corrugado' } };
+const esClaveMantel = (clave) => !!(PRODUCTOS[clave] && PRODUCTOS[clave].precio && PRODUCTOS[clave].negocio === DV && (/mantel/.test(clave) || PRODUCTOS[clave].cambioMantel));
+
+// Resumen de manteles de un evento: básicos incluidos por las mesas y paquetes,
+// cambios a especial, extras, cuántos van de cada tipo y lo que se cobra aparte.
+function resumenManteles(lista) {
+  const r = { incluidos: 0, especiales: { lentejuela: 0, corrugado: 0 }, cambios: { lentejuela: 0, corrugado: 0 }, extras: { basico: 0, lentejuela: 0, corrugado: 0 }, cargo: 0 };
+  for (const p of lista || []) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod) continue;
+    if (prod.precio) r.cargo += prod.precio * p.cantidad;
+    if (prod.cambioMantel) r.cambios[p.clave === CLAVES_MANTEL.cambio.lentejuela ? 'lentejuela' : 'corrugado'] += p.cantidad;
+    else if (prod.precio && esClaveMantel(p.clave)) {
+      const tipo = Object.keys(CLAVES_MANTEL.extra).find(t => CLAVES_MANTEL.extra[t] === p.clave);
+      r.extras[tipo] += p.cantidad;
+    } else {
+      // Mesas y paquetes: sus básicos (se pueden cambiar) y los especiales que ya traen los paquetes.
+      const c = prod.componentes || {};
+      r.incluidos += (c['Mantel'] || 0) * p.cantidad;
+      r.especiales.lentejuela += (c['Mantel lentejuela'] || 0) * p.cantidad;
+      r.especiales.corrugado += (c['Mantel corrugado'] || 0) * p.cantidad;
+    }
+  }
+  r.incluidos = Math.round(r.incluidos);
+  const cambiados = r.cambios.lentejuela + r.cambios.corrugado;
+  r.porTipo = {
+    basico: Math.max(0, r.incluidos - cambiados) + r.extras.basico,
+    lentejuela: Math.round(r.especiales.lentejuela) + r.cambios.lentejuela + r.extras.lentejuela,
+    corrugado: Math.round(r.especiales.corrugado) + r.cambios.corrugado + r.extras.corrugado,
+  };
+  r.total = r.porTipo.basico + r.porTipo.lentejuela + r.porTipo.corrugado;
+  r.error = cambiados > r.incluidos
+    ? `Se cambian ${cambiados} manteles pero las mesas solo traen ${r.incluidos} básicos. Si son más, agrégalos como extra.`
+    : '';
+  return r;
+}
+
+// Si hay más cambios a especial que básicos en las mesas (ej. lo leído de una
+// comanda), lo que sobra pasa a extra de ese tipo: así siempre se puede guardar.
+function ajustarManteles(lista) {
+  let libres = resumenManteles(lista).incluidos;
+  const salida = [];
+  for (const p of lista || []) {
+    const prod = PRODUCTOS[p.clave];
+    if (!prod || !prod.cambioMantel) { salida.push(p); continue; }
+    const cambio = Math.min(p.cantidad, libres);
+    libres -= cambio;
+    if (cambio) salida.push({ ...p, cantidad: cambio });
+    if (p.cantidad - cambio) {
+      const tipo = p.clave === CLAVES_MANTEL.cambio.lentejuela ? 'lentejuela' : 'corrugado';
+      salida.push({ ...p, clave: CLAVES_MANTEL.extra[tipo], cantidad: p.cantidad - cambio });
+    }
+  }
+  return salida;
+}
+
+// Lo que se cobra aparte por manteles (cambios + extras), en pesos.
+const cargoManteles = (lista) => resumenManteles(lista).cargo;
+
+// Para el selector de manteles de la app y el dashboard (brigadas/manteles.js).
+function infoManteles() {
+  const basicos = {};
+  const especiales = {};
+  const precios = {};
+  for (const clave of CLAVES) {
+    const p = PRODUCTOS[clave];
+    const c = p.componentes || {};
+    if (p.precio && esClaveMantel(clave)) precios[clave] = p.precio;
+    else {
+      if ((c['Mantel'] || 0) > 0) basicos[clave] = c['Mantel'];
+      if (c['Mantel lentejuela'] || c['Mantel corrugado']) especiales[clave] = { lentejuela: c['Mantel lentejuela'] || 0, corrugado: c['Mantel corrugado'] || 0 };
+    }
+  }
+  return { basicos, especiales, precios, claves: CLAVES_MANTEL };
 }
 
 module.exports = {
@@ -363,6 +478,7 @@ module.exports = {
   normalizarProductos,
   leerProductos,
   piezasVasoMaiz,
+  produccionVasoMaiz,
   personalVasoMaiz,
   inventarioRequerido,
   inicioEvento,
@@ -375,4 +491,11 @@ module.exports = {
   textoProductos,
   capacidadEvento,
   catalogoParaDashboard,
+  PRECIO_MANTEL,
+  CLAVES_MANTEL,
+  esClaveMantel,
+  resumenManteles,
+  cargoManteles,
+  infoManteles,
+  ajustarManteles,
 };

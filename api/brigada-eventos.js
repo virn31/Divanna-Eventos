@@ -8,9 +8,15 @@
 // Admin ("vista equipo"): ve todos los eventos, o los de una brigada
 // (?brigada=rec...) o de una encargada (?encargada=rec...), tal como los ve
 // esa persona, y recibe la lista de brigadas y encargadas para elegir.
+// La gerente de El Vaso Maíz recibe esa misma lista para asignar sus eventos,
+// y el estado de su staff en cada evento (staffEventos) para invitarlas.
 
-const { ROLES, requerirSesion } = require('./_sesion');
+const { ROLES, requerirSesion, GERENCIAS, puestoGerente } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
+const { staffParaApp } = require('./_staff');
+const { vistaMes } = require('./_calendario');
+const { opcionesProduccion: opcionesDeProduccion } = require('./_produccion');
+const { veDinero, inventarioParaCargos } = require('./_cargos');
 
 const ID_REGISTRO = /^rec[A-Za-z0-9]{14}$/;
 
@@ -33,16 +39,39 @@ module.exports = async (req, res) => {
     const colaborador = await requerirSesion(req, res, [ROLES.LIDER, ROLES.ASISTENTE, ROLES.ENCARGADA, ROLES.ADMIN]);
     if (!colaborador) return;
 
+    // Calendario del equipo (?vista=calendario&mes=YYYY-MM): todos ven todo, sin montos.
+    if ((req.query || {}).vista === 'calendario') {
+      const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.mes || '') ? req.query.mes : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date()).slice(0, 7);
+      res.status(200).json(await vistaMes(colaborador, mes));
+      return;
+    }
+
+    // Artículos para anotar un daño o faltante (se pide al abrir ese formulario).
+    if ((req.query || {}).vista === 'inventario') {
+      if (!veDinero(colaborador)) { res.status(403).json({ error: 'Solo el líder o la encargada anotan daños y faltantes.' }); return; }
+      res.status(200).json({ articulos: await inventarioParaCargos() });
+      return;
+    }
     const { brigada, eventoIds } = await alcanceDe(alcanceSolicitado(colaborador, req.query || {}));
     const alertasEquipo = await alertasEquipoDeHoy(eventoIds);
-    const eventos = await leerEventos(eventoIds);
+    const eventos = await leerEventos(eventoIds, { conDinero: veDinero(colaborador) });
+    // La gerente también ve e invita al staff de sus eventos. Si no se puede
+    // leer, se dice (staffError) en vez de mostrar la lista vacía.
+    let staffEventos = null, staffError = false, opcionesProduccion = null;
+    // Staff y producción son solo de El Vaso Maíz (Ángela).
+    if (colaborador.gerente === GERENCIAS.VM && colaborador.rol !== ROLES.ADMIN) {
+      staffEventos = await staffParaApp(colaborador).catch(err => { console.error('No se pudo leer el staff:', err.message); staffError = true; return null; });
+      opcionesProduccion = await opcionesDeProduccion(colaborador).catch(err => { console.error('No se pudo leer quién hace producción:', err.message); return null; });
+    }
 
     res.status(200).json({
-      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol },
+      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, gerencia: colaborador.gerente || null, puesto: puestoGerente(colaborador.gerente), veDinero: veDinero(colaborador) },
       brigada,
       eventos,
       alertasEquipo,
       ...(colaborador.rol === ROLES.ADMIN ? { opciones: await opcionesVista() } : {}),
+      // Cada gerente asigna brigada y encargada a los eventos de su negocio.
+      ...(colaborador.gerente && colaborador.rol !== ROLES.ADMIN ? { opcionesAsignar: { ...(await opcionesVista(true)), produccion: opcionesProduccion }, ...(colaborador.gerente === GERENCIAS.VM ? { staffEventos, staffError } : {}) } : {}),
     });
   } catch (err) {
     console.error('Error en brigada-eventos:', err);

@@ -150,6 +150,321 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Descartado:** que DiMa vea el semáforo y le diga algo distinto al cliente (puede equivocarse con datos incompletos y el cliente ya tiene una respuesta clara: 12 h); que los pendientes aparten inventario (un pedido que nunca se paga bloquearía fechas).
 **Límite actual:** mientras falten conteos en INVENTARIO (cubiertos, servilletas, decoración), los paquetes salen en amarillo "sin conteo". Los eventos autorizados sin productos registrados también piden revisión a mano.
 
+## 2026-10-28 — Staff de El Vaso Maíz por Telegram (`/staff`)
+
+**Decisión (Víctor):** subequipos: las chicas que trabajan bajo la dirección de Ángela. Todo por Telegram: Ángela escribe `/staff`, elige el evento, elige cuántas y cuáles chicas, y a cada una le llega "Hola Isabella, Ángela te programó un evento … porfa confírmame si puedes acudir".
+**Cómo quedó:** Rol nuevo "Staff" (solo Telegram; la app les responde 403) y campo `Coordinadora` en COLABORADORES; tabla STAFF_EVENTO con el estado de cada invitación (Invitada, Confirmó, No puede). Botones de Telegram (inline keyboard) para elegir y para contestar; la selección viaja en el propio botón, sin guardar estado. No se puede invitar a quien ya confirmó otro evento a la misma hora ni a quien no ha vinculado Telegram. Las chicas no ven montos ni datos de pago. El dashboard muestra por evento cuántas confirmaron de las que se necesitan.
+**Requisito técnico:** el webhook tenía `allowed_updates: ["message"]`; los botones necesitan `callback_query`. Comando `/configurar` (Admin) lo vuelve a registrar con las variables de Vercel, sin pasos manuales.
+**Descartado:** grupo de Telegram con todas las chicas (todas verían todo y no hay confirmación individual); que Ángela escriba los nombres a mano (errores de dedo; los botones evitan elegir a alguien ocupado).
+**Permiso (Víctor):** `/staff` solo para Ángela, Diana y Víctor: Admin o la casilla `COLABORADORES.Coordina_Staff` (solo Ángela). La invitación pide confirmar para llegar antes (con la hora de salida) y preparar todo para el evento.
+**Alta simplificada (Víctor):** `/staff` tiene dos botones: **Agregar** (nombre y teléfono) y **Asignar** (lista del personal agregado). Las chicas no llevan usuario, PIN ni código: el bot da un enlace personal firmado (HMAC con `SESSION_SECRET`) y con un toque en "Iniciar" queda vinculado su Telegram. Límite de Telegram: un bot no puede escribirle primero a nadie ni buscarlo por teléfono.
+**Pendiente:** el reparto equitativo automático (sugerir a quién invitar según su carga) y la disponibilidad que cada chica marque por día, de la propuesta de logística.
+
+## 2026-10-28 — Gerente de El Vaso Maíz, DiMa para el equipo, curso y mensajes directos
+
+**Decisión (Víctor):** Ángela es la gerente de El Vaso Maíz; hay que darle su lugar, capacitarla por Telegram hasta que domine la plataforma, darle un canal exclusivo con DiMa desde su app y que pueda mandarles mensajes directos a Diana y Víctor.
+**Cómo quedó (las cuatro opciones recomendadas):**
+- Casilla `COLABORADORES.Gerente_Vaso_Maiz` (no un rol nuevo, para no tocar las listas de permisos de cada endpoint): ve y opera todos los eventos autorizados de El Vaso Maíz (negocio o piezas de El Vaso Maíz) aunque no se los asignen, y desde su app asigna brigada y encargada solo en esos eventos (se avisa a los Admin). Sin dashboard, precios ni pagos.
+- DiMa interna (`api/_dima-equipo.js`): en la app ("💬 Pregúntale a DiMa", `POST /api/dima-chat` con `modo: "equipo"`, sin función nueva) y en Telegram (mensaje sin comando). Solo gerente y Admin. Conoce el manual de su rol y sus próximos eventos, sin montos; no hace cambios. Límite de 60 preguntas al día por persona (en memoria).
+- `/curso`: 6 lecciones para la gerente (4 a 6 según el rol), cada una con práctica y pregunta de opción múltiple; avance en `COLABORADORES.Curso_Avance` y aviso a los Admin por lección. Admin ve el avance y le manda a cada quien su lección.
+- `/mensaje`: ida y vuelta por el bot con "↩️ Responder"; el otro Admin recibe copia. El staff no lo usa (habla con su coordinadora).
+**Descartado:** rol "Gerente" nuevo (había que agregarlo en cada `requerirSesion`); que la gerente entre al dashboard (tiene precios, pagos y datos de clientes); guardar la plática de DiMa en Airtable (costo y datos; en Telegram el contexto es el mensaje al que se contesta).
+
+## 2026-10-29 — Encargado de producción de El Vaso Maíz
+
+**Decisión (Víctor):** habrá un encargado de producción; la gerente lo designa y por Telegram le llega la lista de producción dos días antes ("verifica el inventario y repórtame las necesidades de insumos") y el mismo día ("confirma si tenemos todos los ingredientes").
+**Cómo quedó (opciones elegidas por Víctor):** uno por evento (`EVENTOS.Encargado_Produccion`, se elige en "Asignar" de la app de la gerente); si tiene dos eventos el mismo día le llega un solo mensaje. Cron diario a las 8:00 de Culiacán (`api/produccion-diaria.js`). Las respuestas ("Tenemos todo" / "Reportar insumos" con texto) le llegan a la gerente con copia a Diana y Víctor y quedan en `Produccion_Respuesta`. Puede ser encargado: el staff de la gerente, las encargadas de evento o la gerente.
+**Lista de producción:** los paquetes se desglosan con el catálogo real (`PRODUCTOS[].contenido` en `_productos.js`, igual a `_dima-catalogo.js`; si cambia un paquete hay que cambiar ambos). La "pieza suelta" sin desglose sale con su nota tal cual; sin nota, dice que se pregunte a la gerente (no se adivina). Sin montos.
+**Descartado:** un encargado fijo para todos los eventos (Víctor prefirió por evento); un cron por cada aviso (el plan Hobby corre crons una vez al día, así que uno solo manda los dos tipos); una función nueva para las respuestas (van por el webhook de Telegram existente).
+**Pendiente:** Diana no elige al encargado desde el dashboard (solo la gerente desde la app); confirmar que `CRON_SECRET` existe en Vercel (si no, el endpoint queda abierto, aunque no repite avisos).
+
+## 2026-10-29 — La gerente invita staff desde la app
+
+**Decisión (Víctor):** Ángela, además de asignar brigada, asigna staff desde su app. Caja "🧑‍🍳 Staff" en cada evento autorizado de El Vaso Maíz, con el mismo código que `/staff` (`estadosChicas` / `invitarChicas` en `_staff.js`). El alta de chicas nuevas sigue por `/staff` (necesita el enlace de Telegram). Sin función nueva (`invitar_staff` en `dashboard-eventos`).
+
+## 2026-10-29 — Cambios de pedido visibles y avisados; regla de 24 horas
+
+**Problema (prueba de Víctor):** un cliente cambió su pedido desde la página; llegó el Telegram a los Admin pero no sonó la app (no había push), el cambio solo quedaba al final de Notas (no se veía en el dashboard ni en la app, y `Servicios_Solicitados` seguía con lo viejo) y nadie del equipo se enteraba. Además, si guardar fallaba, DiMa igual decía "listo".
+**Decisión (Víctor, opciones recomendadas):** al momento se avisa a Diana, Víctor y la gerente (si es de El Vaso Maíz) por app (push) y Telegram; el equipo del evento se entera cuando Diana confirma el cambio en el dashboard. Los cambios se piden con 24 h de anticipación: con menos, DiMa le dice al cliente que no se puede garantizar y lo pasa como URGENTE (no se rechaza).
+**Cómo quedó:** `EVENTOS.Cambio_Cliente` (JSON con estado aplicado/pendiente/confirmado/descartado, lo de antes y lo nuevo). Pedido sin cotizar: se aplica directo. Pedido autorizado: pendiente → Confirmar (aplica servicios, hora, productos e indicaciones, borra Enterado, avisa al equipo con Confirmar y reenvía la producción si ya se había mandado) o Descartar (Diana se lo explica al cliente con "Mensaje para el cliente"). El monto nunca va a la app del equipo.
+**Descartado:** avisar a todo el equipo en cuanto el cliente lo pide (podrían preparar algo no aprobado); rechazar los cambios con menos de 24 h (Víctor prefiere que la gerencia decida).
+**Pendiente:** al confirmar no se recalculan los artículos exactos (`EVENTOS.Articulos`) ni el monto: Diana los ajusta a mano.
+
+## 2026-10-29 — Diana tiene todas las funciones de la gerente
+
+**Decisión (Víctor):** "Diana es la jefa de todo": todo lo que puede hacer Ángela lo puede hacer Diana. Como Admin ya asignaba brigada y encargada, recibía las respuestas de producción y los cambios de pedido; faltaban en su dashboard invitar staff por evento (antes solo por /staff), elegir al encargado de producción y "Pregúntale a DiMa" (antes solo en Telegram). Se agregaron con el mismo código que usa la app de la gerente; Diana ve a todo el staff, no solo al de una coordinadora.
+
+## 2026-10-29 — Reporte financiero del día (fase 3)
+
+**Decisión (Víctor):** cada brigada hace su reporte **al final del día** en la app: gastos con foto del ticket y si se pagaron con **dinero del negocio o propio** (el propio queda como reembolso pendiente), cobros recibidos (con comprobante), efectivo entregado a Diana e insumos usados o sobrantes. **Diana aprueba** cada reporte o pide aclaración; solo lo aprobado cuenta en el balance. Diana y Víctor ven todo; **Ángela ve la administración completa de El Vaso Maíz** (de un reporte con los dos negocios, solo lo suyo) y no aprueba.
+**Cómo quedó:** tablas REPORTES_DIA y COBROS; GASTOS (que ya existía y estaba vacía) ganó Reporte, Pagado_Con, Reembolsado y Reportado_Por. Lo hacen el líder de brigada y la encargada (no el asistente). Se puede reportar hoy o ayer. Fotos reducidas en el teléfono y subidas con la API de contenido de Airtable. El balance semanal ahora separa gastos aprobados, cobros reales, efectivo entregado, reembolsos pendientes y lo que falta aprobar, y avisa si no pudo leer algo (antes un fallo daba $0 en silencio).
+**Costo:** `api/finanzas.js` usa la última función del plan Hobby (12 de 12).
+**Pendiente:** recordatorio automático en la noche a quien no haya enviado su reporte; los insumos son texto libre (no descuentan inventario).
+
+## 2026-10-29 — Dashboard de Diana más claro, historial por empresa y temporadas con DiMa
+
+**Decisión (Víctor):** el dashboard de Diana debe ser más amigable y claro: letra más grande, gastos en rojo y en negritas, saldo a favor en azul y en negritas, y una gráfica del balance con historial mensual de las dos empresas; si Diana le pide un balance a DiMa, que le diga las mejores temporadas de cada una.
+**Cómo quedó:** letra del dashboard +12.5%; montos que salen en rojo (`--gasto`) y lo que entra en azul (`--favor`), en negritas; el balance semanal como tres cifras grandes (ingresos, gastos, saldo a favor/en contra). Gráfica "Cómo van las empresas, mes por mes" (`GET /api/finanzas?vista=historial`, solo Admin, sin función nueva): Divanna azul `#3987e5` y El Vaso Maíz naranja `#d95926` (validados para daltonismo), una sola escala, selector ingresos/gastos/utilidad/eventos/cobrado, detalle al pasar el mouse, tabla y los 3 mejores meses de cada empresa. DiMa (solo con Admin) recibe el historial y puede hablar de dinero; con menos de 12 meses dice que es lo que se ve hasta ahora, no una temporada que se repite.
+**Definiciones:** "ingresos contratados" = monto de eventos autorizados por mes del evento (lo pactado, no lo cobrado); gastos = capturados a mano o de reportes aprobados; cobrado = cobros de reportes aprobados. Eventos sin negocio definido no se adivinan: se cuentan aparte.
+
+## 2026-10-29 — Calendario del equipo y Google Calendar controlado por DiMa
+
+**Decisión (Víctor):** terminar Google Calendar para que DiMa lo controle; que todos vean el calendario en su app y solo Diana, Ángela y Víctor lo modifiquen. Opciones elegidas: todos ven todo (sin montos); Ángela solo modifica El Vaso Maíz; se puede mover fecha y hora, cambiar horas de servicio, cancelar y bloquear días.
+**Cómo quedó:** calendario mensual propio en la app y el dashboard (no un Google embebido: obligaría a hacer público el calendario o a dar cuenta de Google a cada brigada). Google es espejo de un solo sentido: lo crea/actualiza/borra la plataforma; lo que se edite en Google no regresa. Cancelar no borra el expediente. Días bloqueados respetados por DiMa y por el servidor (pedidos nuevos).
+**Google:** la llave que estaba en Vercel no correspondía a la cuenta de servicio (invalid_grant: account not found) y el calendario no estaba compartido con ella. Se carga la del JSON `dima-os-513103-eb75c647cb3d.json` y `GOOGLE_CALENDAR_ID=divannaeventos@gmail.com`.
+**Descartado:** sincronización de dos sentidos con Google (requiere webhooks y otra función de Vercel; ya son 12 de 12).
+
+## 2026-10-29 — "Por cobrar" en el balance
+
+**Decisión (Víctor):** el balance de la semana debe mostrar lo por cobrar, en verde oliva, antes del saldo a favor.
+**Cálculo (evento por evento, eventos autorizados de la semana):** Pagado o Liquidado 100% = 0; si hay `Monto_Adeudado`, ese; si no, contratado menos cobros de reportes aprobados. Cancelados no cuentan. Se guarda en `BALANCES.Por_Cobrar` el lunes y el dashboard lo recalcula en vivo (si no puede, muestra el del lunes y lo dice).
+**Límite conocido:** los anticipos pagados directo a Diana no están registrados como cobro; en esos eventos sale de más hasta marcarlo pagado o capturar el monto adeudado.
+
+## 2026-10-29 — Cuadre del dinero por excepción
+
+**Decisión (Víctor):** al final todo debe cuadrar y se debe detectar si algo no cuadra; solo Diana y Víctor lo ven; DiMa ayuda a analizar (contratado, abonado, pagado, gasto) y a ver dónde hay fuga y si se mete "dinero bueno al malo". **No un solo libro:** eso es lo que Diana hace hoy y por eso hay fugas (mucha carga). Mejor: cuando un evento cierra incompleto, preguntarle a Diana si le pagaron a ella o dónde quedó el dinero. Ella es la jefa y hace lo que quiera con el dinero, pero debe quedar dónde, cómo y cuándo.
+**Cómo quedó (opciones elegidas):** pregunta al día siguiente del evento a las 8:00 (mismo cron de producción, sin función nueva), por Telegram con botones y en el dashboard ("🔍 Cuadre"); los lunes, el efectivo sin destino (depósito, gasto del negocio, retiro personal, sigue en caja). Sus respuestas se registran como cobro recibido por Diana, deuda, descuento o nota. El cuadre arranca el 2026-10-29 (antes no hay cobros registrados). DiMa (Admin) analiza fugas, eventos con pérdida y clientes que deben o cancelan; propone correcciones y las aplica Diana. "Por cobrar" ya descuenta lo pagado a Diana y los descuentos.
+
+## 2026-10-29 — Rediseño visual del equipo (estilo Pulse)
+
+**Decisión (Víctor):** solo apariencia, más amigable para el colaborador: negro puro, tarjetas flotantes, feed vertical, fichas con pestañas, carga animada y tipografía Inter, respetando los colores que ya tenemos y lo hecho para el dashboard de Diana. Sin redes sociales ni fotos de clientes.
+**Cómo quedó:** `brigadas/tema.css` (lo cargan app y dashboard al final): fondo `#080707`, tarjetas `#1A1A1A`/`#222222` de 20 px con sombra, títulos `#F8F7F6` en Inter 800, secundarios `#B1A5A3`; esqueletos animados en lugar de "Cargando…"; tarjetas que entran suave y el pedido autorizado se desvanece. En la app, cada evento es una ficha con pestañas Resumen · Cargar (con contador) · Tareas (etapas); Retraso/Emergencia/Seguridad y "Enterado" quedan siempre fuera de las pestañas; el asistente abre en Cargar. Respeta `prefers-reduced-motion`.
+**Descartado:** cambiar colores de datos (el rojo de acción #C82D32 chocaba con el de gastos); deslizar para aprobar (se mantiene el botón, más seguro con dinero).
+
+## 2026-10-29 — Aviso de día lleno
+
+**Decisión:** un día está lleno cuando ya no cabe un evento más del negocio: Divanna con 9 entregas autorizadas (3 brigadas x 3 pedidos por ruta, el mismo umbral que pone el semáforo en amarillo); El Vaso Maíz con 6 equipos ocupados o cuando el personal del día ya no alcanza para otro equipo de 2. Solo cuentan los eventos autorizados y no cancelados. Al llenarse (al autorizar, capturar a mano o mover un evento) se avisa por Telegram y push a Diana y Víctor, y a la gerente si es El Vaso Maíz; el calendario lo marca LLENO; DiMa deja de ofrecer ese día y el servidor no registra pedidos nuevos de ese negocio ahí. La captura manual sí lo permite, con advertencia.
+
+**Por qué:** Víctor pidió saber cuándo ya no se pueden agregar más eventos; con bloqueos manuales dependía de que alguien se acordara.
+
+**Descartado:** contar por turnos/horas (más exacto, pero hoy no se sabe cómo se reparten las brigadas en el día; es conservador a propósito) y bloquear también la captura manual (Diana es la jefa y a veces mete uno más con proveedor o personal extra).
+
+## 2026-10-29 — Mensaje al cliente en día lleno y Casa Isabella apartada
+
+**Decisión:** con día lleno DiMa dice "Lamentablemente esa fecha la tenemos llena y ya no podemos cubrir tu evento"; si lo que se pide es Casa Isabella y ya está apartada, "esa fecha ya no está disponible". En los dos casos el servidor ofrece hasta 3 fechas libres a una semana o menos. Casa Isabella se considera ocupada todo el día si hay un evento autorizado con el salón.
+
+**Por qué:** lo pidió Víctor; antes DiMa no sabía si el salón estaba apartado y solo Diana lo veía en el semáforo después de recibir el pedido.
+
+**Descartado:** revisar el salón por horas (podrían caber dos eventos de 5 h en un día, pero se deja conservador como el resto del día lleno). Se usa "tu" en vez de "su" porque DiMa le habla de tú al cliente.
+
+## 2026-10-29 — Google Sheets de pedidos con las plantillas de Diana
+
+**Decisión:** una hoja de Google por negocio, hecha con las plantillas Divanna_Pedidos y VasoMaiz_Pedidos. Por cada evento autorizado DiMa crea una pestaña de recibo (copia de la plantilla, nombre = folio EVT) y un renglón en la lista "Pedidos"; lo actualiza con cada cambio del evento. Solo se usa el folio EVT (se deja la numeración del recibo de papel). Sustituye el renglón que se agregaba en `GOOGLE_SHEET_ID`.
+
+**Por qué:** lo pidió Víctor con las dos plantillas; así los recibos salen solos con los datos de la app.
+
+**Descartado:** solo la lista (el recibo seguiría a mano), PDF (más trabajo y otra ruta; se puede descargar de Sheets), y numeración propia en Sheets o dos números (Víctor eligió solo el folio EVT). En "Ambos" no se reparte el total entre negocios: queda en blanco y Diana lo divide.
+
+**Nota:** la plantilla de El Vaso Maíz restaba `B32-B33` (celdas vacías) en "Resto a pagar"; en las pestañas que crea DiMa se escribe `D32-D33`.
+
+## 2026-10-29 — Recibo en PDF por Telegram y comandas en papel por foto
+
+**Decisión:** (1) Cuando se registra un anticipo o un pago, DiMa actualiza la hoja del negocio y manda la pestaña del recibo en PDF por Telegram a Diana y Víctor (y a la gerente si es de El Vaso Maíz); ellos se la reenvían al cliente. (2) Diana puede seguir llenando comandas a mano: manda la foto al bot o la sube en "➕ Capturar evento"; DiMa la lee con visión, muestra lo leído y las dudas, y solo se guarda al confirmar. La foto queda en el evento. (3) En el chat DiMa pide también nombre completo, dirección exacta y modelo/color de cada producto para que la comanda salga completa.
+
+**Por qué:** lo pidió Víctor: el recibo debe salir en cuanto hay anticipo y Diana necesita tiempo para dejar el papel.
+
+**Descartado:** mandar el recibo directo al cliente (no hay WhatsApp ni canal al cliente; lo reenvía el equipo), imagen en vez de PDF (el PDF sale directo de Sheets, sin librerías), y guardar la comanda sin confirmar (la letra a mano se lee mal a veces; un error crea un evento falso).
+
+## 2026-10-30 — Dinero del evento en la ficha de la app, daños y faltantes
+
+**Decisión:** en la app del equipo cada evento se ve primero como una ficha corta (negocio, folio, lugar, hora, cliente y lo que falta por cobrar) y al tocarla se abre todo. Una pestaña "💰 Dinero" muestra contratado, daños y faltantes, descuento, pagado y lo que falta, con el nombre y teléfono del cliente. Desde ahí se registra el cobro (anticipo, abono o liquidación) y se anotan daños o faltantes, que se suman al total al momento con `INVENTARIO.Precio_Reposicion` (si el artículo no tiene precio, quien lo anota escribe el monto y queda marcado para que Diana lo revise). Lo ven líder, encargada y gerente; el asistente y el staff no. El cobro de la brigada entra a su reporte del día (Diana lo aprueba al recibir el dinero); el de Diana o Víctor queda como pago a Diana con recibo por Telegram. Los cargos se guardan en `EVENTOS.Cargos_Extra` (JSON) y `Cargos_Extra_Total`, que se suma a lo contratado en el cuadre y en el recibo. Cada cargo avisa a los Admin por Telegram; lo quita Diana o quien lo anotó.
+
+**Por qué:** lo pidió Víctor: las brigadas entregan y cobran en efectivo en el momento, y deben poder marcar el pago y cobrar los daños sin llamar a Diana. Cambia la regla anterior de "la gerente sin precios ni pagos".
+
+**Descartado:** que el encargado escriba siempre el monto del daño (cada quien cobraría distinto), que el cobro cuente directo sin pasar por el reporte del día (Diana perdería el control del efectivo) y que también lo vea el asistente.
+
+## 2026-10-30 — Comanda por foto: forma de pago sin null
+
+**Decisión:** `forma_anticipo` en la herramienta `datos_comanda` es una lista de texto con "No se sabe" en vez de `['string', 'null']` con `null` en el enum.
+
+**Por qué:** la API de Claude rechaza ese esquema (error 400): la foto de la comanda fallaba siempre, en la app ("Error interno") y en Telegram. Hay una prueba que revisa que ningún enum lleve null.
+
+## 2026-10-30 — Homepage nuevo inspirado en DuoFankaar
+
+**Decisión:** titular editorial grande, cinta de fotos en dos filas, servicios numerados (mobiliario, snacks, Casa Isabella, DiMa), paquetes con precio "desde", galería real, preguntas frecuentes y botón flotante "Cotiza con DiMa" en el celular. Las fotos salen de `referencias/` recortadas sin texto ni teléfonos (`img/home/`, 19–77 KB cada una); no se usan los volantes con WhatsApp ni la foto con el nombre de un niño. Los botones de cada paquete abren el chat con la pregunta escrita (no se envía sola). El chat, "Agregar a mi pedido" y el formulario no cambian.
+
+**Por qué:** lo pidió Víctor con la referencia https://www.awwwards.com/duofankaar/ y las observaciones de la revisión (galería vacía, sin botón de cotizar a la mano, sin precios, "3,000 eventos" repetido, tono defensivo, Casa Isabella ausente, sin preguntas frecuentes).
+
+**Descartado:** GSAP u otra librería de animación (sin paso de compilación; bastan CSS e IntersectionObserver, y se respeta "reducir movimiento"), pantalla de carga (frena al cliente) y testimonios (no hay reales que mostrar).
+
+## 2026-10-30 — Carpeta de Google Drive para que la página y DiMa estén al día
+
+**Decisión:** Diana mantiene una carpeta de Google Drive (`GOOGLE_DRIVE_CARPETA`, compartida como Lector con la cuenta de servicio, Google Drive API activa en `dima-os-513103`). Sin formato especial: cada subcarpeta es un tema (se lee un nivel más adentro); los Documentos de Google los lee DiMa tal cual y, si contradicen el catálogo del código, manda Drive (precios, paquetes, temporadas, promociones con sus fechas); en las fotos el nombre del archivo es la descripción y DiMa las puede mostrar. Las fotos de una carpeta con "galeria" en el nombre reemplazan la galería fija de la página, y lo de una carpeta "promo..." (textos y fotos) sale en una sección Promociones que solo aparece si hay algo. Todo vive en `api/_drive.js`, se cachea 10 minutos y, si Drive falla, el chat sigue con el catálogo del código. Se sirve desde `dima-chat` por GET (`?contenido=1`, `?foto=<id>`) porque ya están las 12 funciones; la foto sale como miniatura de 1600 px (el original de un celular puede pasar el límite de 4.5 MB de respuesta) y solo si está en la carpeta.
+
+**Por qué:** lo pidió Víctor: que Diana actualice paquetes, precios por temporada y promociones sin pedir un cambio de código.
+
+**Descartado:** una Hoja de Google con columnas (Diana tendría que respetar un formato y la página tampoco ganaba mucho), Airtable (Diana ya usa Drive para sus fotos), hacer pública la carpeta para enlazar las fotos directo (se expone todo lo que suba) y que la temporada alta del código (`_temporada.js`) se lea de Drive (sigue fija; un documento de temporada en Drive solo lo lee DiMa).
+
+## 2026-10-30 — Letreros genéricos, política de pago y depósito del mobiliario en la plática de DiMa
+
+**Decisión:** el letrero que incluyen el aro, la mampara lisa, el shimmer y los paquetes es genérico según el evento (Happy Birthday, XV Años, Baby Shower…), sin el nombre del festejado. Si el cliente quiere el nombre, un personaje o un diseño de su tema, DiMa lo ofrece como mejora con cargo extra (mampara con lona personalizada o lona aparte). Los personalizados son diseños circulares sobre el porta plato. Los detalles del diseño los coordina con el cliente el encargado asignado; DiMa anota en la nota del producto lo que el cliente ya dijo. Política de pago, dicha en su momento y con naturalidad: anticipo (El Vaso Maíz $500; Divanna mínimo $500 para asegurar la fecha), el total se liquida al menos 24 h antes (en efectivo, en la oficina o con el encargado de la brigada) y, si lleva mobiliario de Divanna, un depósito en garantía estándar de $1,000 que se paga con la liquidación y se regresa al recoger si todo está completo; si el daño pasa del depósito se cobra la diferencia a precio de reposición (ejemplos solo si el cliente pregunta: silla desde $700, copa $100, mesa $2,500). En pedidos con mobiliario DiMa pregunta quién va a estar para entregarlo en la recolección (`responsable_recoleccion`, se guarda en `Instrucciones_Equipo`). Los montos viven en `HORAS_LIQUIDACION`, `ANTICIPO_DIVANNA` y `DEPOSITO_MOBILIARIO` (`api/_dima-catalogo.js`); en null, DiMa dice que la gerencia confirma el monto.
+
+**Por qué:** lo pidió Víctor: DiMa prometía letreros con nombre, no explicaba las mamparas personalizadas y no decía la política de pago; además ya pasó que al recoger no había nadie que respondiera por el mobiliario.
+
+**Descartado:** decir toda la política en un solo mensaje (suena a letra chiquita), cobrar el depósito en efectivo al montar (decisión de Víctor: va con la liquidación) y un campo nuevo en Airtable para quien recibe en la recolección (en las instrucciones ya lo ven la brigada y `/hoy`).
+
+## 2026-10-30 — Daños: perdido al 100%, daño menor al 10%, y DiMa los calcula por Telegram
+
+**Decisión:** lo roto, perdido o que ya no sirve se cobra al 100% del precio de reposición (`INVENTARIO.Precio_Reposicion`); el daño menor (mancha, rayón, se limpia o se repara) al 10%. La brigada puede anotarlo platicando con DiMa por Telegram (`/daño EVT-… qué pasó`): DiMa reconoce el evento y los artículos, el servidor hace la cuenta y muestra el desglose con ✅ Registrar / ❌ Cancelar. El borrador vive en `EVENTOS.Cargos_Extra` marcado `pendiente` (sin campos nuevos en Airtable) y no suma al total hasta confirmarse. En la app, 💰 Dinero pide "¿Qué pasó?" (completo o daño menor).
+
+**Por qué:** lo pidió Víctor: "la brigada debe mandar un mensaje a DiMa, hacer el cálculo rápido y dar un monto". El 10% lo propuso Víctor; se aplicó solo al daño menor porque a todo daño cobraría $10 por una copa rota.
+
+**Descartado:** que DiMa calcule el monto (el modelo puede equivocarse en cuentas; el servidor usa el precio de inventario), registrar sin confirmar (un artículo mal reconocido se cobraría al cliente) y una tabla nueva para los borradores (no se podía crear el campo desde aquí y el JSON ya existía).
+
+## 2026-10-31 — Buenos días diario a Diana
+
+**Decisión:** el cron de las 8:00 manda todos los días a los Admin con Telegram un saludo (escrito por DiMa, sin cifras) y un resumen con números del sistema: eventos de hoy y mañana (hora, folio, cliente, negocio, lo que falta), total por cobrar y si las cuentas cuadran. Si hay eventos que no cuadran, siguen las preguntas con botones como antes.
+
+**Por qué:** Víctor esperaba que Diana recibiera un mensaje cada mañana; antes solo salía cuando algo no cuadraba y, sin pendientes, no le llegaba nada.
+
+**Descartado:** dejarlo solo por excepción.
+
+## 2026-10-31 — DiMa lee las imágenes de Drive
+
+**Decisión:** cada imagen de la carpeta de Diana se lee una vez con Claude (visión): qué es y todo su texto (precios, piezas, fechas, condiciones). La lectura se guarda en la descripción del archivo en Drive con la marca `[Leído por DiMa · <md5>]`; si la imagen cambia (otro md5) se relee. Corre después de responder al cliente (`waitUntil`), 6 por vuelta. DiMa recibe la lectura como "Contiene:" de cada foto y manda sobre el catálogo, igual que un documento.
+
+**Por qué:** Víctor: "DiMa debe poder leer las imágenes; no puede solo tirar fotos sin saber qué contienen". Diana sube flyers de WhatsApp con precios y nombres sin sentido; DiMa los mandaba sin saber qué decían y daba precios viejos.
+
+**Descartado:** pedir a Diana que renombre o escriba documentos (no lo hace), leer en cada mensaje (lento y caro), guardar en Airtable (otra tabla; la descripción de Drive la ve y corrige Diana), cron diario (Hobby solo permite uno al día; tardaría hasta 24 h).
+
+## 2026-11-01 — Precios de Casa Isabella: los de los flyers
+
+**Decisión:** de lunes a jueves, 30 personas $1,800 (3 mesas y 30 sillas, sin mantel, salida máxima 10 pm, mesa extra $400). Viernes a domingo, 30 personas $3,000 y 50 personas $4,000, con mantel básico (mesa extra $500). Se mantiene el tope de $4,500 para 70 a 80 personas. Están en `api/_dima-catalogo.js` y en la tarjeta de la página.
+
+**Por qué:** Víctor: "los precios buenos son los del flyer". Los flyers de Diana en Drive decían $1,800 / $3,000 / $4,000 y el catálogo $1,500 / $2,500. Como lo de Drive manda sobre el catálogo, DiMa y la página podían dar precios distintos.
+
+**Descartado:** dejar solo el flyer en Drive (la página seguía diciendo "desde $1,500"). El tope de $4,500 y la mesa extra de $500 en fin de semana no vienen en los flyers: se conservaron del catálogo anterior (cuadran con 50 personas = $4,000) y quedan por confirmar.
+
+## 2026-11-01 — Borrar eventos desde el dashboard (solo Diana y Víctor)
+
+**Decisión:** botón "🗑️ Borrar evento" al final de cada ficha y de cada pedido por cotizar. Primero "Revisar qué se borra" (cobros y monto, staff, Google); para confirmar hay que escribir el folio. Lo quita de Google Calendar, marca Cancelado su renglón en la hoja de Google, borra sus cobros e invitaciones de staff y el evento. No avisa al equipo. Gastos, fotos de comanda y el cliente se quedan (Airtable solo les quita el vínculo).
+
+**Por qué:** Víctor: "en este momento visualizo eventos que no deben de existir, debe todo estar limpio". Cancelar deja el expediente (sigue en el cuadre y en las listas); para pruebas y duplicados hacía falta quitarlos de verdad.
+
+**Descartado:** borrar sin confirmar (un toque equivocado borra un evento real con su dinero); borrar también gastos (son dinero real gastado aunque el evento sobrara); dejarlo a la gerente (solo Admin).
+
+## 2026-11-02 — Aviso cuando DiMa se queda sin saldo en Anthropic
+
+**Decisión:** si la API de Claude contesta "credit balance is too low", el bot ya no dice "intenta de nuevo en un momento": explica que DiMa se quedó sin saldo y que ya se avisó. A Diana y Víctor (Admin) les llega un Telegram con qué deja de funcionar y dónde recargar, máximo uno por hora por instancia. Aplica en el bot (fotos, mensajes, botones), en "Leer comanda" de la app y en el chat de la página (ahí el cliente ve el mensaje de siempre con el formulario; solo se avisa al equipo). Helper `esSinSaldo` / `avisarSinSaldo` en `api/_telegram.js`.
+
+**Por qué:** el 2-nov las fotos de comandas dejaron de leerse y el bot solo decía "intenta más tarde"; en los logs el motivo real era falta de saldo. Nadie se entera hasta que alguien se queja, y mientras tanto tampoco cotiza el chat de la página.
+
+**Descartado:** guardar la hora del último aviso en Airtable (una escritura más por cada falla; el aviso por instancia basta); avisar también a la gerente (no maneja la cuenta). La solución de fondo es activar la recarga automática en console.anthropic.com.
+
+## 2026-11-02 — Comanda por Telegram: se guarda sin la forma de pago del anticipo
+
+**Decisión:** en Telegram el botón ✅ Guardar evento ya no espera la forma de pago del anticipo. Si la comanda no la dice, el evento se guarda sin registrar el cobro y el anticipo queda en las notas del evento ("falta registrarlo en la app con 💵 Registrar pago"); el recibo sale cuando se registre en la app. DiMa ya no pone la forma de pago en "dudas". En el formulario de la app se sigue pidiendo.
+
+**Por qué:** Víctor: "me pregunta el anticipo como fue si deposito efectivo o transferencia, eso no importa en ese momento, eso se hace en la apk". Sin la forma solo salía Descartar y había que mandar una corrección (otra llamada a Claude) solo para eso.
+
+**Descartado:** registrar el cobro con forma vacía (el cuadre separa efectivo de transferencia y quedaría un cobro sin clasificar).
+
+## 2026-11-02 — Mantel: en la comanda va tipo y color, no la cantidad
+
+**Decisión:** el espacio de "Mantel" de la comanda lleva el tipo (básico, lentejuela, corrugado) y el color; la cantidad sale de las mesas (uno por mesa). DiMa lo pregunta en el chat y lo lee en la foto, lo anota en la nota del producto de las mesas y el recibo lo muestra en el renglón de manteles. Si en la comanda solo hay un número, no se agrega "Mantel extra" y avisa que falta tipo y color; además un candado en `_comanda.js` le quita a "Mantel extra" lo que exceda los manteles escritos.
+
+**Por qué:** un recibo salió con 20 manteles en vez de 10: en la comanda se escribió "10" en el espacio de Mantel y DiMa lo sumó como "Mantel extra" encima de las 10 mesas con mantel. Víctor: "en el área de mantel debe decir el tipo y color no el número de manteles".
+
+**Descartado:** contar manteles aparte de las mesas (se duplican con las mesas y paquetes que ya los traen).
+
+## 2026-11-02 — Comanda por foto: que no se caiga al abrir o mandar la foto
+
+**Decisión:** en la app la foto se prepara por tres caminos (createImageBitmap → <img> → la foto tal cual si es JPG/PNG/WebP de menos de 3 MB) y se manda con límite de 70 s y un reintento si se cae la señal o el servidor da 5xx. Lo que falla en el teléfono se anota en los registros de Vercel (`accion: falla_foto`). En el servidor, Claude tiene un límite de 50 s (Vercel corta a los 60) y se reintenta si la falla es pasajera (529, 5xx, red); si no se puede leer, la app y Telegram reciben un mensaje claro y Diana y Víctor un aviso por Telegram (máx. uno por hora). Imágenes mandadas como archivo en formato que Claude no lee (HEIC) se rechazan con explicación.
+
+**Por qué:** Víctor: "la apk me dice que no puede leer la foto… que se mantenga siempre funcional". En los registros no llegó ninguna foto al servidor: fallaba en el teléfono (Android 10) antes de mandarla, y el mensaje genérico no decía por qué.
+
+**Descartado:** subir la foto original sin achicar (fotos de cámara pasan el límite de 4.5 MB de Vercel).
+
+## 2026-11-02 — El Vaso Maíz: hasta 10 eventos por día; personalizados no son piezas
+
+**Decisión:** el día de El Vaso Maíz se llena con 10 eventos (antes 6 equipos o el personal del día). Si el personal no alcanza, el semáforo sale 🟡 "sumar eventuales", ya no 🔴 ni bloquea el día. Nuevo producto `vm_personalizado` (diseño para el plato o vaso) sin piezas: no cuenta personal ni sale en la lista de producción. La lectura de comandas y el chat los registran así, y un candado en `_comanda.js` cambia a personalizado los "N personalizados" que Claude haya puesto como pieza suelta.
+
+**Por qué:** EVT-004762 bloqueó el día pidiendo 11 personas: 155 personalizados se contaron como piezas a preparar (4 min c/u en 2 h). Víctor: "esos personalizados son los diseños para los platos… este evento lo hacen solo dos personas en 2 hrs". Diana: "es posible hacer hasta 10 eventos por día ya que podemos aumentar el staff".
+
+**Descartado:** subir el cupo de personal del día (seguiría bloqueando por personas cuando el staff sí se puede aumentar). Divanna sigue en 9 entregas por día (3 brigadas x 3).
+
+## 2026-11-02 — Divanna sin límite de entregas; inventario libre a las 12 del día siguiente o al recoger
+
+**Decisión:** Divanna ya no tiene tope de entregas por día (antes 9: 3 brigadas x 3): el día nunca se llena por entregas y el semáforo ya no avisa por eso. Solo marca el inventario (amarillo/rojo como antes), sin bloquear. El mobiliario y los manteles quedan ocupados el día del evento hasta las 12 del día siguiente (antes 1 pm y los manteles 48 h más de lavado), y en cuanto la brigada marca la recolección (o el evento pasa a Cerrado) dejan de apartar. Casa Isabella sigue apartando el día.
+
+**Por qué:** Víctor: "imagínate que solo pidan 1 o 2 mesas por pedido y tenemos más en bodega"; lo que falte se pide a proveedores aliados. "Si están rentadas para hoy, en teoría mañana a medio día ya están disponibles."
+
+**Descartado:** subir el tope de entregas (seguiría bloqueando pedidos chicos). Mantener las 48 h de lavado de manteles (Víctor pidió reducir el bloqueo del almacén a 12 h; si el lavado lo necesita, se regresa con `HORAS_LAVADO_MANTEL` en `_productos.js`).
+
+## 2026-11-02 — Manteles: 24 h de lavado
+
+**Decisión:** los manteles quedan 24 h en lavado después de las 12 del día siguiente al evento (`HORAS_LAVADO_MANTEL = 24`). Ej.: evento el sábado → disponibles el lunes a las 12. Al marcar la recolección se liberan igual que el mobiliario.
+
+**Por qué:** Víctor: "los manteles déjalos en 24 horas de lavado" (antes 48 h; en el cambio anterior quedaron en 0).
+
+## 2026-11-02 — Producción y staff separados; etapas y SOS por Telegram (El Vaso Maíz)
+
+**Decisión (Víctor):** Ángela separa por evento quién produce y quién va al evento. Elige en la app el **equipo de producción** (1, 2 o más según la carga) y a su **encargado**; una persona puede estar en producción y en el staff. Los colaboradores no usan la app: todo por Telegram. Solo el encargado tiene **🚀 Listo para staff**; al tocarlo, al staff confirmado le llegan los botones de las etapas que ya existían en la app (Salió del almacén, En camino, Llegó al lugar, Evento en curso, Evento terminado = Cerrado) y cualquiera de ellas las marca. Ángela solo lo ve en la app (sin avisos por Telegram de cada etapa). **🆘 SOS** abierto a todos los colaboradores en cualquier momento, con ubicación, y le llega a todos como la emergencia de la app.
+**Cómo quedó:** `api/_etapas.js`; campos nuevos `EVENTOS.Equipo_Produccion` (vínculo múltiple a COLABORADORES) y `EVENTOS.Produccion_Lista` (fecha y hora). Las etapas se guardan en `Estatus_Logistico`, solo hacia adelante, con el mismo bloqueo de carga que la app. Quién puede estar en producción: las mismas opciones que el encargado (staff de la coordinadora, encargadas y la gerente). El SOS usa el teclado de Telegram con `request_location` (un toque + aceptar compartir); `/sos` ofrece mandarlo sin ubicación. El aviso de emergencia se movió a `api/_alertas.js` para que app y Telegram manden lo mismo.
+**Descartado:** que solo un responsable del staff marque las etapas (Víctor: cualquiera); SOS sin ubicación por defecto (Víctor: con ubicación); avisar a Ángela por Telegram en cada etapa; nuevas opciones en `Estatus_Logistico` para "Listo para staff" (habría cambiado la app de las brigadas).
+**Límite conocido:** el botón "Listo para staff" llega en la lista de producción del día (cron 8:00); si un evento empieza muy temprano y producción termina antes, el encargado tiene que esperar a ese mensaje. Cualquier ubicación que alguien mande al bot se toma como SOS. El resto del equipo de producción (que no es encargado) no recibe la lista de producción, solo su aviso.
+
+## 2026-11-02 — Teléfono del cliente para todos y ✏️ Editar evento
+
+**Decisión:** en la app todos los roles ven nombre, teléfono (toca para llamar) y correo del cliente de sus eventos (`api/_eventos.js`, `bloqueCliente`). Diana y Víctor (dashboard) y la gerente de El Vaso Maíz (solo eventos de El Vaso Maíz) tienen **✏️ Editar evento y cliente**: nombre, teléfono, correo, ubicación, fecha, invitados y fuera de la ciudad (`accion: 'editar'` en `api/dashboard-eventos.js`). Fecha o lugar nuevos se pasan a Google Calendar.
+
+**Por qué:** Víctor: "cada encargado de brigada se contactará con el cliente de principio a fin"; los datos llegaban incompletos y no había cómo corregirlos a mano.
+
+**Alternativa:** dejar el teléfono solo a quien cobra (`veDinero`). Ojo: nombre/teléfono/correo son del registro de CLIENTES; cambiarlos en un evento los cambia en todos los eventos de ese cliente.
+
+## 2026-11-03 — ✏️ Editar también el pedido
+
+- **Decisión:** el botón ✏️ (ahora "Editar evento, cliente y pedido") deja cambiar qué lleva el pedido (un artículo por línea) y, solo Diana y Víctor, el monto contratado (`Monto_Estimado_IA`). Ángela lo hace en la app, solo en eventos de El Vaso Maíz y sin monto. En un evento autorizado lo que lleva es también la lista de carga (`Checklist_Items`): se conservan las palomitas de los artículos que no cambiaron y, si está marcada la casilla "avisar al equipo" (viene marcada), se avisa igual que un cambio del cliente confirmado (Telegram con Confirmar, push, se borra "Enterado", se reenvía la producción). Google Calendar se actualiza.
+- **Por qué:** Víctor lo pidió; antes solo se corregían los datos del cliente y del evento, y la hora y los productos.
+- **Alternativa descartada:** formulario aparte de "pedido"; se prefirió el mismo ✏️ para no sumar otra caja.
+
+## 2026-11-03 — Gerentes por negocio: Eden (Divanna) y Mario (Casa Isabella)
+
+- **Decisión:** Eden es gerente de Divanna y Mario de Casa Isabella, con lo mismo que Ángela en El Vaso Maíz: ven todos los eventos autorizados de su negocio, asignan brigada y encargada, editan (sin monto), capturan en el calendario y por comanda, reciben avisos de cambios, día lleno y recibos, y platican con DiMa interna. Casa Isabella no es un negocio aparte: un evento "es de Casa Isabella" si lleva el salón (producto `dv_casa_isabella`, artículo asignado o el texto en lo que lleva). **Eden no ve los de Casa Isabella** (los lleva Mario). Dinero igual que Ángela: Eden revisa los reportes del día de Divanna; Mario no (los reportes no separan el salón), solo los cobros de sus eventos. El staff por Telegram y la producción siguen siendo solo de El Vaso Maíz. En "👷 Asignar" aparecen también los tres gerentes (para asignarse a sí mismos o entre ellos, p. ej. Eden pone a Mario a apoyar un evento de Divanna) y el gerente asignado ve y opera ese evento aunque no sea de su negocio. Mario también ve los eventos de la brigada a la que pertenezca.
+- **Cómo se marca (Víctor lo pidió así):** con tres opciones nuevas del campo `COLABORADORES.Rol`: `Gerente El Vaso Maiz`, `Gerente Divanna`, `Gerente Casa Isabella`. Por dentro el gerente trabaja como "Lider de brigada" (reporte del día, su brigada, cobros) con su negocio en `colaborador.gerente` (`rolDe` / `gerenciaDe` en `api/_sesion.js`). La casilla vieja `Gerente_Vaso_Maiz` sigue valiendo para Ángela mientras no se le cambie el Rol.
+- **Por qué:** Víctor lo pidió (2026-11-03): Eden lleva Divanna y Mario Casa Isabella, pero Mario sigue apoyando a Divanna como brigada.
+- **Alternativa descartada:** que Eden viera también Casa Isabella (Víctor eligió separarlos); un campo aparte `Gerente_De` (primera versión del mismo día) o casillas sueltas por negocio; Víctor prefirió el Rol.
+
+## 2026-11-03 — 💵 Cobrar en cada tarjeta y cierre automático al liquidar
+
+- **Decisión:** cada evento trae en su tarjeta (sin abrir la ficha) una caja corta **💵 Cobrar**: forma de pago, "Liquidó todo · $X" o un abono. El cobro queda ligado al evento y entra al reporte del día; al guardar, la tarjeta se pliega. No sale si ya está pagado. Si con el cobro el cliente liquidó **y ya se recogió** (Checklist_Recoleccion o Estatus_Logistico Cerrado), el evento pasa a `Estado = Cerrado` (`cerrarSiTermino` en `api/_cargos.js`). Si liquida antes, se cierra solo al marcar la recolección.
+- **Por qué:** Víctor lo pidió "muy simple" y que el evento se cierre al cobrar; eligió "cerrar si liquidó". Se exige la recolección porque `Cerrado` lo saca de la app de la brigada, producción, staff y semáforo: cerrar un anticipo liquidado antes del evento haría que nadie lo atendiera.
+- **Alternativa descartada:** cerrar con cualquier cobro, o cerrar al liquidar sin esperar la recolección. Los pagos que Diana registra desde el dashboard no cierran solos (por ahora).
+
+## 2026-11-04 — Columna Origen en EVENTOS (de dónde llega cada pedido)
+
+- **Decisión:** `EVENTOS.Origen` (selección única: `Chat DiMa`, `Formulario`, `Manual`). La escriben `crearPedido` (`api/_pedidos.js`, chat o formulario) y la captura a mano del calendario y la comanda (`api/_calendario.js`) en un PATCH **aparte** con `typecast`, dentro de try/catch: si la columna no existe, el pedido se guarda igual. Los eventos sin Origen (de antes) se clasifican por el primer renglón de `Notas` (`origenDeEvento` en `api/_origen.js`, módulo sin dependencias para evitar requires circulares). El balance semanal agrega "eventos de la semana por origen" y "pedidos que entraron esta semana" (por `CREATED_TIME()`), con cuántos autorizó Diana y el monto.
+- **Por qué:** Víctor quiere medir si DiMa es rentable (operación ~$900–1 300 MXN/mes contra >20 eventos de ~$1 900): hay que saber cuántos pedidos y cuánto dinero trae el chat. DiMa empezó el 2026-11-03.
+- **Alternativa descartada:** escribir Origen en el mismo POST del evento (si la columna faltara, Airtable rechaza el pedido completo); contar solo por el texto de Notas (frágil si alguien edita Notas).
+
+## 2026-11-06 — Origen por persona, selector de manteles, recibo al editar y descuento de decorador
+
+- **Origen:** `EVENTOS.Origen` ahora dice quién creó el evento: `DiMa`, `Formulario` o el primer nombre de quien lo capturó en la app o por foto de comanda (`Diana`, `Eden`, `Mario`, `Ángela`, `Víctor`). Los valores viejos se leen con el nombre nuevo (`origenDeEvento`): `Chat DiMa` → `DiMa`, `Manual` → el nombre que está en Notas ("Evento capturado a mano por …"). `typecast` crea las opciones nuevas en Airtable. Por qué: Víctor quiere ver cuánto vende cada quien, no solo "Manual".
+- **Manteles (precios de renta, en cualquier evento y lugar):** básico $60, corrugado $120, lentejuela $200. Cada mesa trae 1 básico incluido. Cambiarlo a especial cobra la diferencia (`dv_cambio_lentejuela` +$140, `dv_cambio_corrugado` +$60, con componentes `Mantel: -1` para que el inventario no cuente doble); los extras van a precio completo (`dv_mantel`, `dv_mantel_lentejuela`, `dv_mantel_corrugado`). Los paquetes respetan su precio aunque traigan lentejuela o corrugado. No se pueden cambiar más manteles de los que traen las mesas. Selector en `brigadas/manteles.js` (➕ Capturar evento y "Hora y productos" del dashboard). Lo de manteles se suma solo al monto: al capturar (monto escrito + manteles) y al cambiar productos de un evento (se suma o resta la diferencia). En los pedidos por cotizar Diana escribe el total; el selector solo le dice cuánto son. La comanda por foto resta los manteles del total del papel para no sumarlos dos veces.
+- **Recibo:** se sigue sobrescribiendo la pestaña del folio (no hay versiones viejas, para no confundir). Lo nuevo: al editar un evento autorizado desde la web (✏️ Editar, "Hora y productos", mover fecha/hora) se rehace y se manda solo por Telegram. El recibo dice cuántos manteles van de cada tipo, los cambios y extras con su precio y el descuento de decorador.
+- **Decorador:** `CLIENTES.Tipo_Cliente = "Decorador"` (la opción "Profesional" se renombra; mientras tanto también vale) → 10% sobre el total del evento, también en DiMa (al registrar el pedido le dice al cliente el total con descuento; en los cambios del chat también). Queda la marca "🏷️ Cliente decorador…" en Notas para el recibo y para que los cambios de manteles posteriores lleven el 10%. Si Diana escribe el monto a mano (✏️ Editar o al autorizar), ese es el final.
+- **Alternativa descartada:** versiones del recibo (`EVT-123 v2`): Víctor prefirió que el viejo desaparezca. Columna nueva para el descuento: la marca en Notas evita crear campos en Airtable antes de publicar.
+
+## 2026-11-06 — Se queda el formulario; aparte se guarda quién autorizó
+
+- **Decisión:** el formulario de respaldo de la página se queda (se probó quitarlo y Víctor prefirió dejarlo). Sus pedidos conservan Origen `Formulario` (y los del chat, `DiMa`). Aparte, la columna nueva `EVENTOS.Autorizado_Por` (texto) guarda el primer nombre de quien autorizó en el dashboard; en los capturados a mano es quien los capturó. El balance semanal trae "Eventos de la semana por quién los autorizó" además de "por origen".
+- **Por qué:** ver las dos cosas: de dónde llegan los clientes (DiMa, formulario, captura) y quién los cerró.
+- **Seguro:** si la columna no existe todavía en Airtable, la autorización y la captura se guardan igual sin ese dato (se reintenta sin el campo). Los eventos autorizados antes salen como "Sin dato".
+
+## 2026-11-06 — App sin precios de manteles; pedido sin dudas antes de guardar
+
+- **Decisión:** el selector de manteles de la app y el dashboard ya no muestra precios (solo cuántos cambian, extras y color); los precios se calculan solos y salen desglosados en el recibo. Al leer una comanda (foto) o un pedido escrito (nuevo: `/comanda …` en Telegram y "📝 Llenar con el pedido escrito" en la app), DiMa hace "preguntas" por lo que falte (tipo y color del mantel, que el estilo escrito coincida con lo que se cobra, color de cerezos, temática de personalizados, colores de globos, números LED, sabores, "otro") y **no se puede guardar** hasta contestarlas (en Telegram encima del borrador; en la app en la caja "Preguntas de DiMa"). Además de lo que pregunte Claude, hay una revisión fija en código (`preguntasFijas` en `api/_comanda.js`) para manteles, cerezos y personalizados. Si la respuesta es "todavía no se sabe", la pregunta se quita y queda en notas como pendiente.
+- **Por qué:** Víctor: "más simple siempre es mejor" en la app, y el negocio tiene muchas variables: el pedido debe quedar 100% claro para prepararlo.
+- **Ajuste (mismo día):** el apartado se llama solo "🧺 Mantel": renglones con tipo (básico, lentejuela, corrugado), color libre y cantidad; al poner mesas aparece solo el básico con la cantidad de mesas. Por dentro (`repartir` en `brigadas/manteles.js`) los especiales usan primero los básicos incluidos (cambio) y lo que sobra es extra; el total cobrado es el mismo en cualquier orden.
+
+## 2026-11-07 — Cierre, reembolsos, cuadre, recibos y dashboard en ventanas (rama `cierre-cuadre-reembolsos`)
+- **Cierre:** un evento se cierra (Estado = Cerrado) cuando Estatus_Logistico = Cerrado y Cuadre_Estado ≠ "Por aclarar" (`tocaCerrar` en `api/_cargos.js`). Se aplica al tocar 🏁 Terminado (Telegram y app) y cuando Diana aclara el cuadre. "Debe" cierra y el saldo sigue en cobranza. Nunca se recorren eventos viejos para cerrarlos.
+- **Reembolsos** (`api/_reembolsos.js`): GASTOS con Pagado_Con = Dinero propio y sin Reembolsado, excluye Pagado_Con = "Inversión personal", una fila por Reportado_Por. Cada pago crea un registro en PAGOS_REEMBOLSO ligado a los gastos pendientes; los gastos se marcan del más viejo al más nuevo cuando lo pagado los cubre; el sobrante queda a cuenta. Lo pagado en efectivo descuenta del efectivo sin destino.
+- **Cuadre:** destinos del efectivo = Lo deposité, Gasto del negocio, Retiro personal, Gasto externo (remodelación) [MOVIMIENTOS_CAJA.Tipo = "Gasto externo"], Reembolso, Sigue en caja (+ Otro), iguales en Telegram y app. Botones por evento: Efectivo a Diana, Efectivo a la brigada, Transferencia, Otro monto, Sigue debiendo, Cortesía, Otro. Un botón viejo no repite lo contestado.
+- **Recibos PDF:** nunca automáticos (ni al cobrar, aprobar reporte, anticipo o editar). El pago solo deja COBROS, Monto_Adeudado y Estatus_Pago = "Liquidado 100%" si ya no resta. El PDF sale con 🧾 Mandar recibo cuando el cliente lo pide, con "Pagado · fecha del último pago".
+- **Gastos:** GASTOS.Tipo (Evento/General/Extra) se pregunta en la app y en `/gasto 350 concepto` (Admin) con botones.
+- **Dashboard:** ventanas Inicio / Finanzas / Clientes / Eventos. Por cobrar, Pagos pendientes y la tabla de cobranza salen del mismo cálculo (eventos sin cliente en su propia fila). Margen "—" si no hay gastos. "En curso hoy" = eventos con fecha de hoy.
+
 ## 2026-10-28 — Entrenar a DiMa desde el dashboard
 
 **Pedido de Víctor:** poder chatear con DiMa desde el dashboard para corregirla rápido, porque está dando información incorrecta.
@@ -157,3 +472,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué así:** corregir sin esperar un cambio de código; queda registro de quién enseñó qué.
 **Riesgo y cuidado:** muchas reglas acumuladas pueden contradecirse; las que sean permanentes (precios) conviene pasarlas a `_dima-catalogo.js` y quitarlas de la lista.
 **Descartado:** que DiMa aprenda sola de las conversaciones con clientes (podría aprender errores del cliente); editar el prompt desde el dashboard en texto libre (fácil de romper).
+
+## 2026-11-09 — /entrenamiento en Telegram, nota de colores y selector de manteles
+
+**Pedido de Víctor:** entrenar a DiMa por Telegram con confirmación, nota de colores sin campos nuevos y manteles por tipo y color.
+**Cómo quedó:** `/entrenamiento`, `/reglas` y `/desactivar N` solo para Admin, reconocido por su `Telegram_Chat_ID` (`api/_entrenamiento.js`). DiMa interpreta y pregunta "¿lo guardo?"; solo se escribe en CORRECCIONES_DIMA con ✅ o con "sí" contestado encima del borrador. Se rechazan indicaciones de identidad, cobro y datos de clientes también en el dashboard (`motivoRechazo`). La nota va en `EVENTOS.Instrucciones_Equipo` con el prefijo `PENDIENTE COLORES:` y se reemplaza por `COLORES DEFINIDOS:` (`api/_colores.js`). Corrugado y lentejuela dejan `PROVEEDOR EXTERNO:` y avisan al gerente de Divanna. En la app el básico se llama Liso (la clave interna sigue siendo `basico`) y solo ofrece los 16 colores.
+**Por qué así:** el borrador viaja en el mensaje del bot porque las funciones serverless no guardan estado y no se quiso escribir nada antes del sí.
+**Límite:** un "sí" suelto, sin contestar encima del borrador, no confirma: lo atiende la plática normal con DiMa.
+**Descartado:** guardar el borrador en Airtable con Activa = false (sería escribir antes de confirmar); campos nuevos para los colores.

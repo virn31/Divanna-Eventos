@@ -8,7 +8,10 @@ const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
-const { normalizarProductos, capacidadEvento } = require('./_productos');
+const { normalizarProductos, capacidadEvento, inicioEvento } = require('./_productos');
+const { ORIGENES } = require('./_origen');
+const { actualizarNotaColores } = require('./_colores');
+const { esDecorador, tieneDescuento, conDescuento, MARCA_DECORADOR } = require('./_decorador');
 const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
 
 // Plazo que DiMa le promete al cliente para confirmar su cotización.
@@ -72,6 +75,9 @@ function validarPedido(entrada) {
     montoEstimado: Number(entrada.montoEstimado),
     fueraDeCiudad: entrada.fueraDeCiudad === true,
     indicaciones: texto(entrada.indicaciones, 800),
+    coloresPendientes: texto(entrada.coloresPendientes, 300),
+    coloresDefinidos: texto(entrada.coloresDefinidos, 300),
+    proveedorExterno: texto(entrada.proveedorExterno, 300),
     preferenciaContacto: PREFERENCIAS[entrada.preferenciaContacto] || null,
     horaInicio: /^([01]\d|2[0-3]):[0-5]\d$/.test(texto(entrada.horaInicio, 5)) ? texto(entrada.horaInicio, 5) : '',
     horasServicio: Number(entrada.horasServicio) >= 0.5 && Number(entrada.horasServicio) <= 24 ? Number(entrada.horasServicio) : null,
@@ -103,6 +109,20 @@ function camposAgenda(datos) {
   return fields;
 }
 
+// Escribe la columna Origen. typecast crea la opción si aún no existe; si la
+// columna no existe, solo queda en el log (el origen sigue en Notas).
+async function guardarOrigen(eventoId, valor) {
+  if (!eventoId) return;
+  try {
+    await airtableRequest(TABLES.EVENTOS, {
+      method: 'PATCH',
+      body: JSON.stringify({ records: [{ id: eventoId, fields: { Origen: valor } }], typecast: true }),
+    });
+  } catch (err) {
+    console.error('No se pudo guardar Origen:', err.message);
+  }
+}
+
 // origen: 'formulario' o 'chat'. notasExtra: texto adicional para Notas (ej. la conversación).
 async function crearPedido(datos, { origen, notasExtra = '' }) {
   const diezDigitos = datos.telefonoDigitos.slice(-10);
@@ -127,9 +147,14 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
 
   // 2. Evento pendiente de cotizar
   const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  // Cliente decorador (Tipo_Cliente en Airtable): 10% menos sobre el total estimado.
+  const decorador = esDecorador(cliente.fields);
+  const montoSinDescuento = datos.montoEstimado;
+  if (decorador && datos.montoEstimado > 0) datos = { ...datos, montoEstimado: conDescuento(datos.montoEstimado) };
   const montoValido = datos.montoEstimado > 0 && datos.montoEstimado < 10000000;
   const notas = [
     origen === 'chat' ? 'Pedido armado con DiMa en la página web.' : 'Pedido desde el formulario de la página web.',
+    decorador ? MARCA_DECORADOR : '',
     datos.tipoEvento ? `Tipo de evento: ${datos.tipoEvento}` : '',
     datos.negocio && !NEGOCIOS_VALIDOS.includes(datos.negocio) ? `Negocio solicitado: ${datos.negocio}` : '',
     enTemporadaAlta(datos.fecha) ? `🎄 Temporada alta (${textoTemporada()}): sin paquetes regulares.` : '',
@@ -150,7 +175,10 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   if (datos.invitados > 0 && datos.invitados < 100000) eventoFields.Invitados = datos.invitados;
   if (montoValido) eventoFields.Monto_Estimado_IA = datos.montoEstimado;
   if (datos.fueraDeCiudad) eventoFields.Fuera_De_Ciudad = true;
-  if (datos.indicaciones) eventoFields.Instrucciones_Equipo = `Del cliente: ${datos.indicaciones}`;
+  const notaEquipo = actualizarNotaColores(datos.indicaciones ? `Del cliente: ${datos.indicaciones}` : '', {
+    pendientes: datos.coloresPendientes, definidos: datos.coloresDefinidos, proveedor: datos.proveedorExterno, cliente: `${datos.nombre} (${datos.telefonoDigitos})`,
+  });
+  if (notaEquipo) eventoFields.Instrucciones_Equipo = notaEquipo;
   if (datos.preferenciaContacto) eventoFields.Preferencia_Contacto = datos.preferenciaContacto;
   const agenda = camposAgenda(datos);
   Object.assign(eventoFields, agenda);
@@ -160,6 +188,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     body: JSON.stringify({ records: [{ fields: eventoFields }] }),
   });
   const eventoId = creado && creado.records && creado.records[0] && creado.records[0].id;
+
+  await guardarOrigen(eventoId, origen === 'chat' ? ORIGENES.CHAT : ORIGENES.FORMULARIO);
 
   // 3. Semáforo de agenda: se guarda en el evento y va en los avisos. Si falla,
   // el pedido sigue registrado y el dashboard lo recalcula al abrirse.
@@ -195,10 +225,11 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
     texto: `🎉 Pedido nuevo ${folio} (${origen === 'chat' ? 'chat con DiMa' : 'formulario'})\n` + avisoFuera +
       `${datos.nombre} · ${telefono}\n` +
       `📅 ${datos.fecha}${datos.horaInicio ? ' · 🕒 ' + datos.horaInicio : ''}${datos.invitados > 0 ? ' · 👥 ' + datos.invitados : ''}${datos.ubicacion ? ' · 📍 ' + datos.ubicacion : ''}\n` +
-      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}${decorador ? ' (ya con 10% de decorador)' : ''}\n` : '') +
+      (decorador && !montoValido ? '🏷️ Cliente decorador: 10% de descuento sobre el total.\n' : '') +
       `\n${datos.servicios}\n` +
       (agenda.Resumen_Capacidad ? `\n${agenda.Resumen_Capacidad}\n` : '') +
-      (datos.indicaciones ? `\n📌 ${datos.indicaciones}\n` : '') +
+      (notaEquipo ? `\n📌 ${notaEquipo}\n` : '') +
       `\nCotízalo en https://divanna-eventos.vercel.app/brigadas/`,
   });
   await enviarCorreoEquipo({
@@ -214,7 +245,8 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
       `Fecha: ${datos.fecha}${datos.horaInicio ? ' a las ' + datos.horaInicio : ''}\n` +
       `Invitados: ${datos.invitados > 0 ? datos.invitados : 'sin especificar'}\n` +
       `Ubicación: ${datos.ubicacion || 'sin especificar'}\n` +
-      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}\n` : '') +
+      (montoValido ? `Estimado de DiMa: $${datos.montoEstimado.toLocaleString('es-MX')}${decorador ? ' (ya con 10% de decorador)' : ''}\n` : '') +
+      (decorador && !montoValido ? 'Cliente decorador: 10% de descuento sobre el total.\n' : '') +
       `\nLo que necesita:\n${datos.servicios}\n\n` +
       (agenda.Resumen_Capacidad ? `Capacidad:\n${agenda.Resumen_Capacidad}\n\n` : '') +
       (datos.indicaciones ? `Indicaciones del cliente:\n${datos.indicaciones}\n\n` : '') +
@@ -222,16 +254,14 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   });
   await avisoTelegram;
 
-  return { folio, disponibilidad };
+  return { folio, disponibilidad, decorador, monto: montoValido ? datos.montoEstimado : null, montoSinDescuento };
 }
 
-// Pedido existente: el cliente da su folio y su teléfono para agregar o
-// cambiar algo. Devuelve el resumen del pedido solo si el teléfono coincide
-// con el del cliente del pedido (así nadie toca un pedido ajeno).
-async function verificarPedido(folio, telefono) {
+// Resumen de un pedido por folio, con el teléfono del cliente, o null. Solo
+// se usa con un folio ya verificado (firmado o con teléfono que coincide).
+async function leerPedido(folio) {
   const folioLimpio = String(folio || '').trim().toUpperCase();
-  const diezDigitos = String(telefono || '').replace(/\D/g, '').slice(-10);
-  if (!/^EVT-\d{6}$/.test(folioLimpio) || diezDigitos.length < 10) return null;
+  if (!/^EVT-\d{6}$/.test(folioLimpio)) return null;
 
   const formula = encodeURIComponent(`{Folio_Evento} = "${folioLimpio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
@@ -239,13 +269,13 @@ async function verificarPedido(folio, telefono) {
   const clienteId = r && (r.fields.Cliente || [])[0];
   if (!clienteId) return null;
   const cliente = await airtableRequest(`${TABLES.CLIENTES}/${clienteId}`);
-  if (String(cliente.fields.Telefono_WhatsApp || '').replace(/\D/g, '').slice(-10) !== diezDigitos) return null;
 
   const f = r.fields;
   return {
     id: r.id,
     folio: folioLimpio,
     nombre: cliente.fields.Nombre || '',
+    telefono: String(cliente.fields.Telefono_WhatsApp || '').replace(/\D/g, '').slice(-10),
     negocio: f.Negocio || '',
     fecha: f.Fecha_Evento || '',
     horaInicio: f.Hora_Inicio || '',
@@ -257,6 +287,16 @@ async function verificarPedido(folio, telefono) {
     fueraDeCiudad: !!f.Fuera_De_Ciudad,
     mensajeDiana: f.Mensaje_Para_Cliente && !f.Mensaje_Cliente_Entregado ? f.Mensaje_Para_Cliente : '',
   };
+}
+
+// Pedido existente: el cliente da su folio y su teléfono para agregar o
+// cambiar algo. Devuelve el resumen del pedido solo si el teléfono coincide
+// con el del cliente del pedido (así nadie toca un pedido ajeno).
+async function verificarPedido(folio, telefono) {
+  const diezDigitos = String(telefono || '').replace(/\D/g, '').slice(-10);
+  if (diezDigitos.length < 10) return null;
+  const pedido = await leerPedido(folio);
+  return pedido && pedido.telefono === diezDigitos ? pedido : null;
 }
 
 // Mensaje que Diana dejó para el cliente y que aún no se entrega, o null.
@@ -274,47 +314,120 @@ async function marcarMensajeEntregado(eventoId) {
   });
 }
 
+// Los cambios de pedido se piden con 24 h de anticipación (decisión de Víctor
+// 2026-10-29). Con menos, se registran igual pero marcados como urgentes.
+const HORAS_ANTICIPACION_CAMBIO = 24;
+
+// Horas que faltan para que empiece el evento (null si no hay fecha válida).
+function horasParaEvento(fecha, horaInicio) {
+  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? inicioEvento(fecha, horaInicio) : null;
+  return inicio === null ? null : (inicio - Date.now()) / 3600000;
+}
+
+function cambioUrgente(fecha, horaInicio) {
+  const h = horasParaEvento(fecha, horaInicio);
+  return h !== null && h < HORAS_ANTICIPACION_CAMBIO;
+}
+
+// EVENTOS.Cambio_Cliente (JSON) -> objeto, o null si no hay o no se entiende.
+function leerCambio(texto) {
+  try {
+    const c = JSON.parse(texto || 'null');
+    return c && typeof c === 'object' && typeof c.servicios === 'string' ? c : null;
+  } catch (e) { return null; }
+}
+
 // Guarda en el evento lo que el cliente agregó o cambió después de registrar
-// el pedido: queda en Notas (historial) y las indicaciones nuevas se suman a
-// Instrucciones_Equipo. Diana ajusta la cotización si hace falta.
-async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
+// el pedido. Siempre queda en Notas (historial) y en Cambio_Cliente (lo que se
+// muestra en el dashboard y la app):
+// - Pedido pendiente de cotizar: el cambio se aplica de una vez (servicios,
+//   productos, hora, estimado, indicaciones) y queda como "aplicado".
+// - Pedido ya autorizado: no se toca lo que ya tiene; queda "pendiente" hasta
+//   que Diana lo confirme o descarte en el dashboard.
+// Devuelve { eventoId, autorizado, urgente, negocio, fecha, campos } o lanza
+// error si no se pudo guardar (quien llama debe decirlo, no fingir que quedó).
+async function registrarCambioCliente(folio, { servicios, indicaciones, coloresPendientes, coloresDefinidos, proveedorExterno, cliente, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
-  if (!r) return false;
+  if (!r) throw new Error(`No existe el evento ${folio}`);
+  // Cliente decorador (marca en Notas al crear el pedido): el nuevo estimado también lleva su 10%.
+  if (tieneDescuento(r.fields) && montoEstimado > 0) montoEstimado = conDescuento(Number(montoEstimado));
+  const autorizado = r.fields.Autorizacion_Diana === 'SI';
+  const urgente = cambioUrgente(r.fields.Fecha_Evento, r.fields.Hora_Inicio);
   const fecha = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mazatlan' }).format(new Date());
-  const cambio = [
-    `\n--- Cambio pedido por el cliente en el chat (${fecha}) ---`,
+  const notaCambio = [
+    `\n--- Cambio pedido por el cliente en el chat (${fecha})${urgente ? ' ⚠️ URGENTE: menos de 24 h antes del evento' : ''}${autorizado ? ' · pendiente de confirmar por la gerencia' : ''} ---`,
     `Así lo quiere ahora:\n${servicios}`,
     montoEstimado > 0 ? `Nuevo estimado de DiMa: $${Number(montoEstimado).toLocaleString('es-MX')}` : '',
     indicaciones ? `Indicaciones: ${indicaciones}` : '',
     transcripcion ? `Conversación:\n${transcripcion}` : '',
   ].filter(Boolean).join('\n');
 
-  const fields = { Notas: `${r.fields.Notas || ''}${cambio}`.slice(-90000) };
+  const cambio = {
+    estado: autorizado ? 'pendiente' : 'aplicado',
+    pedidoEl: new Date().toISOString(),
+    urgente,
+    antes: r.fields.Servicios_Solicitados || '',
+    servicios: String(servicios || ''),
+    indicaciones: indicaciones || '',
+    montoEstimado: montoEstimado > 0 ? Number(montoEstimado) : null,
+    horaInicio: horaInicio || '',
+    horasServicio: horasServicio || null,
+    productos: productos || [],
+  };
+  const fields = { Notas: `${r.fields.Notas || ''}${notaCambio}`.slice(-90000), Cambio_Cliente: JSON.stringify(cambio) };
   if (preferenciaContacto) fields.Preferencia_Contacto = preferenciaContacto;
-  // Si el pedido ya está autorizado, los productos los ajusta Diana: aquí solo
-  // se actualizan mientras sigue pendiente de cotizar.
-  if (r.fields.Autorizacion_Diana !== 'SI') {
+  if (!autorizado) {
+    // Todavía no se cotiza: Diana ve directo el pedido como quedó.
+    if (cambio.servicios) fields.Servicios_Solicitados = cambio.servicios;
+    if (cambio.montoEstimado) fields.Monto_Estimado_IA = cambio.montoEstimado;
     Object.assign(fields, camposAgenda({ horaInicio, horasServicio, productos: productos || [] }));
+    if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
+      fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
+    }
   }
-  if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
-    fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
+  // La nota de colores no toca dinero: se actualiza aunque el pedido ya esté autorizado.
+  if (coloresPendientes || coloresDefinidos || proveedorExterno) {
+    fields.Instrucciones_Equipo = actualizarNotaColores(fields.Instrucciones_Equipo !== undefined ? fields.Instrucciones_Equipo : r.fields.Instrucciones_Equipo, {
+      pendientes: coloresPendientes, definidos: coloresDefinidos, proveedor: proveedorExterno, cliente,
+    });
   }
   await airtableRequest(TABLES.EVENTOS, {
     method: 'PATCH',
     body: JSON.stringify({ records: [{ id: r.id, fields }] }),
   });
-  return true;
+  return { eventoId: r.id, autorizado, urgente, negocio: r.fields.Negocio || '', fecha: r.fields.Fecha_Evento || '', campos: r.fields, montoEstimado: cambio.montoEstimado };
+}
+
+// Notas sin la plática con DiMa, para mostrar en la app: la conversación sigue
+// guardada completa en EVENTOS.Notas, pero en pantalla basta el resumen del
+// pedido. Cada "Conversación:" llega hasta el siguiente "--- Cambio ..." o al final.
+function notasSinConversacion(notas) {
+  const fuera = [];
+  let enPlatica = false;
+  for (const linea of String(notas || '').split('\n')) {
+    if (/^Conversación( con DiMa)?:\s*$/.test(linea)) { enPlatica = true; continue; }
+    if (/^--- Cambio /.test(linea)) enPlatica = false;
+    if (!enPlatica) fuera.push(linea);
+  }
+  return fuera.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 module.exports = {
+  notasSinConversacion,
   HORAS_RESPUESTA,
   validarPedido,
   camposAgenda,
   crearPedido,
+  buscarClientePorTelefono,
   verificarPedido,
+  leerPedido,
   registrarCambioCliente,
+  leerCambio,
+  cambioUrgente,
+  horasParaEvento,
+  HORAS_ANTICIPACION_CAMBIO,
   mensajeDianaPendiente,
   marcarMensajeEntregado,
 };

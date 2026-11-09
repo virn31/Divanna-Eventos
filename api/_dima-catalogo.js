@@ -1,18 +1,36 @@
 // api/_dima-catalogo.js
 // Catálogo, precios y reglas de DiMa, tomados del bot de WhatsApp original
-// (api/whatsapp.js, eliminado el 2026-10-27). Si cambian precios, se editan aquí.
+// (api/whatsapp.js, eliminado el 2026-10-27). Si cambian precios, se editan aquí
+// y también en la sección "Paquetes populares" de index.html (precios "desde").
 // El "_" al inicio hace que Vercel no lo cuente como función.
 
 const LINK_INSTAGRAM_DIVANNA = 'https://www.instagram.com/divannaeventos?igsh=aDI1a2pjaXU0dmQ0';
 const LINK_INSTAGRAM_VASOMAIZ = 'https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==';
 const LINK_PAGINA_PRINCIPAL = 'https://divanna-eventos.vercel.app';
 
+// Política de pago de Divanna (decisión de Víctor, 2026-10-30). Mientras un monto
+// esté en null, DiMa explica la regla y dice que la gerencia confirma el monto.
+const HORAS_LIQUIDACION = 24;   // el total se cubre al menos 24 h antes del evento
+const ANTICIPO_DIVANNA = 500;   // mínimo para asegurar la fecha (igual que El Vaso Maíz)
+// Depósito en garantía del mobiliario: un monto estándar para todo pedido con
+// mobiliario (Víctor, 2026-10-30): $1,000.
+const DEPOSITO_MOBILIARIO = 1000;
+// Lo que cuesta reponer (Víctor, 2026-10-30): si se daña o falta algo se cobra a
+// este precio. El precio exacto por artículo vive en INVENTARIO.Precio_Reposicion.
+const EJEMPLOS_REPOSICION = 'una silla desde $700, una copa $100, una mesa $2,500';
+
+const pesos = (n) => `$${Number(n).toLocaleString('es-MX')}`;
+function textoDeposito() {
+  if (!DEPOSITO_MOBILIARIO) return 'es un monto estándar que confirma la gerencia con la cotización formal (no des una cifra)';
+  return `${pesos(DEPOSITO_MOBILIARIO)}, el mismo para cualquier pedido con mobiliario`;
+}
+
 // Catálogo de fotos de referencia de decoración (portafolio real, carpeta /referencias).
 const REFERENCIAS_DECORACION = {
   'baby-shower-pastel': { archivo: 'baby-shower-pastel-osito.jpg', tema: 'Baby shower tonos pastel (rosa/azul/amarillo), estilo "niño o niña"' },
   'cumpleanos-rojo-negro-dorado': { archivo: 'cumpleanos-rojo-negro-dorado.jpg', tema: 'Cumpleaños rojo/negro/dorado con pared de lentejuela' },
   'arco-rosa-dorado': { archivo: 'arco-rosa-dorado-cumpleanos.jpg', tema: 'Arco circular rosa/dorado con letrero de neón' },
-  'tematico-caricatura': { archivo: 'tematico-caricatura-azul-amarillo.jpg', tema: 'Temático de caricatura infantil, azul/amarillo/rosa, con nombre personalizado' },
+  'tematico-caricatura': { archivo: 'tematico-caricatura-azul-amarillo.jpg', tema: 'Temático de caricatura infantil, azul/amarillo/rosa: mampara con lona personalizada (personaje y nombre, diseño especial con cargo extra)' },
   'xv-anos-lentejuela': { archivo: 'xv-anos-rojo-lentejuela.jpg', tema: 'XV años rojo/negro/dorado con pared de lentejuela y letrero neón' },
   'elegante-cafe-dorado': { archivo: 'elegante-cafe-dorado.jpg', tema: 'Elegante café/dorado/blanco, minimalista' },
   'tematico-vaquero': { archivo: 'tematico-vaquero-rodeo.jpg', tema: 'Temático vaquero/rodeo, con paca de alfalfa y props' },
@@ -36,6 +54,36 @@ const REFERENCIAS_DECORACION = {
   'tunel-arcos-cerezos-led': { archivo: 'tunel-arcos-cerezos-led-4500.jpg', tema: 'Túnel de 6 medios arcos de cerezos blancos con arcos LED, $4,500' },
   'decoracion-boda': { archivo: 'decoracion-boda-6500.jpg', tema: 'Paquete completo de decoración para boda, mesa de honor y arco de cerezos, $6,500' },
   'paquete-xv': { archivo: 'paquete-xv-6000.jpg', tema: 'Paquete completo para XV años, mesa de honor y arco de cerezos, $6,000' },
+  // Fotos de Víctor (2026-10-30). Nombres de niños y teléfonos pixelados.
+  // LETRERO GENÉRICO (lo que incluye el paquete, sin nombre):
+  'aro-letrero-lets-party': { archivo: 'aro-letrero-lets-party.jpg', tema: 'Aro de globos naranja/rosa/rojo con letrero genérico neón "Let\'s Party" y 2 mesitas doradas (letrero incluido, sin nombre)' },
+  'aro-letrero-happy-birthday': { archivo: 'aro-letrero-happy-birthday.jpg', tema: 'Aro de globos lila/azul/plata con letrero genérico neón "Happy Birthday" (incluido, sin nombre)' },
+  'aro-letrero-oh-baby': { archivo: 'aro-letrero-oh-baby.jpg', tema: 'Aro de baby shower rosa/azul con letrero genérico "Oh Baby" y figuras de coroplast' },
+  'mampara-lisa-letrero-happy-birthday': { archivo: 'mampara-lisa-letrero-happy-birthday.jpg', tema: 'Mampara lisa rosa con letrero genérico neón "Happy Birthday", globos y 2 mesitas (así es el letrero incluido: sin nombre)' },
+  'mampara-letrero-happy-birthday-numero': { archivo: 'mampara-letrero-happy-birthday-numero.jpg', tema: 'Mampara lisa roja con letrero genérico "Happy Birthday", globos de colores y número LED gigante' },
+  'mampara-letrero-nino-o-nina': { archivo: 'mampara-letrero-nino-o-nina.jpg', tema: 'Mampara lisa para revelación con letrero genérico "Niño o Niña" y cubos BABY' },
+  'mampara-peluches': { archivo: 'mampara-peluches.jpg', tema: 'Mampara lisa blanca con globos blancos, peluches, flores y luces (baby shower o bautizo)' },
+  'letras-gigantes-oh-baby': { archivo: 'letras-gigantes-oh-baby.jpg', tema: 'Letras LED gigantes "OH BABY" con globos blancos (baby shower)' },
+  // PERSONALIZADO (diseño especial con nombre o personajes, cargo extra):
+  'mampara-personalizada-baby-shower': { archivo: 'mampara-personalizada-baby-shower.jpg', tema: 'Mampara con lona personalizada de baby shower: conejita, moño gigante y el nombre del bebé (diseño especial, cargo extra)' },
+  'mampara-personalizada-personajes': { archivo: 'mampara-personalizada-personajes.jpg', tema: 'Mampara con lona personalizada con personajes y los nombres de los festejados (diseño especial, cargo extra)' },
+  'mampara-personalizada-infantil': { archivo: 'mampara-personalizada-infantil.jpg', tema: 'Mampara con lona personalizada de personajes infantiles con nombre y edad, y figuras de coroplast (diseño especial, cargo extra)' },
+  'mampara-personalizada-numero-gigante': { archivo: 'mampara-personalizada-numero-gigante.jpg', tema: 'Mampara con lona personalizada temática con nombre, arco forrado y número LED gigante (diseño especial, cargo extra)' },
+  'mampara-lona-revelacion': { archivo: 'mampara-lona-revelacion.jpg', tema: 'Mampara con lona personalizada "Boy or Girl" con personajes, para revelación (diseño especial, cargo extra)' },
+  'aro-personalizado-bautizo': { archivo: 'aro-personalizado-bautizo.jpg', tema: 'Aro de bautizo verde/azul/dorado con flores y un círculo personalizado con el nombre (diseño especial, cargo extra)' },
+  'mampara-xv-silla-honor': { archivo: 'mampara-xv-silla-honor.jpg', tema: 'Montaje de XV años azul/plata: dos mamparas, una con letrero "Mis XV Años" y otra con el nombre de la quinceañera (personalizado), silla de honor y mesitas' },
+  'mesa-montada-personalizados': { archivo: 'mesa-montada-personalizados.jpg', tema: 'Mesa montada con mantel fucsia, copas, plato base dorado y personalizados circulares sobre el porta plato con el nombre del festejado; al fondo shimmer con letrero "Happy Birthday"' },
+  'personalizados-plato-tematico': { archivo: 'personalizados-plato-tematico.jpg', tema: 'Personalizado circular temático sobre el porta plato (diseño de personajes con nombre y edad), copas azules y servilleta' },
+  // El Vaso Maíz:
+  'vasomaiz-barra': { archivo: 'vasomaiz-barra.jpg', tema: 'Barra de El Vaso Maíz montada en el evento, con los vasos preparados listos' },
+  'vasomaiz-barra-servicio': { archivo: 'vasomaiz-barra-servicio.jpg', tema: 'Barra de El Vaso Maíz sirviendo en un evento' },
+  'vasomaiz-barra-toppings': { archivo: 'vasomaiz-barra-toppings.jpg', tema: 'Barra de toppings de El Vaso Maíz: papas, chips, gomitas, cacahuates y limones, todo preparado al momento' },
+  'vasomaiz-fresas-con-crema': { archivo: 'vasomaiz-fresas-con-crema.jpg', tema: 'Fresas con crema de El Vaso Maíz' },
+  'vasomaiz-vasos-servidos': { archivo: 'vasomaiz-vasos-servidos.jpg', tema: 'Vasos de El Vaso Maíz servidos en la barra, listos para los invitados' },
+  'vasomaiz-vasos-para-evento': { archivo: 'vasomaiz-vasos-para-evento.jpg', tema: 'Vasos preparados de El Vaso Maíz para un evento' },
+  'vasomaiz-vaso-preparado': { archivo: 'vasomaiz-vaso-preparado.jpg', tema: 'Vaso preparado de El Vaso Maíz' },
+  'vasomaiz-vaso-con-crema': { archivo: 'vasomaiz-vaso-con-crema.jpg', tema: 'Vaso de El Vaso Maíz con crema y granola' },
+  'vasomaiz-preparando': { archivo: 'vasomaiz-preparando.jpg', tema: 'El equipo de El Vaso Maíz preparando los vasos en el evento' },
 };
 
 // Fotos de los paquetes de El Vaso Maíz (carpeta /paquetes).
@@ -46,15 +94,15 @@ const FOTOS_PAQUETES_VASOMAIZ = [
 ];
 
 const CATALOGO = `CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas — todos incluyen 2h de servicio + salsas/chamoy/limones/cubiertos/vaso 10oz; +$250 extra si el servicio continúa después de las 8pm):
-- Paquete 1 (55pz) = $1,500: 10 Fresas c/crema, 15 Cevichurros, 10 Papas Locas, 20 Mitades Chimichangas
-- Paquete 2 (75pz) = $2,100: 10 Fresas, 10 Esquites, 15 Cevichurros, 10 Papas Locas, 10 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 3 (90pz) = $2,700: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 4 (100pz) = $2,950: 15 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
-- Paquete 5 (120pz) = $3,400: 20 Fresas, 20 Esquites, 20 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
+- Paquete 1 (60pz) = $1,750: 10 Fresas c/crema, 15 Cevichurros, 15 Papas Locas, 20 Mitades Chimichangas
+- Paquete 2 (80pz) = $2,350: 10 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 10 Vasos Tostilocos, 20 Mitades Chimichangas
+- Paquete 3 (100pz) = $2,950: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
+- Paquete 4 (110pz) = $3,200: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
+- Paquete 5 (130pz) = $3,900: 20 Fresas, 20 Esquites, 20 Cevichurros, 20 Papas Locas, 20 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
 Anticipo fijo de $500 (sin importar el paquete). Los datos de pago (transferencia/depósito) se le mandan al cliente con la cotización formal, después de que la gerencia la confirma -- nunca los des en el chat.
 
 OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
-- Sabritas Preparadas: 50 piezas = $1,850 (3 bases a elegir: Tostitos/Ruffles/Doritos/Chips verdes + 10 toppings)
+- Sabritas Preparadas: 50 piezas = $1,900 (3 bases a elegir entre Tostitos/Ruffles/Doritos/Chips verdes + 7 toppings a elegir entre churros, cacahuates, salchicha, pepino, jícama, rielito, gomitas, serpiente, aros de durazno, panditas, skwinkles, pulparindo, pica gomas, serpentina y manguitos; complementos: tajín, chamoy, salsa especial, soya, guacamaya, limón, clamato y servilletas; se sirve en vaso de 12oz)
 - Raspados: 50 = $1,250, 75 = $1,800, 100 = $2,300 (5 sabores a elegir)
 - Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con la gerencia)
 - Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
@@ -62,16 +110,23 @@ OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar apa
 CATÁLOGO REAL DE DIVANNA EVENTOS (mobiliario, vajilla y decoración):
 MOBILIARIO: Mesa cuadrada o redonda con 10 sillas Jardinera = $220 (incluye mantel en variedad de colores). Silla Jardinera = $15/pieza, Silla Tiffany = $18/pieza, Silla Antonella = $50/pieza.
 REGLA DE UPGRADE DE SILLA (MUY IMPORTANTE, evita duplicar piezas): si el cliente pide cambiar la Jardinera por Tiffany o Antonella, el cálculo es: (mesa sola) = $220 − (10 × $15) = $70, más el número de sillas nuevas al precio pleno. Ejemplo: mesa + 10 sillas Antonella = $70 + (10 × $50) = $570 total (NUNCA $220 + $500 = $720, eso duplicaría las sillas).
-MANTEL suelto/extra (solo para mesas fuera del paquete de $220) = $50. Mantel Corrugado = $120.
+MANTELES (renta por pieza, en cualquier evento y lugar): básico = $60, corrugado = $120, lentejuela = $200. Cada mesa de $220 (y las mesas de los paquetes) ya trae su mantel básico incluido: si el cliente lo quiere corrugado o de lentejuela, se cobra solo la DIFERENCIA por mantel (corrugado +$60, lentejuela +$140), con las claves dv_cambio_corrugado / dv_cambio_lentejuela (una por mesa que cambia; no agregues además el mantel suelto). Manteles ADEMÁS de los de las mesas = extra a precio completo (dv_mantel básico $60, dv_mantel_corrugado $120, dv_mantel_lentejuela $200). Los paquetes que ya traen lentejuela o corrugado se cobran a su precio de paquete, sin diferencia. Se pueden mezclar (ej. 10 mesas: 7 básicos y 3 lentejuela = 3 cambios a lentejuela, +$420).
 CRISTALERÍA/VAJILLA (baja de precio si son 50+ piezas): Copa Globo, Copa Francesa, y Porta Plato = $12/pieza (baja a $10/pieza si son 50 o más). Vaso = $4 (sin descuento). Plato Trinche = $5 (sin descuento). Servilleta = $5/pieza.
 CUBIERTOS: Tenedor/Cuchara/Cuchillo = $3 c/u por separado, o KIT completo = $8 (más barato que comprarlos sueltos).
-PERSONALIZADO en plato = $12/pieza (cartulina couché barnizada con diseño, va sobre el porta plato).
+PERSONALIZADO en plato = $12/pieza: diseño CIRCULAR impreso en cartulina couché barnizada que va sobre el porta plato (no es un plato con nombre grabado). El diseño lo coordina con el cliente el encargado asignado a su evento.
 
 DECORACIÓN DE DIVANNA:
-- Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
-- Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero, 2 mesitas, tapete).
-- Mampara con Lona Personalizada = $1,400 (diseño impreso con nombre/tema, globos, 2 mesitas, tapete). El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con la gerencia si lo piden).
-- Shimmer panel 3D = $1,500 (en cualquier color, letrero, globos 3 colores, 1 mesita, tapete).
+- Decoración Aro = $1,000 (aro sin fondo, globos 3 colores a elegir, letrero genérico del evento, 1 mesita, tapete). Extra: 2da mesita de herrería = +$80.
+- Mampara Lisa = $1,200 (fondo liso color a elegir, globos 3 colores, letrero genérico del evento, 2 mesitas, tapete).
+- Mampara con Lona Personalizada = $1,400 (diseño especial impreso con personajes, nombre o tema, globos, 2 mesitas, tapete). Es la opción cuando el cliente quiere el nombre del festejado o un personaje. El letrero se cobra APARTE en este paquete (precio aún no definido, avisar que se confirma con la gerencia si lo piden).
+- Shimmer panel 3D = $1,500 (en cualquier color, letrero genérico del evento, globos 3 colores, 1 mesita, tapete).
+
+LETREROS, MAMPARAS Y PERSONALIZADOS (MUY IMPORTANTE, aquí se confunden los clientes):
+- El LETRERO que incluyen el aro, la mampara lisa, el shimmer y los paquetes es GENÉRICO según el tipo de evento: "Happy Birthday" o "Feliz Cumpleaños", "XV Años", "Baby Shower", "Just Married", etc. NO lleva el nombre del festejado. Preséntalo así ("con letrero de Happy Birthday") y nunca preguntes el nombre para el letrero.
+- Si el cliente quiere el NOMBRE del festejado, un PERSONAJE o un diseño de su tema, eso es un diseño especial con cargo extra: la Mampara con Lona Personalizada ($1,400, en lugar de la mampara lisa) o una lona personalizada aparte (precios arriba). Ofrécelo con entusiasmo, como una mejora ("si quieres que lleve el nombre de tu hija y su personaje, lo hacemos con una mampara con lona personalizada"), no como un "no se puede".
+- Para que el cliente vea la diferencia, enséñale fotos: de letrero genérico (las que empiezan con "aro-letrero-", "mampara-lisa-letrero-" y "mampara-letrero-") y de personalizado ("mampara-personalizada-", "mampara-lona-revelacion", "aro-personalizado-bautizo", "mesa-montada-personalizados", "personalizados-plato-tematico"). Si hay fotos de mamparas o letreros en la INFORMACIÓN ACTUALIZADA DE LA GERENCIA, también puedes usarlas.
+- Los PERSONALIZADOS de los paquetes de mesas son los diseños circulares del porta plato (ver arriba), no letreros ni platos con nombre.
+- Los DETALLES DEL DISEÑO (texto exacto, personaje, colores de la lona o del personalizado) no se cierran en el chat: dile que el encargado asignado a su evento los coordina con él. Lo que el cliente ya te haya dicho (tema, personaje, nombre, colores) anótalo en la nota del producto para que le llegue al encargado.
 - Número LED gigante (ej. un "15" o "50" iluminado) = $250 por dígito, se agrega a cualquier paquete.
 - Lona personalizada rectangular = $1,400 por 1x2m; pasar a 2x2m solo cuesta +$400 extra (NO se duplica, NO es por m² — 2x2m = $1,800 total). Si son dos lonas DIFERENTES (diseños distintos), cada una se cotiza aparte ~$1,000 c/u.
 - Figuras de coroplast = $150/pieza. Tapete liso (upgrade) = $400.
@@ -80,8 +135,11 @@ DECORACIÓN DE DIVANNA:
 
 CASA ISABELLA (venue/salón con alberca, operado por Divanna Eventos — si el cliente pregunta por rentar un salón/lugar para su evento, esto es lo que se ofrece):
 - Ubicación: Col. Guadalupe Victoria, Culiacán. Capacidad máxima: 80 personas.
-- Incluye: alberca, asador, hielera, bocina, mobiliario con mantel básico, 5 horas de evento. NO tiene área refrigerada.
-- Tarifa: 30 personas = $1,500 entre semana (Lun-Jue) / $2,500 fin de semana (Vie-Dom). Cada mesa extra de 10 personas = +$400 entre semana / +$500 fin de semana. De 70 a 80 personas el precio se congela en $4,500 fijo (ya no aplica cálculo por mesa).
+- Incluye siempre: alberca, asador, hielera, bocina y 5 horas de evento. NO tiene área refrigerada.
+- DE LUNES A JUEVES: 30 personas = $1,800 (3 mesas y 30 sillas, SIN mantel; si quiere mantel se agrega del catálogo de Divanna como extra: básico $60, corrugado $120 o lentejuela $200 por mesa). Cada mesa extra de 10 personas = +$400. Salida a más tardar a las 10 pm.
+- VIERNES, SÁBADO Y DOMINGO: 30 personas = $3,000 y 50 personas = $4,000, con mobiliario con mantel básico. Cada mesa extra de 10 personas = +$500 (por eso 50 personas = $4,000).
+- Tope: de 70 a 80 personas el salón no pasa de $4,500 (ya no aplica cálculo por mesa).
+(Precios de los flyers de Casa Isabella, confirmados por Víctor el 2026-11-01.)
 - Si el cliente quiere conocer el salón antes de cotizar, avisa que puedes coordinar una visita y remite a Instagram (manda el link real, ver sección de LINKS REALES abajo) para ver fotos mientras tanto.
 
 PAQUETES DE MESAS DECORADAS POR CANTIDAD DE PERSONAS (fijos, a domicilio; NO aplican en TEMPORADA ALTA de fin de año, ver la regla de temporada alta):
@@ -124,6 +182,13 @@ NUNCA reenvíes la misma foto de referencia dos veces en la misma conversación 
 UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico; es el MISMO edificio compartido por El Vaso Maíz Y Divanna Eventos, ahí se arman los paquetes de boda/XV):
 Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
+POLÍTICA DE PAGO (dila desde la cotización, con naturalidad y una idea por mensaje; no la sueltes toda de golpe ni como regla de letra chiquita):
+- ANTICIPO: en El Vaso Maíz $500 fijo; en Divanna un mínimo de ${pesos(ANTICIPO_DIVANNA)} para asegurar la fecha (puede dejar más si quiere). La fecha queda apartada con el anticipo, después de que la gerencia confirma la cotización.
+- LIQUIDACIÓN: el pago completo del evento se cubre a más tardar ${HORAS_LIQUIDACION} horas antes del evento. Si el cliente paga en efectivo, puede pasar a la oficina (con cita) o coordinarlo con el encargado de la brigada que le toca.
+- DEPÓSITO EN GARANTÍA (solo si el pedido lleva mobiliario o decoración de Divanna). EL VASO MAÍZ NO LLEVA DEPÓSITO: en un pedido solo de El Vaso Maíz nunca lo menciones, y en uno de los dos negocios es solo por lo de Divanna. Monto: ${textoDeposito()}. Se paga junto con la liquidación y se le regresa completo al recoger, si el mobiliario está completo y en buen estado; si falta o se daña algo, se descuenta de ahí, y si el daño pasa del depósito se cobra la diferencia a precio de reposición. Solo si el cliente pregunta por qué o cuánto cuesta un daño, dale ejemplos de lo que cuesta reponer: ${EJEMPLOS_REPOSICION}. Preséntalo como algo normal que cuida a los dos, sin tono de desconfianza: "Para el mobiliario manejamos un depósito en garantía que se te regresa completo al recoger".
+- QUIÉN ENTREGA EN LA RECOLECCIÓN: en pedidos con mobiliario pregunta, junto con los datos de contacto, quién va a estar en el lugar cuando el equipo pase a recoger (nombre y teléfono; puede ser el mismo cliente). Explícalo en una frase: alguien tiene que entregar el mobiliario y firmar que está completo. Guárdalo en responsable_recoleccion.
+- Cuándo decirlo: en el repaso de la cotización menciona el anticipo y que el total se liquida ${HORAS_LIQUIDACION} horas antes; en el siguiente mensaje, el depósito del mobiliario. Si el cliente pregunta cómo se paga y su evento lleva mobiliario o decoración de Divanna, en ESA MISMA respuesta dile las tres cosas: anticipo, liquidación ${HORAS_LIQUIDACION} horas antes y el depósito en garantía (cifra y que se regresa al recoger). Si el cliente pregunta antes, contéstale directo.
+
 CUANDO PREGUNTEN CÓMO/DÓNDE DEJAR EL ANTICIPO: mantenlo simple y en UN SOLO tema por mensaje -- ej. "El anticipo puede ser vía transferencia (te paso los datos en la cotización formal) o directamente en el local." Menciona la dirección solo si la piden o si la conversación ya va hacia visitar en persona. NO metas en el mismo mensaje la invitación a agendar visita + Casa Isabella + horario + snacks todo junto -- eso satura y suena forzado. Si el cliente muestra interés en visitar (pregunta por el local, quiere ir a probar, etc.), AHÍ SÍ das el horario/cita previa. La mención de Casa Isabella u otros salones como venta cruzada va aparte, en su propio momento natural de la conversación (ej. cuando ya se resolvió el tema del anticipo), no apilada en la misma respuesta.
 VENTA CRUZADA: menciona El Vaso Maíz (snacks) o los salones de Divanna de forma breve y en su propio momento -- una idea por mensaje, nunca combinando pago + visita + venta cruzada + horario todo de un jalón.
 Tono en estos casos: sigue la personalidad de "CÓMO HABLAS" -- cercana y servicial, ventas sutiles, no agresivas, UN tema a la vez.
@@ -147,6 +212,9 @@ CÓMO ARMAR COTIZACIONES COMBINADAS (Divanna + El Vaso Maíz):
 `;
 
 module.exports = {
+  HORAS_LIQUIDACION,
+  ANTICIPO_DIVANNA,
+  DEPOSITO_MOBILIARIO,
   LINK_INSTAGRAM_DIVANNA,
   LINK_INSTAGRAM_VASOMAIZ,
   LINK_PAGINA_PRINCIPAL,

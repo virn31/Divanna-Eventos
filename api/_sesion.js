@@ -17,6 +17,8 @@ const ROLES = {
   LIDER: 'Lider de brigada',
   ASISTENTE: 'Asistente',
   ENCARGADA: 'Encargada de evento',
+  // Chicas de El Vaso Maíz: solo usan Telegram (invitaciones de su coordinadora).
+  STAFF: 'Staff',
 };
 
 const DURACION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -63,8 +65,10 @@ function aColaborador(record) {
   return {
     id: record.id,
     nombre: f.Nombre || '',
-    rol: f.Rol || '',
+    rol: rolDe(f),
     brigadaId: (f.Brigada || [])[0] || null,
+    // Negocio que gerencia ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
+    gerente: gerenciaDe(f),
   };
 }
 
@@ -80,7 +84,7 @@ async function iniciarSesion(usuario, pin) {
   );
   const data = await airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${formula}&maxRecords=1`);
   const record = data && data.records[0];
-  if (!record || !Object.values(ROLES).includes(record.fields.Rol)) return null;
+  if (!record || !rolValido(record.fields.Rol)) return null;
   return { token: crearToken(record.id), colaborador: aColaborador(record) };
 }
 
@@ -107,12 +111,96 @@ async function requerirSesion(req, res, rolesPermitidos) {
   return colaborador;
 }
 
-// ¿Puede este colaborador operar este evento? Admin todos; líder y asistente
-// los de su brigada; encargada los que tiene asignados en el campo Encargada.
+// Evento con parte de El Vaso Maíz (el negocio o piezas de El Vaso Maíz).
+function esVasoMaiz(eventoFields) {
+  return eventoFields.Negocio === 'El Vaso Maiz' || Number(eventoFields.Piezas_Vaso_Maiz) > 0;
+}
+
+// ---------- Gerentes por negocio (2026-11-03) ----------
+// Ángela gerencia El Vaso Maíz, Eden Divanna Eventos y Mario Casa Isabella.
+// Casa Isabella no es un negocio aparte: es el salón de Divanna. Un evento es
+// "de Casa Isabella" si lleva el salón; esos los ve Mario y NO Eden.
+// Se marcan en el campo Rol con una opción por negocio (ROLES_GERENTE). Por
+// dentro un gerente es "Lider de brigada" (reporte del día, su brigada, cobros)
+// con su negocio en colaborador.gerente. La casilla vieja Gerente_Vaso_Maiz
+// sigue valiendo para El Vaso Maíz (Ángela, mientras no se le cambie el Rol).
+const GERENCIAS = { VM: 'El Vaso Maiz', DV: 'Divanna Eventos', CI: 'Casa Isabella' };
+const NOMBRE_GERENCIA = { 'El Vaso Maiz': 'El Vaso Maíz', 'Divanna Eventos': 'Divanna Eventos', 'Casa Isabella': 'Casa Isabella' };
+// Nombres exactos de las opciones del campo Rol -> negocio que gerencian.
+const ROLES_GERENTE = {
+  'Gerente El Vaso Maiz': GERENCIAS.VM,
+  'Gerente Divanna': GERENCIAS.DV,
+  'Gerente Casa Isabella': GERENCIAS.CI,
+};
+
+// Opción de Rol sin espacios de más (en Airtable se coló " Gerente Divanna"
+// con espacio al inicio).
+const limpiarRol = (rol) => String(rol || '').trim();
+
+function gerenciaDe(colaboradorFields) {
+  const f = colaboradorFields || {};
+  const rol = limpiarRol(f.Rol);
+  if (ROLES_GERENTE[rol]) return ROLES_GERENTE[rol];
+  return f.Gerente_Vaso_Maiz ? GERENCIAS.VM : null;
+}
+
+// Rol con el que trabaja la plataforma: los gerentes cuentan como líderes.
+const rolDe = (colaboradorFields) => {
+  const rol = limpiarRol((colaboradorFields || {}).Rol);
+  return ROLES_GERENTE[rol] ? ROLES.LIDER : rol;
+};
+const rolValido = (rol) => Object.values(ROLES).includes(limpiarRol(rol)) || !!ROLES_GERENTE[limpiarRol(rol)];
+
+// ¿El evento lleva el salón Casa Isabella? (producto, artículo asignado o texto).
+function usaCasaIsabella(eventoFields) {
+  const f = eventoFields || {};
+  return String(f.Productos || '').includes('dv_casa_isabella')
+    || /casa\s*isabella/i.test(String(f.Articulos || ''))
+    || /casa\s*isabella/i.test(String(f.Servicios_Solicitados || ''));
+}
+
+// ¿Este evento le toca a la gerencia indicada?
+function eventoDeGerencia(gerencia, eventoFields) {
+  const f = eventoFields || {};
+  if (gerencia === GERENCIAS.VM) return esVasoMaiz(f);
+  if (gerencia === GERENCIAS.CI) return usaCasaIsabella(f);
+  if (gerencia === GERENCIAS.DV) return f.Negocio === GERENCIAS.DV && !usaCasaIsabella(f);
+  return false;
+}
+
+// ¿El colaborador es gerente y el evento es de su negocio?
+const esDeSuGerencia = (colaborador, eventoFields) => !!colaborador && !!colaborador.gerente && eventoDeGerencia(colaborador.gerente, eventoFields);
+
+// Igual que eventoDeGerencia, como fórmula de Airtable (para filterByFormula).
+const FORMULA_CASA = 'OR(FIND("dv_casa_isabella", {Productos} & ""), FIND("casa isabella", LOWER({Articulos} & "")), FIND("casa isabella", LOWER({Servicios_Solicitados} & "")))';
+function formulaGerencia(gerencia) {
+  if (gerencia === GERENCIAS.VM) return 'OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0)';
+  if (gerencia === GERENCIAS.CI) return FORMULA_CASA;
+  if (gerencia === GERENCIAS.DV) return `AND({Negocio} = "Divanna Eventos", NOT(${FORMULA_CASA}))`;
+  return 'FALSE()';
+}
+
+// "Gerente de El Vaso Maíz" / "Gerente de Casa Isabella"…
+const puestoGerente = (gerencia) => gerencia ? `Gerente de ${NOMBRE_GERENCIA[gerencia] || gerencia}` : '';
+
+// Negocio (finanzas/calendario) de una gerencia: Casa Isabella cae en Divanna.
+const negocioDeGerencia = (gerencia) => gerencia === GERENCIAS.VM ? GERENCIAS.VM : gerencia ? GERENCIAS.DV : null;
+
+// ¿Puede este colaborador operar este evento? Admin todos; la gerente de El
+// Vaso Maíz (COLABORADORES.Gerente_Vaso_Maiz) todos los de El Vaso Maíz; líder
+// y asistente los de su brigada; encargada los que tiene asignados en Encargada.
 function puedeOperarEvento(colaborador, eventoFields) {
   if (colaborador.rol === ROLES.ADMIN) return true;
-  if (colaborador.rol === ROLES.ENCARGADA) return (eventoFields.Encargada || []).includes(colaborador.id);
+  if (esDeSuGerencia(colaborador, eventoFields)) return true;
+  // Encargada o gerente asignado en "👷 Asignar" (campo Encargada).
+  if (colaborador.rol === ROLES.ENCARGADA || colaborador.gerente) {
+    if ((eventoFields.Encargada || []).includes(colaborador.id)) return true;
+    if (colaborador.rol === ROLES.ENCARGADA) return false;
+  }
   return !!colaborador.brigadaId && (eventoFields.Brigada_Asignada || []).includes(colaborador.brigadaId);
 }
 
-module.exports = { ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento };
+module.exports = {
+  ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento, esVasoMaiz,
+  GERENCIAS, NOMBRE_GERENCIA, ROLES_GERENTE, gerenciaDe, rolDe, rolValido, usaCasaIsabella, eventoDeGerencia, esDeSuGerencia, formulaGerencia, puestoGerente, negocioDeGerencia,
+};

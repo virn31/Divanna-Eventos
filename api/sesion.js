@@ -3,7 +3,7 @@
 // Devuelve el token de sesión y lo que la app necesita para mostrar la vista
 // según el rol. Ver api/_sesion.js.
 
-const { iniciarSesion } = require('./_sesion');
+const { ROLES, iniciarSesion } = require('./_sesion');
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -30,6 +30,12 @@ module.exports = async (req, res) => {
       // Pausa en cada intento fallido para frenar a quien intente adivinar PINs.
       await new Promise(r => setTimeout(r, 1500));
       res.status(401).json({ error: 'Usuario o PIN incorrecto.' });
+      return;
+    }
+
+    // El staff de El Vaso Maíz no usa la app: todo le llega por Telegram.
+    if (sesion.colaborador.rol === ROLES.STAFF) {
+      res.status(403).json({ error: 'Tu acceso es por Telegram: busca @dimaclnbot y escribe /entrar tuusuario tuPIN.' });
       return;
     }
 

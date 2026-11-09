@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
@@ -61,6 +61,13 @@
   main{flex:1; padding:20px 18px 60px; max-width:900px; margin:0 auto; width:100%;}
 
   .summary-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  /* Ventanas del dashboard (Víctor 2026-11-07): Inicio, Finanzas, Clientes, Eventos */
+  .ventanas{display:flex; gap:6px; padding:8px 16px 0; overflow-x:auto;}
+  .ventanas a{padding:9px 14px; border-radius:999px; border:1.5px solid var(--line); color:var(--paper); text-decoration:none; font-weight:700; white-space:nowrap;}
+  .ventanas a.activa{background:var(--paper); color:var(--ink);}
+  .ventana[hidden]{display:none;}
+  .home-card{display:block; text-decoration:none; color:inherit;}
+  .home-card .ir{font-size:0.8rem; color:var(--muted); margin-top:6px;}
   .summary-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:18px 12px; text-align:center;}
   .summary-card .num{font-family:'Fraunces',serif; font-size:1.9rem; font-weight:700;}
   .summary-card .label{font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
@@ -125,6 +132,12 @@
   .pedido-actions button{flex:1; min-width:130px; padding:13px; border-radius:12px; font-weight:800; font-size:0.92rem; cursor:pointer;}
   .btn-autorizar{background:var(--good); color:var(--ink); border:none;}
   .btn-rechazar{background:transparent; color:var(--bad); border:1.5px solid var(--bad);}
+  .borrar-ev{margin-top:14px; border-top:1px dashed var(--line); padding-top:10px;}
+  .borrar-ev summary{cursor:pointer; color:var(--bad); font-weight:700; font-size:0.9rem;}
+  .borrar-ev button{margin-top:10px; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; background:transparent; color:var(--bad); border:1.5px solid var(--bad);}
+  .borrar-ev .borrar-si{background:var(--bad); color:#fff;}
+  .borrar-ev .borrar-folio{display:block; margin-top:10px; width:100%; max-width:260px; padding:10px; border-radius:10px; border:1px solid var(--line); background:transparent; color:inherit; font:inherit;}
+  .borrar-ev .borrar-msg{margin-top:8px; font-size:0.88rem;}
   .pedido-actions button:disabled{opacity:0.5; cursor:default;}
   .pedido-msg{font-size:0.85rem; margin-top:10px; min-height:18px;}
   .pedido-contacto a{color:var(--divanna);}
@@ -172,13 +185,41 @@
     background:var(--ink); color:var(--paper); font-size:0.9rem; font-family:inherit; outline:none; min-width:0;
   }
   .agenda select:focus, .agenda input:focus{border-color:var(--divanna);}
+  .agenda .asig-check{display:flex; align-items:center; gap:8px; margin-top:6px;}
+  .agenda .asig-check input{width:auto;}
   .prod-fila{display:grid; grid-template-columns:minmax(0,1fr) 76px 40px; gap:6px; margin-top:8px; padding-bottom:8px; border-bottom:1px solid var(--line);}
-  .prod-fila .prod-nota{grid-column:1 / -1;}
+  .prod-fila .prod-nota, .prod-fila .prod-buscar{grid-column:1 / -1;}
+  [data-buscar-producto].sin-resultado{border-color:#e05555;}
   .prod-quitar{border:1.5px solid var(--bad); background:transparent; color:var(--bad); border-radius:10px; cursor:pointer; font-weight:800;}
   .prod-agregar{margin-top:8px; border:1.5px dashed var(--divanna); background:transparent; color:var(--divanna); border-radius:10px; padding:9px 14px; font-weight:800; cursor:pointer;}
   .balance-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 20px; margin-bottom:20px;}
   .balance-card summary{cursor:pointer; font-weight:700;}
   .balance-card pre{white-space:pre-wrap; font-family:inherit; font-size:0.88rem; color:var(--muted); margin:12px 0 0;}
+
+  /* ---------- Más claro para Diana (2026-10-29): letra más grande y montos en color ---------- */
+  html{font-size:112.5%;}
+  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --cobrar:#a9b843; --serie-dv:#3987e5; --serie-vm:#d95926; }
+  .dinero-gasto{color:var(--gasto); font-weight:800; font-size:1.12em;}
+  .dinero-favor{color:var(--favor); font-weight:800; font-size:1.12em;}
+  .cifras{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px;}
+  .cifra{background:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
+  .cifra .etq{font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  .cifra .val{font-family:'Fraunces',serif; font-size:1.7rem; font-weight:700; margin-top:4px;}
+  .cifra .val.gasto{color:var(--gasto);} .cifra .val.favor{color:var(--favor);} .cifra .val.cobrar{color:var(--cobrar);}
+  .hist-card{background:var(--ink-2); border:1px solid var(--line); border-radius:18px; padding:16px 18px; margin-bottom:20px;}
+  .hist-filtros{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 6px;}
+  .hist-filtros button{border:1.5px solid var(--line); background:var(--ink); color:var(--paper); border-radius:100px; padding:8px 14px; font:inherit; font-size:0.85rem; font-weight:700; cursor:pointer;}
+  .hist-filtros button.activo{border-color:var(--maiz); color:var(--maiz);}
+  .hist-leyenda{display:flex; gap:16px; font-size:0.88rem; margin:6px 0;}
+  .hist-leyenda span::before{content:''; display:inline-block; width:14px; height:4px; border-radius:2px; margin-right:6px; vertical-align:middle; background:var(--c);}
+  .hist-svg{width:100%; height:auto; display:block; touch-action:pan-y;}
+  .hist-tip{position:absolute; pointer-events:none; background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:0.82rem; white-space:nowrap; box-shadow:0 8px 24px -8px rgba(0,0,0,.6);}
+  .hist-tip i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; background:var(--c);}
+  .hist-tabla{width:100%; border-collapse:collapse; font-size:0.85rem; margin-top:8px;}
+  .hist-tabla th, .hist-tabla td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:right;}
+  .hist-tabla th:first-child, .hist-tabla td:first-child{text-align:left;}
+  .mejores{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-top:12px;}
+  .mejores > div{background:var(--ink); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:12px; padding:10px 12px; font-size:0.88rem;}
 
   .alertas-banner{
     max-width:900px; margin:14px auto 0; width:calc(100% - 36px); padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
@@ -191,7 +232,29 @@
   .loader{display:flex; align-items:center; justify-content:center; padding:60px 0; color:var(--muted); gap:10px;}
   .spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--maiz); animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  /* ---------- Canal con DiMa (igual que la app de la gerente) ---------- */
+  .dima-fab{
+    position:fixed; bottom:calc(24px + var(--safe-bottom)); left:20px; z-index:40;
+    padding:0 18px; height:54px; border-radius:27px; border:none; background:var(--divanna); color:var(--ink);
+    font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+  }
+  .dima-fab[hidden], .dima-panel[hidden]{display:none;}
+  .dima-panel{
+    position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
+    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
+    padding:14px 14px calc(14px + var(--safe-bottom)); max-width:760px; margin:0 auto;
+  }
+  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:800; margin-bottom:8px;}
+  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .dima-msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:120px;}
+  .dima-msg{max-width:85%; padding:10px 12px; border-radius:14px; font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
+  .dima-msg.yo{align-self:flex-end; background:var(--maiz); color:var(--ink);}
+  .dima-msg.dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
+  .dima-form{display:flex; gap:8px; margin-top:10px;}
+  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+  .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
 </style>
+<link rel="stylesheet" href="tema.css">
 </head>
 <body>
 
@@ -199,6 +262,7 @@
   <header class="appbar">
     <h2>Dashboard general</h2>
     <div class="appbar-actions">
+      <button class="vista-equipo-btn" id="calBtn" style="cursor:pointer;">📅 Calendario</button>
       <a class="vista-equipo-btn" href="./?vista=equipo">👥 Vista equipo</a>
       <button class="icon-btn" id="refreshBtn" aria-label="Actualizar">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -209,33 +273,64 @@
     </div>
   </header>
   <div id="alertasBanner" class="alertas-banner" hidden></div>
+  <nav class="ventanas" id="ventanas">
+    <a href="#inicio" data-v="inicio">🏠 Inicio</a>
+    <a href="#finanzas" data-v="finanzas">💰 Finanzas</a>
+    <a href="#clientes" data-v="clientes">👥 Clientes</a>
+    <a href="#eventos" data-v="eventos">🎉 Eventos</a>
+  </nav>
   <main>
-    <details class="entrenar" id="entrenar">
-      <summary>🧠 Entrenar a DiMa</summary>
-      <p class="entrenar-ayuda">Escríbele como si fueras cliente para probarla. Si contesta algo mal, corrígela aquí mismo (ej. "Eso está mal: el Paquete 3 cuesta $2,800"). Cada corrección se guarda y aplica de inmediato con los clientes.</p>
-      <div class="entrenar-chat" id="entrenarChat"></div>
-      <div class="entrenar-fila">
-        <textarea id="entrenarTexto" rows="2" maxlength="1500" placeholder="Escríbele a DiMa…"></textarea>
-        <button id="entrenarEnviar">Enviar</button>
-      </div>
-      <div class="entrenar-fila">
-        <button id="entrenarNueva" class="entrenar-sec">Nueva conversación</button>
-        <span id="entrenarMsg" class="instr-msg"></span>
-      </div>
-      <details class="entrenar-reglas" id="entrenarReglas">
-        <summary>📋 Correcciones guardadas (<span id="entrenarConteo">…</span>)</summary>
-        <div id="entrenarLista"></div>
+    <section class="ventana" id="v-inicio">
+      <div id="homeContent"></div>
+      <details class="entrenar" id="entrenar">
+        <summary>🧠 Entrenar a DiMa</summary>
+        <p class="entrenar-ayuda">Escríbele como si fueras cliente para probarla. Si contesta algo mal, corrígela aquí mismo (ej. "Eso está mal: el Paquete 3 cuesta $2,800"). Cada corrección se guarda y aplica de inmediato con los clientes.</p>
+        <div class="entrenar-chat" id="entrenarChat"></div>
+        <div class="entrenar-fila">
+          <textarea id="entrenarTexto" rows="2" maxlength="1500" placeholder="Escríbele a DiMa…"></textarea>
+          <button id="entrenarEnviar">Enviar</button>
+        </div>
+        <div class="entrenar-fila">
+          <button id="entrenarNueva" class="entrenar-sec">Nueva conversación</button>
+          <span id="entrenarMsg" class="instr-msg"></span>
+        </div>
+        <details class="entrenar-reglas" id="entrenarReglas">
+          <summary>📋 Correcciones guardadas (<span id="entrenarConteo">…</span>)</summary>
+          <div id="entrenarLista"></div>
+        </details>
       </details>
-    </details>
-    <div id="pedidosContent"></div>
-    <div id="balanceContent"></div>
-    <div id="mainContent">
-      <div class="loader"><div class="spinner"></div> Cargando eventos…</div>
-    </div>
+    </section>
+    <section class="ventana" id="v-finanzas" hidden>
+      <div id="semanaContent"></div>
+      <div id="finContent"></div>
+      <div id="reembContent"></div>
+      <div id="cuadreContent"></div>
+      <div id="balanceContent"></div>
+      <div id="histContent"></div>
+    </section>
+    <section class="ventana" id="v-clientes" hidden>
+      <div id="clientesContent"></div>
+    </section>
+    <section class="ventana" id="v-eventos" hidden>
+      <div id="pedidosContent"></div>
+      <div id="mainContent">
+        <div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>
+      </div>
+    </section>
   </main>
 </div>
 
+<button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
+<div class="dima-panel" id="dimaPanel" hidden>
+  <div class="dima-top"><span>💬 DiMa, tu asistente</span><span><button id="dimaNueva">Nueva plática</button><button id="dimaCerrar">✕</button></span></div>
+  <div class="dima-msgs" id="dimaMsgs"></div>
+  <form class="dima-form" id="dimaForm"><textarea id="dimaTexto" maxlength="1500" placeholder="Pregúntale lo que sea de la plataforma o de los eventos"></textarea><button type="submit">Enviar</button></form>
+</div>
 <script src="alertas.js"></script>
+<script src="buscar-producto.js"></script>
+<script src="manteles.js"></script>
+<script src="calendario.js"></script>
+<script src="dinero.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   // Sesión compartida con /brigadas/ (mismo origen). Solo el rol Admin entra aquí.
@@ -245,7 +340,7 @@
   if(!sesion || !sesion.token || sesion.rol !== 'Admin') location.replace('./');
 
   function salir(){
-    try { localStorage.removeItem(SESION_KEY); } catch(e){}
+    try { localStorage.removeItem(SESION_KEY); sessionStorage.removeItem('dima_equipo'); } catch(e){}
     location.replace('./');
   }
 
@@ -257,8 +352,55 @@
     });
     const data = await res.json().catch(() => ({}));
     if(res.status === 401 || res.status === 403){ salir(); throw new Error('sesion'); }
-    if(!res.ok) throw new Error(data.error || 'Error');
+    if(!res.ok){
+      const err = new Error(data.error || (res.status === 413 ? 'La foto pesa demasiado para mandarla.' : res.status >= 500 ? 'El servidor no respondió bien, intenta de nuevo.' : 'Error'));
+      err.status = res.status;
+      throw err;
+    }
     return data;
+  }
+
+  // 🗑️ Borrar evento (solo Diana y Víctor; borrar_evento en api/_calendario.js).
+  // Para eventos que no debían existir. Primero "Revisar" dice qué se borra
+  // (cobros, staff, Google); luego hay que escribir el folio para confirmar.
+  function bloqueBorrar(id){
+    return `<details class="borrar-ev" data-borrar="${esc(id)}">
+      <summary>🗑️ Borrar evento</summary>
+      <div class="evento-sub">Solo para eventos que <b>no debían existir</b> (pruebas, duplicados, capturas por error). Desaparece de la app, del calendario y de Google, junto con sus cobros. Para un evento real que ya no va, usa <b>❌ Cancelar evento</b> en el calendario.</div>
+      <button type="button" class="borrar-revisar">Revisar qué se borra</button>
+      <div class="borrar-paso2" hidden></div>
+      <div class="borrar-msg"></div>
+    </details>`;
+  }
+  function conectarBorrar(contenedor){
+    contenedor.querySelectorAll('.borrar-ev').forEach(caja => {
+      const id = caja.dataset.borrar, msg = caja.querySelector('.borrar-msg'), paso2 = caja.querySelector('.borrar-paso2');
+      const pedir = (cuerpo) => api('/api/dashboard-eventos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'borrar_evento', eventoId: id, ...cuerpo }) });
+      caja.querySelector('.borrar-revisar').addEventListener('click', async () => {
+        msg.textContent = 'Revisando…';
+        try {
+          const r = (await pedir({ revisar: true })).revisar;
+          const lista = [
+            r.cobros ? `${r.cobros} cobro${r.cobros > 1 ? 's' : ''} por $${Number(r.montoCobros).toLocaleString('es-MX')}` : 'sin cobros',
+            r.staff ? `${r.staff} invitación${r.staff > 1 ? 'es' : ''} de staff` : '',
+            r.enGoogle ? 'su evento en Google Calendar' : '',
+            r.enSheets ? 'su renglón en la hoja queda como Cancelado' : '',
+          ].filter(Boolean).join(' · ');
+          paso2.innerHTML = `<div class="evento-sub">Se borra <b>${esc(r.folio)}</b>: ${esc(lista)}.${r.cobros ? ' <b>Ojo: esos cobros dejan de contar en el cuadre.</b>' : ''}</div>
+            <input class="borrar-folio" placeholder="Escribe ${esc(r.folio)} para confirmar" autocomplete="off">
+            <button type="button" class="borrar-si">🗑️ Sí, borrar para siempre</button>`;
+          paso2.hidden = false; msg.textContent = '';
+          paso2.querySelector('.borrar-si').addEventListener('click', async (e) => {
+            e.target.disabled = true; msg.textContent = 'Borrando…';
+            try {
+              const d = await pedir({ confirmar: paso2.querySelector('.borrar-folio').value });
+              msg.textContent = `✅ ${d.borrado.folio} borrado.${d.avisosGoogle && d.avisosGoogle.length ? ' Ojo: ' + d.avisosGoogle.join(' · ') : ''}`;
+              setTimeout(loadDashboard, d.avisosGoogle && d.avisosGoogle.length ? 6000 : 1200);
+            } catch(err){ if(err.message !== 'sesion'){ msg.textContent = '⚠️ ' + err.message; e.target.disabled = false; } }
+          });
+        } catch(err){ if(err.message !== 'sesion') msg.textContent = '⚠️ ' + err.message; }
+      });
+    });
   }
 
   const mainContent = $('mainContent');
@@ -271,8 +413,14 @@
   let pedidosFirma = null;
   // Catálogo de productos (clave, nombre, negocio) que manda el servidor.
   let catalogo = [];
+  // Selector de manteles (brigadas/manteles.js): qué claves son mantel y cuántos básicos trae cada mesa.
+  let mantelesInfo = null;
+  const esMantel = (clave) => !!(window.DimaManteles && DimaManteles.esMantel(mantelesInfo, clave));
   // Artículos de INVENTARIO (modelo y color) para asignar a cada evento.
   let inventario = [];
+  // Opciones para asignar eventos: brigadas y encargadas (El Vaso Maíz).
+  let brigadas = [];
+  let encargadas = [];
 
   // Varios campos vienen del formulario público de la landing: siempre escapar.
   function esc(valor){
@@ -306,13 +454,15 @@
 
   function renderResumen(eventos){
     const emergencias = eventos.filter(e => e.emergencia).length;
-    const enCurso = eventos.filter(e => ['En camino','Montando','Evento en curso'].includes(e.estatusLogistico)).length;
-    const pendientesPago = eventos.filter(e => e.estatusPago && e.estatusPago.startsWith('Pendiente')).length;
+    // Eventos de hoy (fecha de hoy en Culiacán), no los que van en una etapa.
+    const enCurso = eventos.filter(e => e.fecha === hoyCln()).length;
+    // El mismo total que la tabla de cobranza de Clientes (sale del cuadre).
+    const pendientesPago = home.porCobrar == null ? '…' : $$(home.porCobrar);
     return `
       <div class="summary-row">
         <div class="summary-card ${emergencias ? 'alerta' : ''}"><div class="num">${emergencias}</div><div class="label">Emergencias</div></div>
         <div class="summary-card"><div class="num">${enCurso}</div><div class="label">En curso hoy</div></div>
-        <div class="summary-card"><div class="num">${pendientesPago}</div><div class="label">Pagos pendientes</div></div>
+        <div class="summary-card"><div class="num">${pendientesPago}</div><div class="label"><a href="#clientes" style="color:inherit;">Pagos pendientes</a></div></div>
       </div>
     `;
   }
@@ -360,7 +510,58 @@
     }
   }
 
+  // Cambio que pidió el cliente en el chat (api/_cambios.js). En un pedido ya
+  // autorizado queda pendiente hasta que Diana lo confirma o lo descarta.
+  const fechaHora = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  function bloqueCambio(item){
+    const c = item.cambioCliente;
+    if(!c) return '';
+    if(c.estado === 'aplicado') return `<div class="motivo aviso-fuera">✏️ El cliente cambió el pedido (${fechaHora(c.pedidoEl)})${c.urgente ? ' · ⚠️ con menos de 24 h' : ''}: ya está actualizado abajo.</div>`;
+    if(c.estado === 'confirmado') return `<div class="motivo">🔄 Cambio del cliente confirmado${c.confirmadoPor ? ' por ' + esc(c.confirmadoPor) : ''} (${fechaHora(c.confirmadoEl)}); el equipo ya fue avisado.</div>`;
+    if(c.estado !== 'pendiente') return '';
+    return `
+      <div class="motivo aviso-fuera cambio-box">
+        <b>${c.urgente ? '⚠️ URGENTE (menos de 24 h) · ' : ''}✏️ El cliente pidió un cambio (${fechaHora(c.pedidoEl)})</b>
+        <div class="evento-sub">El equipo todavía no lo sabe. Revisa si cambia la cotización o la disponibilidad.</div>
+        <div style="margin-top:8px;"><b>Ahora lo quiere así:</b><div class="servicios">${esc(c.servicios)}</div></div>
+        ${c.indicaciones ? `<div>📌 ${esc(c.indicaciones)}</div>` : ''}
+        ${c.montoEstimado ? `<div>Nuevo estimado de DiMa: $${Number(c.montoEstimado).toLocaleString('es-MX')}</div>` : ''}
+        <details><summary>Ver cómo estaba antes</summary><div class="servicios">${esc(c.antes || '(sin detalle)')}</div></details>
+        <div class="instr-fila">
+          <button class="msgcli-enviar cambio-btn" data-id="${esc(item.id)}" data-accion="confirmar_cambio">✅ Confirmar cambio y avisar al equipo</button>
+          <button class="msgcli-enviar cambio-btn" style="background:var(--line); color:var(--paper);" data-id="${esc(item.id)}" data-accion="descartar_cambio">✖ Descartar</button>
+          <span class="instr-msg cambio-msg"></span>
+        </div>
+        <div class="evento-sub">Después de confirmar, revisa "Hora y productos" y los artículos exactos. Si lo descartas, explícaselo al cliente con "Mensaje para el cliente".</div>
+      </div>`;
+  }
+
+  async function resolverCambio(btn){
+    const caja = btn.closest('.cambio-box');
+    const msg = caja.querySelector('.cambio-msg');
+    caja.querySelectorAll('.cambio-btn').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: btn.dataset.accion }),
+      });
+      msg.textContent = btn.dataset.accion === 'descartar_cambio' ? 'Descartado. Avísale al cliente con "Mensaje para el cliente".'
+        : `Confirmado. Avisos al equipo: ${d.avisados} (Telegram ${d.porTelegram}, app ${d.porPush}).`
+          + ((d.erroresAvisos || []).length ? ` ⚠️ ${d.erroresAvisos.join(' · ')}` : '')
+          + (d.produccion && d.produccion.enviados.length ? ` 🍳 Lista de producción reenviada a ${d.produccion.enviados.join(', ')}.` : '')
+          + (d.produccion && d.produccion.fallidos.length ? ` ⚠️ Producción: ${d.produccion.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
+      setTimeout(loadDashboard, 4000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+      caja.querySelectorAll('.cambio-btn').forEach(b => { b.disabled = false; });
+    }
+  }
+
   function conectarMensajeCliente(contenedor){
+    contenedor.querySelectorAll('.cambio-btn').forEach(b => b.addEventListener('click', () => resolverCambio(b)));
     contenedor.querySelectorAll('.msgcli-texto').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
     contenedor.querySelectorAll('.msgcli-enviar').forEach(b => b.addEventListener('click', () => enviarMensajeCliente(b)));
   }
@@ -390,6 +591,78 @@
     return `<span class="badge badge-sem-${disp.nivel}">${s.icono} ${s.titulo}</span>`;
   }
 
+  // Staff de El Vaso Maíz invitado por Telegram (/staff) y su respuesta.
+  const ICONO_STAFF = { 'Confirmó': '✅', 'Invitada': '⏳', 'No puede': '❌' };
+  // Staff de El Vaso Maíz: lo mismo que la gerente en su app (Diana ve a todas
+  // las chicas). staffEventos solo trae eventos autorizados de hoy en adelante.
+  let staffEventos = null, staffError = false, opcionesProduccion = null;
+  const STAFF_ESTADO = {
+    confirmo: '✅ confirmó',
+    invitada: '⏳ invitada, esperando respuesta',
+    no_puede: '❌ dijo que no podía',
+    sin_telegram: '📵 no ha activado sus mensajes (pide su enlace en /staff)',
+    choque: '⛔ ya tiene otro evento a esa hora',
+  };
+  function bloqueStaff(ev){
+    const s = staffEventos && staffEventos[ev.id];
+    if(!s){
+      if(!ev.personalRequerido && !(ev.staff || []).length) return '';
+      const confirmadas = (ev.staff || []).filter(x => x.estado === 'Confirmó').length;
+      const lista = (ev.staff || []).map(x => `${esc(x.nombre)} ${ICONO_STAFF[x.estado] || ''}`).join(' · ');
+      const aviso = staffError ? ' · ⚠️ no se pudo leer la lista para invitar; toca actualizar' : '';
+      return `<div class="motivo">🧑‍🍳 Staff: ${confirmadas} de ${ev.personalRequerido || '?'} confirmadas${lista ? ' — ' + lista : ''}${aviso}</div>`;
+    }
+    const confirmadas = s.chicas.filter(c => c.estado === 'confirmo').length;
+    const lista = s.chicas.length
+      ? s.chicas.map(c => {
+          const invitable = c.estado === 'libre' || c.estado === 'no_puede';
+          const nota = c.estado === 'choque' ? `${STAFF_ESTADO.choque} (${esc(c.choqueFolio)})` : (STAFF_ESTADO[c.estado] || '');
+          return `<label class="asig-check"><input type="checkbox" class="staff-chica" value="${esc(c.id)}" ${invitable ? '' : 'disabled'}> ${esc(c.nombre)}${nota ? ` <span class="evento-sub">${nota}</span>` : ''}</label>`;
+        }).join('')
+      : '<div class="ag-label">No hay staff agregado: usa "➕ Agregar personal" en /staff de Telegram.</div>';
+    return `
+      <details class="agenda staff-inv">
+        <summary>🧑‍🍳 Staff · ${confirmadas} de ${s.necesita || '?'} confirmadas</summary>
+        ${lista}
+        ${s.chicas.length ? `<div class="instr-fila"><button class="instr-guardar staff-invitar" data-id="${esc(ev.id)}">📨 Invitar por Telegram</button><span class="instr-msg staff-msg"></span></div>` : ''}
+      </details>`;
+  }
+
+  async function invitarStaff(btn){
+    const caja = btn.closest('.staff-inv');
+    const msg = caja.querySelector('.staff-msg');
+    const ids = [...caja.querySelectorAll('.staff-chica:checked')].map(c => c.value);
+    if(!ids.length){ msg.textContent = 'Marca a quién quieres invitar.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Enviando…';
+    try {
+      const d = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'invitar_staff', colaboradorIds: ids }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = (d.enviadas.length ? `📨 Invitación enviada a ${d.enviadas.join(', ')}. Sus respuestas te llegan por Telegram.` : 'No se envió ninguna invitación nueva.')
+        + (d.fallidas.length ? ` ⚠️ No les llegó a: ${d.fallidas.join(', ')}. Avísales por otro medio.` : '');
+      if(!d.fallidas.length) setTimeout(loadDashboard, 4000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo enviar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Encargado de producción y su última respuesta.
+  // Con el equipo de producción y si el encargado ya avisó "Listo para staff".
+  function lineaProduccion(ev){
+    if(!ev.produccionId && !(ev.equipoProduccionIds || []).length) return '';
+    const nombre = (id) => ((opcionesProduccion || []).find(x => x.id === id) || {}).nombre || 'asignado';
+    const equipo = (ev.equipoProduccionIds || []).filter(id => id !== ev.produccionId).map(nombre);
+    const lista = ev.produccionLista ? `🚀 lista para staff desde las ${new Date(ev.produccionLista).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}` : '⏳ aún no avisa que está lista';
+    return `<div class="motivo">🍳 Producción: <b>${esc(ev.produccionId ? nombre(ev.produccionId) : 'sin encargado')}</b>${equipo.length ? ' + ' + esc(equipo.join(', ')) : ''} · ${esc(lista)} · ${esc(ev.produccionRespuesta || 'todavía no responde')}</div>`;
+  }
+
   // Plazo de 12 h que DiMa le prometió al cliente.
   function bloqueLimite(iso){
     if(!iso) return '';
@@ -405,7 +678,7 @@
   // ---------- Hora y productos (agenda, inventario y personal) ----------
   function opcionesCatalogo(seleccion){
     const grupos = {};
-    catalogo.forEach(p => { (grupos[p.negocio || 'Otros'] = grupos[p.negocio || 'Otros'] || []).push(p); });
+    catalogo.filter(p => !esMantel(p.clave)).forEach(p => { (grupos[p.negocio || 'Otros'] = grupos[p.negocio || 'Otros'] || []).push(p); });
     return Object.entries(grupos).map(([negocio, lista]) =>
       `<optgroup label="${esc(negocio)}">${lista.map(p => `<option value="${esc(p.clave)}" ${p.clave === seleccion ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</optgroup>`
     ).join('');
@@ -414,6 +687,7 @@
   function filaProducto(p){
     return `
       <div class="prod-fila">
+        <input type="search" class="prod-buscar" data-buscar-producto placeholder="🔎 Buscar producto (ej. mesita)" aria-label="Buscar producto">
         <select class="prod-clave" aria-label="Producto">${opcionesCatalogo(p.clave)}</select>
         <input type="number" class="prod-cant" min="1" step="1" inputmode="numeric" value="${esc(p.cantidad || 1)}" aria-label="Cantidad">
         <button type="button" class="prod-quitar" aria-label="Quitar producto">✕</button>
@@ -440,22 +714,41 @@
 
   // Campos de hora, horas de servicio y productos. Se usan en los pedidos por
   // cotizar y en los eventos ya autorizados.
-  function camposAgenda(item){
+  function camposAgenda(item, modo){
+    const conManteles = mantelesInfo && window.DimaManteles && item.negocio !== 'El Vaso Maiz';
+    const productos = (item.productos || []).filter(p => !esMantel(p.clave));
     return `
       <div class="agenda-grid">
         <div><label class="ag-label">Hora de inicio</label><input type="time" class="ag-hora" value="${esc(item.horaInicio)}"></div>
         <div><label class="ag-label">Horas de servicio (Vaso Maíz)</label><input type="number" class="ag-horas" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="2" value="${item.horasServicio ? esc(item.horasServicio) : ''}"></div>
       </div>
       <label class="ag-label">Productos (para inventario y personal)</label>
-      <div class="prod-lista">${(item.productos || []).map(filaProducto).join('')}</div>
+      <div class="prod-lista">${productos.map(filaProducto).join('')}</div>
       <button type="button" class="prod-agregar">+ Agregar producto</button>
+      ${conManteles ? `<div class="ag-manteles" data-modo="${modo === 'pedido' ? 'pedido' : 'evento'}">${DimaManteles.html(item.productos || [], mantelesInfo, esc)}</div>` : ''}
       <label class="ag-label">Modelo, color y cantidad (lo que carga la brigada)</label>
       ${item.porAsignar ? `<div class="motivo aviso-fuera">🎨 Falta asignar modelo y color: ${esc(item.porAsignar)}</div>` : ''}
       <div class="art-lista">${(item.articulos || []).map(filaArticulo).join('')}</div>
       <button type="button" class="prod-agregar art-agregar">+ Agregar modelo y color</button>`;
   }
 
+  // Productos de los renglones (sin manteles).
+  const filasProductos = (contenedor) => [...contenedor.querySelectorAll('.prod-fila:not(.art-fila)')].map(f => ({
+    clave: f.querySelector('.prod-clave').value,
+    cantidad: Number(f.querySelector('.prod-cant').value),
+    nota: f.querySelector('.prod-nota').value.trim() || null,
+  }));
+
+  // Texto en vivo del selector de manteles (cuántos van de cada tipo, sin precios).
+  function resumirManteles(contenedor){
+    const caja = contenedor.querySelector('.ag-manteles');
+    if(!caja) return { error: '' };
+    return DimaManteles.resumir(caja, filasProductos(contenedor), mantelesInfo);
+  }
+
   function leerAgenda(contenedor){
+    const filas = filasProductos(contenedor);
+    const mant = contenedor.querySelector('.ag-manteles');
     return {
       horaInicio: contenedor.querySelector('.ag-hora').value,
       horasServicio: contenedor.querySelector('.ag-horas').value,
@@ -463,11 +756,7 @@
         id: f.querySelector('.art-id').value,
         cantidad: Number(f.querySelector('.art-cant').value),
       })),
-      productos: [...contenedor.querySelectorAll('.prod-fila:not(.art-fila)')].map(f => ({
-        clave: f.querySelector('.prod-clave').value,
-        cantidad: Number(f.querySelector('.prod-cant').value),
-        nota: f.querySelector('.prod-nota').value.trim() || null,
-      })),
+      productos: mant ? DimaManteles.aplicar(mant, filas, mantelesInfo) : filas,
     };
   }
 
@@ -475,7 +764,10 @@
   // que el polling no lo borre.
   function conectarAgenda(contenedor){
     contenedor.querySelectorAll('.agenda').forEach(caja => {
-      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      if(window.DimaManteles) DimaManteles.conectar(caja.querySelector('.dm-manteles'), esc, () => { caja.dataset.sucio = '1'; resumirManteles(caja); });
+      resumirManteles(caja);
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; resumirManteles(caja); });
+      caja.addEventListener('change', () => resumirManteles(caja));
       caja.addEventListener('click', (e) => {
         if(e.target.closest('.art-agregar')){
           caja.querySelector('.art-lista').insertAdjacentHTML('beforeend', filaArticulo({ id: '', cantidad: 1 }));
@@ -486,6 +778,7 @@
         } else if(e.target.closest('.prod-quitar')){
           e.target.closest('.prod-fila').remove();
           caja.dataset.sucio = '1';
+          resumirManteles(caja);
         }
       });
     });
@@ -495,17 +788,20 @@
   async function guardarAgenda(btn){
     const caja = btn.closest('.agenda');
     const msg = caja.querySelector('.agenda-msg');
+    const mant = resumirManteles(caja);
+    if(mant.error){ msg.textContent = '⚠️ ' + mant.error; return; }
     btn.disabled = true;
     msg.textContent = 'Guardando…';
     try {
-      await api('/api/dashboard-eventos', {
+      const r = await api('/api/dashboard-eventos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventoId: btn.dataset.id, accion: 'agenda', ...leerAgenda(caja) }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = 'Guardado.';
-      setTimeout(loadDashboard, 800);
+      msg.textContent = 'Guardado.' + (r && r.monto != null ? ` Monto nuevo: $${Number(r.monto).toLocaleString('es-MX')}.` : '')
+        + (r && r.recibo ? (r.recibo.ok ? ' 🧾 Recibo actualizado por Telegram.' : ` ⚠️ El recibo no salió: ${r.recibo.error}`) : '');
+      setTimeout(loadDashboard, 4000);
     } catch(e){
       if(e.message === 'sesion') return;
       msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
@@ -514,9 +810,37 @@
     }
   }
 
+  // Cada evento se ve como ficha corta (estatus, folio, lugar, fecha, brigada,
+  // cliente y lo que falta por cobrar) y se abre al tocarla, igual que en la app.
+  const fichasAbiertas = new Set();
+  let eventosPintados = [];
+  // Aviso breve abajo de la pantalla (sin alert: no bloquea).
+  function avisoBreve(texto){
+    let t = document.getElementById('avisoBreve');
+    if(!t){ t = document.createElement('div'); t.id = 'avisoBreve'; t.className = 'aviso-breve'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+    t.textContent = texto;
+    t.classList.add('show');
+    clearTimeout(avisoBreve.timer);
+    avisoBreve.timer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+  DimaDinero.configurar({
+    api: (url, opciones) => api(url, opciones), esc, toast: avisoBreve,
+    recargar: () => loadDashboard(), esAdmin: () => true, eventos: () => eventosPintados,
+  });
+  function abrirFicha(b){
+    const fila = b.closest('.evento-row');
+    const abrir = !fichasAbiertas.has(b.dataset.ficha);
+    if(abrir) fichasAbiertas.add(b.dataset.ficha); else fichasAbiertas.delete(b.dataset.ficha);
+    fila.classList.toggle('abierta', abrir);
+    fila.querySelector('.ev-detalle').hidden = !abrir;
+    b.setAttribute('aria-expanded', abrir);
+    b.querySelector('.ficha-flecha').textContent = abrir ? 'Cerrar ▴' : 'Ver todo ▾';
+  }
+
   function renderEventos(eventos){
     // El polling cada 30s no debe borrar instrucciones a medio escribir.
-    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio]')) return;
+    if(mainContent.querySelector('.instr-texto:focus, .instr-texto[data-sucio], .msgcli-texto:focus, .msgcli-texto[data-sucio], .agenda :focus, .agenda[data-sucio], .editar :focus, .editar[data-sucio], .din-caja :focus')) return;
+    eventosPintados = eventos;
     if(!eventos.length){
       mainContent.innerHTML = `<div class="empty-state">🗓️<br>Sin eventos activos por ahora.</div>`;
       return;
@@ -529,15 +853,31 @@
     });
 
     let html = renderResumen(eventos);
+    // Próximos (de hoy en adelante) y pendientes de cerrar (ya pasaron y siguen abiertos).
+    const hoyTxt = hoyCln();
+    const pasados = ordenados.filter(ev => ev.fecha && ev.fecha < hoyTxt);
+    const proximos = ordenados.filter(ev => !(ev.fecha && ev.fecha < hoyTxt));
+    ordenados.length = 0;
+    ordenados.push(...proximos, ...pasados);
+    const titulo = (t, n) => `<h2 class="section-title" style="margin-top:18px;">${t} (${n})</h2>`;
+    if(proximos.length) html += titulo('📅 Próximos', proximos.length);
 
-    ordenados.forEach(ev => {
+    ordenados.forEach((ev, i) => {
+      if(i === proximos.length && pasados.length) html += titulo('🔒 Pendientes de cerrar', pasados.length) + '<div class="evento-sub">Ya pasaron y siguen abiertos. Se cierran cuando el staff marca 🏁 terminado o la brigada recoge, y el cuadre no está por aclarar.</div>';
       const claseFila = ev.emergencia ? 'emergencia' : (ev.zonaAlertaSeguridad ? 'seguridad' : '');
       const pagoClase = ev.estatusPago && ev.estatusPago.startsWith('Pendiente') ? 'badge-pago-pendiente' : 'badge-pago-pagado';
       const visual = estatusVisual(ev.estatusLogistico);
       const colorCss = `var(${visual.color})`;
 
       html += `
-        <div class="evento-row ${claseFila}" style="border-left-color:${colorCss};">
+        <div class="evento-row ${claseFila} ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" style="border-left-color:${colorCss};" data-din-ev="${esc(ev.id)}">
+          <button type="button" class="ev-ficha" data-ficha="${esc(ev.id)}" aria-expanded="${fichasAbiertas.has(ev.id)}">
+            <span class="ficha-fila"><span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${esc(ev.estatusLogistico)}</span><span class="event-folio">${esc(ev.folio)}</span>${[ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambioCliente && ev.cambioCliente.estado === 'pendiente' ? '✏️' : '', ev.disponibilidad && ev.disponibilidad.nivel === 'rojo' ? '🔴' : ev.disponibilidad && ev.disponibilidad.nivel === 'amarillo' ? '🟡' : ''].filter(Boolean).map(x => `<span class="ficha-avisos">${x}</span>`).join('')}</span>
+            <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
+            <span class="ficha-sub">${formatFecha(ev.fecha)}${ev.horaInicio ? ' · 🕒 ' + esc(ev.horaInicio) : ''} · ${esc(ev.negocio || '')} · 👷 ${esc(ev.brigadaNombre)}${ev.dinero && ev.dinero.cliente ? ' · 👤 ' + esc(ev.dinero.cliente) : ''}</span>
+            <span class="ficha-fila">${DimaDinero.etiqueta(ev.dinero)}<span class="ficha-flecha">${fichasAbiertas.has(ev.id) ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
+          </button>
+          <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="evento-top">
             <div>
               <h3>${esc(ev.ubicacion || 'Ubicación por confirmar')} · ${esc(ev.folio)}</h3>
@@ -553,6 +893,11 @@
               ${ev.temporadaAlta ? `<span class="badge badge-fuera">🎄 Temporada alta</span>` : ''}
               ${ev.preferenciaContacto ? `<span class="badge badge-pref">📞 ${PREF_TEXTO[ev.preferenciaContacto] || esc(ev.preferenciaContacto)}</span>` : ''}
             </div>
+          </div>
+          <div class="meta-line pedido-contacto">
+            <span>👤 ${esc(ev.clienteNombre || 'Cliente sin nombre')}</span>
+            ${ev.clienteTelefono ? `<span>📞 ${telLink(ev.clienteTelefono)}</span>` : '<span>📞 sin teléfono</span>'}
+            ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
           </div>
           <div class="meta-line">
             ${ev.horaInicio ? `<span>🕒 ${esc(ev.horaInicio)}</span>` : ''}
@@ -573,7 +918,11 @@
             </div>` : ''}
           ${ev.resumenCapacidad ? `<div class="motivo capacidad">${esc(ev.resumenCapacidad)}</div>` : ''}
           ${ev.disponibilidad && ev.disponibilidad.nivel !== 'verde' ? bloqueSemaforo(ev.disponibilidad) : ''}
+          ${bloqueCambio(ev)}
+          ${lineaProduccion(ev)}
+          ${bloqueStaff(ev)}
           ${bloqueMensajeCliente(ev)}
+          ${bloqueAsignar(ev)}
           <details class="agenda">
             <summary>🗓️ Hora y productos${ev.horaInicio && ev.productos.length ? '' : ' (completar)'}</summary>
             ${camposAgenda(ev)}
@@ -590,23 +939,116 @@
               <span class="instr-msg"></span>
             </div>
           </details>
+          ${ev.dinero ? `<div class="din-seccion"><b>💰 Dinero</b>${DimaDinero.bloque(ev)}</div>` : ''}
+          ${bloqueEditar(ev)}
+          ${bloqueBorrar(ev.id)}
+          </div>
         </div>
       `;
     });
 
+    const cajasAbiertas = [...mainContent.querySelectorAll('details[data-caja][open]')].map(d => d.dataset.caja);
     mainContent.innerHTML = html;
+    cajasAbiertas.forEach(k => { const d = mainContent.querySelector(`details[data-caja="${k}"]`); if(d) d.open = true; });
+    mainContent.querySelectorAll('.ev-ficha').forEach(b => b.addEventListener('click', () => abrirFicha(b)));
+    DimaDinero.conectar(mainContent);
+    conectarBorrar(mainContent);
+    conectarEditar(mainContent);
 
     mainContent.querySelectorAll('.instr-texto').forEach(t => {
       t.addEventListener('input', () => { t.dataset.sucio = '1'; });
     });
-    mainContent.querySelectorAll('.instr-guardar').forEach(b => {
+    mainContent.querySelectorAll('.instr:not(.editar) .instr-guardar').forEach(b => {
       b.addEventListener('click', () => guardarInstrucciones(b));
     });
     conectarMensajeCliente(mainContent);
     conectarAgenda(mainContent);
+    mainContent.querySelectorAll('.asig-guardar').forEach(b => b.addEventListener('click', () => guardarAsignacion(b)));
+    mainContent.querySelectorAll('.staff-invitar').forEach(b => b.addEventListener('click', () => invitarStaff(b)));
+    // Marcar chicas no debe perderse con la actualización de cada 30 s.
+    mainContent.querySelectorAll('.staff-inv').forEach(d => d.addEventListener('change', () => { d.dataset.sucio = '1'; }));
     mainContent.querySelectorAll('.resolver-btn').forEach(b => {
       b.addEventListener('click', () => resolverAlerta(b));
     });
+  }
+
+  function bloqueAsignar(ev){
+    const sinNadie = !ev.brigadaId && !ev.encargadaIds.length;
+    const enterado = sinNadie ? ''
+      : ev.enteradoPor ? ` · 👍 Enterado: ${esc(ev.enteradoPor)}${ev.enteradoHora ? ' (' + new Date(ev.enteradoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`
+      : ' · ⏳ Sin confirmar';
+    return `
+      <details class="agenda asignar" ${sinNadie ? 'open' : ''}>
+        <summary>👷 Asignar brigada y encargada${sinNadie ? ' (sin asignar)' : enterado}</summary>
+        <label class="ag-label">Brigada</label>
+        <select class="asig-brigada">
+          <option value="">Sin brigada</option>
+          ${brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}${b.lider ? ' (' + esc(b.lider) + ')' : ''}</option>`).join('')}
+        </select>
+        <label class="ag-label">Encargada de evento (El Vaso Maíz)</label>
+        ${encargadas.length
+          ? encargadas.map(c => `<label class="asig-check"><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${ev.encargadaIds.includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')
+          : '<div class="ag-label">No hay encargadas activas en COLABORADORES.</div>'}
+        ${ev.vasoMaiz || ev.produccionId ? (opcionesProduccion ? `
+          <label class="ag-label">👩‍🍳 Equipo de producción (1, 2 o más; puede estar también en el staff)</label>
+          ${opcionesProduccion.map(p => `<label class="asig-check"><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
+          <label class="ag-label">🍳 Encargado de producción (entra solo al equipo; le llega la lista por Telegram 2 días antes y el mismo día, y solo esa persona avisa "🚀 Listo para staff")</label>
+          <select class="asig-produccion">
+            <option value="">Sin encargado de producción</option>
+            ${opcionesProduccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
+          </select>` : '<div class="ag-label">🍳 No se pudo leer quién puede hacer producción. Toca actualizar.</div>') : ''}
+        <div class="instr-fila">
+          <button class="instr-guardar asig-guardar" data-id="${esc(ev.id)}">Guardar y avisar</button>
+          <span class="instr-msg asig-msg"></span>
+        </div>
+      </details>`;
+  }
+
+  // Lo que de verdad se entregó al asignar, para saber si a alguien no le llegó.
+  function textoAvisosAsignacion(d){
+    if(!d.avisados) return 'Guardado. No hay nadie nuevo a quien avisar.';
+    let t = `Guardado. Avisos a ${d.avisados} persona${d.avisados === 1 ? '' : 's'}: Telegram ${d.porTelegram} de ${d.conTelegram} vinculado${d.conTelegram === 1 ? '' : 's'}, app ${d.porPush}.`;
+    if((d.sinTelegram || []).length) t += ` Sin Telegram vinculado: ${d.sinTelegram.join(', ')}.`;
+    if((d.erroresAvisos || []).length) t += ` ⚠️ ${d.erroresAvisos.join(' · ')}`;
+    return t;
+  }
+
+  async function guardarAsignacion(btn){
+    const caja = btn.closest('.asignar');
+    const msg = caja.querySelector('.asig-msg');
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const data = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.id,
+          accion: 'asignar',
+          brigadaId: caja.querySelector('.asig-brigada').value,
+          encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
+          // Solo si está el selector (eventos de El Vaso Maíz y lista leída): si no, no se toca.
+          ...(caja.querySelector('.asig-produccion') ? {
+            produccionId: caja.querySelector('.asig-produccion').value,
+            equipoProduccionIds: [...caja.querySelectorAll('.asig-equipo:checked')].map(c => c.value),
+          } : {}),
+        }),
+      });
+      delete caja.dataset.sucio;
+      const p = data.produccion, e = data.equipoProduccion;
+      msg.textContent = textoAvisosAsignacion(data)
+        + (p && p.enviados.length ? ` 🍳 Producción avisada: ${p.enviados.join(', ')}.` : '')
+        + (p && p.fallidos.length ? ` ⚠️ No le llegó el aviso de producción a ${p.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '')
+        + (e && e.enviados.length ? ` 👩‍🍳 Equipo de producción avisado: ${e.enviados.join(', ')}.` : '')
+        + (e && e.fallidos.length ? ` ⚠️ No le llegó al equipo de producción: ${e.fallidos.map(x => x.nombre + ' (' + x.motivo + ')').join(', ')}.` : '');
+      // Si algo no se entregó, el mensaje se queda a la vista (no se repinta).
+      if(!(data.erroresAvisos || []).length && !(data.sinTelegram || []).length) setTimeout(loadDashboard, 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function resolverAlerta(btn){
@@ -650,6 +1092,83 @@
     }
   }
 
+  // ✏️ Editar a mano los datos del evento y del cliente (lugar, fecha, invitados,
+  // nombre, teléfono, correo) y el pedido (qué lleva y, en eventos, el monto).
+  // La hora y los productos van en "Hora y productos".
+  function bloqueEditar(item){
+    const tel = String(item.clienteTelefono || '').replace(/\D/g, '').slice(-10);
+    return `
+      <details class="instr editar" data-caja="editar-${esc(item.id)}">
+        <summary>✏️ Editar evento, cliente y pedido</summary>
+        <label class="ag-label">Nombre del cliente</label>
+        <input type="text" class="ed-nombre" maxlength="200" value="${esc(item.clienteNombre)}">
+        <label class="ag-label">Teléfono (10 dígitos)</label>
+        <input type="tel" class="ed-tel" inputmode="tel" maxlength="20" placeholder="6671234567" value="${esc(tel)}">
+        <label class="ag-label">Correo</label>
+        <input type="email" class="ed-email" maxlength="200" value="${esc(item.clienteEmail)}">
+        <label class="ag-label">Ubicación / dirección del evento</label>
+        <textarea class="ed-ubicacion" maxlength="500" placeholder="Calle, número, colonia, salón…">${esc(item.ubicacion)}</textarea>
+        <div class="agenda-grid">
+          <div><label class="ag-label">Fecha</label><input type="date" class="ed-fecha" value="${esc(String(item.fecha || '').slice(0, 10))}"></div>
+          <div><label class="ag-label">Invitados</label><input type="number" class="ed-invitados" min="1" step="1" inputmode="numeric" value="${item.invitados ? esc(item.invitados) : ''}"></div>
+        </div>
+        <label class="ag-label"><input type="checkbox" class="ed-fuera" ${item.fueraDeCiudad ? 'checked' : ''}> Fuera de la ciudad</label>
+        <label class="ag-label">Pedido: qué lleva (un artículo por línea)${item.dinero ? '; también es la lista de carga de la brigada' : ''}</label>
+        <textarea class="ed-servicios" maxlength="5000" rows="5">${esc(item.servicios)}</textarea>
+        ${item.dinero && !item.dinero.error ? `
+        <label class="ag-label">Monto contratado (MXN, sin cargos extra)</label>
+        <input type="number" class="ed-monto" min="1" step="1" inputmode="numeric" value="${item.dinero.contratado ? esc(item.dinero.contratado) : ''}">
+        <label class="ag-label"><input type="checkbox" class="ed-avisar" checked> Si cambia lo que lleva, avisar al equipo del evento</label>` : ''}
+        <div class="instr-fila">
+          <button type="button" class="instr-guardar ed-guardar" data-id="${esc(item.id)}">Guardar cambios</button>
+          <span class="instr-msg ed-msg"></span>
+        </div>
+      </details>`;
+  }
+
+  function conectarEditar(contenedor){
+    contenedor.querySelectorAll('.editar').forEach(caja => {
+      caja.addEventListener('input', () => { caja.dataset.sucio = '1'; });
+      caja.addEventListener('change', () => { caja.dataset.sucio = '1'; });
+    });
+    contenedor.querySelectorAll('.ed-guardar').forEach(b => b.addEventListener('click', () => guardarEdicion(b)));
+  }
+
+  async function guardarEdicion(btn){
+    const caja = btn.closest('.editar');
+    const msg = caja.querySelector('.ed-msg');
+    const v = sel => caja.querySelector(sel).value.trim();
+    const fecha = v('.ed-fecha');
+    if(!fecha){ msg.textContent = 'Falta la fecha.'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Guardando…';
+    try {
+      const r = await api('/api/dashboard-eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: btn.dataset.id, accion: 'editar',
+          clienteNombre: v('.ed-nombre'), clienteTelefono: v('.ed-tel'), clienteEmail: v('.ed-email'),
+          ubicacion: v('.ed-ubicacion'), fecha, invitados: v('.ed-invitados'),
+          fueraDeCiudad: caja.querySelector('.ed-fuera').checked,
+          servicios: caja.querySelector('.ed-servicios').value,
+          ...(caja.querySelector('.ed-monto') ? { monto: v('.ed-monto') } : {}),
+          ...(caja.querySelector('.ed-avisar') ? { avisarEquipo: caja.querySelector('.ed-avisar').checked } : {}),
+        }),
+      });
+      delete caja.dataset.sucio;
+      msg.textContent = (r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.')
+        + (r && r.recibo ? (r.recibo.ok ? ' 🧾 Recibo actualizado por Telegram.' : ` ⚠️ El recibo no salió: ${r.recibo.error}`) : '');
+      pedidosFirma = '';
+      setTimeout(loadDashboard, 800);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function telLink(tel){
     const digitos = String(tel || '').replace(/\D/g, '');
     return digitos ? `<a href="tel:+${digitos}">${esc(tel.replace('whatsapp:', ''))}</a>` : '';
@@ -658,9 +1177,10 @@
   function renderPedidos(pedidos){
     // El polling cada 30s no debe borrar lo que Diana está escribiendo:
     // solo se vuelve a pintar si cambió la lista de pedidos.
-    const firma = pedidos.map(p => `${p.id}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
+    // Incluye el último cambio del cliente: si cambia el pedido, se vuelve a pintar.
+    const firma = pedidos.map(p => `${p.id}:${p.cambioCliente ? p.cambioCliente.pedidoEl : ''}:${p.mensajeEntregado}:${(p.mensajeParaCliente || '').length}:${p.disponibilidad ? p.disponibilidad.nivel + p.disponibilidad.motivos.length : ''}`).join(',');
     if(firma === pedidosFirma) return;
-    if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio]')) return;
+    if(pedidosContent.querySelector('input:focus, textarea:focus, select:focus, .msgcli-texto[data-sucio], .agenda[data-sucio], .editar[data-sucio]')) return;
     pedidosFirma = firma;
 
     if(!pedidos.length){ pedidosContent.innerHTML = ''; return; }
@@ -686,11 +1206,12 @@
           ${p.fueraDeCiudad ? `<div class="motivo aviso-fuera">🛣️ Fuera de la ciudad: confirma cobertura y suma el costo de traslado al monto.</div>` : ''}
           ${p.temporadaAlta ? `<div class="motivo aviso-fuera">🎄 Temporada alta: sin paquetes regulares; precios de temporada (+70%).</div>` : ''}
           ${p.preferenciaContacto ? `<div class="motivo">📞 ${PREF_TEXTO[p.preferenciaContacto] || esc(p.preferenciaContacto)}</div>` : ''}
+          ${bloqueCambio(p)}
           ${bloqueMensajeCliente(p)}
-          ${p.notas ? `<div class="motivo">${esc(p.notas)}</div>` : ''}
+          ${p.notas ?`<div class="motivo">${esc(p.notas)}</div>` : ''}
           <div class="servicios">${esc(p.servicios)}</div>
           ${p.resumenCapacidad ? `<div class="motivo capacidad">${esc(p.resumenCapacidad)}</div>` : ''}
-          <div class="agenda">${camposAgenda(p)}</div>
+          <div class="agenda">${camposAgenda(p, 'pedido')}</div>
           <label for="monto-${esc(p.id)}">Monto total (MXN)</label>
           <input type="number" id="monto-${esc(p.id)}" class="pedido-monto" min="1" step="1" inputmode="numeric" placeholder="Ej. 4500" value="${p.montoEstimado ? esc(p.montoEstimado) : ''}">
           ${p.montoEstimado ? '<div class="evento-sub">Estimado de DiMa, ajústalo si hace falta.</div>' : ''}
@@ -703,10 +1224,14 @@
             <button class="btn-rechazar" data-accion="rechazar">Rechazar</button>
           </div>
           <div class="pedido-msg"></div>
+          ${bloqueEditar(p)}
+          ${bloqueBorrar(p.id)}
         </div>
       `).join('');
 
     conectarMensajeCliente(pedidosContent);
+    conectarBorrar(pedidosContent);
+    conectarEditar(pedidosContent);
     conectarAgenda(pedidosContent);
     pedidosContent.querySelectorAll('.pedido-actions button').forEach(btn => {
       btn.addEventListener('click', () => resolverPedido(btn));
@@ -739,9 +1264,11 @@
       msg.style.color = 'var(--good)';
       msg.textContent = accion === 'rechazar' ? 'Pedido rechazado.'
         : data.googleOk ? 'Autorizado. Checklist listo para la brigada.'
-        : 'Autorizado, pero falló Calendar, Sheets o el correo al cliente. Revísalo a mano.';
+        : 'Autorizado, pero falló: ' + ((data.erroresGoogle || []).join(' · ') || 'Calendar, Sheets o el correo al cliente') + '. Revísalo a mano.';
       pedidosFirma = null;
-      setTimeout(loadDashboard, 1500);
+      // La tarjeta se desvanece hacia los eventos activos; si algo falló, se queda a la vista.
+      if(accion === 'rechazar' || data.googleOk) setTimeout(() => card.classList.add('saliendo'), 900);
+      setTimeout(loadDashboard, data.googleOk || accion === 'rechazar' ? 1500 : 6000);
     } catch(e){
       msg.style.color = 'var(--bad)';
       msg.textContent = e.message || 'No se pudo guardar, intenta de nuevo.';
@@ -749,31 +1276,498 @@
     }
   }
 
+  // ---------- 🔍 Cuadre del dinero (api/_cuadre.js, solo Admin) ----------
+  // Por excepción: solo aparece lo que no cuadra. Las respuestas son las mismas
+  // que los botones de Telegram (le pagaron a ella, sigue debiendo, descuento…).
+  const cuadreContent = $('cuadreContent');
+  let cuadreCargado = 0, cuadreFirma = '';
+  const $$ = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+
+  async function cargarCuadre(forzar){
+    if(!forzar && Date.now() - cuadreCargado < 5 * 60 * 1000) return;
+    cuadreCargado = Date.now();
+    try {
+      pintarCuadre(await api('/api/finanzas?vista=cuadre'));
+    } catch(e){
+      if(e.message === 'sesion') return;
+      cuadreCargado = 0;
+      cuadreContent.innerHTML = `<div class="hist-card">🔍 No se pudo leer el cuadre (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  function pintarCuadre(v){
+    if(cuadreContent.querySelector('input:focus, textarea:focus')) return;
+    const firma = JSON.stringify(v);
+    if(firma === cuadreFirma) return;
+    cuadreFirma = firma;
+    const ef = v.efectivo;
+    const tarjeta = (e, conBotones) => `
+      <div class="pedido-card cuadre-ev" data-id="${esc(e.id)}">
+        <h3>${esc(e.folio)} · ${esc(e.fecha)}${e.cliente ? ' · ' + esc(e.cliente) : ''}</h3>
+        <div class="meta-line">
+          <span>Contratado <span class="dinero-favor">${$$(e.contratado)}</span></span>
+          <span>Cobró la brigada <span class="dinero-favor">${$$(e.brigada)}</span>${e.brigadaSinAprobar ? ` <span class="evento-sub">(${$$(e.brigadaSinAprobar)} sin aprobar)</span>` : ''}</span>
+          ${e.diana ? `<span>Te pagaron <span class="dinero-favor">${$$(e.diana)}</span></span>` : ''}
+          ${e.descuento ? `<span>Descuento ${$$(e.descuento)}</span>` : ''}
+          ${e.saldo < 0 ? `<span>Cobrado de más <span class="dinero-gasto">${$$(-e.saldo)}</span></span>` : `<span>Falta <span class="dinero-gasto">${$$(e.saldo)}</span></span>`}
+        </div>
+        ${e.notas ? `<div class="evento-sub">${esc(e.notas.trim().split('\n').pop())}</div>` : ''}
+        ${conBotones ? `
+          <div class="instr-fila">
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo">💵 Efectivo a Diana</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Efectivo" data-recibio="brigada">👷 Efectivo a la brigada</button>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago" data-monto="todo" data-forma="Transferencia">🏦 Transferencia</button>
+          </div>
+          <div class="instr-fila">
+            <input class="cuadre-monto" inputmode="decimal" placeholder="Otro monto" style="max-width:140px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <select class="cuadre-forma" style="padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select>
+            <button class="msgcli-enviar cuadre-acc" data-tipo="pago">Registrar pago</button>
+          </div>
+          <div class="instr-fila">
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="debe">⏳ Sigue debiendo</button>
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="descuento">🎁 Cortesía</button>
+          </div>
+          <div class="instr-fila">
+            <input class="cuadre-nota" maxlength="500" placeholder="¿Otra cosa? Escribe qué pasó con ese dinero" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <button class="msgcli-enviar cuadre-acc" style="background:var(--line); color:var(--paper);" data-tipo="otro">Anotar</button>
+          </div>
+          <div class="instr-msg cuadre-msg"></div>` : ''}
+      </div>`;
+    const lista = (titulo, items, botones) => items.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">${titulo} (${items.length})</h3>${items.map(e => tarjeta(e, botones)).join('')}` : '';
+    const destinos = Object.entries(ef.destinos || {});
+    const todoCuadra = !v.porAclarar.length && !v.cobradoDeMas.length && ef.sinDestino <= 0.5 && !ef.excedente;
+    cuadreContent.innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">🔍 Cuadre del dinero <span class="evento-sub">(desde ${esc(v.desde)}; solo Diana y Víctor)</span></h2>
+        ${todoCuadra ? '<div class="motivo">✅ Todo cuadra: no hay dinero sin aclarar ni efectivo sin destino.</div>' : ''}
+        <div class="cifras">
+          <div class="cifra"><div class="etq">Efectivo que te entregaron</div><div class="val favor">${$$(ef.entregadoBrigadas)}</div></div>
+          <div class="cifra"><div class="etq">Te pagaron en efectivo</div><div class="val favor">${$$(ef.pagadoEfectivo)}</div></div>
+          <div class="cifra"><div class="etq">Declarado en caja</div><div class="val cobrar">${$$(ef.enCaja)}</div></div>
+          <div class="cifra"><div class="etq">Efectivo sin destino</div><div class="val ${ef.sinDestino > 0.5 ? 'gasto' : 'favor'}">${$$(ef.sinDestino)}</div></div>
+        </div>
+        ${destinos.length ? `<div class="evento-sub" style="margin-top:6px;">Destinos registrados: ${destinos.map(([k, x]) => `${esc(k)} ${$$(x)}`).join(' · ')}</div>` : ''}
+        ${ef.excedente ? `<div class="motivo aviso-fuera">⚠️ Hay ${$$(ef.excedente)} más registrado como destino de lo que entró en efectivo: revisa si algo se anotó dos veces.</div>` : ''}
+        ${ef.sinDestino > 0.5 ? `
+          <div class="evento-sub" style="margin-top:8px;">¿Qué se hizo con ${$$(ef.sinDestino)}? Tú decides; solo queda anotado para que cuadre.</div>
+          <div class="instr-fila">
+            <button class="msgcli-enviar caja-acc" data-tipo="dep">🏦 Lo deposité</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="gas">🧾 Gasto del negocio</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="ret">👛 Retiro personal</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="ext">🔨 Gasto externo (remodelación)</button>
+            <button class="msgcli-enviar caja-acc" data-tipo="rb">💵 Reembolso</button>
+            <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="caja">💼 Sigue en caja</button>
+          </div>
+          <div class="instr-fila" id="cajaElegir"></div>
+          <div class="instr-fila"><input id="cajaNota" maxlength="300" placeholder="¿Repartido? Ej. deposité 3000 y 500 fueron de gasolina" style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <button class="msgcli-enviar caja-acc" style="background:var(--line); color:var(--paper);" data-tipo="var">Anotar</button></div>
+          <div class="instr-msg" id="cajaMsg"></div>` : ''}
+        ${lista('🧾 Eventos que no cuadran', v.porAclarar, true)}
+        ${lista('🔴 Cobrado de más (revisa si es error de captura)', v.cobradoDeMas, false)}
+        ${lista('📝 Explicados como "otra cosa"', v.otros, false)}
+        ${v.conPerdida.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">📉 Eventos con pérdida (${v.conPerdida.length})</h3>${v.conPerdida.map(e => `<div class="motivo">${esc(e.folio)} · ${esc(e.fecha)}${e.cliente ? ' · ' + esc(e.cliente) : ''}: contratado <span class="dinero-favor">${$$(e.contratado)}</span>, gastos <span class="dinero-gasto">${$$(e.gastos)}</span>, margen <span class="dinero-gasto">${$$(e.margen)}</span></div>`).join('')}` : ''}
+        <div class="evento-sub" style="margin-top:10px;">💬 Pregúntale a DiMa "¿dónde hay fugas?" o "¿estamos metiendo dinero bueno al malo?": tiene este cuadre.</div>
+      </div>`;
+    cuadreContent.querySelectorAll('.cuadre-acc').forEach(b => b.addEventListener('click', () => aclararEvento(b)));
+    home.porCobrar = v.porCobrar.total;
+    home.porAclarar = v.porAclarar.length;
+    pintarClientes(v, tarjeta);
+    pintarSemana(v);
+    pintarHome();
+    const resumenPago = mainContent.querySelector('.summary-row .summary-card:nth-child(3) .num');
+    if(resumenPago) resumenPago.textContent = $$(v.porCobrar.total);
+    cuadreContent.querySelectorAll('.caja-acc').forEach(b => b.addEventListener('click', () => destinoCaja(b)));
+  }
+
+  async function aclararEvento(btn){
+    const caja = btn.closest('.cuadre-ev');
+    const msg = caja.querySelector('.cuadre-msg');
+    const tipo = btn.dataset.tipo;
+    const cuerpo = { accion: 'aclarar', eventoId: caja.dataset.id, tipo };
+    if(tipo === 'pago'){
+      cuerpo.monto = btn.dataset.monto || caja.querySelector('.cuadre-monto').value;
+      cuerpo.forma = btn.dataset.forma || caja.querySelector('.cuadre-forma').value;
+      if(btn.dataset.recibio) cuerpo.recibio = btn.dataset.recibio;
+    }
+    if(tipo === 'otro') cuerpo.nota = caja.querySelector('.cuadre-nota').value;
+    caja.querySelectorAll('.cuadre-acc').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+      msg.textContent = d.texto || '✅ Anotado';
+      cuadreFirma = '';
+      setTimeout(() => cargarCuadre(true), 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar');
+      caja.querySelectorAll('.cuadre-acc').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  async function destinoCaja(btn){
+    const msg = $('cajaMsg');
+    cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '', colaboradorId: btn.dataset.colab || '' }) });
+      msg.textContent = d.texto || '✅ Anotado';
+      // 💵 Reembolso: primero se elige a quién (igual que en Telegram).
+      if(d.elegir){
+        $('cajaElegir').innerHTML = d.elegir.map(f => `<button class="msgcli-enviar caja-acc" data-tipo="rb" data-colab="${esc(f.colaboradorId)}">${esc(f.nombre)} · ${$$(f.pendiente)}</button>`).join('');
+        cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = false; });
+        $('cajaElegir').querySelectorAll('.caja-acc').forEach(b => b.addEventListener('click', () => destinoCaja(b)));
+        return;
+      }
+      cuadreFirma = '';
+      setTimeout(() => cargarCuadre(true), 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar');
+      cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  // ---------- Reportes financieros del día (api/finanzas.js) ----------
+  // Diana aprueba o pide aclaración; solo lo aprobado cuenta en el balance.
+  const finContent = $('finContent');
+  let finFirma = '';
+  const pesosFin = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  const fotoFin = (f, falta) => f ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--maiz);">📷 ver</a>` : (falta ? `<span class="evento-sub">${falta}</span>` : '');
+
+  async function cargarFinanzas(){
+    try {
+      renderFinanzas((await api('/api/finanzas')).revision);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      finContent.innerHTML = `<div class="motivo aviso-fuera">💰 No se pudieron leer los reportes del día (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  function renderFinanzas(rev){
+    if(!rev){ finContent.innerHTML = ''; return; }
+    // No repintar mientras Diana escribe una aclaración.
+    if(finContent.querySelector('textarea:focus, textarea[data-sucio]')) return;
+    const firma = JSON.stringify([rev.pendientes.map(r => r.id + r.estado + r.enviadoHora), rev.reembolsos.map(g => g.id)]);
+    if(firma === finFirma) return;
+    finFirma = firma;
+    const tarjeta = (r) => `
+      <div class="pedido-card fin-rep" data-id="${esc(r.id)}">
+        <h3>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.negocio)}</h3>
+        <div class="evento-sub">${r.estado === 'Aclaración' ? '✏️ Pediste aclaración; esperando corrección' : '⏳ Enviado para revisión'}${r.enviadoHora ? ' · ' + new Date(r.enviadoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+        <div class="meta-line"><span>💸 Gastos <span class="dinero-gasto">${pesosFin(r.totalGastos)}</span></span><span>💵 Cobros <span class="dinero-favor">${pesosFin(r.totalCobros)}</span></span><span>🧾 Efectivo entregado <span class="dinero-favor">${pesosFin(r.efectivoEntregado)}</span></span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero <span class="dinero-gasto">${pesosFin(r.reembolsoPendiente)}</span></span>` : ''}</div>
+        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
+        ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <span class="dinero-favor">${pesosFin(c.monto)}</span> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
+        ${r.insumos ? `<div class="motivo">🌽 Insumos: ${esc(r.insumos)}</div>` : ''}
+        ${r.notas ? `<div class="motivo">📝 ${esc(r.notas)}</div>` : ''}
+        ${r.revision ? `<div class="evento-sub">${esc(r.revision.trim().split('\n').pop())}</div>` : ''}
+        ${r.estado === 'Enviado' && rev.puedeAprobar ? `
+          <textarea class="msgcli-texto fin-coment" maxlength="1000" placeholder="Comentario (obligatorio si pides aclaración)"></textarea>
+          <div class="instr-fila">
+            <button class="msgcli-enviar fin-accion" data-accion="aprobar" data-id="${esc(r.id)}">✅ Aprobar</button>
+            <button class="msgcli-enviar fin-accion" style="background:var(--line); color:var(--paper);" data-accion="aclaracion" data-id="${esc(r.id)}">✏️ Pedir aclaración</button>
+            <span class="instr-msg fin-msg"></span>
+          </div>` : ''}
+      </div>`;
+    // Reportes con movimiento (gastos, cobros o efectivo entregado) arriba; los
+    // vacíos plegados (siguen pudiéndose aprobar). Los reembolsos van en su sección.
+    const conMov = rev.pendientes.filter(r => r.gastos.length || r.cobros.length || r.efectivoEntregado > 0);
+    const sinMov = rev.pendientes.filter(r => !conMov.includes(r));
+    home.porRevisar = conMov.length;
+    pintarHome();
+    finContent.innerHTML = (conMov.length ? `<h2 class="section-title">💰 Reportes del día por revisar (${conMov.length})</h2>${conMov.map(tarjeta).join('')}` : '')
+      + (sinMov.length ? `<details><summary class="evento-sub">${sinMov.length === 1 ? '1 reporte sin movimiento' : sinMov.length + ' reportes sin movimiento'}</summary>${sinMov.map(tarjeta).join('')}</details>` : '');
+    finContent.querySelectorAll('.fin-coment').forEach(t => t.addEventListener('input', () => { t.dataset.sucio = '1'; }));
+    finContent.querySelectorAll('.fin-accion').forEach(b => b.addEventListener('click', () => revisarReporte(b)));
+  }
+
+  async function revisarReporte(btn){
+    const caja = btn.closest('.fin-rep');
+    const msg = caja.querySelector('.fin-msg');
+    const comentario = caja.querySelector('.fin-coment').value;
+    caja.querySelectorAll('.fin-accion').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: btn.dataset.accion, reporteId: btn.dataset.id, comentario }) });
+      msg.textContent = (btn.dataset.accion === 'aprobar' ? '✅ Aprobado.' : '✏️ Aclaración enviada.') + (d.avisado ? ' Se le avisó por Telegram.' : ' ⚠️ No tiene Telegram vinculado: avísale tú.');
+      delete caja.querySelector('.fin-coment').dataset.sucio;
+      finFirma = '';
+      setTimeout(cargarFinanzas, 3000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar, intenta de nuevo.';
+      caja.querySelectorAll('.fin-accion').forEach(b => { b.disabled = false; });
+    }
+  }
+
+  async function marcarReembolso(btn){
+    btn.disabled = true;
+    try {
+      await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'reembolsado', gastoId: btn.dataset.id }) });
+      btn.textContent = '✔ Reembolsado';
+      finFirma = '';
+      setTimeout(cargarFinanzas, 2000);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      btn.disabled = false;
+      btn.textContent = e.message && e.message !== 'fail' ? e.message : 'Error, reintenta';
+    }
+  }
+
+  // Último balance semanal con las cifras grandes: lo que entra en azul, lo que sale en rojo.
   function renderBalance(balance){
     if(!balance){ balanceContent.innerHTML = ''; return; }
     const abierto = balanceContent.querySelector('details')?.open ? 'open' : '';
     const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX');
+    const utilidad = balance.ingresos - balance.gastos;
     balanceContent.innerHTML = `
-      <details class="balance-card" ${abierto}>
-        <summary>📊 Último balance · ${esc(balance.periodo)} · Utilidad ${fmt(balance.ingresos - balance.gastos)}</summary>
-        <pre>${esc(balance.detalle)}</pre>
-      </details>
+      <div class="balance-card">
+        <h2 class="section-title">📊 Balance de la semana · ${esc(balance.periodo)}</h2>
+        <div class="cifras">
+          <div class="cifra"><div class="etq">Ingresos contratados</div><div class="val favor">${fmt(balance.ingresos)}</div></div>
+          <div class="cifra"><div class="etq">Gastos</div><div class="val gasto">${fmt(balance.gastos)}</div></div>
+          <div class="cifra"><div class="etq">Por cobrar</div><div class="val cobrar">${balance.porCobrar === null || balance.porCobrar === undefined ? '<span style="font-size:1rem;">⚠️ no se pudo calcular</span>' : fmt(balance.porCobrar)}</div>${balance.porCobrarGuardado ? '<div class="evento-sub">del lunes (no se pudo actualizar)</div>' : ''}</div>
+          <div class="cifra"><div class="etq">${utilidad >= 0 ? 'Saldo a favor' : 'Saldo en contra'}</div><div class="val ${utilidad >= 0 ? 'favor' : 'gasto'}">${fmt(utilidad)}</div></div>
+        </div>
+        <details ${abierto} style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver el detalle completo</summary><pre>${esc(balance.detalle)}</pre></details>
+      </div>
     `;
   }
+
+  // ---------- Cómo van las empresas: historial mensual (api/finanzas.js?vista=historial) ----------
+  // Dos series (Divanna azul, El Vaso Maíz naranja; validadas para daltonismo),
+  // una sola escala, leyenda + nombre al final de cada línea, detalle al pasar
+  // el dedo y tabla. Ingresos = lo contratado en eventos autorizados.
+  const histContent = $('histContent');
+  const SERIES = [
+    { clave: 'Divanna Eventos', nombre: 'Divanna', color: 'var(--serie-dv)' },
+    { clave: 'El Vaso Maiz', nombre: 'El Vaso Maíz', color: 'var(--serie-vm)' },
+  ];
+  const METRICAS = [
+    { clave: 'ingresos', nombre: 'Ingresos contratados', dinero: true },
+    { clave: 'gastos', nombre: 'Gastos', dinero: true },
+    { clave: 'utilidad', nombre: 'Utilidad', dinero: true },
+    { clave: 'eventos', nombre: 'Eventos', dinero: false },
+    { clave: 'cobrado', nombre: 'Cobrado (reportes)', dinero: true },
+  ];
+  const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const nombreMes = (m) => `${MESES_CORTOS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
+  let historial = null, histMetrica = 'ingresos', histCargado = 0;
+
+  async function cargarHistorial(forzar){
+    if(!forzar && Date.now() - histCargado < 10 * 60 * 1000) return;
+    histCargado = Date.now();
+    try {
+      historial = await api('/api/finanzas?vista=historial');
+      pintarHistorial();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      histCargado = 0;
+      histContent.innerHTML = `<div class="hist-card">📈 No se pudo leer el historial (${esc(e.message || 'error')}). Toca actualizar.</div>`;
+    }
+  }
+
+  const fmtValor = (v, dinero) => dinero ? '$' + Math.round(v).toLocaleString('es-MX') : String(v);
+  function escalaBonita(min, max){
+    if(min === max){ max = min + 1; }
+    const paso0 = (max - min) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(paso0)));
+    const paso = [1, 2, 2.5, 5, 10].map(f => f * mag).find(p => p >= paso0);
+    const ini = Math.floor(min / paso) * paso, fin = Math.ceil(max / paso) * paso;
+    const ticks = []; for(let t = ini; t <= fin + paso / 2; t += paso) ticks.push(Math.round(t * 100) / 100);
+    return { ini, fin, ticks };
+  }
+
+  function pintarHistorial(){
+    const h = historial;
+    if(!h || !h.meses.length){
+      histContent.innerHTML = `<div class="hist-card"><h2 class="section-title">📈 Cómo van las empresas</h2><div class="evento-sub">Todavía no hay eventos autorizados con fecha para comparar.</div></div>`;
+      return;
+    }
+    const met = METRICAS.find(m => m.clave === histMetrica);
+    const meses = h.meses;
+    const valores = SERIES.map(s => meses.map(x => x[s.clave][met.clave]));
+    const todos = valores.flat();
+    const { ini, fin, ticks } = escalaBonita(Math.min(0, ...todos), Math.max(0, ...todos));
+    const W = 640, H = 260, M = { l: 64, r: 92, t: 14, b: 30 };
+    const x = (i) => M.l + (meses.length === 1 ? (W - M.l - M.r) / 2 : i * (W - M.l - M.r) / (meses.length - 1));
+    const y = (v) => M.t + (fin - v) * (H - M.t - M.b) / (fin - ini);
+    const cadaCuanto = meses.length > 12 ? 2 : 1;
+    const svg = `
+      <svg class="hist-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(met.nombre)} por mes de Divanna y El Vaso Maíz">
+        ${ticks.map(t => `<line x1="${M.l}" x2="${W - M.r}" y1="${y(t)}" y2="${y(t)}" stroke="${t === 0 ? 'rgba(246,241,234,0.35)' : 'rgba(246,241,234,0.08)'}" stroke-width="1"/>
+          <text x="${M.l - 8}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="rgba(246,241,234,0.6)">${fmtValor(t, met.dinero)}</text>`).join('')}
+        ${meses.map((m, i) => i % cadaCuanto === 0 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="rgba(246,241,234,0.6)">${nombreMes(m.mes)}</text>` : '').join('')}
+        <line id="histCruz" x1="0" x2="0" y1="${M.t}" y2="${H - M.b}" stroke="rgba(246,241,234,0.4)" stroke-width="1" visibility="hidden"/>
+        ${SERIES.map((s, k) => `
+          <polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${valores[k].map((v, i) => `${x(i)},${y(v)}`).join(' ')}"/>
+          ${valores[k].map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${s.color}" stroke="var(--ink-2)" stroke-width="2"/>`).join('')}
+          <text x="${x(meses.length - 1) + 10}" y="${y(valores[k][meses.length - 1]) + 4 + (k === 0 ? -6 : 8) * (Math.abs(y(valores[0][meses.length - 1]) - y(valores[1][meses.length - 1])) < 14 ? 1 : 0)}" font-size="12" font-weight="700" fill="rgba(246,241,234,0.9)">${s.nombre}</text>`).join('')}
+        ${meses.map((m, i) => `<rect class="hist-zona" data-i="${i}" x="${x(i) - (W - M.l - M.r) / Math.max(1, meses.length - 1) / 2}" y="${M.t}" width="${(W - M.l - M.r) / Math.max(1, meses.length - 1)}" height="${H - M.t - M.b}" fill="transparent"/>`).join('')}
+      </svg>`;
+    const mejores = SERIES.map(s => {
+      const top = meses.filter(m => m[s.clave].eventos > 0).sort((a, b) => b[s.clave].ingresos - a[s.clave].ingresos || b[s.clave].eventos - a[s.clave].eventos).slice(0, 3);
+      return `<div style="--c:${s.color};"><b>Mejores meses de ${s.nombre}</b><br>${top.length ? top.map(m => `${nombreMes(m.mes)}: <span class="dinero-favor">$${m[s.clave].ingresos.toLocaleString('es-MX')}</span> · ${m[s.clave].eventos} evento${m[s.clave].eventos === 1 ? '' : 's'}`).join('<br>') : 'Sin eventos todavía.'}</div>`;
+    }).join('');
+    histContent.innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">📈 Cómo van las empresas, mes por mes</h2>
+        <div class="hist-filtros">${METRICAS.map(m => `<button data-m="${m.clave}" class="${m.clave === histMetrica ? 'activo' : ''}">${m.nombre}</button>`).join('')}</div>
+        <div class="hist-leyenda">${SERIES.map(s => `<span style="--c:${s.color};">${s.nombre}</span>`).join('')}</div>
+        <div style="position:relative;" id="histLienzo">${svg}<div class="hist-tip" id="histTip" hidden></div></div>
+        <div class="evento-sub">${meses.length} mes${meses.length === 1 ? '' : 'es'} de historial${meses.length < 12 ? ': todavía no alcanza para ver temporadas que se repitan cada año' : ''}. "Ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado.${h.sinNegocio ? ` ${h.sinNegocio} evento${h.sinNegocio === 1 ? '' : 's'} sin negocio definido no se cuentan.` : ''}</div>
+        <div class="mejores">${mejores}</div>
+        <details style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver tabla</summary>
+          <table class="hist-tabla"><tr><th>Mes</th>${SERIES.map(s => `<th>${s.nombre}</th>`).join('')}</tr>
+          ${meses.map((m, i) => `<tr><td>${nombreMes(m.mes)}</td>${SERIES.map((s, k) => `<td>${fmtValor(valores[k][i], met.dinero)}</td>`).join('')}</tr>`).join('')}</table>
+        </details>
+      </div>`;
+    histContent.querySelectorAll('.hist-filtros button').forEach(b => b.addEventListener('click', () => { histMetrica = b.dataset.m; pintarHistorial(); }));
+    // Detalle al pasar el dedo o el mouse por un mes.
+    const lienzo = $('histLienzo'), tip = $('histTip'), cruz = $('histCruz');
+    const mostrar = (i) => {
+      cruz.setAttribute('x1', x(i)); cruz.setAttribute('x2', x(i)); cruz.setAttribute('visibility', 'visible');
+      tip.innerHTML = `<b>${nombreMes(meses[i].mes)}</b><br>${SERIES.map((s, k) => `<i style="--c:${s.color};"></i>${s.nombre}: <b>${fmtValor(valores[k][i], met.dinero)}</b>`).join('<br>')}`;
+      tip.hidden = false;
+      const caja = lienzo.getBoundingClientRect();
+      const px = x(i) / W * caja.width;
+      tip.style.left = Math.min(Math.max(0, px + 12), caja.width - tip.offsetWidth) + 'px';
+      tip.style.top = '8px';
+    };
+    lienzo.querySelectorAll('.hist-zona').forEach(z => {
+      z.addEventListener('mouseenter', () => mostrar(Number(z.dataset.i)));
+      z.addEventListener('click', () => mostrar(Number(z.dataset.i)));
+    });
+    lienzo.addEventListener('mouseleave', () => { tip.hidden = true; cruz.setAttribute('visibility', 'hidden'); });
+  }
+
+  // ---------- Inicio: por revisar, por cobrar y reembolsos pendientes ----------
+  const home = { porRevisar: null, pedidos: null, porAclarar: null, porCobrar: null, reembolsos: null, reembolsosN: 0 };
+  function hoyCln(){ return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date()); }
+  function pintarHome(){
+    const num = (n, dinero) => n == null ? '…' : (dinero ? $$(n) : n);
+    const revisar = home.porRevisar == null && home.pedidos == null ? null : (home.porRevisar || 0) + (home.pedidos || 0) + (home.porAclarar || 0);
+    $('homeContent').innerHTML = `
+      <div class="summary-row">
+        <a class="summary-card home-card" href="#finanzas"><div class="num">${num(revisar)}</div><div class="label">Por revisar</div>
+          <div class="ir">${home.porRevisar || 0} reportes · ${home.porAclarar || 0} cuadres · ${home.pedidos || 0} pedidos →</div></a>
+        <a class="summary-card home-card" href="#clientes"><div class="num">${num(home.porCobrar, true)}</div><div class="label">Por cobrar</div><div class="ir">Ver cobranza →</div></a>
+        <a class="summary-card home-card" href="#finanzas"><div class="num">${num(home.reembolsos, true)}</div><div class="label">Reembolsos pendientes</div><div class="ir">${home.reembolsosN} ${home.reembolsosN === 1 ? 'persona' : 'personas'} →</div></a>
+      </div>`;
+  }
+
+  // ---------- Clientes: cobranza (misma cifra que "por cobrar") ----------
+  function pintarClientes(v, tarjeta){
+    const cont = $('clientesContent');
+    if(cont.querySelector('input:focus')) return;
+    const fila = (c) => `<tr><td>${esc(c.cliente)}</td><td>${c.eventos}</td><td>${c.cancelados}</td><td>${$$(c.contratado)}</td><td class="${c.pendiente > 0.5 ? 'dinero-gasto' : ''}">${$$(c.pendiente)}</td><td class="${c.margen != null && c.margen < 0 ? 'dinero-gasto' : ''}">${c.margen == null ? '—' : $$(c.margen)}</td></tr>`;
+    const vigilar = (v.clientes || []).filter(c => !(c.pendiente > 0.5));
+    cont.innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">👥 Cobranza · ${$$(v.porCobrar.total)} por cobrar</h2>
+        ${(v.cobranza || []).length ? `<table class="hist-tabla"><tr><th>Cliente</th><th>Eventos</th><th>Cancelados</th><th>Contratado</th><th>Pendiente</th><th>Margen</th></tr>
+          ${v.cobranza.map(fila).join('')}
+          <tr><td><b>Total</b></td><td></td><td></td><td></td><td class="dinero-gasto"><b>${$$(v.porCobrar.total)}</b></td><td></td></tr></table>
+          <div class="evento-sub">Margen = contratado − descuento − gastos del evento; "—" si no hay gastos registrados.</div>` : '<div class="motivo">✅ Nadie debe.</div>'}
+        ${v.deben.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">⏳ Siguen debiendo (${v.deben.length})</h3>${v.deben.map(e => tarjeta(e, true)).join('')}` : ''}
+        ${vigilar.length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">👀 Clientes a vigilar (cancelaciones o margen negativo)</h3>
+          <table class="hist-tabla"><tr><th>Cliente</th><th>Eventos</th><th>Cancelados</th><th>Contratado</th><th>Pendiente</th><th>Margen</th></tr>${vigilar.map(fila).join('')}</table>` : ''}
+      </div>`;
+    cont.querySelectorAll('.cuadre-acc').forEach(b => b.addEventListener('click', () => aclararEvento(b)));
+  }
+
+  // ---------- Finanzas: resumen de la semana en curso y gastos por tipo ----------
+  function pintarSemana(v){
+    const s = v.semana;
+    if(!s){ $('semanaContent').innerHTML = ''; return; }
+    const tipos = Object.entries(s.gastosPorTipo || {});
+    const total = tipos.reduce((t, [, x]) => t + x, 0);
+    $('semanaContent').innerHTML = `
+      <div class="hist-card">
+        <h2 class="section-title">🗓️ Semana en curso <span class="evento-sub">(${esc(s.desde)} a ${esc(s.hasta)})</span></h2>
+        <div class="cifras">
+          <div class="cifra"><div class="etq">Eventos</div><div class="val">${s.eventos}</div></div>
+          <div class="cifra"><div class="etq">Por cobrar</div><div class="val cobrar">${$$(v.porCobrar.total)}</div></div>
+          <div class="cifra"><div class="etq">Gastos de la semana</div><div class="val gasto">${$$(total)}</div></div>
+        </div>
+        <div class="evento-sub" style="margin-top:6px;">Gastos por tipo: ${tipos.length ? tipos.map(([k, x]) => `${esc(k)} ${$$(x)}`).join(' · ') : 'sin gastos esta semana'}</div>
+      </div>`;
+  }
+
+  // ---------- Finanzas: reembolsos por colaborador (api/_reembolsos.js) ----------
+  async function cargarReembolsos(){
+    try { pintarReembolsos(await api('/api/finanzas?vista=reembolsos')); }
+    catch(e){ if(e.message !== 'sesion') $('reembContent').innerHTML = `<div class="motivo aviso-fuera">🔁 No se pudieron leer los reembolsos (${esc(e.message || 'error')}).</div>`; }
+  }
+  function pintarReembolsos(d){
+    const cont = $('reembContent');
+    if(cont.querySelector('input:focus')) return;
+    home.reembolsos = d.total; home.reembolsosN = d.filas.length;
+    pintarHome();
+    cont.innerHTML = `<div class="hist-card"><h2 class="section-title">🔁 Reembolsos pendientes · ${$$(d.total)}</h2>
+      ${d.filas.length ? d.filas.map(f => `
+        <div class="pedido-card reemb-fila" data-id="${esc(f.colaboradorId)}">
+          <h3>${esc(f.nombre)} · <span class="dinero-gasto">${$$(f.pendiente)}</span></h3>
+          <div class="evento-sub">${f.gastos.length} ${f.gastos.length === 1 ? 'gasto' : 'gastos'} con su dinero${f.aCuenta ? ` · ya se le abonaron ${$$(f.aCuenta)}` : ''}: ${f.gastos.map(g => `${esc(g.fecha)} ${esc(g.concepto)} ${$$(g.monto)}`).join(' · ')}</div>
+          <div class="instr-fila">
+            <input class="reemb-monto" inputmode="decimal" placeholder="Monto (vacío = todo)" style="max-width:170px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <select class="reemb-forma" style="padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">${(d.formas || ['Efectivo', 'Transferencia']).map(x => `<option>${esc(x)}</option>`).join('')}</select>
+            <button class="msgcli-enviar reemb-pagar">💵 Registrar pago</button>
+          </div>
+          <div class="instr-msg reemb-msg"></div>
+        </div>`).join('') : '<div class="motivo">✅ No se le debe nada a nadie.</div>'}</div>`;
+    cont.querySelectorAll('.reemb-pagar').forEach(b => b.addEventListener('click', () => pagarReembolso(b)));
+  }
+  async function pagarReembolso(btn){
+    const caja = btn.closest('.reemb-fila');
+    const msg = caja.querySelector('.reemb-msg');
+    btn.disabled = true; msg.textContent = 'Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'reembolso_pagar', colaboradorId: caja.dataset.id, monto: caja.querySelector('.reemb-monto').value.trim() || 'todo', forma: caja.querySelector('.reemb-forma').value }) });
+      msg.textContent = d.texto || '✅ Guardado';
+      setTimeout(() => { cargarReembolsos(); cargarCuadre(true); }, 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = '⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo guardar');
+      btn.disabled = false;
+    }
+  }
+
+  // ---------- Ventanas (hash: #inicio, #finanzas, #clientes, #eventos) ----------
+  function mostrarVentana(){
+    const v = (location.hash || '#inicio').slice(1);
+    const nombre = ['inicio', 'finanzas', 'clientes', 'eventos'].includes(v) ? v : 'inicio';
+    document.querySelectorAll('.ventana').forEach(sec => { sec.hidden = sec.id !== 'v-' + nombre; });
+    document.querySelectorAll('#ventanas a').forEach(a => a.classList.toggle('activa', a.dataset.v === nombre));
+  }
+  window.addEventListener('hashchange', mostrarVentana);
+  mostrarVentana();
+  pintarHome();
 
   async function loadDashboard(){
     try {
       const data = await api('/api/dashboard-eventos');
       catalogo = data.catalogo || [];
+      mantelesInfo = data.manteles || null;
       inventario = data.inventario || [];
+      brigadas = data.brigadas || [];
+      encargadas = data.encargadas || [];
+      staffEventos = data.staffEventos || null;
+      staffError = !!data.staffError;
+      opcionesProduccion = data.produccion || null;
       // Suena y vibra si apareció una emergencia o alerta de seguridad nueva.
       DimaAlertas.revisar((data.eventos || []).flatMap(ev => [
         ev.emergencia ? `${ev.id}|E|${ev.motivoEmergencia}` : null,
         ev.zonaAlertaSeguridad ? `${ev.id}|S|${ev.zonaAlertaSeguridad}` : null,
       ].filter(Boolean)));
       renderPedidos(data.pedidos || []);
+      home.pedidos = (data.pedidos || []).length;
+      pintarHome();
       renderBalance(data.balance);
       renderEventos(data.eventos);
+      cargarFinanzas();
+      cargarHistorial();
+      cargarCuadre();
+      cargarReembolsos();
     } catch(e){
       if(e.message === 'sesion') return;
       mainContent.innerHTML = `<div class="empty-state">📡<br>No se pudo cargar. Revisa tu señal y toca actualizar.</div>`;
@@ -848,10 +1842,52 @@
   $('entrenarNueva').addEventListener('click', () => { entrenarHistorial = []; entrenarChat.innerHTML = ''; $('entrenarMsg').textContent = ''; });
   $('entrenar').addEventListener('toggle', () => { if($('entrenar').open) cargarCorrecciones(); });
 
-  refreshBtn.addEventListener('click', loadDashboard);
+  refreshBtn.addEventListener('click', () => { histCargado = 0; cuadreCargado = 0; loadDashboard(); });
+  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc }));
   $('logoutBtn').addEventListener('click', salir);
 
+  // ---------- Canal con DiMa (Diana, como la gerente en su app) ----------
+  const DIMA_KEY = 'dima_equipo';
+  let dimaHistorial = [];
+  try { dimaHistorial = JSON.parse(sessionStorage.getItem(DIMA_KEY) || '[]'); } catch(e){ dimaHistorial = []; }
+
+  function pintarDima(extra){
+    const saludo = [{ rol: 'dima', texto: 'Hola 👋 Soy DiMa. Pregúntame lo que necesites de la plataforma, Telegram, el staff o los eventos.' }];
+    $('dimaMsgs').innerHTML = [...saludo, ...dimaHistorial, ...(extra ? [extra] : [])].map(m => `<div class="dima-msg ${m.rol}">${esc(m.texto)}</div>`).join('');
+    $('dimaMsgs').scrollTop = $('dimaMsgs').scrollHeight;
+  }
+
+  async function enviarDima(e){
+    e.preventDefault();
+    const texto = $('dimaTexto').value.trim();
+    if(!texto) return;
+    $('dimaTexto').value = '';
+    dimaHistorial.push({ rol: 'yo', texto });
+    pintarDima({ rol: 'dima', texto: 'Escribiendo…' });
+    try {
+      const d = await api('/api/dima-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'equipo', historial: dimaHistorial.slice(-20) }),
+      });
+      dimaHistorial.push({ rol: 'dima', texto: d.texto });
+      pintarDima();
+    } catch(err){
+      if(err.message === 'sesion') return;
+      dimaHistorial.pop();
+      $('dimaTexto').value = texto;
+      pintarDima({ rol: 'dima', texto: '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No pude contestar, intenta de nuevo.') });
+    }
+    sessionStorage.setItem(DIMA_KEY, JSON.stringify(dimaHistorial.slice(-20)));
+  }
+
+  $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });
+  $('dimaCerrar').addEventListener('click', () => { $('dimaPanel').hidden = true; $('dimaFab').hidden = false; });
+  $('dimaNueva').addEventListener('click', () => { dimaHistorial = []; sessionStorage.removeItem(DIMA_KEY); pintarDima(); });
+  $('dimaForm').addEventListener('submit', enviarDima);
+
   if(sesion && sesion.rol === 'Admin'){
+    $('dimaFab').hidden = false;
     DimaAlertas.iniciar({ contenedorBoton: $('alertasBanner'), token: () => sesion.token });
     loadDashboard();
     // Actualiza cada 30s mientras la pantalla está abierta.

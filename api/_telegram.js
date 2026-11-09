@@ -5,7 +5,7 @@
 //
 // Requiere TELEGRAM_BOT_TOKEN en Vercel (lo da @BotFather).
 
-const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, gerenciaDe, rolDe, rolValido } = require('./_sesion');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const LIMITE_TEXTO = 4000; // Telegram acepta 4096 caracteres por mensaje.
@@ -36,15 +36,50 @@ async function telegramApi(metodo, cuerpo) {
   return { ok: res.ok && data.ok, status: res.status, data };
 }
 
+// Archivo (por ejemplo el PDF del recibo). Multipart, no JSON.
+async function enviarDocumento(chatId, contenido, nombre, texto = '', tipo = 'application/pdf') {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  if (texto) form.append('caption', texto.slice(0, 1024));
+  form.append('document', new Blob([contenido], { type: tipo }), nombre);
+  const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendDocument`, { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  return { ok: !!(res.ok && data.ok), error: data.description || '' };
+}
+
+// Botones bajo el mensaje: lista de renglones de { texto, dato } (dato = callback_data, máx. 64 bytes).
+function teclado(botones) {
+  return { inline_keyboard: botones.map(fila => fila.map(b => ({ text: b.texto, callback_data: b.dato }))) };
+}
+
 // Texto plano (sin parse_mode) para no tener que escapar lo que escriben
-// clientes y brigadas.
-async function enviarTelegram(chatId, texto) {
+// clientes y brigadas. "botones" es opcional.
+async function enviarTelegram(chatId, texto, botones = null) {
   if (!telegramConfigurado()) return { ok: false, status: 0 };
   return telegramApi('sendMessage', {
     chat_id: chatId,
     text: String(texto).slice(0, LIMITE_TEXTO),
     disable_web_page_preview: true,
+    ...(botones ? { reply_markup: teclado(botones) } : {}),
   });
+}
+
+// Cambia el texto (y los botones) de un mensaje que ya mandó el bot.
+async function editarTelegram(chatId, mensajeId, texto, botones = null) {
+  if (!telegramConfigurado()) return { ok: false, status: 0 };
+  return telegramApi('editMessageText', {
+    chat_id: chatId,
+    message_id: mensajeId,
+    text: String(texto).slice(0, LIMITE_TEXTO),
+    disable_web_page_preview: true,
+    reply_markup: teclado(botones || []),
+  });
+}
+
+// Respuesta a un toque de botón (quita el relojito; "alerta" lo muestra como ventana).
+async function responderBoton(callbackId, texto = '', alerta = false) {
+  if (!telegramConfigurado()) return;
+  await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: String(texto).slice(0, 190), show_alert: alerta }).catch(() => {});
 }
 
 async function borrarMensaje(chatId, mensajeId) {
@@ -56,9 +91,12 @@ function aColaborador(r) {
   return {
     id: r.id,
     nombre: r.fields.Nombre || '',
-    rol: r.fields.Rol || '',
+    rol: rolDe(r.fields),
     brigadaId: (r.fields.Brigada || [])[0] || null,
     chatId: r.fields.Telegram_Chat_ID || '',
+    coordinaStaff: !!r.fields.Coordina_Staff,
+    gerente: gerenciaDe(r.fields),
+    cursoAvance: Number(r.fields.Curso_Avance) || 0,
   };
 }
 
@@ -68,7 +106,7 @@ async function colaboradorPorChat(chatId) {
   const formula = encodeURIComponent(`AND({Telegram_Chat_ID} = "${chatId}", {Activo})`);
   const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
-  return r && Object.values(ROLES).includes(r.fields.Rol) ? aColaborador(r) : null;
+  return r && rolValido(r.fields.Rol) ? aColaborador(r) : null;
 }
 
 async function guardarChat(colaboradorId, chatId) {
@@ -82,8 +120,12 @@ async function guardarChat(colaboradorId, chatId) {
 // roles: lista de roles que lo reciben (null = todos); soloColaboradores: lista
 // de IDs para mandarlo solo a esas personas; ubicacion: { lat, lng } para
 // mandar además el pin del mapa. Devuelve a cuántos les llegó. Nunca lanza error.
-async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null }) {
-  if (!telegramConfigurado()) return 0;
+// Si se pasa una lista de errores, ahí quedan los motivos de lo que no se entregó.
+async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId = null, soloColaboradores = null, ubicacion = null, errores = null, botones = null }) {
+  if (!telegramConfigurado()) {
+    if (errores) errores.push('Telegram sin configurar (falta TELEGRAM_BOT_TOKEN)');
+    return 0;
+  }
   try {
     const formula = encodeURIComponent('AND({Activo}, {Telegram_Chat_ID} != "")');
     const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
@@ -93,7 +135,7 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
 
     let enviados = 0;
     await Promise.all(destinos.map(async (c) => {
-      const r = await enviarTelegram(c.chatId, texto);
+      const r = await enviarTelegram(c.chatId, texto, botones);
       if (r.ok) {
         enviados++;
         if (ubicacion) await telegramApi('sendLocation', { chat_id: c.chatId, latitude: ubicacion.lat, longitude: ubicacion.lng }).catch(() => {});
@@ -102,19 +144,56 @@ async function enviarTelegramEquipo({ texto, roles = null, excluirColaboradorId 
       // 403: la persona bloqueó o borró el bot; se desvincula para no seguir intentando.
       if (r.status === 403) await guardarChat(c.id, '').catch(() => {});
       else console.error('Error enviando Telegram:', r.status, r.data && r.data.description);
+      if (errores) errores.push(`Telegram a ${c.nombre || 'alguien'}: ${r.status === 403 ? 'bloqueó el bot, quedó desvinculado' : (r.data && r.data.description) || 'error ' + r.status}`);
     }));
     return enviados;
   } catch (err) {
     console.error('Error en enviarTelegramEquipo:', err.message);
+    if (errores) errores.push(`Telegram: ${err.message}`);
     return 0;
+  }
+}
+
+// ---------- Aviso: la cuenta de Claude (Anthropic) se quedó sin saldo ----------
+// Anthropic contesta 400 "Your credit balance is too low..." y no hay una clase
+// de error propia para eso, por eso se revisa el texto. Cuando pasa, se avisa a
+// Diana y Víctor (Admin) por Telegram, máximo una vez por hora por instancia
+// para no llenarles el chat. Nunca lanza error.
+const AVISO_SIN_SALDO_CADA_MS = 60 * 60 * 1000;
+const MENSAJE_SIN_SALDO_EQUIPO = '🔋 DiMa se quedó sin saldo para usar la IA. Ya les avisé a Diana y Víctor; en cuanto se recargue vuelve a funcionar.';
+let ultimoAvisoSinSaldo = 0;
+
+function esSinSaldo(err) {
+  return !!err && err.status === 400 && /credit balance is too low/i.test(String(err.message || ''));
+}
+
+async function avisarSinSaldo(origen) {
+  if (Date.now() - ultimoAvisoSinSaldo < AVISO_SIN_SALDO_CADA_MS) return;
+  ultimoAvisoSinSaldo = Date.now();
+  try {
+    await enviarTelegramEquipo({
+      roles: [ROLES.ADMIN],
+      texto: `⚠️ DiMa se quedó SIN SALDO en Anthropic (falló: ${origen}).\n\n`
+        + 'Mientras no se recargue NO funcionan: lectura de comandas por foto, el chat de cotización de la página, DiMa del equipo y /daño.\n\n'
+        +'Recarga en console.anthropic.com → Settings → Billing y activa la recarga automática para que no vuelva a pasar.',
+    });
+  } catch (err) {
+    console.error('No se pudo avisar la falta de saldo:', err.message);
   }
 }
 
 module.exports = {
   telegramConfigurado,
+  telegramApi,
   enviarTelegram,
+  enviarDocumento,
+  editarTelegram,
+  responderBoton,
   borrarMensaje,
   colaboradorPorChat,
   guardarChat,
   enviarTelegramEquipo,
+  esSinSaldo,
+  avisarSinSaldo,
+  MENSAJE_SIN_SALDO_EQUIPO,
 };

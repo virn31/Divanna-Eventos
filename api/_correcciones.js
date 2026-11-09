@@ -7,7 +7,7 @@
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLA = 'tbl9D2BnUFIu8PPIe';
 const MAX_ACTIVAS = 60;
-const MAX_CARACTERES = 600;
+const MAX_CARACTERES = 1200;
 const CACHE_MS = 60 * 1000;
 
 let cache = { hasta: 0, lista: null };
@@ -48,9 +48,24 @@ function textoCorrecciones(lista) {
     lista.map(c => `- ${c.instruccion}`).join('\n');
 }
 
+// Lo que nunca se guarda como regla (se compara sin acentos). Devuelve el motivo o ''.
+const PROHIBIDO = [
+  [/ya no eres|deja de ser|ahora eres|ahora te llamas|cambia(te)? (tu|el) nombre|finge ser|hazte pasar|di que eres|no eres dima|olvida (todo|tus|las)|ignora (tus|las|todas)/, 'no se puede cambiar la identidad de DiMa ni sus instrucciones.'],
+  [/\b(no|sin) (cobres |cobrar |pidas |pedir )?(el |la |los |las )?(anticipo|deposito|liquidacion|garantia)|(saltate|salta|omite|brincate) (el |la |los |las )?(regla|cobro|pago|anticipo|deposito|liquidacion)|\bclabe\b|cuenta bancaria|numero de (cuenta|tarjeta)|datos de pago/, 'no se pueden saltar las reglas de cobro ni dar datos de pago.'],
+  [/(datos|telefonos?|correos?|direcciones?|nombres?|lista|informacion) (personales )?(de|del) (los |las |otros? |otras? |un |una |el |la |cada )*client/, 'no se pueden pedir ni revelar datos de clientes.'],
+];
+function motivoRechazo(texto) {
+  const t = String(texto || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const hallado = PROHIBIDO.find(([patron]) => patron.test(t));
+  return hallado ? hallado[1] : '';
+}
+
 async function guardarCorreccion(instruccion, autor) {
   const texto = String(instruccion || '').replace(/\s+/g, ' ').trim().slice(0, MAX_CARACTERES);
   if (texto.length < 5) return null;
+  // Un doble toque en "Sí" no la guarda dos veces.
+  const yaActiva = (await correccionesActivas({ sinCache: true })).find(c => c.instruccion === texto);
+  if (yaActiva) return { id: yaActiva.id, instruccion: texto };
   const data = await airtable(TABLA, {
     method: 'POST',
     body: JSON.stringify({ records: [{ fields: { Instruccion: texto, Activa: true, Autor: String(autor || '').slice(0, 60) } }] }),
@@ -66,4 +81,4 @@ async function desactivarCorreccion(id) {
   return true;
 }
 
-module.exports = { correccionesActivas, correccionesParaPrompt, textoCorrecciones, guardarCorreccion, desactivarCorreccion };
+module.exports = { correccionesActivas, correccionesParaPrompt, textoCorrecciones, guardarCorreccion, desactivarCorreccion, motivoRechazo };

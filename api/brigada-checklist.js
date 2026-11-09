@@ -3,6 +3,7 @@
 // de un evento específico. Requiere sesión: líder, encargada del evento o admin.
 
 const { ROLES, requerirSesion, puedeOperarEvento } = require('./_sesion');
+const { cerrarSiTermino } = require('./_cargos');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const EVENTOS_TABLE = 'tblzLAin65BZPP2c6';
@@ -52,7 +53,11 @@ module.exports = async (req, res) => {
 
     if (!airRes.ok) throw new Error(`Airtable error ${airRes.status}: ${await airRes.text()}`);
 
-    res.status(200).json({ success: true });
+    // Al marcar la recolección, si el cliente ya liquidó, el evento se cierra.
+    const cerrado = etapa === 'recoleccion' && valor
+      ? await cerrarSiTermino(eventoId).catch(err => { console.error('No se pudo revisar si cerrar el evento:', err.message); return false; })
+      : false;
+    res.status(200).json({ success: true, cerrado });
   } catch (err) {
     console.error('Error en brigada-checklist:', err);
     res.status(500).json({ error: 'Error interno, intenta de nuevo' });

@@ -3,10 +3,20 @@
     {
       "path": "/api/balance-semanal",
       "schedule": "0 14 * * 1"
+    },
+    {
+      "path": "/api/produccion-diaria",
+      "schedule": "0 15 * * *"
     }
   ],
   "functions": {
     "api/dima-chat.js": {
+      "maxDuration": 60
+    },
+    "api/telegram.js": {
+      "maxDuration": 60
+    },
+    "api/dashboard-eventos.js": {
       "maxDuration": 60
     }
   }
