@@ -1,8 +1,10 @@
 // brigadas/manteles.js
 // Mantel (Víctor 2026-11-06: "debería aparecer solo mantel, con tipo, color y
 // cantidad"). Lo usan el ➕ Capturar evento del calendario y "Hora y productos"
-// del dashboard. Cada renglón: tipo (básico, lentejuela o corrugado), color
-// (texto libre) y cantidad. Sin precios a la vista.
+// del dashboard. Cada renglón: tipo (liso, lentejuela o corrugado), color y
+// cantidad. Sin precios a la vista. El liso solo tiene los 16 colores de la
+// bodega; corrugado y lentejuela se escriben porque se piden a proveedor.
+// ("basico" sigue siendo la clave interna del liso.)
 // Por dentro: cada mesa trae un básico incluido; los especiales usan primero
 // esos incluidos (cambio: se cobra la diferencia) y lo que pase de las mesas es
 // extra (precio completo). Se guarda como productos del catálogo (dv_cambio_*,
@@ -10,7 +12,9 @@
 // precios al monto y el recibo los desglosa (api/_productos.js resumenManteles).
 // info (lo manda el servidor): { basicos: {clave: n}, especiales: {...}, precios: {clave: $}, claves: { extra: {...}, cambio: {...} } }
 window.DimaManteles = (function(){
-  const TIPOS = [['basico', 'Básico'], ['lentejuela', 'Lentejuela'], ['corrugado', 'Corrugado']];
+  const TIPOS = [['basico', 'Liso'], ['lentejuela', 'Lentejuela'], ['corrugado', 'Corrugado']];
+  const COLORES_LISO = ['Verde Limón', 'Morado', 'Azul Cielo', 'Verde Bandera', 'Rosa Fiesta', 'Beige Arena', 'Rosa Pastel', 'Rosa Viejo', 'Naranja', 'Beige claro', 'Amarillo', 'Azul Rey', 'Lila claro', 'Blanco', 'Negro', 'Rojo'];
+  const colorDeLista = (color) => COLORES_LISO.find(c => c.toLowerCase() === String(color || '').trim().toLowerCase());
   const esMantel = (info, clave) => !!(info && info.precios && info.precios[clave]);
   const tipoDeClave = (info, clave) => {
     for (const [grupo, claves] of Object.entries(info.claves)) for (const [t, c] of Object.entries(claves)) if (c === clave) return { grupo, tipo: t };
@@ -47,10 +51,19 @@ window.DimaManteles = (function(){
     return filas.sort((x, y) => orden.indexOf(x.tipo) - orden.indexOf(y.tipo));
   }
 
+  // Color según el tipo. Un color guardado antes que no esté en la lista se
+  // conserva como opción, para no perderlo al editar un evento viejo.
+  function controlColor(tipo, color, esc){
+    if (tipo !== 'basico') return `<input class="dm-color" maxlength="60" placeholder="Color (se pide a proveedor)" value="${esc(color || '')}" style="flex:1; min-width:0;">`;
+    const actual = colorDeLista(color) || String(color || '').trim();
+    const opciones = ['', ...COLORES_LISO, ...(actual && !colorDeLista(actual) ? [actual] : [])];
+    return `<select class="dm-color" aria-label="Color de mantel" style="flex:1; min-width:0;">${opciones.map(c => `<option value="${esc(c)}" ${c === actual ? 'selected' : ''}>${esc(c || 'Color…')}</option>`).join('')}</select>`;
+  }
+
   function fila(f, esc){
     return `<div class="dm-fila" style="display:flex; gap:6px; margin-top:6px; align-items:center;">
       <select class="dm-tipo" aria-label="Tipo de mantel">${TIPOS.map(([t, nom]) => `<option value="${t}" ${f.tipo === t ? 'selected' : ''}>${nom}</option>`).join('')}</select>
-      <input class="dm-color" maxlength="60" placeholder="Color" value="${esc(f.color || '')}" style="flex:1; min-width:0;">
+      ${controlColor(f.tipo, f.color, esc)}
       <input class="dm-cant" type="number" min="0" step="1" inputmode="numeric" placeholder="Cant." value="${f.cantidad || ''}" style="width:70px;">
       <button type="button" class="dm-quitar" aria-label="Quitar mantel" style="padding:4px 10px;">✕</button>
     </div>`;
@@ -72,6 +85,14 @@ window.DimaManteles = (function(){
   function conectar(box, esc, alCambiar){
     if (!box || box.dataset.conectado) return;
     box.dataset.conectado = '1';
+    // Al cambiar el tipo cambia el control del color; a liso solo pasa un color de la lista.
+    box.addEventListener('change', (e) => {
+      const tipo = e.target.closest('.dm-tipo');
+      if (!tipo) return;
+      const control = tipo.closest('.dm-fila').querySelector('.dm-color');
+      control.outerHTML = controlColor(tipo.value, tipo.value !== 'basico' || colorDeLista(control.value) ? control.value : '', esc);
+      if (alCambiar) alCambiar();
+    });
     box.addEventListener('click', (e) => {
       if (e.target.closest('.dm-agregar')) {
         const n = Number(box.dataset.incluidos) || 0;
@@ -157,5 +178,5 @@ window.DimaManteles = (function(){
     return lista;
   }
 
-  return { html, conectar, resumir, aplicar, esMantel, repartir };
+  return { html, conectar, resumir, aplicar, esMantel, repartir, controlColor, COLORES_LISO };
 })();

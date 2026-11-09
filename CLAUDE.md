@@ -32,7 +32,7 @@ Producción: https://divanna-eventos.vercel.app (Vercel Hobby, scope codecells).
 - `api/_productos.js` catálogo y capacidad · `api/_agenda.js` semáforo y día lleno · `api/_calendario.js` calendario + Google
 - `api/finanzas.js`/`_finanzas.js` reportes del día · `_cuadre.js` cuadre · `_cargos.js` dinero y daños · `_danos.js` /daño
 - `_sheets.js` hojas y recibo PDF · `_comanda.js` comanda por foto · `_drive.js` carpeta de Diana (galería, promos)
-- `_cambios.js` cambios del cliente · `_produccion.js` producción VM · `_staff.js` /staff · `_curso.js` · `_mensajes.js` · `_instrucciones.js` (= `docs/manual-equipo.md`, actualizar ambos)
+- `_cambios.js` cambios del cliente · `_correcciones.js`/`_entrenamiento.js` reglas de DiMa (/entrenamiento) · `_colores.js` nota de colores · `_produccion.js` producción VM · `_staff.js` /staff · `_curso.js` · `_mensajes.js` · `_instrucciones.js` (= `docs/manual-equipo.md`, actualizar ambos)
 - `api/telegram.js`/`_telegram.js` bot · `_eventos.js` qué ve cada rol · `_dima-equipo.js` DiMa interna · `push.js`/`_push.js`
 - `brigadas/index.html` app · `brigadas/dashboard.html` dashboard Admin · `brigadas/sw.js` service worker · `pruebas/api.test.js`
 
@@ -44,7 +44,7 @@ Roles: Admin (Diana, Víctor), Lider de brigada, Asistente, Encargada, Gerentes 
 2. Campos de Airtable con nombre exacto: verificar esquema antes de escribir uno nuevo (ej. `Monto_Estimado_IA`, no `Monto_Cotizacion`).
 3. **12 funciones serverless = el máximo de Hobby, ya usadas.** Ruta nueva = juntar con una existente.
 4. No cambiar scope `/brigadas/` ni `start_url` de la PWA.
-5. Subir `CACHE_NAME` de `brigadas/sw.js` (hoy `dima-brigadas-v35`) al cambiar cualquier archivo del app shell.
+5. Subir `CACHE_NAME` de `brigadas/sw.js` (hoy `dima-brigadas-v36`) al cambiar cualquier archivo del app shell.
 6. `claude-sonnet-5-5`: sin `tool_choice` any/tool, sin `thinking: disabled`, `budget_tokens` ni `temperature`; historial solo texto.
 7. Datos de pago nunca en el prompt de DiMa.
 8. Con el cliente DiMa no nombra a nadie del equipo (hay prueba que falla si dice "Diana").

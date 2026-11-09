@@ -1,6 +1,7 @@
 // Pruebas de los endpoints con Airtable, Gmail, Claude y push simulados.
 // Correr con: npm test  (no llama a ningún servicio real).
 const path = require('path');
+const fs = require('fs');
 const repo = path.resolve(__dirname, '..');
 const Module = require('module');
 
@@ -81,6 +82,8 @@ let bloqueosPrueba = [];
 let bloqueoLeido = null;
 let llenosPrueba = []; // eventos autorizados que lee diasLlenos (días sin cupo)
 let respuestas = [];
+const llamadasCorrecciones = [];
+let correccionesPrueba = [];
 const telegram = [];
 let mapaCaido = false;
 let telegramFalla = false;
@@ -138,6 +141,14 @@ global.fetch = async (url, opts = {}) => {
     if (url.endsWith('/getFile')) return { ok: true, status: 200, json: async () => ({ ok: true, result: { file_path: 'photos/comanda.jpg' } }), text: async () => '' };
     if (telegramFalla) return { ok: false, status: 400, json: async () => ({ ok: false, description: 'Bad Request: chat not found' }), text: async () => '' };
     return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
+  }
+  // Correcciones de DiMa (CORRECCIONES_DIMA): aparte, para no consumir las respuestas de cada prueba.
+  if (url.includes('tbl9D2BnUFIu8PPIe')) {
+    const llamada = { url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null };
+    llamadasCorrecciones.push(llamada);
+    const r = llamada.method === 'POST' ? { records: [{ id: 'recCORRECCION0001', fields: llamada.body.records[0].fields }] }
+      : llamada.method === 'PATCH' ? { records: llamada.body.records } : { records: correccionesPrueba };
+    return { ok: true, status: 200, json: async () => r, text: async () => '' };
   }
   llamadas.push({ url: decodeURIComponent(url), method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
   const r = respuestas.shift() || { records: [] };
@@ -475,6 +486,47 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const r1 = resMock(); await chatApi({ method: 'POST', body: { historial }, headers: mismaIp }, r1);
   const r2 = resMock(); await chatApi({ method: 'POST', body: { historial }, headers: mismaIp }, r2);
   ok(r1.code === 200 && r2.code === 429 && llamadasClaude.length === 1, 'chat: dos mensajes seguidos de la misma IP, el segundo espera (429)');
+
+  // ---------- Entrenar a DiMa (modo gerencia, solo Admin) ----------
+  const gerencia = (body, headers) => { const r = resMock(); return chatApi({ method: 'POST', body: { modo: 'gerencia', ...body }, headers: headers || {} }, r).then(() => r); };
+  reset();
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+  ok(res.code === 401 && llamadasClaude.length === 0, 'entrenar: sin sesión no se puede entrenar a DiMa');
+  reset();
+  respuestas = [LIDER];
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: 'hola' }] }, auth(tokenLider));
+  ok(res.code === 403 && llamadasClaude.length === 0, 'entrenar: solo Diana y Víctor (Admin)');
+
+  reset();
+  llamadasCorrecciones.length = 0;
+  respuestas = [ADMIN];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [
+    { type: 'text', text: 'Entendido: el Paquete 3 cuesta $2,800.' },
+    { type: 'tool_use', id: 'tu_c1', name: 'guardar_correccion', input: { instruccion: 'El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700.' } },
+  ] }];
+  res = await gerencia({ historial: [{ rol: 'cliente', texto: '¿Cuánto cuesta el paquete 3?' }, { rol: 'dima', texto: 'Cuesta $2,700.' }, { rol: 'cliente', texto: 'Eso está mal, cuesta 2800' }] }, auth(tokenAdmin));
+  const pGer = llamadasClaude[0];
+  const altaCorr = llamadasCorrecciones.find(l => l.method === 'POST');
+  ok(res.code === 200 && res.body.texto.includes('Entendido') && res.body.guardadas.length === 1 && altaCorr && altaCorr.body.records[0].fields.Instruccion.includes('$2,800') && altaCorr.body.records[0].fields.Activa === true && altaCorr.body.records[0].fields.Autor === 'Diana', 'entrenar: la corrección se guarda activa y con quién la dio');
+  ok(pGer.system.startsWith('MODO ENTRENAMIENTO') && pGer.system.includes('CATÁLOGO REAL') && !pGer.tools.some(t => t.name === 'registrar_pedido') && pGer.tools.some(t => t.name === 'guardar_correccion'), 'entrenar: DiMa sabe que habla con la gerencia, conserva su catálogo y no registra pedidos');
+
+  reset();
+  correccionesPrueba = [{ id: 'recCORRECCION0001', createdTime: '2026-10-28T22:00:00.000Z', fields: { Instruccion: 'El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700.', Activa: true, Autor: 'Diana' } }];
+  respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'El Paquete 3 cuesta $2,800.' }] }];
+  res = await chat({ historial: [{ rol: 'cliente', texto: '¿Cuánto cuesta el paquete 3?' }] });
+  const pCliente = llamadasClaude[0];
+  ok(pCliente.system.includes('CORRECCIONES Y REGLAS DE LA GERENCIA') && pCliente.system.includes('cuesta $2,800, no $2,700') && pCliente.system.indexOf('CORRECCIONES Y REGLAS') > pCliente.system.indexOf('CATÁLOGO REAL'), 'entrenar: la corrección aplica de inmediato en el chat de clientes, después del catálogo');
+
+  reset();
+  respuestas = [ADMIN];
+  res = await gerencia({ accion: 'correcciones' }, auth(tokenAdmin));
+  ok(res.code === 200 && res.body.correcciones.length === 1 && res.body.correcciones[0].autor === 'Diana', 'entrenar: el dashboard lista las correcciones activas');
+  reset();
+  llamadasCorrecciones.length = 0;
+  respuestas = [ADMIN];
+  res = await gerencia({ accion: 'desactivar', id: 'recCORRECCION0001' }, auth(tokenAdmin));
+  ok(res.code === 200 && llamadasCorrecciones.some(l => l.method === 'PATCH' && l.body.records[0].fields.Activa === false), 'entrenar: quitar una corrección la desactiva');
+  correccionesPrueba = [];
 
   // ---------- Dashboard (solo Admin) ----------
   reset();
@@ -2126,7 +2178,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(saludoResp && saludoResp.body.text.includes('Diana') && !saludoResp.body.text.includes('$') && !saludoResp.body.text.includes('EVT-'),
     'cuadre: si el saludo trae cifras o folios se descarta y sale uno de respaldo');
   const resumenQ = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111').find(t => t.body.text.startsWith('📋 Resumen del día'));
-  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran') && resumenQ.body.text.includes('💵 Reembolsos pendientes: Ángel Samano $200') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
+  ok(resumenQ && resumenQ.body.text.includes('2 eventos no cuadran (ayer)') && /Hoy[^\n]*\n[\s\S]*\n\n🔍 2 eventos/.test(resumenQ.body.text) && resumenQ.body.text.includes('💵 Reembolsos pendientes: Ángel Samano $200') && resumenQ.body.text.includes('Hoy: sin eventos.'), 'buenos días: después del saludo va el resumen y avisa cuántos eventos no cuadran');
 
   // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
   reset();
@@ -3351,5 +3403,279 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [EV_CIERRE({ Checklist_Recoleccion: true, Monto_Estimado_IA: 0, COBROS: [] })];
     cerro = await cerrarSiTermino('recEVENTOCIERRE01');
     ok(cerro === false && !llamadas.some(l => l.method === 'PATCH'), 'cobro: un evento sin monto no se cierra solo');
+  }
+
+  // ---------- /entrenamiento, /reglas y /desactivar (Telegram, solo Admin) ----------
+  {
+    const VICTOR_T = { id: 'recCOLAB000000001', fields: { Nombre: 'Víctor', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '111' } };
+    const LIDER_E = { ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } };
+    const REGLA = 'Ofrece manteles lisos solo en los 16 colores de la bodega.';
+    const BORRADOR = '🧠 Propuesta para DiMa\n\nEntendí: solo 16 colores.\n\nRegla:\n«' + REGLA + '»\n\n¿Lo guardo?';
+    const propuesta = (input) => [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'te1', name: 'proponer_regla', input }] }];
+    const enviarTg = async (body) => { const r = resMock(); await telegramApi({ method: 'POST', headers: tgHeaders, body }, r); return r; };
+    const ultimoTexto = () => telegram.filter(t => t.metodo === 'sendMessage' || t.metodo === 'editMessageText').pop().body.text;
+    const altas = () => llamadasCorrecciones.filter(l => l.method === 'POST');
+    const empezar = (colaborador) => { reset(); llamadasCorrecciones.length = 0; correccionesPrueba = []; respuestas = [{ records: colaborador ? [colaborador] : [] }]; };
+    const botonEn = (dato) => ({ callback_query: { id: 'cbEn', data: dato, message: { message_id: 77, chat: { id: 111, type: 'private' }, text: BORRADOR } } });
+    const respuestaEn = (texto, esBot = true) => ({ message: { message_id: 10, chat: { id: 111, type: 'private' }, text: texto, reply_to_message: { message_id: 77, from: { is_bot: esBot }, text: BORRADOR } } });
+
+    empezar(VICTOR_T);
+    respuestasClaude = propuesta({ aceptable: true, motivo: null, resumen: 'Solo 16 colores en liso.', regla: REGLA });
+    await enviarTg(msg('/entrenamiento los lisos solo en 16 colores', 111));
+    const propTg = telegram.find(t => t.metodo === 'sendMessage');
+    ok(propTg && propTg.body.text.includes('«' + REGLA + '»') && propTg.body.text.includes('¿Lo guardo?') && botonesDe(propTg).join() === 'en:s,en:n' && altas().length === 0,
+      'entrenamiento: resume, pregunta "¿lo guardo?" y no guarda nada todavía');
+    ok(llamadasClaude[0].tool_choice.type === 'auto' && llamadasClaude[0].model === 'claude-sonnet-5-5' && llamadasClaude[0].temperature === undefined, 'entrenamiento: modelo y tool_choice auto');
+
+    empezar(LIDER_E);
+    await enviarTg(msg('/entrenamiento los lisos solo en 16 colores', 222));
+    ok(ultimoTexto() === 'Este comando es solo para Diana y Víctor.' && llamadasClaude.length === 0 && altas().length === 0, 'entrenamiento: un líder recibe el rechazo corto');
+    empezar(null);
+    await enviarTg(msg('/entrenamiento los lisos solo en 16 colores', 999));
+    ok(ultimoTexto() === 'Este comando es solo para Diana y Víctor.' && llamadasClaude.length === 0, 'entrenamiento: un chat sin vincular recibe el rechazo corto');
+
+    empezar(VICTOR_T);
+    await enviarTg(botonEn('en:s'));
+    const altaBoton = altas()[0];
+    ok(altaBoton && altaBoton.body.records[0].fields.Instruccion === REGLA && altaBoton.body.records[0].fields.Activa === true && altaBoton.body.records[0].fields.Autor === 'Víctor' && ultimoTexto().startsWith('✅ Guardada'),
+      'entrenamiento: con ✅ Sí guarda Instruccion, Activa y Autor');
+    empezar(VICTOR_T);
+    await enviarTg(botonEn('en:n'));
+    ok(altas().length === 0 && ultimoTexto().startsWith('❌'), 'entrenamiento: con ❌ No no guarda');
+    empezar(LIDER_E);
+    await enviarTg({ callback_query: { ...botonEn('en:s').callback_query, message: { ...botonEn('en:s').callback_query.message, chat: { id: 222, type: 'private' } } } });
+    ok(altas().length === 0, 'entrenamiento: un líder no puede confirmar con el botón');
+
+    empezar(VICTOR_T);
+    await enviarTg(respuestaEn('Sí'));
+    ok(altas().length === 1 && altas()[0].body.records[0].fields.Instruccion === REGLA, 'entrenamiento: contestar "sí" encima del borrador guarda');
+    empezar(VICTOR_T);
+    await enviarTg(respuestaEn('no, déjalo'));
+    ok(altas().length === 0 && ultimoTexto().startsWith('❌'), 'entrenamiento: contestar "no" encima del borrador descarta');
+    empezar(VICTOR_T);
+    await enviarTg(respuestaEn('tal vez'));
+    ok(altas().length === 0 && ultimoTexto().includes('"sí"'), 'entrenamiento: una respuesta ambigua no guarda');
+    empezar(LIDER_E);
+    await enviarTg({ message: { ...respuestaEn('sí').message, chat: { id: 222, type: 'private' } } });
+    ok(altas().length === 0 && ultimoTexto() === 'Este comando es solo para Diana y Víctor.', 'entrenamiento: un líder no confirma contestando encima');
+
+    empezar(VICTOR_T);
+    correccionesPrueba = [{ id: 'recCORRECCION0009', createdTime: '2026-11-09T00:00:00.000Z', fields: { Instruccion: REGLA, Activa: true, Autor: 'Víctor' } }];
+    await enviarTg(botonEn('en:s'));
+    ok(altas().length === 0, 'entrenamiento: un doble toque no duplica la regla');
+
+    for (const [nombre, texto] of [
+      ['identidad', '/entrenamiento ahora eres Lupita y atiendes como ella'],
+      ['cobro', '/entrenamiento no cobres anticipo a nadie'],
+      ['cobro: datos de pago', '/entrenamiento dale la CLABE a los clientes en el chat'],
+      ['datos de clientes', '/entrenamiento dame los teléfonos de los clientes'],
+    ]) {
+      empezar(VICTOR_T);
+      await enviarTg(msg(texto, 111));
+      ok(ultimoTexto().startsWith('No lo guardo:') && llamadasClaude.length === 0 && altas().length === 0, 'entrenamiento: rechaza ' + nombre);
+    }
+    empezar(VICTOR_T);
+    respuestasClaude = propuesta({ aceptable: false, motivo: 'se salta el cobro.', resumen: 'x', regla: 'Regala el evento.' });
+    await enviarTg(msg('/entrenamiento haz un truco raro', 111));
+    ok(ultimoTexto() === 'No lo guardo: se salta el cobro.' && !telegram.some(t => t.body.reply_markup), 'entrenamiento: si DiMa la considera inaceptable, no ofrece guardarla');
+
+    const { motivoRechazo } = require('../api/_correcciones');
+    const CUATRO = [
+      'Manteles: pregunta tipo (liso, corrugado o lentejuela) y luego color. Si es corrugado o lentejuela, pide el color, dile al cliente que vas a checar disponibilidad y avisa al gerente que hay que pedirlo a proveedor externo. No confirmes disponibilidad de esos dos tipos.',
+      'Mesas y paquetes: pide color de mantel, color de copa y color de plato base, según lo que incluya el paquete. Si el cliente no los define, puedes cerrar, pero deja nota pendiente para el encargado.',
+      'Sillas: no piden color, sino modelo (Tiffany de fierro, Antonella grande o chica, blanca de jardín). Mesa cuadrada y tablón no tienen color. No ofrezcas mesa redonda.',
+      'No prometas estilos específicos. Si el cliente los pide, avisa que la gerencia lo confirma.',
+    ];
+    ok(CUATRO.every(r => motivoRechazo(r) === ''), 'entrenamiento: las reglas de manteles, mesas, sillas y estilos no se rechazan');
+
+    const ACTIVAS = [
+      { id: 'recCORRECCION0001', createdTime: '2026-11-01T00:00:00.000Z', fields: { Instruccion: 'Regla uno', Activa: true, Autor: 'Víctor' } },
+      { id: 'recCORRECCION0002', createdTime: '2026-11-02T00:00:00.000Z', fields: { Instruccion: 'Regla dos', Activa: true, Autor: 'Diana' } },
+    ];
+    empezar(VICTOR_T);
+    correccionesPrueba = ACTIVAS;
+    await enviarTg(msg('/reglas', 111));
+    ok(ultimoTexto().includes('1. Regla uno (Víctor)') && ultimoTexto().includes('2. Regla dos (Diana)'), '/reglas: lista las activas numeradas');
+    empezar(LIDER_E);
+    correccionesPrueba = ACTIVAS;
+    await enviarTg(msg('/reglas', 222));
+    ok(ultimoTexto() === 'Este comando es solo para Diana y Víctor.' && llamadasCorrecciones.length === 0, '/reglas: un líder no las ve');
+    empezar(VICTOR_T);
+    correccionesPrueba = ACTIVAS;
+    await enviarTg(msg('/desactivar 2', 111));
+    const patchRegla = llamadasCorrecciones.find(l => l.method === 'PATCH');
+    ok(patchRegla && patchRegla.body.records[0].id === 'recCORRECCION0002' && patchRegla.body.records[0].fields.Activa === false && ultimoTexto().includes('Regla dos'), '/desactivar: desmarca Activa de la regla N');
+    empezar(VICTOR_T);
+    correccionesPrueba = ACTIVAS;
+    await enviarTg(msg('/desactivar 9', 111));
+    ok(!llamadasCorrecciones.some(l => l.method === 'PATCH') && ultimoTexto().includes('No hay regla 9'), '/desactivar: un número que no existe no toca nada');
+    empezar(LIDER_E);
+    correccionesPrueba = ACTIVAS;
+    await enviarTg(msg('/desactivar 1', 222));
+    ok(!llamadasCorrecciones.some(l => l.method === 'PATCH'), '/desactivar: un líder no puede');
+    correccionesPrueba = [];
+  }
+
+  // ---------- Nota "PENDIENTE COLORES" en EVENTOS.Instrucciones_Equipo ----------
+  {
+    const { actualizarNotaColores } = require('../api/_colores');
+    const nota = actualizarNotaColores('Del cliente: tocar el timbre', { pendientes: 'color de copa y plato base', cliente: 'Ana (6671234567)' });
+    ok(nota === 'Del cliente: tocar el timbre\nPENDIENTE COLORES: falta definir color de copa y plato base. El encargado lo coordina con el cliente Ana (6671234567).', 'colores: la nota explica qué falta y con quién, sin borrar lo demás');
+    const def = actualizarNotaColores(nota, { definidos: 'copa dorada, plato base blanco' });
+    ok(def === 'Del cliente: tocar el timbre\nCOLORES DEFINIDOS: copa dorada, plato base blanco', 'colores: al definirlos se reemplaza el pendiente');
+    ok(actualizarNotaColores('algo', {}) === 'algo', 'colores: sin datos no cambia nada');
+
+    reset();
+    respuestasClaude = [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'registrar_pedido', input: { nombre: 'Ana', telefono: '6671234567', email: null, negocio: 'Divanna Eventos', tipo_evento: 'XV', fecha: '2026-12-12', invitados: 80, ubicacion: 'Las Quintas', servicios: 'Paquete XV', monto_estimado: 6000, indicaciones: null, colores_pendientes: 'color de copa', colores_definidos: null, proveedor_externo: '10 manteles lentejuela rosa' } }] }];
+    respuestas = [{ records: [] }, { records: [{ id: 'recCLIENTE0000002', fields: {} }] }, { records: [{}] }];
+    res = await chat({ historial: [{ rol: 'cliente', texto: 'Así está bien, Ana 6671234567' }] });
+    const evNota = llamadas.find(l => l.method === 'POST' && l.url.includes('tblzLAin65BZPP2c6')).body.records[0].fields.Instrucciones_Equipo;
+    ok(res.code === 200 && res.body.folio && evNota.includes('PENDIENTE COLORES: falta definir color de copa') && evNota.includes('Ana (6671234567)') && evNota.includes('PROVEEDOR EXTERNO: pedir 10 manteles lentejuela rosa'), 'colores: DiMa registra el pedido con la nota, sin campos nuevos');
+    ok(llamadasClaude[0].tools.find(t => t.name === 'registrar_pedido').input_schema.required.includes('colores_pendientes'), 'colores: registrar_pedido pide los colores pendientes');
+
+    reset();
+    const { registrarCambioCliente } = require('../api/_pedidos');
+    respuestas = [{ records: [{ id: 'recEVENTO00000008', fields: { Folio_Evento: 'EVT-888888', Autorizacion_Diana: 'SI', Notas: 'n', Instrucciones_Equipo: 'PENDIENTE COLORES: falta definir color de copa. El encargado lo coordina con el cliente Ana.' } }] }, {}];
+    await registrarCambioCliente('EVT-888888', { servicios: 'Paquete XV', coloresDefinidos: 'copa dorada', cliente: 'Ana' });
+    ok(llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Instrucciones_Equipo === 'COLORES DEFINIDOS: copa dorada', 'colores: en un pedido ya autorizado también se reemplaza el pendiente');
+
+    reset();
+    const { avisarProveedorExterno } = require('../api/_cambios');
+    respuestas = [{ records: [{ id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: ' Gerente Divanna', Activo: true } }, { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario', Rol: 'Gerente Casa Isabella', Activo: true } }] }, { records: [{ id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Telegram_Chat_ID: '333', Activo: true } }] }];
+    await avisarProveedorExterno({ folio: 'EVT-1', nombre: 'Ana', detalle: '10 manteles lentejuela rosa', servicios: 'Mesas', productos: [] });
+    ok(telegram.some(t => t.metodo === 'sendMessage' && String(t.body.chat_id) === '333' && t.body.text.includes('proveedor externo')), 'colores: el gerente de Divanna recibe el aviso de proveedor externo');
+  }
+
+  // ---------- Eden, Mario y Ángela: alcance y botones ----------
+  {
+    const S = require('../api/_sesion');
+    const { veDinero } = require('../api/_cargos');
+    const eden = { id: 'recCOLABEDEN00001', rol: S.rolDe({ Rol: ' Gerente Divanna' }), gerente: S.gerenciaDe({ Rol: ' Gerente Divanna' }) };
+    const mario = { id: 'recCOLABMARIO0001', rol: S.rolDe({ Rol: 'Gerente Casa Isabella' }), gerente: S.gerenciaDe({ Rol: 'Gerente Casa Isabella' }) };
+    const angela = { id: 'recCOLABANGELA001', rol: S.rolDe({ Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true }), gerente: S.gerenciaDe({ Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true }) };
+    const DV = { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas' };
+    const CI = { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Renta de Casa Isabella' };
+    const VM = { Negocio: 'El Vaso Maiz' };
+    ok(eden.gerente === 'Divanna Eventos' && mario.gerente === 'Casa Isabella' && angela.gerente === 'El Vaso Maiz', 'gerentes: con los Rol reales de Airtable cada quien tiene su negocio (incluido " Gerente Divanna")');
+    ok(S.puedeOperarEvento(eden, DV) && !S.puedeOperarEvento(eden, CI) && !S.puedeOperarEvento(eden, VM), 'gerentes: Eden no opera Casa Isabella ni El Vaso Maíz sin asignación');
+    ok(S.puedeOperarEvento(mario, CI) && !S.puedeOperarEvento(mario, DV) && !S.puedeOperarEvento(mario, VM), 'gerentes: Mario solo opera Casa Isabella sin asignación');
+    ok(S.puedeOperarEvento(angela, VM) && !S.puedeOperarEvento(angela, DV) && !S.puedeOperarEvento(angela, CI), 'gerentes: Ángela solo opera El Vaso Maíz sin asignación');
+    ok(/NOT\(OR\(FIND\("dv_casa_isabella"/.test(S.formulaGerencia('Divanna Eventos')), 'gerentes: la consulta de eventos de Eden excluye Casa Isabella');
+    ok([eden, mario, angela].every(c => veDinero(c)), 'gerentes: los tres ven el dinero del evento (Cobrar)');
+    const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    const dinero = fs.readFileSync(path.join(repo, 'brigadas/dinero.js'), 'utf8');
+    ok(app.includes('👷 Asignar brigada y encargada') && app.includes('✏️ Editar evento, cliente y pedido') && dinero.includes('<summary>💵 Cobrar</summary>'), 'gerentes: la app tiene Asignar, Editar y Cobrar');
+    ok(/function bloqueAsignar\(ev\)\{\s*if\(!opcionesAsignar \|\| !esDeMiGerencia\(ev\)\) return '';/.test(app), 'gerentes: Asignar sale solo en eventos de su negocio');
+  }
+
+  // ---------- Selector de manteles: tipo y color ----------
+  {
+    const vm = require('vm');
+    const caja = { window: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(repo, 'brigadas/manteles.js'), 'utf8'), caja);
+    const M = caja.window.DimaManteles;
+    const sinEsc = (s) => s;
+    const opcionesDe = (html) => (html.match(/<option/g) || []).length;
+    ok(M.COLORES_LISO.length === 16 && M.COLORES_LISO.includes('Verde Limón') && M.COLORES_LISO.includes('Beige claro'), 'manteles: el liso tiene los 16 colores');
+    ok(M.controlColor('basico', '', sinEsc).startsWith('<select') && opcionesDe(M.controlColor('basico', '', sinEsc)) === 17, 'manteles: liso se elige de la lista');
+    ok(M.controlColor('basico', 'rojo', sinEsc).includes('value="Rojo" selected'), 'manteles: reconoce un color de la lista aunque cambien las mayúsculas');
+    ok(M.controlColor('basico', 'Turquesa', sinEsc).includes('value="Turquesa" selected'), 'manteles: un color guardado antes no se pierde al editar');
+    ok(M.controlColor('corrugado', 'Rosa', sinEsc).startsWith('<input') && M.controlColor('lentejuela', '', sinEsc).includes('proveedor'), 'manteles: corrugado y lentejuela se escriben y avisan que van a proveedor');
+    const html = M.html([{ clave: 'dv_cambio_corrugado', cantidad: 2, nota: 'Rosa' }], { basicos: {}, precios: { dv_cambio_corrugado: 60 }, claves: { cambio: { corrugado: 'dv_cambio_corrugado' }, extra: {} } }, sinEsc);
+    ok(html.includes('>Liso<') && !html.includes('Básico'), 'manteles: el tipo se llama Liso');
+  }
+
+  // Lo que el JavaScript del dashboard busca con $('...') tiene que existir en su HTML.
+  {
+    const tablero = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    const ids = [...tablero.matchAll(/\$\('(entrenar\w*)'\)/g)].map(m => m[1]);
+    ok(ids.length > 0 && ids.every(id => tablero.includes('id="' + id + '"')), 'dashboard: el panel Entrenar a DiMa está en el HTML');
+  }
+
+  // ---------- Gastos: opciones exactas de Airtable ----------
+  {
+    const finanzas = fs.readFileSync(path.join(repo, 'api/_finanzas.js'), 'utf8');
+    ok(/PAGADO_CON = \[[^\]]*'Inversión personal'/.test(finanzas) && /CATEGORIAS = \[[^\]]*'Remodelacion'/.test(finanzas), 'gastos: Inversión personal y Remodelacion (sin acento) como en Airtable');
+  }
+
+  // ---------- Eden sin Casa Isabella, aunque se lo asignen ----------
+  {
+    const S = require('../api/_sesion');
+    const { alcanceDe } = require('../api/_eventos');
+    const eden = { id: 'recCOLABEDEN00001', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: 'recBRIGADAEDEN001' };
+    const mario = { id: 'recCOLABMARIO0001', rol: 'Lider de brigada', gerente: 'Casa Isabella' };
+    const CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    ok(!S.puedeOperarEvento(eden, { ...CI, Brigada_Asignada: [eden.brigadaId] }) && !S.puedeOperarEvento(eden, { ...CI, Encargada: [eden.id] }), 'gerentes: Eden no opera Casa Isabella aunque se la asignen');
+    ok(S.puedeOperarEvento(mario, { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas', Encargada: [mario.id] }), 'gerentes: Mario sigue pudiendo operar lo que le asignen');
+    ok(S.puedeOperarEvento({ id: 'x', rol: 'Admin', gerente: 'Divanna Eventos' }, CI), 'gerentes: el Admin ve Casa Isabella');
+    reset();
+    respuestas = [
+      { id: eden.brigadaId, fields: { Nombre_Brigada: 'Brigada Edén', EVENTOS: ['recEVDV1', 'recEVCI1'] } },
+      { fields: { fld52PrtsNA4CnRw2: ['recEVCI2'] } },
+      { records: [{ id: 'recEVDV2' }] },
+      { records: [{ id: 'recEVCI1' }, { id: 'recEVCI2' }] },
+    ];
+    const alcanceEden = await alcanceDe(eden);
+    ok(JSON.stringify(alcanceEden.eventoIds) === JSON.stringify(['recEVDV1', 'recEVDV2']), 'gerentes: lo asignado de Casa Isabella se le quita a Eden; lo de su negocio se queda');
+
+    reset();
+    const { vistaMes } = require('../api/_calendario');
+    const fila = (id, extra) => ({ id, fields: { Folio_Evento: id, Fecha_Evento: '2026-12-05', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', ...extra } });
+    respuestas = [{ records: [fila('recEVDV1', { Servicios_Solicitados: 'Mesas' }), fila('recEVCI1', { Servicios_Solicitados: 'Renta de Casa Isabella' })] }, { records: [] }, { records: [] }];
+    const mesEden = await vistaMes(eden, '2026-12');
+    const verIds = (v) => v.eventos.map(e => e.id).join();
+    ok(verIds(mesEden) === 'recEVDV1', 'gerentes: el calendario de Eden no trae Casa Isabella');
+    reset();
+    respuestas = [{ records: [fila('recEVDV1', { Servicios_Solicitados: 'Mesas' }), fila('recEVCI1', { Servicios_Solicitados: 'Renta de Casa Isabella' })] }, { records: [] }, { records: [] }];
+    ok(verIds(await vistaMes({ id: 'x', rol: 'Admin' }, '2026-12')) === 'recEVDV1,recEVCI1', 'gerentes: el calendario del Admin sí lo trae');
+  }
+
+  // ---------- Compras de insumos: la gerente, 7 y 2 días antes ----------
+  {
+    const { avisosCompras } = require('../api/_produccion');
+    const hoyC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const enDias = (n) => { const d = new Date(hoyC + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const ANGELA = { id: 'recCOLABANGELA001', fields: { Nombre: 'Angela Samano', Telegram_Chat_ID: '444', Gerente_Vaso_Maiz: true, Activo: true } };
+    const EV = (id, dias, extra = {}) => ({ id, fields: { Folio_Evento: id, Fecha_Evento: enDias(dias), Productos: '[{"clave":"vm_paquete_3","cantidad":1}]', ...extra } });
+    const textos = () => telegram.filter(t => t.metodo === 'sendMessage').map(t => t.body.text);
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM7', 7), EV('recEVVM2', 2)] }, {}, {}];
+    let rc = await avisosCompras();
+    const consultaCompras = decodeURIComponent(llamadas[1].url);
+    const patches = llamadas.filter(l => l.method === 'PATCH');
+    ok(rc.enviados.length === 2 && textos().some(t => t.includes('faltan 7 días') && t.includes('Hola Angela') && t.includes('compras de insumos')) && textos().some(t => t.includes('faltan 2 días')) && telegram.every(t => t.metodo !== 'sendMessage' || String(t.body.chat_id) === '444'),
+      'compras: a Ángela le llega el aviso una semana y dos días antes');
+    ok(patches.some(p => p.body.records[0].id === 'recEVVM7' && p.body.records[0].fields.Produccion_Avisos.startsWith('compras7:recCOLABANGELA001 ')) && patches.some(p => p.body.records[0].id === 'recEVVM2' && p.body.records[0].fields.Produccion_Avisos.startsWith('compras2:recCOLABANGELA001 ')),
+      'compras: cada aviso queda anotado en Produccion_Avisos');
+    ok(consultaCompras.includes(enDias(7)) && consultaCompras.includes(enDias(1)) && !consultaCompras.includes(enDias(8)) && !consultaCompras.includes('"' + hoyC + '"') && consultaCompras.includes('{Autorizacion_Diana} = "SI"') && consultaCompras.includes('{Estado} != "Cerrado"'),
+      'compras: solo eventos autorizados y abiertos de los próximos 7 días');
+    ok(!/encargadoId/.test(consultaCompras) && rc.fallidos.length === 0, 'compras: no depende de que haya encargado de producción');
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM7', 7, { Produccion_Avisos: 'compras7:recCOLABANGELA001 2026-11-01T00:00:00Z' })] }];
+    rc = await avisosCompras();
+    ok(rc.enviados.length === 0 && textos().length === 0 && !llamadas.some(l => l.method === 'PATCH'), 'compras: no se repite el aviso ya enviado');
+
+    reset();
+    respuestas = [{ records: [ANGELA] }, { records: [EV('recEVVM4', 4)] }, {}];
+    rc = await avisosCompras();
+    ok(textos()[0].includes('faltan 4 días') && llamadas.find(l => l.method === 'PATCH').body.records[0].fields.Produccion_Avisos.startsWith('compras7:'), 'compras: un evento capturado con menos de una semana también avisa');
+
+    reset();
+    respuestas = [{ records: [{ ...ANGELA, fields: { ...ANGELA.fields, Telegram_Chat_ID: '' } }] }, { records: [EV('recEVVM7', 7)] }];
+    rc = await avisosCompras();
+    ok(rc.fallidos.length === 1 && rc.fallidos[0].motivo.includes('Telegram') && !llamadas.some(l => l.method === 'PATCH'), 'compras: si no tiene Telegram se reporta y no se marca como enviado');
+
+    reset();
+    respuestas = [{ records: [] }];
+    rc = await avisosCompras();
+    ok(rc.enviados.length === 0 && llamadas.length === 1, 'compras: sin gerente no consulta eventos');
+  }
+
+  // ---------- Reglas de DiMa a la vista en el dashboard de Admin ----------
+  {
+    const tablero = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    ok(tablero.includes('id="entrenarReglas" open') && tablero.includes('📋 Reglas activas (') && /id="v-inicio"[\s\S]*id="entrenar"[\s\S]*id="v-finanzas"/.test(tablero), 'dashboard: Inicio tiene Entrenar a DiMa con las reglas abiertas');
   }
 })();

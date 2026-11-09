@@ -14,7 +14,7 @@
 // Estado = Cerrado (así el semáforo, producción y staff lo dejan fuera solos).
 
 const { google } = require('googleapis');
-const { ROLES, COLABORADORES_TABLE, esVasoMaiz, GERENCIAS, gerenciaDe, esDeSuGerencia, eventoDeGerencia, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, esVasoMaiz, GERENCIAS, gerenciaDe, esDeSuGerencia, eventoDeGerencia, ocultoParaGerente, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
@@ -229,7 +229,7 @@ async function vistaMes(colaborador, mes) {
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     // Selector de manteles del ➕ Capturar evento (brigadas/manteles.js).
     manteles: esEditor(colaborador) ? infoManteles() : null,
-    eventos: eventos.map(r => {
+    eventos: eventos.filter(r => !ocultoParaGerente(colaborador, r.fields)).map(r => {
       const f = r.fields;
       return {
         id: r.id,

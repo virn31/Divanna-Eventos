@@ -119,15 +119,26 @@ async function alcanceDe(colaborador) {
   const propio = colaborador.rol === ROLES.ENCARGADA ? [] : await airtableGet(`${COLABORADORES_TABLE}/${colaborador.id}?returnFieldsByFieldId=true`)
     .then(r => r.fields[CAMPO_EVENTOS_DE_ENCARGADA] || [])
     .catch(err => { console.error('No se pudieron leer los eventos asignados al gerente:', err.message); return []; });
-  const formula = encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", ${formulaGerencia(colaborador.gerente)})`);
+  const ids = await idsDeEventos(`AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", ${formulaGerencia(colaborador.gerente)})`);
+  let eventoIds = [...new Set([...alcance.eventoIds, ...propio, ...ids])];
+  // Eden no ve Casa Isabella, ni lo que le llegue por su brigada o por "Asignar".
+  if (colaborador.gerente === GERENCIAS.DV && eventoIds.length) {
+    const delSalon = new Set(await idsDeEventos(`AND({Estado} != "Cerrado", ${formulaGerencia(GERENCIAS.CI)})`));
+    eventoIds = eventoIds.filter(id => !delSalon.has(id));
+  }
+  return { ...alcance, eventoIds };
+}
+
+// IDs de los eventos que cumplen la fórmula (con paginación).
+async function idsDeEventos(formula) {
   const ids = [];
   let offset = '';
   do {
-    const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formula}&fields%5B%5D=Folio_Evento&pageSize=100${offset ? `&offset=${encodeURIComponent(offset)}` : ''}`);
+    const data = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=Folio_Evento&pageSize=100${offset ? `&offset=${encodeURIComponent(offset)}` : ''}`);
     ids.push(...data.records.map(r => r.id));
     offset = data.offset || '';
   } while (offset && ids.length < 500);
-  return { ...alcance, eventoIds: [...new Set([...alcance.eventoIds, ...propio, ...ids])] };
+  return ids;
 }
 
 async function alcanceBase(colaborador) {

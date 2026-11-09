@@ -10,6 +10,7 @@ const { ROLES } = require('./_sesion');
 const { enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { normalizarProductos, capacidadEvento, inicioEvento } = require('./_productos');
 const { ORIGENES } = require('./_origen');
+const { actualizarNotaColores } = require('./_colores');
 const { esDecorador, tieneDescuento, conDescuento, MARCA_DECORADOR } = require('./_decorador');
 const { revisarDisponibilidad, textoDisponibilidad, camposDisponibilidad } = require('./_agenda');
 
@@ -74,6 +75,9 @@ function validarPedido(entrada) {
     montoEstimado: Number(entrada.montoEstimado),
     fueraDeCiudad: entrada.fueraDeCiudad === true,
     indicaciones: texto(entrada.indicaciones, 800),
+    coloresPendientes: texto(entrada.coloresPendientes, 300),
+    coloresDefinidos: texto(entrada.coloresDefinidos, 300),
+    proveedorExterno: texto(entrada.proveedorExterno, 300),
     preferenciaContacto: PREFERENCIAS[entrada.preferenciaContacto] || null,
     horaInicio: /^([01]\d|2[0-3]):[0-5]\d$/.test(texto(entrada.horaInicio, 5)) ? texto(entrada.horaInicio, 5) : '',
     horasServicio: Number(entrada.horasServicio) >= 0.5 && Number(entrada.horasServicio) <= 24 ? Number(entrada.horasServicio) : null,
@@ -171,7 +175,10 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   if (datos.invitados > 0 && datos.invitados < 100000) eventoFields.Invitados = datos.invitados;
   if (montoValido) eventoFields.Monto_Estimado_IA = datos.montoEstimado;
   if (datos.fueraDeCiudad) eventoFields.Fuera_De_Ciudad = true;
-  if (datos.indicaciones) eventoFields.Instrucciones_Equipo = `Del cliente: ${datos.indicaciones}`;
+  const notaEquipo = actualizarNotaColores(datos.indicaciones ? `Del cliente: ${datos.indicaciones}` : '', {
+    pendientes: datos.coloresPendientes, definidos: datos.coloresDefinidos, proveedor: datos.proveedorExterno, cliente: `${datos.nombre} (${datos.telefonoDigitos})`,
+  });
+  if (notaEquipo) eventoFields.Instrucciones_Equipo = notaEquipo;
   if (datos.preferenciaContacto) eventoFields.Preferencia_Contacto = datos.preferenciaContacto;
   const agenda = camposAgenda(datos);
   Object.assign(eventoFields, agenda);
@@ -222,7 +229,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
       (decorador && !montoValido ? '🏷️ Cliente decorador: 10% de descuento sobre el total.\n' : '') +
       `\n${datos.servicios}\n` +
       (agenda.Resumen_Capacidad ? `\n${agenda.Resumen_Capacidad}\n` : '') +
-      (datos.indicaciones ? `\n📌 ${datos.indicaciones}\n` : '') +
+      (notaEquipo ? `\n📌 ${notaEquipo}\n` : '') +
       `\nCotízalo en https://divanna-eventos.vercel.app/brigadas/`,
   });
   await enviarCorreoEquipo({
@@ -339,7 +346,7 @@ function leerCambio(texto) {
 //   que Diana lo confirme o descarte en el dashboard.
 // Devuelve { eventoId, autorizado, urgente, negocio, fecha, campos } o lanza
 // error si no se pudo guardar (quien llama debe decirlo, no fingir que quedó).
-async function registrarCambioCliente(folio, { servicios, indicaciones, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
+async function registrarCambioCliente(folio, { servicios, indicaciones, coloresPendientes, coloresDefinidos, proveedorExterno, cliente, montoEstimado, transcripcion, preferenciaContacto, horaInicio, horasServicio, productos }) {
   const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
   const data = await airtableRequest(`${TABLES.EVENTOS}?filterByFormula=${formula}&maxRecords=1`);
   const r = data.records[0];
@@ -379,6 +386,12 @@ async function registrarCambioCliente(folio, { servicios, indicaciones, montoEst
     if (indicaciones && !(r.fields.Instrucciones_Equipo || '').includes(indicaciones)) {
       fields.Instrucciones_Equipo = `${r.fields.Instrucciones_Equipo ? r.fields.Instrucciones_Equipo + '\n' : ''}Del cliente: ${indicaciones}`;
     }
+  }
+  // La nota de colores no toca dinero: se actualiza aunque el pedido ya esté autorizado.
+  if (coloresPendientes || coloresDefinidos || proveedorExterno) {
+    fields.Instrucciones_Equipo = actualizarNotaColores(fields.Instrucciones_Equipo !== undefined ? fields.Instrucciones_Equipo : r.fields.Instrucciones_Equipo, {
+      pendientes: coloresPendientes, definidos: coloresDefinidos, proveedor: proveedorExterno, cliente,
+    });
   }
   await airtableRequest(TABLES.EVENTOS, {
     method: 'PATCH',

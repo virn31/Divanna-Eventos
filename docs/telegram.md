@@ -10,6 +10,7 @@ de la app, y desde ahí:
   clientes en el chat de DiMa y el **balance semanal**.
 - Consultas: `/hoy`, `/eventos`, `/alertas`, `/pedidos` (solo Admin), `/salir`, `/ayuda`.
 - `/anuncio texto` (solo Admin): manda el texto tal cual, con sus saltos de línea, a todo el equipo con Telegram vinculado (Admin, líderes, asistentes y encargadas; el staff no) y responde a cuántos les llegó.
+- `/entrenamiento texto`, `/reglas`, `/desactivar N` (solo Admin): reglas de DiMa en CORRECCIONES_DIMA; `/entrenamiento` pide confirmación antes de guardar (`api/_entrenamiento.js`).
 
 Para marcar checklist o cambiar estatus se sigue usando la app.
 

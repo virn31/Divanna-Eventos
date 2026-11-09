@@ -11,6 +11,9 @@
 // Las respuestas (botones "Tenemos todo" / "Reportar insumos") le llegan a la
 // gerente con copia a Diana y Víctor y quedan en EVENTOS.Produccion_Respuesta.
 // EVENTOS.Produccion_Avisos guarda qué se mandó a quién (no se repite).
+// Aparte (Víctor 2026-11-09), la gerente de El Vaso Maíz recibe una semana y dos
+// días antes de cada evento lo que se va a producir, para programar las compras
+// de insumos, aunque el evento aún no tenga encargado de producción.
 
 const { ROLES, COLABORADORES_TABLE } = require('./_sesion');
 const { leerProductos, produccionVasoMaiz } = require('./_productos');
@@ -48,9 +51,9 @@ const esFecha = (t) => /^\d{4}-\d{2}-\d{2}$/.test(t || '');
 
 // ---------- Datos ----------
 
-// Eventos autorizados de El Vaso Maíz de esa fecha con encargado de producción.
-async function eventosDelDia(fecha) {
-  const formula = `AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0), DATESTR({Fecha_Evento}) = "${fecha}")`;
+// Eventos autorizados de El Vaso Maíz que cumplen la condición de fecha.
+async function eventosVasoMaiz(condicionFecha, fecha = '') {
+  const formula = `AND({Autorizacion_Diana} = "SI", {Estado} != "Cerrado", OR({Negocio} = "El Vaso Maiz", {Piezas_Vaso_Maiz} > 0), ${condicionFecha})`;
   const data = await airtable(`${EVENTOS}?filterByFormula=${encodeURIComponent(formula)}&sort%5B0%5D%5Bfield%5D=Hora_Inicio&sort%5B0%5D%5Bdirection%5D=asc`);
   return data.records
     .map(r => ({
@@ -64,8 +67,12 @@ async function eventosDelDia(fecha) {
       encargadoId: (r.fields.Encargado_Produccion || [])[0] || '',
       avisos: r.fields.Produccion_Avisos || '',
       respuesta: r.fields.Produccion_Respuesta || '',
-    }))
-    .filter(e => e.encargadoId);
+    }));
+}
+
+// Eventos de esa fecha con encargado de producción.
+async function eventosDelDia(fecha) {
+  return (await eventosVasoMaiz(`DATESTR({Fecha_Evento}) = "${fecha}"`, fecha)).filter(e => e.encargadoId);
 }
 
 async function leerColaborador(id) {
@@ -100,19 +107,19 @@ async function opcionesProduccion(colaborador) {
 
 // ---------- Textos ----------
 
-function listaProduccion(eventos) {
+function listaProduccion(eventos, { paraGerente = false } = {}) {
   const totales = new Map();
   const sueltas = [];
   let piezas = 0;
   for (const ev of eventos) {
     const p = produccionVasoMaiz(ev.productos);
     p.productos.forEach(x => totales.set(x.nombre, (totales.get(x.nombre) || 0) + x.cantidad));
-    p.sinDesglose.forEach(x => sueltas.push(`${x.cantidad} pieza(s) suelta(s) de ${ev.folio}${x.nota ? ': ' + x.nota : ' (sin especificar: pregúntale a la gerente)'}`));
+    p.sinDesglose.forEach(x => sueltas.push(`${x.cantidad} pieza(s) suelta(s) de ${ev.folio}${x.nota ? ': ' + x.nota : paraGerente ? ' (sin especificar)' : ' (sin especificar: pregúntale a la gerente)'}`));
     piezas += p.piezas;
   }
   const lineas = [...totales].map(([nombre, n]) => `• ${nombre}: ${n}`);
   sueltas.forEach(s => lineas.push(`• ${s}`));
-  if (!lineas.length) lineas.push('• ⚠️ Este evento no tiene productos registrados: pregúntale a la gerente qué se prepara.');
+  if (!lineas.length) lineas.push(paraGerente ? '• ⚠️ Sin productos registrados: revisa el evento para saber qué comprar.' : '• ⚠️ Este evento no tiene productos registrados: pregúntale a la gerente qué se prepara.');
   return { lineas, piezas };
 }
 
@@ -173,6 +180,70 @@ async function enviarAvisos(tipo, fecha, { soloEncargado = null, actualizada = f
       body: JSON.stringify({ records: suyos.map(ev => ({ id: ev.id, fields: { Produccion_Avisos: ev.avisos ? `${ev.avisos}\n${linea}` : linea } })) }),
     });
   }
+  return { enviados, fallidos };
+}
+
+// ---------- Compras de insumos (gerente de El Vaso Maíz) ----------
+
+const DIAS_COMPRAS_SEMANA = 7;
+const DIAS_COMPRAS_FINAL = 2;
+const MS_DIA = 86400000;
+
+const diasEntre = (desde, hasta) => Math.round((new Date(`${hasta}T12:00:00Z`) - new Date(`${desde}T12:00:00Z`)) / MS_DIA);
+// Un evento capturado con menos de una semana recibe el aviso semanal al día siguiente.
+const tipoCompras = (dias) => dias > DIAS_COMPRAS_FINAL ? `compras${DIAS_COMPRAS_SEMANA}` : `compras${DIAS_COMPRAS_FINAL}`;
+
+async function gerentesVasoMaiz() {
+  const formula = encodeURIComponent('AND({Activo}, OR({Gerente_Vaso_Maiz}, {Rol} = "Gerente El Vaso Maiz"))');
+  const data = await airtable(`${COLABORADORES_TABLE}?filterByFormula=${formula}`);
+  return data.records.map(r => ({ id: r.id, nombre: String(r.fields.Nombre || '').trim().split(/\s+/)[0] || 'Ángela', chatId: r.fields.Telegram_Chat_ID || '' }));
+}
+
+function textoCompras(nombre, fecha, dias, eventos) {
+  const { lineas, piezas } = listaProduccion(eventos, { paraGerente: true });
+  const detalle = eventos.map(ev => `🌽 ${ev.folio}${ev.horaInicio ? ' · empieza ' + horaTexto(ev.horaInicio) : ' · hora por confirmar'}${ev.ubicacion ? ' · ' + ev.ubicacion : ''}`);
+  return [
+    `🛒 Hola ${nombre}: faltan ${dias} día${dias === 1 ? '' : 's'} para el ${fechaTexto(fecha)}. Programa las compras de insumos para esta producción:`,
+    '', ...lineas, piezas ? `Total: ${piezas} piezas` : null, '', ...detalle,
+  ].filter(l => l !== null).join('\n');
+}
+
+// Cron diario: a cada gerente, un mensaje por fecha y tipo de aviso, sin repetir.
+async function avisosCompras() {
+  const gerentes = await gerentesVasoMaiz();
+  if (!gerentes.length) return { enviados: [], fallidos: [] };
+  const hoy = hoyCuliacan();
+  const fechas = Array.from({ length: DIAS_COMPRAS_SEMANA }, (_, i) => sumarDias(hoy, i + 1));
+  const eventos = await eventosVasoMaiz(`OR(${fechas.map(f => `DATESTR({Fecha_Evento}) = "${f}"`).join(', ')})`);
+  const enviados = [], fallidos = [];
+  for (const g of gerentes) {
+    const grupos = new Map();
+    for (const ev of eventos) {
+      const fecha = String(ev.fecha).slice(0, 10);
+      const dias = diasEntre(hoy, fecha);
+      const tipo = tipoCompras(dias);
+      if (ev.avisos.split('\n').some(l => l.startsWith(marcaAviso(tipo, g.id) + ' '))) continue;
+      const clave = `${tipo}|${fecha}`;
+      if (!grupos.has(clave)) grupos.set(clave, { tipo, fecha, dias, eventos: [] });
+      grupos.get(clave).eventos.push(ev);
+    }
+    if (!grupos.size) continue;
+    if (!g.chatId) { fallidos.push({ nombre: g.nombre, motivo: 'no ha activado su Telegram' }); continue; }
+    for (const grupo of grupos.values()) {
+      const r = await enviarTelegram(g.chatId, textoCompras(g.nombre, grupo.fecha, grupo.dias, grupo.eventos));
+      if (!r.ok) { fallidos.push({ nombre: g.nombre, motivo: (r.data && r.data.description) || `error ${r.status}` }); continue; }
+      enviados.push(g.nombre);
+      const linea = `${marcaAviso(grupo.tipo, g.id)} ${new Date().toISOString()}`;
+      grupo.eventos.forEach(ev => { ev.avisos = ev.avisos ? `${ev.avisos}\n${linea}` : linea; });
+      for (let i = 0; i < grupo.eventos.length; i += 10) {
+        await airtable(EVENTOS, {
+          method: 'PATCH',
+          body: JSON.stringify({ records: grupo.eventos.slice(i, i + 10).map(ev => ({ id: ev.id, fields: { Produccion_Avisos: ev.avisos } })) }),
+        });
+      }
+    }
+  }
+  if (fallidos.length) await avisarGerencia(`⚠️ No pude mandar el aviso de compras de insumos a:\n${fallidos.map(f => `• ${f.nombre}: ${f.motivo}`).join('\n')}\nAvísale por otro medio.`);
   return { enviados, fallidos };
 }
 
@@ -270,6 +341,7 @@ async function atenderRespuestaProduccion(mensaje, colaborador) {
 }
 
 module.exports = {
+  avisosCompras,
   TIPOS,
   opcionesProduccion,
   enviarAvisos,

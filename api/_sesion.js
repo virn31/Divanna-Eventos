@@ -186,11 +186,16 @@ const puestoGerente = (gerencia) => gerencia ? `Gerente de ${NOMBRE_GERENCIA[ger
 // Negocio (finanzas/calendario) de una gerencia: Casa Isabella cae en Divanna.
 const negocioDeGerencia = (gerencia) => gerencia === GERENCIAS.VM ? GERENCIAS.VM : gerencia ? GERENCIAS.DV : null;
 
+// Eden (gerente de Divanna) no ve Casa Isabella, ni aunque se lo asignen (Víctor 2026-11-09).
+const ocultoParaGerente = (colaborador, eventoFields) => !!colaborador && colaborador.rol !== ROLES.ADMIN
+  && colaborador.gerente === GERENCIAS.DV && usaCasaIsabella(eventoFields);
+
 // ¿Puede este colaborador operar este evento? Admin todos; la gerente de El
 // Vaso Maíz (COLABORADORES.Gerente_Vaso_Maiz) todos los de El Vaso Maíz; líder
 // y asistente los de su brigada; encargada los que tiene asignados en Encargada.
 function puedeOperarEvento(colaborador, eventoFields) {
   if (colaborador.rol === ROLES.ADMIN) return true;
+  if (ocultoParaGerente(colaborador, eventoFields)) return false;
   if (esDeSuGerencia(colaborador, eventoFields)) return true;
   // Encargada o gerente asignado en "👷 Asignar" (campo Encargada).
   if (colaborador.rol === ROLES.ENCARGADA || colaborador.gerente) {
@@ -202,5 +207,5 @@ function puedeOperarEvento(colaborador, eventoFields) {
 
 module.exports = {
   ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento, esVasoMaiz,
-  GERENCIAS, NOMBRE_GERENCIA, ROLES_GERENTE, gerenciaDe, rolDe, rolValido, usaCasaIsabella, eventoDeGerencia, esDeSuGerencia, formulaGerencia, puestoGerente, negocioDeGerencia,
+  GERENCIAS, NOMBRE_GERENCIA, ROLES_GERENTE, gerenciaDe, rolDe, rolValido, usaCasaIsabella, eventoDeGerencia, esDeSuGerencia, ocultoParaGerente, formulaGerencia, puestoGerente, negocioDeGerencia,
 };

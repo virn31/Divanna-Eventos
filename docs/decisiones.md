@@ -464,3 +464,26 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Recibos PDF:** nunca automáticos (ni al cobrar, aprobar reporte, anticipo o editar). El pago solo deja COBROS, Monto_Adeudado y Estatus_Pago = "Liquidado 100%" si ya no resta. El PDF sale con 🧾 Mandar recibo cuando el cliente lo pide, con "Pagado · fecha del último pago".
 - **Gastos:** GASTOS.Tipo (Evento/General/Extra) se pregunta en la app y en `/gasto 350 concepto` (Admin) con botones.
 - **Dashboard:** ventanas Inicio / Finanzas / Clientes / Eventos. Por cobrar, Pagos pendientes y la tabla de cobranza salen del mismo cálculo (eventos sin cliente en su propia fila). Margen "—" si no hay gastos. "En curso hoy" = eventos con fecha de hoy.
+
+## 2026-10-28 — Entrenar a DiMa desde el dashboard
+
+**Pedido de Víctor:** poder chatear con DiMa desde el dashboard para corregirla rápido, porque está dando información incorrecta.
+**Cómo quedó:** panel "🧠 Entrenar a DiMa" (solo Admin). Diana o Víctor le escriben como cliente para probarla y la corrigen en el mismo chat; DiMa confirma lo que entendió y guarda la regla (`guardar_correccion`) en CORRECCIONES_DIMA. Las activas se agregan al final de sus instrucciones con prioridad sobre el catálogo y aplican de inmediato en el chat de la página. Lista de correcciones guardadas con botón "Quitar" (se desactivan, no se borran).
+**Por qué así:** corregir sin esperar un cambio de código; queda registro de quién enseñó qué.
+**Riesgo y cuidado:** muchas reglas acumuladas pueden contradecirse; las que sean permanentes (precios) conviene pasarlas a `_dima-catalogo.js` y quitarlas de la lista.
+**Descartado:** que DiMa aprenda sola de las conversaciones con clientes (podría aprender errores del cliente); editar el prompt desde el dashboard en texto libre (fácil de romper).
+
+## 2026-11-09 — /entrenamiento en Telegram, nota de colores y selector de manteles
+
+**Pedido de Víctor:** entrenar a DiMa por Telegram con confirmación, nota de colores sin campos nuevos y manteles por tipo y color.
+**Cómo quedó:** `/entrenamiento`, `/reglas` y `/desactivar N` solo para Admin, reconocido por su `Telegram_Chat_ID` (`api/_entrenamiento.js`). DiMa interpreta y pregunta "¿lo guardo?"; solo se escribe en CORRECCIONES_DIMA con ✅ o con "sí" contestado encima del borrador. Se rechazan indicaciones de identidad, cobro y datos de clientes también en el dashboard (`motivoRechazo`). La nota va en `EVENTOS.Instrucciones_Equipo` con el prefijo `PENDIENTE COLORES:` y se reemplaza por `COLORES DEFINIDOS:` (`api/_colores.js`). Corrugado y lentejuela dejan `PROVEEDOR EXTERNO:` y avisan al gerente de Divanna. En la app el básico se llama Liso (la clave interna sigue siendo `basico`) y solo ofrece los 16 colores.
+**Por qué así:** el borrador viaja en el mensaje del bot porque las funciones serverless no guardan estado y no se quiso escribir nada antes del sí.
+**Límite:** un "sí" suelto, sin contestar encima del borrador, no confirma: lo atiende la plática normal con DiMa.
+**Descartado:** guardar el borrador en Airtable con Activa = false (sería escribir antes de confirmar); campos nuevos para los colores.
+
+## 2026-11-09 — Gerentes, Eden sin Casa Isabella y compras de insumos de Ángela
+
+**Pedido de Víctor:** Eden, Mario y Ángela ven todo su negocio; Eden sin Casa Isabella; Origen manual con el nombre de quien capturó; Ángela recibe por Telegram los insumos una semana y dos días antes.
+**Cómo quedó:** el alcance por negocio no cambia. A Eden se le quita Casa Isabella en `alcanceDe`, `puedeOperarEvento` y el calendario (`ocultoParaGerente`), aunque le llegue por brigada o por Asignar. Origen ya guardaba el primer nombre. `avisosCompras` (`api/_produccion.js`, cron diario) avisa a la gerente de El Vaso Maíz a 7 y a 2 días, sin depender de que haya encargado; anota en `Produccion_Avisos` (`compras7:`/`compras2:`).
+**Límite:** no hay recetas en el sistema: el aviso dice qué se va a producir (productos y piezas), no kilos de insumo.
+**Descartado:** avisar solo el día exacto (un evento capturado a menos de una semana no recibiría aviso); una columna nueva para la bitácora.

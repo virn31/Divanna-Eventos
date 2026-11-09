@@ -21,6 +21,7 @@
 
 const { ROLES, iniciarSesion, puestoGerente } = require('./_sesion');
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, confirmarEvento } = require('./_eventos');
+const Entrenamiento = require('./_entrenamiento');
 const { telegramApi, enviarTelegram, editarTelegram, responderBoton, borrarMensaje, colaboradorPorChat, guardarChat, enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUIPO } = require('./_telegram');
 const {
   puedeCoordinar, menuInicio, menuEventos, menuEvento, invitar, responderInvitacion,
@@ -110,7 +111,7 @@ function ayuda(colaborador) {
   ];
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
-  if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot');
+  if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot', '/entrenamiento texto — enseñarle una regla a DiMa', '/reglas — reglas activas de DiMa', '/desactivar N — quitar una regla');
   comandos.push('/instrucciones — cómo funciona todo');
   comandos.push(colaborador.rol === ROLES.ADMIN ? '/curso — avance de la capacitación del equipo' : '/curso — tu capacitación por lecciones');
   if (colaborador.rol !== ROLES.ADMIN) comandos.push('/mensaje — escribirles directo a Diana y Víctor');
@@ -200,6 +201,9 @@ async function configurarBot() {
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
       { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
       { command: 'gasto', description: 'Anotar un gasto: /gasto 350 gasolina (Admin)' },
+      { command: 'entrenamiento', description: 'Enseñarle una regla a DiMa (Admin)' },
+      { command: 'reglas', description: 'Reglas activas de DiMa (Admin)' },
+      { command: 'desactivar', description: 'Quitar una regla: /desactivar 2 (Admin)' },
       { command: 'instrucciones', description: 'Cómo funciona todo (manual)' },
       { command: 'curso', description: 'Capacitación por lecciones' },
       { command: 'mensaje', description: 'Escribirles directo a Diana y Víctor' },
@@ -233,6 +237,13 @@ async function atenderBoton(cb) {
     const r = await Comanda.atenderBoton(accion, id, colaborador);
     if (r.texto) await editarTelegram(chatId, mensajeId, cb.message.text || '');
     await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
+    return;
+  }
+  if (tipo === 'en') {
+    // Borrador de /entrenamiento: Sí (s) o No (n).
+    const r = await Entrenamiento.boton(colaborador, accion, cb.message.text || '');
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, r.textoFinal);
     return;
   }
   if (tipo === 'gs') {
@@ -400,6 +411,13 @@ async function responder(mensaje) {
   }
 
   const colaborador = await colaboradorPorChat(chatId);
+  // Entrenar a DiMa: se valida por el Telegram_Chat_ID del Admin, antes que nada.
+  if (Entrenamiento.COMANDOS.includes(comando) || Entrenamiento.esRespuesta(mensaje)) {
+    if (!Entrenamiento.autorizado(colaborador)) return Entrenamiento.RECHAZO;
+    if (Entrenamiento.esRespuesta(mensaje)) return Entrenamiento.atenderRespuesta(mensaje, colaborador);
+    if (comando === '/entrenamiento') await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+    return Entrenamiento.atenderComando(comando, texto.slice(primera.length).trim());
+  }
   if (!colaborador) return ayuda(null);
 
   // 🆘 SOS: el botón de abajo manda la ubicación del teléfono.

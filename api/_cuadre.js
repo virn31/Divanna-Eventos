@@ -452,7 +452,7 @@ function textoResumen(v, cuantos) {
     bloque('Mañana', v.manana),
     v.porCobrar.eventos ? `💰 Falta por cobrar: ${pesos(v.porCobrar.total)} en ${v.porCobrar.eventos === 1 ? '1 evento' : v.porCobrar.eventos + ' eventos'}.` : '💰 No hay nada pendiente por cobrar.',
     v.reembolsos && v.reembolsos.length ? `💵 Reembolsos pendientes: ${v.reembolsos.map(f => `${f.nombre} ${pesos(f.pendiente)}`).join(', ')}.` : null,
-    cuantos ? `🔍 ${cuantos === 1 ? 'Un evento no cuadra' : cuantos + ' eventos no cuadran'}; te los paso abajo.` : '✅ Las cuentas cuadran.',
+    cuantos ? `🔍 ${cuantos === 1 ? '1 evento no cuadra' : cuantos + ' eventos no cuadran'} (ayer); te los paso abajo.` : '✅ Las cuentas cuadran.',
   ].filter(Boolean).join('\n\n');
 }
 

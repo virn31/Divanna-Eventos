@@ -41,6 +41,14 @@ async function gerenciaDe(eventoFields) {
   return { admins, gerentes };
 }
 
+// Manteles corrugados o de lentejuela: el gerente de Divanna sabe que hay que
+// pedirlos a un proveedor externo (los Admin ya lo ven en el aviso del pedido).
+async function avisarProveedorExterno({ folio, nombre, detalle, servicios, productos }) {
+  const { gerentes } = await gerenciaDe({ Negocio: 'Divanna Eventos', Servicios_Solicitados: servicios, Productos: JSON.stringify(productos || []) });
+  if (!gerentes.length) return 0;
+  return enviarTelegramEquipo({ texto: `🧺 Pedido ${folio}${nombre ? ' (' + nombre + ')' : ''}: hay que pedir a proveedor externo ${detalle}. DiMa le dijo al cliente que se revisa la disponibilidad.`, soloColaboradores: gerentes });
+}
+
 // Aviso inmediato de un cambio pedido por el cliente. Devuelve cuántos avisos se entregaron.
 async function avisarCambioPedido({ folio, nombre, servicios, montoEstimado, indicaciones, urgente, autorizado, eventoFields }) {
   const { admins, gerentes } = await gerenciaDe(eventoFields);
@@ -149,4 +157,4 @@ async function descartarCambio(eventoId, f, colaborador) {
   return {};
 }
 
-module.exports = { avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento, avisarEquipoCambio };
+module.exports = { avisarProveedorExterno, avisarCambioPedido, confirmarCambio, descartarCambio, equipoDelEvento, avisarEquipoCambio };

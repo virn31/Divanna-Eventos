@@ -20,7 +20,7 @@
 const crypto = require('crypto');
 const { Anthropic } = require('@anthropic-ai/sdk');
 const { HORAS_RESPUESTA, HORAS_ANTICIPACION_CAMBIO, validarPedido, crearPedido, verificarPedido, leerPedido, registrarCambioCliente, cambioUrgente, mensajeDianaPendiente, marcarMensajeEntregado } = require('./_pedidos');
-const { avisarCambioPedido } = require('./_cambios');
+const { avisarCambioPedido, avisarProveedorExterno } = require('./_cambios');
 const { bloqueosProximos, llenosProximos } = require('./_calendario');
 
 // Fechas en texto para el cliente ("sábado 12 de diciembre").
@@ -51,6 +51,7 @@ const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRA
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
+const { correccionesParaPrompt, correccionesActivas, textoCorrecciones, guardarCorreccion, desactivarCorreccion, motivoRechazo } = require('./_correcciones');
 
 const MODELO = 'claude-sonnet-5-5';
 const MAX_MENSAJES_CLIENTE = 20;
@@ -155,17 +156,21 @@ const TOOLS = [
         },
         monto_estimado: { type: ['number', 'null'], description: 'Total aproximado en pesos MXN calculado con el catálogo (sin costo de traslado), o null si no se pudo calcular.' },
         fuera_de_ciudad: { type: 'boolean', description: 'true si el evento NO es dentro de la ciudad de Culiacán (sindicaturas, Navolato y sus pueblos, playas, otros municipios) o si no estás segura.' },
+        colores_pendientes: { type: ['string', 'null'], description: 'Colores que el cliente aún no define (mantel, copa o plato base), ej. "color de copa y plato base". null si no falta ninguno.' },
+        colores_definidos: { type: ['string', 'null'], description: 'En un pedido existente: los colores que el cliente ya confirmó, ej. "mantel Rosa Viejo, copa dorada". null si no definió ninguno.' },
+        proveedor_externo: { type: ['string', 'null'], description: 'Manteles corrugados o de lentejuela: tipo, color y cantidad, ej. "10 manteles lentejuela rosa". null si no lleva.' },
         indicaciones: { type: ['string', 'null'], description: 'Indicaciones del cliente para el equipo que monta: horario de montaje o del evento, acceso, referencias para llegar, contacto en el lugar, etc. null si no dio ninguna.' },
         responsable_recoleccion: { type: ['string', 'null'], description: 'Nombre y teléfono de quien va a estar en el lugar para entregar el mobiliario cuando el equipo pase a recoger (puede ser el mismo cliente). null si el pedido no lleva mobiliario o no lo dio.' },
         preferencia_contacto: { type: 'string', enum: ['esperar_en_chat', 'mensaje', 'llamada', 'no_preguntado'], description: 'Cómo quiere el cliente recibir la respuesta de la cotización: esperar aquí en el chat, por mensaje o por llamada. "no_preguntado" si no aplica.' },
       },
-      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'responsable_recoleccion', 'preferencia_contacto'],
+      required: ['nombre', 'telefono', 'email', 'negocio', 'tipo_evento', 'fecha', 'hora_inicio', 'horas_servicio', 'invitados', 'ubicacion', 'servicios', 'productos', 'monto_estimado', 'fuera_de_ciudad', 'indicaciones', 'colores_pendientes', 'colores_definidos', 'proveedor_externo', 'responsable_recoleccion', 'preferencia_contacto'],
       additionalProperties: false,
     },
   },
 ];
 
-function systemPrompt(drive = { textos: '', fotos: [], hayPromociones: false }) {
+// correcciones: reglas activas de la gerencia ("Entrenar a DiMa"), al final y con prioridad.
+function systemPrompt(drive = { textos: '', fotos: [], hayPromociones: false }, correcciones = []) {
   const hoy = new Date();
   const hoyISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(hoy);
   const hoyTexto = hoy.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mazatlan' });
@@ -211,6 +216,8 @@ ${drive.hayPromociones
 
 INDICACIONES PARA EL EQUIPO: si el cliente menciona horario de montaje, acceso al lugar, referencias para llegar o a quién buscar, guárdalo en "indicaciones" al registrar. Lo ve la brigada que monta.
 
+COLORES Y PROVEEDOR: al registrar, si el cliente no definió algún color de mantel, copa o plato base, anota qué falta en "colores_pendientes" (puedes cerrar el pedido igual). Si en un pedido existente ya los define, ponlos en "colores_definidos". Si pide manteles corrugados o de lentejuela, anótalos en "proveedor_externo" y no confirmes su disponibilidad.
+
 FLUJO DE LA COTIZACIÓN:
 1. Platica para conocer el evento: negocio (o ambos), tipo de evento, fecha, a qué hora empieza, invitados, ubicación y qué necesita. La hora la necesita el equipo para organizar entregas y personal; pregúntala de forma natural junto con la fecha ("¿Para qué día y a qué hora empieza?"). Si todavía no la sabe, no insistas. Con esos datos se llena la comanda y el recibo del cliente: procura tener también su nombre completo, la dirección exacta del evento (calle, número y colonia o salón) y, en cada producto, el modelo y color que eligió (va en la nota del producto). Si lleva mesas o paquete de mesas, pregunta el TIPO de mantel (básico, lentejuela o corrugado) y el COLOR, y anótalos en la nota del producto que trae las mesas (ej. "mantel básico beige"); la cantidad de manteles sale de las mesas, no la pidas aparte. El básico ya va incluido; si lo quiere corrugado o de lentejuela, cobra solo la diferencia por mantel (+$60 o +$140) y regístralo con dv_cambio_corrugado o dv_cambio_lentejuela. Pídelo con naturalidad, sin interrogatorio.
 2. Arma un estimado con el catálogo de abajo y preséntalo con un repaso breve de lo que lleva. Cierra todo estimado con: "Este es un costo aproximado y se ajustaría cuando se revise detalladamente." Después, en su momento, la POLÍTICA DE PAGO del catálogo (anticipo, liquidación ${HORAS_LIQUIDACION} h antes y, si lleva mobiliario, el depósito en garantía).
@@ -225,7 +232,7 @@ FLUJO DE LA COTIZACIÓN:
 - CAMBIOS AL PEDIDO: se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación al evento. Si el cliente pregunta o quiere cambiar algo, díselo con amabilidad. Con menos de ${HORAS_ANTICIPACION_CAMBIO} horas no se puede garantizar: si aun así lo quiere, regístralo y la gerencia lo revisa como urgente.
 - Nunca inventes precios fuera del catálogo; si no lo sabes, dilo y explica que la gerencia lo confirma al revisar el pedido.
 
-${CATALOGO}${informacionDrive(drive)}`;
+${CATALOGO}${informacionDrive(drive)}${correcciones.length ? '\n\n' + textoCorrecciones(correcciones) : ''}`;
 }
 
 // Lo que Diana tiene en la carpeta de Drive (api/_drive.js). Va al final del
@@ -347,6 +354,9 @@ async function registrarPedido(input, historial, folioPrevio) {
     // brigada lo ve en la app y en /hoy de Telegram.
     indicaciones: [input.indicaciones, input.responsable_recoleccion ? `Entrega el mobiliario en la recolección: ${input.responsable_recoleccion}` : '']
       .filter(Boolean).join('\n') || null,
+    coloresPendientes: input.colores_pendientes,
+    coloresDefinidos: input.colores_definidos,
+    proveedorExterno: input.proveedor_externo,
     preferenciaContacto: input.preferencia_contacto,
     horaInicio: input.hora_inicio,
     horasServicio: input.horas_servicio,
@@ -400,6 +410,10 @@ async function registrarPedido(input, historial, folioPrevio) {
       cambio = await registrarCambioCliente(folioPrevio, {
         servicios: datos.servicios,
         indicaciones: datos.indicaciones,
+        coloresPendientes: datos.coloresPendientes,
+        coloresDefinidos: datos.coloresDefinidos,
+        proveedorExterno: datos.proveedorExterno,
+        cliente: `${datos.nombre} (${datos.telefonoDigitos})`,
         montoEstimado: datos.montoEstimado,
         transcripcion: transcripcion(historial),
         preferenciaContacto: datos.preferenciaContacto,
@@ -422,7 +436,7 @@ async function registrarPedido(input, historial, folioPrevio) {
       nombre: datos.nombre,
       servicios: datos.servicios,
       montoEstimado: cambio.montoEstimado,
-      indicaciones: datos.indicaciones,
+      indicaciones: [datos.indicaciones, datos.coloresDefinidos ? `Colores definidos: ${datos.coloresDefinidos}` : '', datos.coloresPendientes ? `Colores por definir: ${datos.coloresPendientes}` : '', datos.proveedorExterno ? `Pedir a proveedor externo: ${datos.proveedorExterno}` : ''].filter(Boolean).join('\n') || null,
       urgente: cambio.urgente,
       autorizado: cambio.autorizado,
       eventoFields: cambio.campos,
@@ -446,6 +460,11 @@ async function registrarPedido(input, historial, folioPrevio) {
     origen: 'chat',
     notasExtra: `\nConversación con DiMa:\n${transcripcion(historial)}`,
   });
+  // Corrugado o lentejuela: el gerente de Divanna se entera de que hay que pedirlos.
+  if (datos.proveedorExterno) {
+    await avisarProveedorExterno({ folio, nombre: datos.nombre, detalle: datos.proveedorExterno, servicios: datos.servicios, productos: datos.productos })
+      .catch(err => console.error('No se pudo avisar lo del proveedor externo:', err.message));
+  }
   const aviso = datos.fueraDeCiudad ? ' Como es fuera de la ciudad, el equipo de logística te confirma la cobertura y el costo de traslado.' : '';
   // Cliente decorador (Tipo_Cliente en Airtable): DiMa le confirma su 10%.
   const descuento = !decorador ? ''
@@ -496,10 +515,110 @@ async function paraLaPagina(req, res) {
   res.status(405).json({ error: 'Method not allowed' });
 }
 
+// ---------- Entrenar a DiMa (solo Admin, desde el dashboard) ----------
+// Diana o Víctor platican con DiMa: le escriben como cliente para probarla y
+// la corrigen; cada corrección se guarda (CORRECCIONES_DIMA) y aplica de
+// inmediato en el chat de la página. Aquí DiMa no registra pedidos.
+
+const TOOL_CORRECCION = {
+  name: 'guardar_correccion',
+  description: 'Guarda una corrección o regla de la gerencia para aplicarla desde ahora con todos los clientes. Úsala cuando la gerencia te corrija o te dé una instrucción nueva. Una regla por llamada.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    properties: {
+      instruccion: { type: 'string', description: 'La regla redactada clara, en imperativo y completa por sí sola (sin "eso", "lo anterior" ni "como te dije"), con precios y datos exactos. Ej.: "El Paquete 3 de El Vaso Maíz cuesta $2,800, no $2,700."' },
+    },
+    required: ['instruccion'],
+    additionalProperties: false,
+  },
+};
+
+const PROMPT_GERENCIA = `MODO ENTRENAMIENTO: en esta conversación NO hablas con un cliente. Hablas con la gerencia de Divanna Eventos y El Vaso Maíz (Diana o Víctor), que te está probando y corrigiendo desde su panel.
+- Si te escriben como si fueran un cliente, o te piden "contesta como a un cliente", responde exactamente como lo harías en el chat de la página (mismo tono, mismas reglas). Aquí no se registran pedidos: si llegaras a ese paso, di qué datos registrarías.
+- Si te corrigen (un precio, una regla, un dato, algo que dijiste mal, el tono, algo que no debes ofrecer), primero confirma en una frase lo que entendiste y llama guardar_correccion con la regla redactada clara y completa por sí sola. Si es más de una corrección, una llamada por cada una.
+- Si la corrección no queda clara, pregunta antes de guardar.
+- Si te preguntan qué reglas o correcciones tienes, resúmelas.
+- Con la gerencia sí puedes mencionar a Diana o a Víctor por su nombre.`;
+
+async function chatGerencia(req, res) {
+  const colaborador = await requerirSesion(req, res, [ROLES.ADMIN]);
+  if (!colaborador) return;
+  const { accion, id, historial } = req.body || {};
+
+  if (accion === 'correcciones') {
+    res.status(200).json({ correcciones: await correccionesActivas({ sinCache: true }) });
+    return;
+  }
+  if (accion === 'desactivar') {
+    const ok = await desactivarCorreccion(id);
+    res.status(ok ? 200 : 400).json(ok ? { success: true } : { error: 'Corrección no válida' });
+    return;
+  }
+
+  const mensajes = construirMensajes(historial);
+  if (!mensajes) { res.status(400).json({ error: 'La conversación es demasiado larga. Toca "Nueva conversación".' }); return; }
+
+  const correcciones = await correccionesParaPrompt();
+  const sistema = `${PROMPT_GERENCIA}\n\n---\nESTAS SON TUS INSTRUCCIONES CON LOS CLIENTES:\n\n${systemPrompt(await contenidoDima(), correcciones)}`;
+  const herramientas = [...TOOLS.filter(t => t.name !== 'registrar_pedido'), TOOL_CORRECCION];
+  const conversacion = [...mensajes];
+  const partes = [];
+  const guardadas = [];
+  let fotos = [];
+
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    const respuesta = await client.beta.messages.create({
+      model: MODELO,
+      max_tokens: 4000,
+      output_config: { effort: 'low' },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: sistema,
+      tools: herramientas,
+      tool_choice: { type: 'auto' },
+      messages: conversacion,
+    });
+    const resultados = [];
+    for (const bloque of respuesta.content) {
+      if (bloque.type === 'text' && bloque.text.trim()) {
+        partes.push(bloque.text.trim());
+      } else if (bloque.type === 'tool_use' && bloque.name === 'guardar_correccion') {
+        const rechazo = motivoRechazo(bloque.input.instruccion);
+        const g = rechazo ? null : await guardarCorreccion(bloque.input.instruccion, colaborador.nombre);
+        if (g) guardadas.push(g);
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: g ? 'Guardada. Ya aplica con los clientes.' : `No se guardó: ${rechazo || 'la regla quedó vacía.'}` });
+      } else if (bloque.type === 'tool_use' && bloque.name === 'mostrar_fotos') {
+        fotos = fotos.concat(urlsDeFotos(bloque.input.ids));
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: 'Fotos mostradas.' });
+      } else if (bloque.type === 'tool_use' && bloque.name === 'estimar_traslado') {
+        const t = await estimarTraslado(bloque.input.destino);
+        resultados.push({ type: 'tool_result', tool_use_id: bloque.id, content: t.ok ? `${t.lugar}: ${t.dentroDeCiudad ? 'dentro de la ciudad' : t.kmDesdeSalida + ' km desde la salida de Culiacán, aproximado $' + t.costo}` : `Sin resultado: ${t.motivo}` });
+      }
+    }
+    // Solo se da otra vuelta si DiMa pidió el traslado (necesita el dato para contestar).
+    if (respuesta.stop_reason !== 'tool_use' || !respuesta.content.some(b => b.type === 'tool_use' && b.name === 'estimar_traslado')) break;
+    conversacion.push({ role: 'assistant', content: respuesta.content });
+    conversacion.push({ role: 'user', content: resultados });
+  }
+
+  res.status(200).json({ texto: partes.join('\n\n') || (guardadas.length ? 'Listo.' : 'No entendí, ¿me lo explicas de otra forma?'), fotos, guardadas });
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET') return paraLaPagina(req, res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if ((req.body || {}).modo === 'equipo') return chatEquipo(req, res);
+
+  if ((req.body || {}).modo === 'gerencia') {
+    try {
+      await chatGerencia(req, res);
+    } catch (err) {
+      console.error('Error en Entrenar a DiMa:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'DiMa no pudo responder. Intenta de nuevo.' });
+    }
+    return;
+  }
 
   const { historial, folio, folioFirma, pedidoExistente, accion } = req.body || {};
   let folioPrevio = folioFirmado(folio, folioFirma);
@@ -638,7 +757,7 @@ module.exports = async (req, res) => {
   if (avisos.length) mensajes.push({ role: 'system', content: avisos.join('\n\n') });
 
   try {
-    const sistema = systemPrompt(drive);
+    const sistema = systemPrompt(drive, await correccionesParaPrompt());
     const conversacion = [...mensajes];
     const partes = [];
     let fotos = [];
