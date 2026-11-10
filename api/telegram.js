@@ -33,6 +33,7 @@ const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } =
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
 const { botonCierre } = require('./_cierre');
+const Tickets = require('./_tickets');
 const { comandoGasto, botonGasto } = require('./_finanzas');
 const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
@@ -110,6 +111,9 @@ function ayuda(colaborador) {
     '/alertas — emergencias y alertas de seguridad de hoy',
     '/sos — emergencia: alerta con tu ubicación a todo el equipo',
   ];
+  comandos.push(Tickets.esFotoDeGasto({ caption: '' }, colaborador)
+    ? '🧾 Gastos: mándame la foto del ticket (o /gasto 350 gasolina) y lo anoto en tu reporte'
+    : '🧾 Gastos: foto del ticket con la palabra "gasto" en el pie (sin ella la leo como comanda)');
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot', '/entrenamiento texto — enseñarle una regla a DiMa', '/reglas — reglas activas de DiMa', '/desactivar N — quitar una regla');
@@ -310,6 +314,14 @@ async function atenderBoton(cb) {
     return;
   }
 
+  if (tipo === 'gt') {
+    // Gasto anotado por foto o /gasto: 👛 lo pagué yo (gt:p), borrar (gt:x), enviar reporte (gt:e:<fecha>).
+    const r = await Tickets.botonTicket(colaborador, accion, id, sel);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`, r.botones);
+    return;
+  }
+
   if (tipo === 'ce') {
     // Cierre de eventos pasados: Diana confirma cuáles ya terminaron (ce:s:<evento>, ce:t:<fecha>, ce:n).
     const r = await botonCierre(colaborador, accion, id, cb.message);
@@ -465,7 +477,8 @@ async function responder(mensaje) {
       await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
       return reportarDanos(colaborador, texto.slice(primera.length).trim());
     case '/gasto':
-      return comandoGasto(colaborador, texto.slice(primera.length).trim());
+      // Diana y Víctor: con pregunta de tipo; el resto del equipo: se guarda directo en su reporte del día.
+      return colaborador.rol === ROLES.ADMIN ? comandoGasto(colaborador, texto.slice(primera.length).trim()) : Tickets.gastoPorTexto(colaborador, texto.slice(primera.length).trim());
     case '/comanda':
       return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);
@@ -545,7 +558,10 @@ module.exports = async (req, res) => {
       let respuesta;
       if (Comanda.esFotoComanda(mensaje)) {
         const colaborador = await colaboradorPorChat(mensaje.chat.id);
-        respuesta = colaborador ? await Comanda.atenderFoto(mensaje, colaborador) : 'Primero vincula tu Telegram con /entrar usuario PIN.';
+        // Ticket de gasto (cualquiera del equipo) o comanda (Diana, Víctor y gerentes; ver api/_tickets.js).
+        respuesta = !colaborador ? 'Primero vincula tu Telegram con /entrar usuario PIN.'
+          : Tickets.esFotoDeGasto(mensaje, colaborador) ? await Tickets.atenderFotoGasto(mensaje, colaborador)
+            : await Comanda.atenderFoto(mensaje, colaborador);
       } else {
         respuesta = await responder(mensaje);
       }

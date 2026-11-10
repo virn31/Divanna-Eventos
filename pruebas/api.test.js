@@ -1927,8 +1927,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   reset();
   respuestas = [ASIST];
-  res = await fin(tokenAsist, { accion: 'gasto', fecha: hoyCln });
-  ok(res.code === 403 && llamadas.length === 1, 'reporte: el asistente no hace el reporte');
+  res = await fin(tokenAsist, { accion: 'cobro', fecha: hoyCln, monto: '500', forma: 'Efectivo' });
+  ok(res.code === 403 && llamadas.length === 1, 'reporte: el asistente anota gastos pero no cobros (Víctor 2026-11-10)');
 
   reset();
   respuestas = [ADMIN, { ...REP_FIN, fields: { ...REP_FIN.fields, Estado: 'Aprobado' } }];
@@ -3106,7 +3106,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];
     res = resMock();
     await telegramApi({ method: 'POST', headers: tgHeaders, body: { message: { message_id: 23, chat: { id: 222, type: 'private' }, photo: [{ file_id: 'x' }] } } }, res);
-    ok(llamadasClaude.length === 0 && telegram.some(t => t.metodo === 'sendMessage' && t.body.text.includes('solo para Diana')), 'comanda: un líder no puede mandar comandas a leer');
+    ok(llamadasClaude.length === 1 && llamadasClaude[0].tools[0].name === 'datos_ticket' && !llamadas.some(l => l.url.includes('tblNYrh2wjsYgHfmf'))
+      && telegram.some(t => t.metodo === 'sendMessage' && /pie de foto/.test(t.body.text)), 'comanda: la foto de un líder se lee como ticket de gasto, no como comanda');
 
     // Sin saldo en Anthropic: a quien manda la foto se le dice qué pasa (no "intenta más tarde") y se avisa a los Admin una sola vez.
     const sinSaldo = () => Object.assign(new APIError('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}'), { status: 400 });
@@ -3791,5 +3792,110 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     r = await Ci.botonCierre({ id: ADMIN.id, rol: 'Admin' }, 'n', undefined, mensaje);
     ok(llamadas.length === 0 && r.botones.length === 0, 'cierre: "Luego" no cambia nada');
     ok(/preguntarCierres\(\)/.test(fs.readFileSync(path.join(repo, 'api/produccion-diaria.js'), 'utf8')) && /tipo === 'ce'/.test(fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8')), 'cierre: va en el cron de las 8:00 y el bot atiende los botones ce:');
+  }
+
+  // ---------- Gastos fáciles para todos: foto del ticket por Telegram y en la app (Víctor 2026-11-10) ----------
+  {
+    const T = require('../api/_tickets');
+    const Fz = require('../api/_finanzas');
+    const hoyT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const a = T.leerTexto('350 gasolina'), b = T.leerTexto('gasolina $1,250.50'), c = T.leerTexto('gasto 120 hielo');
+    ok(a.monto === 350 && a.concepto === 'gasolina' && b.monto === 1250.5 && b.concepto === 'gasolina' && c.monto === 120 && c.concepto === 'hielo' && T.leerTexto('solo texto').monto === null,
+      'gastos: se entiende "350 gasolina", "gasolina $1,250.50" y "gasto 120 hielo"');
+    ok(T.categoriaDeTexto('Gasolina Pemex') === 'Combustible' && T.categoriaDeTexto('hielo') === 'Inventario' && T.categoriaDeTexto('comida de la brigada') === 'Brigada' && T.categoriaDeTexto('xyz') === 'Otros',
+      'gastos: la categoría se adivina por el concepto');
+    const lider = { id: LIDER.id, nombre: 'Juan', rol: 'Lider de brigada', brigadaId: 'recBRIGADA0000001' };
+    const eden = { id: 'recCOLABEDEN00001', nombre: 'Eden', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: null };
+    const admin = { id: ADMIN.id, nombre: 'Diana', rol: 'Admin' };
+    ok(T.esFotoDeGasto({ caption: '' }, lider) && !T.esFotoDeGasto({ caption: '' }, admin) && !T.esFotoDeGasto({}, eden)
+      && T.esFotoDeGasto({ caption: 'gasto gasolina' }, admin) && T.esFotoDeGasto({ caption: 'Ticket' }, eden),
+      'gastos: la foto de la brigada es ticket; la de Diana y gerentes es comanda salvo que el pie diga "gasto" o "ticket"');
+    ok(Fz.puedeReportar({ rol: 'Asistente' }) && Fz.soloGastos({ rol: 'Asistente' }) && Fz.soloGastos({ rol: 'Staff' }) && !Fz.soloGastos({ rol: 'Lider de brigada' }),
+      'gastos: el asistente ya anota gastos (solo gastos); el staff también por Telegram');
+
+    // Asistente sin eventos ese día: /gasto se guarda en su reporte, dinero del negocio.
+    const asist = { id: ASIST.id, nombre: 'Luis', rol: 'Asistente', brigadaId: 'recBRIGADA0000001' };
+    const SIN_EVENTOS = [
+      { id: 'recBRIGADA0000001', fields: { Nombre_Brigada: 'B1', EVENTOS: [] } },
+      { records: [] },
+      { records: [{ id: 'recREPORTEPRUEB01', fields: { Colaborador: [ASIST.id], Estado: 'Abierto', Fecha: hoyT } }] },
+      { records: [{ id: 'recGASTOPRUEBA001' }] },
+    ];
+    reset();
+    respuestas = SIN_EVENTOS.slice();
+    let r = await T.gastoPorTexto(asist, '350 gasolina');
+    const postGasto = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    const postRep = llamadas.find(l => l.method === 'POST' && l.url.includes('tbllUK2N9ZDv2Bpdt'));
+    const g = postGasto ? postGasto.body.records[0].fields : {};
+    ok(g.Monto === 350 && g.Concepto === 'gasolina' && g.Categoria === 'Combustible' && g.Pagado_Con === 'Dinero del negocio' && g.Tipo === 'General' && (g.Reporte || [])[0] === 'recREPORTEPRUEB01'
+      && postRep && postRep.body.records[0].fields.Negocio === 'Divanna Eventos',
+      'gastos: un asistente sin eventos anota /gasto 350 gasolina en su reporte del día');
+    ok(typeof r === 'object' && r.texto.includes('$350') && r.botones.flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1',
+      'gastos: contesta con 👛 Lo pagué yo y 🗑️ Borrar (se reenvía solo porque no tuvo eventos)');
+    reset();
+    ok(typeof (await T.gastoPorTexto(asist, 'gasolina')) === 'string' && llamadas.length === 0, 'gastos: sin monto pide el formato y no guarda nada');
+
+    // Foto con el monto en el pie: no se llama a Claude.
+    reset();
+    respuestas = SIN_EVENTOS.slice();
+    respuestas.splice(4, 0, {}); // subida de la foto
+    r = await T.atenderFotoGasto({ chat: { id: 222 }, photo: [{ file_id: 'chica', file_size: 1000 }, { file_id: 'grande', file_size: 9 * 1024 * 1024 }], caption: '480 hielo' }, lider);
+    const getFile = telegram.find(t => t.metodo === 'getFile');
+    ok(llamadasClaude.length === 0 && getFile && getFile.body.file_id === 'chica' && llamadas.some(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T') && l.body.records[0].fields.Monto === 480)
+      && llamadas.some(l => l.url.includes('uploadAttachment')),
+      'gastos: foto con "480 hielo" en el pie se guarda sin llamar a Claude, con la foto que cabe (no la de 9 MB)');
+
+    // Foto sin pie: DiMa lee el ticket.
+    reset();
+    respuestas = SIN_EVENTOS.slice();
+    respuestas.splice(4, 0, {});
+    respuestasClaude = [{ content: [{ type: 'tool_use', name: 'datos_ticket', input: { es_ticket: true, total: 612.4, concepto: 'Gasolina Pemex', categoria: 'Combustible' } }] }];
+    r = await T.atenderFotoGasto({ chat: { id: 222 }, photo: [{ file_id: 'x' }] }, lider);
+    const pg = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(llamadasClaude.length === 1 && llamadasClaude[0].tools[0].strict === true && pg && pg.body.records[0].fields.Monto === 612.4 && pg.body.records[0].fields.Concepto === 'Gasolina Pemex',
+      'gastos: sin pie DiMa lee total y concepto del ticket');
+    reset();
+    respuestasClaude = [{ content: [{ type: 'tool_use', name: 'datos_ticket', input: { es_ticket: false, total: null, concepto: null, categoria: 'Otros' } }] }];
+    r = await T.atenderFotoGasto({ chat: { id: 222 }, photo: [{ file_id: 'x' }] }, lider);
+    ok(r.texto.includes('no parece un ticket') && r.texto.includes('350 gasolina') && !llamadas.some(l => l.method === 'POST'), 'gastos: si no es ticket no guarda y explica cómo mandarlo con el monto');
+
+    // Diana: su foto con "gasto" va directo, sin reporte del día.
+    reset();
+    respuestas = [{ records: [{ id: 'recGASTOADMIN0001' }] }, {}];
+    r = await T.atenderFotoGasto({ chat: { id: 111 }, photo: [{ file_id: 'x' }], caption: 'gasto 200 globos' }, admin);
+    const ga = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(ga && !ga.body.records[0].fields.Reporte && ga.body.records[0].fields.Monto === 200 && ga.body.records[0].fields.Concepto === 'globos' && r.botones.flat().map(x => x.dato).join() === 'gt:x:recGASTOADMIN0001:0',
+      'gastos: el gasto de Diana por foto va directo (sin reporte) con botón Borrar');
+
+    // 👛 Lo pagué yo: cambia a dinero propio y reabre el reporte enviado.
+    reset();
+    respuestas = [
+      { id: 'recGASTOPRUEBA001', fields: { Reportado_Por: [ASIST.id], Reporte: ['recREPORTEPRUEB01'], Fecha: hoyT, Monto: 350 } },
+      { id: 'recREPORTEPRUEB01', fields: { Colaborador: [ASIST.id], Estado: 'Enviado', Fecha: hoyT } },
+      {}, {},
+    ];
+    r = await T.botonTicket(asist, 'p', 'recGASTOPRUEBA001', '1');
+    const patches = llamadas.filter(l => l.method === 'PATCH');
+    ok(patches[0] && patches[0].body.records[0].fields.Pagado_Con === 'Dinero propio' && patches[1] && patches[1].body.records[0].fields.Estado === 'Abierto' && r.textoFinal.includes('reembolsan'),
+      'gastos: 👛 Lo pagué yo lo pasa a dinero propio y reabre el reporte para reenviarlo');
+    reset();
+    respuestas = [{ id: 'recGASTOPRUEBA001', fields: { Reportado_Por: ['recOTRAPERSONA001'], Reporte: ['recREPORTEPRUEB01'] } }];
+    r = await T.botonTicket(asist, 'x', 'recGASTOPRUEBA001', '1');
+    ok(r.alerta && !llamadas.some(l => l.method === 'DELETE' || l.method === 'PATCH'), 'gastos: nadie borra el gasto de otra persona');
+
+    // App: el asistente abre 💰 y DiMa lee el ticket.
+    reset();
+    respuestas = [ASIST];
+    respuestasClaude = [{ content: [{ type: 'tool_use', name: 'datos_ticket', input: { es_ticket: true, total: 95, concepto: 'Hielo', categoria: 'Inventario' } }] }];
+    res = await fin(tokenAsist, { accion: 'leer_ticket', foto: { tipo: 'image/jpeg', base64: 'A'.repeat(400), nombre: 'ticket.jpg' } });
+    ok(res.code === 200 && res.body.monto === 95 && res.body.concepto === 'Hielo' && res.body.categoria === 'Inventario' && !llamadas.some(l => l.method === 'POST'),
+      'gastos (app): leer_ticket llena monto, concepto y categoría sin guardar nada');
+    const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
+      'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
+    ok(/dima-brigadas-v39/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v39)');
+    const tg = fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8');
+    ok(/Tickets\.esFotoDeGasto\(mensaje, colaborador\) \? await Tickets\.atenderFotoGasto/.test(tg) && /tipo === 'gt'/.test(tg) && /Tickets\.gastoPorTexto/.test(tg),
+      'gastos (Telegram): fotos y /gasto pasan por el módulo de tickets');
   }
 })();

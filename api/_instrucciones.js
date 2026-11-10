@@ -108,9 +108,10 @@ const TEMAS = {
     boton: '💰 Reporte del día',
     texto: () =>
       '💰 Reporte del día (al terminar tu día)\n\n' +
+      '🧾 Gastos, lo más fácil (aunque ese día no tengas eventos): mándale aquí al bot la FOTO del ticket. Yo leo el total y lo anoto en tu reporte con dinero del negocio; si lo pagaste tú, toca 👛 "Lo pagué yo" y te lo reembolsan. También: /gasto 350 gasolina. (Diana y los gerentes: pongan "gasto" en el pie de la foto; sin eso la leo como comanda.)\n\n' +
       'En la app toca 💰 (arriba, junto a salir):\n' +
-      '1. Gastos: qué compraste, cuánto, la categoría y si fue con dinero del negocio o con tu dinero (ese te lo reembolsan). Toma foto del ticket.\n' +
-      '2. Cobros: de qué evento, cuánto y si fue efectivo, transferencia o depósito (foto del comprobante).\n' +
+      '1. Gastos: toma la foto del ticket y DiMa llena el monto y en qué se gastó; revisa, elige si fue con dinero del negocio o con tu dinero (ese te lo reembolsan) y toca Agregar.\n' +
+      '2. Cobros (líder, encargada y gerentes): de qué evento, cuánto y si fue efectivo, transferencia o depósito (foto del comprobante).\n' +
       '3. Cierre: el efectivo que le entregaste a Diana y los insumos que se usaron o sobraron.\n' +
       '4. Toca "📨 Enviar a Diana". Ella lo aprueba o te pide una aclaración (te llega aquí); si pide aclaración, corrígelo y vuelve a enviarlo.\n\n' +
       'Puedes hacer el de hoy o el de ayer. Ya aprobado no se puede cambiar.',

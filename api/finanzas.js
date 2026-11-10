@@ -12,8 +12,10 @@ const { ROLES, requerirSesion } = require('./_sesion');
 const F = require('./_finanzas');
 const Q = require('./_cuadre');
 const R = require('./_reembolsos');
+const T = require('./_tickets');
 
-const ROLES_PERMITIDOS = [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA];
+// El asistente también anota gastos (Víctor 2026-11-10); cobros y efectivo no.
+const ROLES_PERMITIDOS = [ROLES.ADMIN, ROLES.LIDER, ROLES.ENCARGADA, ROLES.ASISTENTE];
 // Las fotos de tickets llegan comprimidas desde la app (menos de 3 MB).
 const ACCIONES_REPORTE = { gasto: F.agregarGasto, cobro: F.agregarCobro, quitar: F.quitar, datos: F.guardarDatos, enviar: F.enviar };
 
@@ -54,6 +56,9 @@ module.exports = async (req, res) => {
     if (ACCIONES_REPORTE[body.accion]) {
       if (!F.puedeReportar(colaborador)) { res.status(403).json({ error: 'El reporte del día lo hacen el líder de brigada o la encargada.' }); return; }
       r = await ACCIONES_REPORTE[body.accion](colaborador, body);
+    } else if (body.accion === 'leer_ticket') {
+      // DiMa lee la foto del ticket y la app llena monto, concepto y categoría.
+      r = await T.leerParaApp(colaborador, body);
     } else if (body.accion === 'aprobar' || body.accion === 'aclaracion') {
       r = await F.revisar(colaborador, body);
     } else if (body.accion === 'aclarar') {

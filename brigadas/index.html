@@ -1244,7 +1244,7 @@
       staffError = !!data.staffError;
       $('dimaFab').hidden = !data.colaborador.gerente || !$('dimaPanel').hidden;
       // Reporte del día: lo hacen el líder de brigada y la encargada (la gerente es líder).
-      $('finBtn').hidden = !['Lider de brigada', 'Encargada de evento'].includes(data.colaborador.rol);
+      $('finBtn').hidden = !['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol);
       if(data.colaborador.rol === 'Admin'){
         const sel = $('vistaComo');
         $('brigadaNombre').textContent = 'Vista equipo';
@@ -1413,18 +1413,20 @@
           <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
           <div>${fotoLink(g.foto, ico('aviso', 'ico-aviso') + ' sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
         ${editable ? `
+          <label class="fin-ticket">📷 Foto del ticket <small>(DiMa lee el monto por ti)</small> <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
+          <div class="fin-msg" id="gLeyendo" hidden></div>
           <input id="gConcepto" maxlength="120" placeholder="¿En qué se gastó? (ej. Gasolina, hielo, comida)">
           <input id="gMonto" inputmode="decimal" placeholder="Monto (ej. 350)">
           <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
           ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
           ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
-          <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}"> ${esc(t)}</label>`).join(' ')}</div>
+          <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}" ${t === (d.eventos.length ? 'Evento' : 'General') ? 'checked' : ''}> ${esc(t)}</label>`).join(' ')}</div>
           ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
-          <label>📷 Foto del ticket <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
-          <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>` : ''}
+          <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>
+          <div class="fin-msg">También por Telegram: manda la foto del ticket al bot.</div>` : ''}
       </div>
 
-      <div class="fin-caja">
+      ${d.soloGastos ? '' : `<div class="fin-caja">
         <h4>💵 Cobros · ${pesos(cobros.reduce((t, c) => t + c.monto, 0))}</h4>
         ${cobros.length ? cobros.map(c => `
           <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.forma)}</small></div>
@@ -1435,12 +1437,12 @@
           <select id="cForma">${d.formas.map(f => `<option>${esc(f)}</option>`).join('')}</select>
           <label>📷 Foto del comprobante <input type="file" id="cFoto" accept="image/*" capture="environment"></label>
           <button class="fin-boton" id="cAgregar">+ Agregar cobro</button>` : ''}
-      </div>
+      </div>`}
 
       <div class="fin-caja">
         <h4>🧾 Cierre del día</h4>
-        <label style="display:block;">Efectivo que le entregaste a Diana
-          <input id="fEfectivo" inputmode="decimal" placeholder="0" value="${r && r.efectivoEntregado ? esc(r.efectivoEntregado) : ''}" ${editable ? '' : 'disabled'}></label>
+        ${d.soloGastos ? '' : `<label style="display:block;">Efectivo que le entregaste a Diana
+          <input id="fEfectivo" inputmode="decimal" placeholder="0" value="${r && r.efectivoEntregado ? esc(r.efectivoEntregado) : ''}" ${editable ? '' : 'disabled'}></label>`}
         <label style="display:block;">Insumos que se usaron o sobraron
           <textarea id="fInsumos" maxlength="3000" placeholder="Ej. sobraron 2 kg de fresa, se acabó el chamoy" ${editable ? '' : 'disabled'}>${esc(r ? r.insumos : '')}</textarea></label>
         <label style="display:block;">Notas
@@ -1477,6 +1479,7 @@
     const sel = $('finFechaSel');
     if(sel) sel.addEventListener('change', () => { finFecha = sel.value; cargarFinanzas(); });
     if($('gAgregar')) $('gAgregar').addEventListener('click', agregarGasto);
+    if($('gFoto')) $('gFoto').addEventListener('change', leerTicket);
     if($('cAgregar')) $('cAgregar').addEventListener('click', agregarCobro);
     if($('fGuardar')) $('fGuardar').addEventListener('click', () => guardarCierre(false));
     if($('fEnviar')) $('fEnviar').addEventListener('click', () => guardarCierre(true));
@@ -1492,13 +1495,35 @@
     }
   }
 
+  // Foto del ticket ya reducida (se reusa al guardar) y lectura de DiMa.
+  let fotoTicket = null;
+  async function leerTicket(){
+    const aviso = $('gLeyendo');
+    fotoTicket = null;
+    const archivo = $('gFoto').files[0];
+    if(!archivo) return;
+    aviso.hidden = false;
+    aviso.textContent = '🧾 Leyendo el ticket…';
+    try {
+      fotoTicket = await comprimirFoto(archivo);
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'leer_ticket', foto: fotoTicket }) });
+      if(!$('gMonto').value) $('gMonto').value = d.monto;
+      if(!$('gConcepto').value) $('gConcepto').value = d.concepto;
+      if(d.categoria) $('gCategoria').value = d.categoria;
+      aviso.textContent = '✅ Revisa el monto y toca "Agregar gasto".';
+    } catch(e){
+      if(e.message === 'sesion') return;
+      aviso.textContent = (e.message && e.message !== 'fail' ? e.message : 'No pude leer el ticket. Escríbelo a mano.');
+    }
+  }
+
   async function agregarGasto(){
     const boton = $('gAgregar');
     try {
       const tipoGasto = (document.querySelector('input[name="gTipo"]:checked') || {}).value;
       if(document.querySelector('input[name="gTipo"]') && !tipoGasto){ showToast('Elige el tipo del gasto: Evento, General o Extra.'); return; }
       boton.textContent = 'Guardando…';
-      const foto = await comprimirFoto($('gFoto').files[0]);
+      const foto = fotoTicket || await comprimirFoto($('gFoto').files[0]);
       const d = await postFin({
         accion: 'gasto',
         concepto: $('gConcepto').value,
@@ -1511,6 +1536,7 @@
         foto,
       }, boton);
       if(d.avisoFoto) showToast(d.avisoFoto);
+      fotoTicket = null;
       await cargarFinanzas();
     } catch(e){
       if(e.message === 'sesion') return;
@@ -1549,7 +1575,7 @@
     const msg = $('finMsg');
     msg.textContent = 'Guardando…';
     try {
-      await postFin({ accion: 'datos', efectivoEntregado: $('fEfectivo').value, insumos: $('fInsumos').value, notas: $('fNotas').value }, $('fGuardar'));
+      await postFin({ accion: 'datos', efectivoEntregado: $('fEfectivo') ? $('fEfectivo').value : '', insumos: $('fInsumos').value, notas: $('fNotas').value }, $('fGuardar'));
       if(enviarlo){
         await postFin({ accion: 'enviar' }, $('fEnviar'));
         showToast('📨 Reporte enviado a Diana');

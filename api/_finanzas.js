@@ -78,7 +78,10 @@ function monto(valor) {
   return Number.isFinite(n) && n > 0 && n <= MAX_MONTO ? n : null;
 }
 
-const puedeReportar = (c) => c.rol === ROLES.LIDER || c.rol === ROLES.ENCARGADA;
+// Gastos: cualquiera del equipo (Víctor 2026-11-10). El asistente solo anota
+// gastos (sin cobros ni efectivo: no ve el dinero de los eventos).
+const puedeReportar = (c) => c.rol === ROLES.LIDER || c.rol === ROLES.ENCARGADA || c.rol === ROLES.ASISTENTE;
+const soloGastos = (c) => c.rol === ROLES.ASISTENTE || c.rol === ROLES.STAFF;
 // Revisan reportes: Admin todo; la gerente de El Vaso Maíz y la de Divanna, lo
 // de su negocio. Casa Isabella no: los reportes del día no separan el salón.
 const negocioRevisa = (c) => c.gerente === GERENCIAS.VM ? NEGOCIOS.VM : c.gerente === GERENCIAS.DV ? NEGOCIOS.DV : null;
@@ -197,7 +200,7 @@ function negocioDe(colaborador, eventos) {
   const set = new Set(eventos.map(e => e.negocio));
   if (set.size > 1) return NEGOCIOS.AMBOS;
   if (set.size === 1) return [...set][0];
-  return colaborador.gerente === GERENCIAS.VM || colaborador.rol === ROLES.ENCARGADA ? NEGOCIOS.VM : NEGOCIOS.DV;
+  return colaborador.gerente === GERENCIAS.VM || colaborador.rol === ROLES.ENCARGADA || colaborador.rol === ROLES.STAFF ? NEGOCIOS.VM : NEGOCIOS.DV;
 }
 
 // La gerente ve de los reportes "Ambos" solo lo de El Vaso Maíz.
@@ -231,7 +234,8 @@ async function vista(colaborador, fecha) {
       todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${sumarDias(hoyCuliacan(), -DIAS_HISTORIAL)}")))`)}`),
     ]);
     const detalle = await detalleDe(mio ? [mio] : []);
-    salida.eventos = eventos;
+    salida.soloGastos = soloGastos(colaborador);
+    salida.eventos = salida.soloGastos ? eventos.map(e => ({ ...e, montoAdeudado: null, estatusPago: '' })) : eventos;
     salida.negocios = eventos.length ? [...new Set(eventos.map(e => e.negocio))] : [negocioDe(colaborador, [])];
     salida.miReporte = mio ? { ...mio, gastos: detalle.gastos.get(mio.id), cobros: detalle.cobros.get(mio.id) } : null;
     salida.misReportes = historial.map(aReporte).filter(r => r.colaboradorId === colaborador.id)
@@ -322,9 +326,13 @@ async function agregarGasto(colaborador, body) {
   if (!foto.ok) return { error: foto.error };
   const eventos = await eventosDelDia(colaborador, fecha);
   const negocios = eventos.length ? [...new Set(eventos.map(e => e.negocio))] : [negocioDe(colaborador, [])];
-  const negocio = negocios.length === 1 ? negocios[0] : body.negocio;
+  let negocio = negocios.length === 1 ? negocios[0] : body.negocio;
+  // Desde Telegram no se pregunta: el negocio de su puesto si tuvo eventos de ese negocio, si no el primero.
+  if (body.autoNegocio && !negocios.includes(negocio)) negocio = negocios.includes(negocioDe(colaborador, [])) ? negocioDe(colaborador, []) : negocios[0];
   if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio) || !negocios.includes(negocio)) return { error: 'Elige de qué negocio es el gasto.' };
-  const eventoId = ID.test(body.eventoId || '') && eventos.some(e => e.id === body.eventoId) ? body.eventoId : '';
+  let eventoId = ID.test(body.eventoId || '') && eventos.some(e => e.id === body.eventoId) ? body.eventoId : '';
+  // Desde Telegram, si ese día tuvo un solo evento, el gasto va a ese evento.
+  if (!eventoId && body.autoEvento && eventos.length === 1) eventoId = eventos[0].id;
   // La app pregunta el tipo; una app vieja (sin la pregunta) cae en Evento/General.
   const tipo = TIPOS_GASTO.includes(body.tipo) ? body.tipo : (eventoId ? 'Evento' : 'General');
   const { reporte, error } = await reporteEditable(colaborador, fecha, eventos);
@@ -342,13 +350,54 @@ async function agregarGasto(colaborador, body) {
   if (foto.foto) {
     try { await subirFoto(id, 'Attachments', foto.foto); } catch (err) {
       console.error(err.message);
-      return { ok: true, id, avisoFoto: 'El gasto quedó guardado, pero la foto del ticket no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
+      return { ok: true, id, conEventos: eventos.length > 0, avisoFoto: 'El gasto quedó guardado, pero la foto del ticket no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
     }
   }
-  return { ok: true, id };
+  return { ok: true, id, conEventos: eventos.length > 0, negocio, tipo };
+}
+
+// Gasto de Diana o Víctor: sin reporte del día (cuenta directo en el balance),
+// con dinero del negocio y, si viene, la foto del ticket.
+async function agregarGastoAdmin(colaborador, { concepto, monto: valor, categoria, tipo = 'General', foto = null }) {
+  if (colaborador.rol !== ROLES.ADMIN) return { error: 'Solo Diana y Víctor.' };
+  const campos = { Concepto: String(concepto || '').trim().slice(0, 120) || 'Gasto', Monto: monto(valor), Fecha: hoyCuliacan(), Tipo: TIPOS_GASTO.includes(tipo) ? tipo : 'General',
+    Categoria: CATEGORIAS.includes(categoria) ? categoria : 'Otros', Pagado_Con: 'Dinero del negocio', Reportado_Por: [colaborador.id] };
+  if (!campos.Monto) return { error: 'Escribe un monto válido.' };
+  const creado = await airtable(TABLES.GASTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
+  const id = creado.records[0].id;
+  if (foto) {
+    try { await subirFoto(id, 'Attachments', foto); } catch (err) {
+      console.error(err.message);
+      return { ok: true, id, campos, avisoFoto: 'El gasto quedó guardado, pero la foto no se pudo subir.' };
+    }
+  }
+  return { ok: true, id, campos };
+}
+
+// Botones de Telegram sobre un gasto ya anotado: "propio" (lo pagó con su
+// dinero, se le reembolsa) o "borrar". Solo quien lo anotó y si no está aprobado.
+async function cambiarGasto(colaborador, gastoId, accion) {
+  if (!ID.test(gastoId || '') || !['propio', 'borrar'].includes(accion)) return { error: 'Parámetros inválidos' };
+  const g = aGasto(await airtable(`${TABLES.GASTOS}/${gastoId}`));
+  if (g.reportadoPor !== colaborador.id) return { error: 'Ese gasto no es tuyo.' };
+  if (!g.reporteId) {
+    // Gasto directo de Diana o Víctor (sin reporte).
+    if (accion === 'borrar') await airtable(`${TABLES.GASTOS}/${gastoId}`, { method: 'DELETE' });
+    else await airtable(TABLES.GASTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: gastoId, fields: { Pagado_Con: 'Dinero propio' } }] }) });
+    return { ok: true, gasto: g };
+  }
+  if (accion === 'borrar') { const r = await quitar(colaborador, { tipo: 'gasto', id: gastoId }); return r.error ? r : { ok: true, gasto: g }; }
+  const rep = aReporte(await airtable(`${TABLES.REPORTES}/${g.reporteId}`));
+  if (rep.colaboradorId !== colaborador.id) return { error: 'Ese gasto no es tuyo.' };
+  if (rep.estado === ESTADOS.APROBADO) return { error: 'El reporte ya fue aprobado; ya no se puede cambiar.' };
+  await airtable(TABLES.GASTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: gastoId, fields: { Pagado_Con: 'Dinero propio' } }] }) });
+  // Si ya estaba enviado, se reabre (igual que al quitar) para que se vuelva a enviar con el total nuevo.
+  if (rep.estado === ESTADOS.ENVIADO) await airtable(TABLES.REPORTES, { method: 'PATCH', body: JSON.stringify({ records: [{ id: rep.id, fields: { Estado: ESTADOS.ABIERTO } }] }) });
+  return { ok: true, gasto: g };
 }
 
 async function agregarCobro(colaborador, body) {
+  if (soloGastos(colaborador)) return { error: 'Los cobros los anota el líder de brigada o la encargada.', codigo: 403 };
   const fecha = esFecha(body.fecha) ? body.fecha : hoyCuliacan();
   const valor = monto(body.monto);
   if (!valor) return { error: 'Escribe un monto válido.' };
@@ -710,6 +759,12 @@ module.exports = {
   NEGOCIOS,
   TABLES,
   puedeReportar,
+  soloGastos,
+  agregarGastoAdmin,
+  cambiarGasto,
+  CATEGORIAS,
+  monto,
+  validarFoto,
   vista,
   agregarGasto,
   agregarCobro,
