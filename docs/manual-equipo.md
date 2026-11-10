@@ -38,6 +38,10 @@ Al asignar un evento llega un Telegram con el botón **Confirmar**; también se 
    cambian, llega otro aviso para confirmar.
 2. **Checklist de carga:** marcar cada cosa al subirla; no se puede pasar a "Salió del almacén" sin marcar todo.
 3. **Estatus:** cambiarlo conforme se avanza (salida, llegada, montaje, recolección).
+4. **Líder de brigada en el 📅 calendario:** en los eventos de su brigada puede cambiar fecha u hora, cancelar,
+   mandar el recibo y bloquear días de Divanna (solo quita los que bloqueó él). **📋 Ver ficha completa** abre la
+   ficha del evento (cliente, dinero, artículos) con **✏️ Editar evento, cliente y pedido** (sin cambiar el monto).
+   Diana y Víctor reciben aviso de cada cambio. Los asistentes y encargadas solo ven el calendario.
 
 | Botón | Cuándo usarlo | Quién se entera |
 | --- | --- | --- |

@@ -460,6 +460,8 @@
   let opcionesAsignar = null;
   // Negocio que gerencia quien entró ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
   let miGerencia = null;
+  // Líder de brigada: edita los eventos de su brigada (Víctor 2026-11-10).
+  let miBrigadaId = null, soyLider = false;
   const esDeMiGerencia = (ev) => !!miGerencia && (ev.gerencias || []).includes(miGerencia);
 
   function bloqueAsignar(ev){
@@ -498,9 +500,10 @@
       </div>`;
   }
 
-  // ✏️ Editar evento, cliente y pedido (solo la gerente, en eventos de El Vaso Maíz; sin monto).
+  // ✏️ Editar evento, cliente y pedido (gerentes en su negocio y el líder en los eventos de su brigada; sin monto).
   function bloqueEditar(ev){
-    if(!opcionesAsignar || !esDeMiGerencia(ev)) return '';
+    const deMiBrigada = soyLider && miBrigadaId && ev.brigadaId === miBrigadaId;
+    if(!(opcionesAsignar && esDeMiGerencia(ev)) && !deMiBrigada) return '';
     const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
     return `
       <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
@@ -1239,6 +1242,8 @@
       ultimaFoto = foto;
       const rolTexto = data.colaborador.gerente ? (data.colaborador.puesto || 'Gerente') : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
       miGerencia = data.colaborador.gerencia || null;
+      soyLider = data.colaborador.rol === 'Lider de brigada';
+      miBrigadaId = data.brigada ? data.brigada.id : null;
       opcionesAsignar = data.opcionesAsignar || null;
       staffEventos = data.staffEventos || null;
       staffError = !!data.staffError;
@@ -1594,7 +1599,15 @@
   }
 
   $('finBtn').addEventListener('click', abrirFinanzas);
-  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc }));
+  // Desde el calendario: "📋 Ver ficha completa" abre la ficha del evento en la lista.
+  function fichaDesdeCalendario(id){
+    const card = mainContent.querySelector(`.event-card[data-id="${CSS.escape(id)}"]`);
+    if(!card){ showToast('Ese evento no está en tu lista (puede que ya se haya cerrado).'); return; }
+    const boton = card.querySelector('.ev-ficha');
+    if(boton && !fichasAbiertas.has(id)) abrirFicha(boton);
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc, abrirFicha: fichaDesdeCalendario }));
   $('finCerrar').addEventListener('click', () => { $('finPanel').hidden = true; });
 
   $('dimaFab').addEventListener('click', () => { $('dimaPanel').hidden = false; $('dimaFab').hidden = true; pintarDima(); $('dimaTexto').focus(); });

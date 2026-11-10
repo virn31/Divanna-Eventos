@@ -71,16 +71,32 @@ function fechaTexto(iso) {
 }
 
 // ¿Puede este colaborador modificar este evento / bloquear este negocio?
+// esEditor = captura eventos y ve el catálogo (Admin y gerentes).
 const esEditor = (c) => c.rol === ROLES.ADMIN || !!c.gerente;
-// Cada gerente, su negocio. Casa Isabella no bloquea días (es parte de Divanna).
+// Líder de brigada en el calendario (Víctor 2026-11-10): mueve, edita datos y
+// productos (sin monto), cancela y bloquea días, solo en los eventos asignados
+// a su brigada. Los asistentes y encargadas solo ven.
+const esLider = (c) => !!c && c.rol === ROLES.LIDER;
+const esDeSuBrigada = (c, f) => esLider(c) && !!c.brigadaId && ((f || {}).Brigada_Asignada || []).includes(c.brigadaId);
+// Modifica en el calendario: Admin, gerentes y líderes (cada uno lo suyo).
+const modificaCalendario = (c) => esEditor(c) || esLider(c);
+// Cada gerente, su negocio; cada líder, los eventos de su brigada. Casa Isabella no bloquea días (es parte de Divanna).
 function puedeEditarEvento(c, f) {
   if (c.rol === ROLES.ADMIN) return true;
-  return esDeSuGerencia(c, f);
+  if (ocultoParaGerente(c, f)) return false;
+  return esDeSuGerencia(c, f) || esDeSuBrigada(c, f);
 }
+// El líder (sin gerencia) bloquea días de Divanna: las brigadas de mobiliario son de Divanna.
 const negociosBloqueo = (c) => c.rol === ROLES.ADMIN ? [NEGOCIOS.AMBOS, NEGOCIOS.DV, NEGOCIOS.VM]
-  : c.gerente === GERENCIAS.VM ? [NEGOCIOS.VM] : c.gerente === GERENCIAS.DV ? [NEGOCIOS.DV] : [];
+  : c.gerente === GERENCIAS.VM ? [NEGOCIOS.VM] : c.gerente === GERENCIAS.DV ? [NEGOCIOS.DV] : esLider(c) && !c.gerente ? [NEGOCIOS.DV] : [];
 function puedeBloquear(c, negocio) {
   return negociosBloqueo(c).includes(negocio);
+}
+// Quitar un bloqueo: el líder solo los que puso él (Creado_Por); Admin y gerentes, los de su negocio.
+function puedeQuitarBloqueo(c, bf) {
+  const negocio = (bf || {}).Negocio || NEGOCIOS.AMBOS;
+  if (!puedeBloquear(c, negocio)) return false;
+  return c.rol === ROLES.ADMIN || !!c.gerente || String((bf || {}).Creado_Por || '') === String(c.nombre || '');
 }
 const textoGerencia = (c) => NOMBRE_GERENCIA[c.gerente] || 'tu negocio';
 
@@ -218,6 +234,8 @@ async function vistaMes(colaborador, mes) {
     llenos,
     llenosError,
     puedeEditar: esEditor(colaborador),
+    // Líder: modifica los eventos de su brigada y bloquea días (sin capturar eventos).
+    modifica: modificaCalendario(colaborador),
     puedeCobrar: colaborador.rol === ROLES.ADMIN,
     // Para capturar eventos de El Vaso Maíz (paquetes y piezas del catálogo).
     catalogoVM: esEditor(colaborador) ? CLAVES.filter(k => PRODUCTOS[k].negocio === NEGOCIOS.VM).map(k => ({ clave: k, nombre: PRODUCTOS[k].nombre })) : [],
@@ -244,11 +262,13 @@ async function vistaMes(colaborador, mes) {
         estatus: f.Estatus_Logistico || '',
         enGoogle: !!f.Google_Evento_ID,
         editable: puedeEditarEvento(colaborador, f),
+        // Evento de su brigada: en la app tiene la ficha completa (cliente, dinero, artículos).
+        propio: esDeSuBrigada(colaborador, f),
       };
     }).sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)),
     bloqueos: bloqueos.map(r => ({
       id: r.id, fecha: r.fields.Fecha, negocio: r.fields.Negocio || NEGOCIOS.AMBOS, motivo: r.fields.Motivo || '',
-      editable: puedeBloquear(colaborador, r.fields.Negocio || NEGOCIOS.AMBOS),
+      editable: puedeQuitarBloqueo(colaborador, r.fields),
     })).sort((a, b) => a.fecha.localeCompare(b.fecha)),
   };
 }
@@ -279,7 +299,9 @@ async function equipoDe(eventoId, f) {
     if (g && eventoDeGerencia(g, f)) ids.add(c.id);
   });
   staff.filter(s => (s.fields.Evento || [])[0] === eventoId).forEach(s => ids.add((s.fields.Colaborador || [])[0]));
-  return { ids: [...ids].filter(Boolean), staff: staff.filter(s => (s.fields.Evento || [])[0] === eventoId) };
+  // Diana y Víctor: se les avisa cuando mueve o cancela alguien que no es Admin (líder o gerente).
+  const admins = colaboradores.filter(c => String(c.fields.Rol || '').trim() === ROLES.ADMIN).map(c => c.id);
+  return { ids: [...ids].filter(Boolean), staff: staff.filter(s => (s.fields.Evento || [])[0] === eventoId), admins };
 }
 
 async function avisar(colaborador, ids, titulo, texto, eventoId, conBoton) {
@@ -333,7 +355,8 @@ async function mover(colaborador, body) {
   }
   await airtable(TABLES.EVENTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: body.eventoId, fields: campos }] }) });
 
-  const { ids, staff } = await equipoDe(body.eventoId, f);
+  const { ids: equipo, staff, admins } = await equipoDe(body.eventoId, f);
+  const ids = colaborador.rol === ROLES.ADMIN ? equipo : [...new Set([...equipo, ...admins])];
   // Las invitaciones del staff llevan la fecha del evento (choques de horario).
   if (staff.length && fecha !== f.Fecha_Evento) {
     await airtable(TABLES.STAFF_EVENTO, { method: 'PATCH', body: JSON.stringify({ records: staff.slice(0, 10).map(s => ({ id: s.id, fields: { Fecha_Evento: fecha } })) }) });
@@ -361,7 +384,8 @@ async function cancelar(colaborador, body) {
       Notas: `${f.Notas || ''}\n--- CANCELADO por ${colaborador.nombre} (${fechaCorta()}): ${motivo} ---`.slice(-90000),
     } }] }),
   });
-  const { ids } = await equipoDe(body.eventoId, f);
+  const { ids: equipo, admins } = await equipoDe(body.eventoId, f);
+  const ids = colaborador.rol === ROLES.ADMIN ? equipo : [...new Set([...equipo, ...admins])];
   const titulo = `❌ Se canceló ${f.Folio_Evento || 'un evento'}`;
   const texto = `${titulo} (${fechaTexto(f.Fecha_Evento)}${f.Hora_Inicio ? ' ' + f.Hora_Inicio : ''}${f.Ubicacion ? ' · ' + f.Ubicacion : ''}).\nMotivo: ${motivo}\nYa no hay que ir ni preparar nada. Lo canceló ${colaborador.nombre}.`;
   const avisos = await avisar(colaborador, ids, titulo, texto, body.eventoId, false);
@@ -451,7 +475,7 @@ async function bloquear(colaborador, body) {
 async function desbloquear(colaborador, body) {
   if (!ID.test(body.bloqueoId || '')) return { error: 'Parámetros inválidos' };
   const r = await airtable(`${TABLES.BLOQUEOS}/${body.bloqueoId}`);
-  if (!puedeBloquear(colaborador, r.fields.Negocio || NEGOCIOS.AMBOS)) return { error: 'No puedes quitar bloqueos de ese negocio.', codigo: 403 };
+  if (!puedeQuitarBloqueo(colaborador, r.fields)) return { error: esLider(colaborador) && !colaborador.gerente ? 'Solo puedes quitar los días que bloqueaste tú.' : 'No puedes quitar bloqueos de ese negocio.', codigo: 403 };
   if (r.fields.Google_Evento_ID && googleConfigurado()) {
     await calendarioGoogle().events.delete({ calendarId: process.env.GOOGLE_CALENDAR_ID, eventId: r.fields.Google_Evento_ID })
       .catch(err => { if (err.code !== 404 && err.code !== 410) console.error('Error quitando bloqueo en Google:', err.message); });
@@ -684,7 +708,12 @@ module.exports = {
   sincronizarPendientes,
   NEGOCIOS,
   esEditor,
+  esLider,
+  esDeSuBrigada,
+  modificaCalendario,
   puedeEditarEvento,
+  puedeQuitarBloqueo,
+  puedeBloquear,
   googleConfigurado,
   sincronizarEvento,
   vistaMes,

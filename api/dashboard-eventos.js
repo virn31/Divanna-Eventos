@@ -198,6 +198,20 @@ async function editarEvento(eventoId, f, body, colaborador) {
       explicacion: `${colaborador.nombre || 'La gerencia'} modificó el pedido. Ahora lleva:`,
     })
     : null;
+  // Un líder de brigada editó (Víctor 2026-11-10): Diana y Víctor se enteran de qué cambió.
+  if (C.esLider(colaborador) && !colaborador.gerente) {
+    const cambios = [
+      evento.Fecha_Evento !== undefined && evento.Fecha_Evento !== f.Fecha_Evento ? `fecha ${f.Fecha_Evento || '—'} → ${evento.Fecha_Evento}` : null,
+      evento.Ubicacion !== undefined && evento.Ubicacion !== (f.Ubicacion || '') ? `lugar: ${evento.Ubicacion || '(vacío)'}` : null,
+      evento.Invitados !== undefined && evento.Invitados !== (f.Invitados || null) ? `invitados: ${evento.Invitados || '—'}` : null,
+      pedidoCambio ? 'lo que lleva (pedido)' : null,
+      Object.keys(cliente).length ? 'datos del cliente' : null,
+    ].filter(Boolean);
+    if (cambios.length) {
+      await enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto: `✏️ ${colaborador.nombre} (líder) modificó ${f.Folio_Evento || 'un evento'}: ${cambios.join('; ')}.` })
+        .catch(err => console.error('No se pudo avisar a los Admin la edición del líder:', err.message));
+    }
+  }
   return { google, aviso };
 }
 
@@ -319,8 +333,8 @@ async function resolverPedido(req, res, colaborador) {
 
   if (accion === 'editar') {
     // Cada gerente edita solo eventos de su negocio (igual que al asignar).
-    if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) {
-      res.status(403).json({ error: `Solo puedes editar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` });
+    if (!C.puedeEditarEvento(colaborador, f)) {
+      res.status(403).json({ error: colaborador.gerente ? `Solo puedes editar eventos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` : 'Solo puedes editar los eventos de tu brigada.' });
       return;
     }
     const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
@@ -637,7 +651,7 @@ async function moverConRecibo(colaborador, body) {
 async function reciboAPeticion(colaborador, body) {
   if (!/^rec[A-Za-z0-9]{14}$/.test(body.eventoId || '')) return { error: 'Parámetros inválidos' };
   const f = (await airtableGet(`${TABLES.EVENTOS}/${body.eventoId}`)).fields || {};
-  if (colaborador.rol !== ROLES.ADMIN && !esDeSuGerencia(colaborador, f)) return { error: `Solo puedes mandar recibos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.`, codigo: 403 };
+  if (!C.puedeEditarEvento(colaborador, f)) return { error: colaborador.gerente ? `Solo puedes mandar recibos de ${NOMBRE_GERENCIA[colaborador.gerente] || 'tu negocio'}.` : 'Solo puedes mandar recibos de los eventos de tu brigada.', codigo: 403 };
   if (f.Autorizacion_Diana !== 'SI') return { error: 'El evento no está autorizado.' };
   const r = await enviarRecibo(body.eventoId, `lo pidió ${colaborador.nombre}`);
   return r.ok ? { ok: true, enviados: r.enviados } : { error: r.error };
@@ -663,14 +677,19 @@ module.exports = async (req, res) => {
       if (!colaborador) return;
       const accionCal = ACCIONES_CALENDARIO[(req.body || {}).accion];
       if (accionCal) {
-        if (!C.esEditor(colaborador)) { res.status(403).json({ error: 'Solo Diana, Víctor y la gerente modifican el calendario.' }); return; }
+        // Líder de brigada: solo estas acciones (cada una revisa que el evento sea de su brigada).
+        const DEL_LIDER = ['calendario_mover', 'calendario_cancelar', 'bloquear_dia', 'desbloquear_dia', 'enviar_recibo'];
+        const permitido = C.esEditor(colaborador) || (C.esLider(colaborador) && DEL_LIDER.includes(req.body.accion));
+        if (!permitido) { res.status(403).json({ error: 'Solo Diana, Víctor, los gerentes y el líder de la brigada modifican el calendario.' }); return; }
         const r = await accionCal(colaborador, req.body || {});
         if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
         res.status(200).json({ success: true, ...r });
         return;
       }
       // Fuera de Admin, solo los gerentes (cada uno su negocio) y solo para asignar, invitar staff o editar.
-      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes((req.body || {}).accion))) {
+      // El líder de brigada también edita los datos de los eventos de su brigada (se revisa en 'editar').
+      const accionPedido = (req.body || {}).accion;
+      if (colaborador.rol !== ROLES.ADMIN && !(colaborador.gerente && ['asignar', 'invitar_staff', 'editar'].includes(accionPedido)) && !(C.esLider(colaborador) && accionPedido === 'editar')) {
         res.status(403).json({ error: 'Tu rol no tiene acceso a esta sección.' });
         return;
       }

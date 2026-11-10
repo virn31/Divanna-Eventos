@@ -1,11 +1,13 @@
 // brigadas/calendario.js
 // Calendario del equipo (lo usan la app y el dashboard). Todos ven todos los
 // eventos autorizados del mes y los días bloqueados, sin montos. Diana, Víctor
-// y la gerente (ella solo El Vaso Maíz) pueden mover fecha/hora, cambiar horas
-// de servicio, cancelar y bloquear días. Los cambios avisan al equipo y se
+// y los gerentes (cada uno su negocio) pueden mover fecha/hora, cambiar horas
+// de servicio, cancelar y bloquear días; el líder de brigada, en los eventos de
+// su brigada (con "📋 Ver ficha completa" para abrir su ficha en la app). Los cambios avisan al equipo y se
 // reflejan en Google Calendar (api/_calendario.js).
-// Uso: DimaCalendario.abrir({ api, esc }) — api(url, opciones) es el fetch con
-// sesión de cada página (lanza Error con el mensaje del servidor).
+// Uso: DimaCalendario.abrir({ api, esc, abrirFicha }) — api(url, opciones) es el fetch con
+// sesión de cada página (lanza Error con el mensaje del servidor); abrirFicha(id), opcional,
+// abre la ficha completa del evento en la página.
 window.DimaCalendario = (function(){
   const COLOR = { 'Divanna Eventos': '#3987e5', 'El Vaso Maiz': '#d95926' };
   const NOMBRE = { 'Divanna Eventos': 'Divanna', 'El Vaso Maiz': 'El Vaso Maíz', 'Ambos': 'los dos negocios' };
@@ -93,6 +95,7 @@ window.DimaCalendario = (function(){
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
         ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button>${datos.puedeCobrar ? `<button data-cal="pre-pago" data-id="${e(ev.id)}">💵 Registrar pago</button>` : ''}<button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
+        ${ev.propio && o.abrirFicha ? `<div class="cal-acc"><button class="sec" data-cal="ficha" data-id="${e(ev.id)}">📋 Ver ficha completa</button></div>` : ''}
         <div class="cal-zona"></div>
       </div>`;
   }
@@ -135,7 +138,7 @@ window.DimaCalendario = (function(){
         <div class="cal-sec">📆 Google Calendar</div>
         <div class="cal-sub">Los eventos que se autorizaron antes de conectar Google no están en Calendar ni en las hojas de pedidos (Sheets). Este botón los pasa (de hoy en adelante, 20 por vez).</div>
         <div class="cal-form"><button class="sec" data-cal="sincronizar">🔄 Pasar los eventos a Google</button><div class="cal-msg" id="calSyncMsg"></div></div>` : ''}
-      ${datos.puedeEditar && negociosBloqueo.length ? `
+      ${(datos.puedeEditar || datos.modifica) && negociosBloqueo.length ? `
         <div class="cal-sec">⛔ Bloquear un día</div>
         <div class="cal-sub">DiMa ya no ofrece ese día a los clientes de ese negocio.</div>
         <div class="cal-form" id="calBloq">
@@ -429,6 +432,7 @@ window.DimaCalendario = (function(){
     const tarjeta = b.closest('.cal-ev');
     const zona = tarjeta && tarjeta.querySelector('.cal-zona');
     const evento = tarjeta && datos.eventos.find(x => x.id === tarjeta.dataset.ev);
+    if(accion === 'ficha'){ panel.hidden = true; o.abrirFicha(evento.id); return; }
     if(accion === 'recibo'){
       zona.innerHTML = '<div class="cal-msg">🧾 Preparando el recibo…</div>';
       try {
