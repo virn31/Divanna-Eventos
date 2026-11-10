@@ -446,6 +446,28 @@ const SALUDOS_SIN_PENDIENTES = [
   (n) => `¡Hola, ${n}! 🌸 Que tengas un día precioso. Aquí sigo al pendiente de todo; te dejo cómo vamos 👇`,
 ];
 
+// Buenos días: cuánto gastó y cuánto ganó cada negocio ayer y en lo que va del
+// mes (Víctor 2026-11-10). Cuenta todo lo anotado, aunque Diana no haya
+// aprobado el reporte (el balance semanal solo cuenta lo aprobado).
+const PorNegocio = require('./_por-negocio');
+async function porNegocioDelDia(hoy = hoyCuliacan()) {
+  const d = new Date(`${hoy}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1);
+  const ayer = d.toISOString().slice(0, 10);
+  const inicioMes = `${ayer.slice(0, 7)}-01`;
+  const enRango = (campo) => `AND(NOT(IS_BEFORE({${campo}}, DATETIME_PARSE("${inicioMes}"))), NOT(IS_AFTER({${campo}}, DATETIME_PARSE("${ayer}"))))`;
+  const [eventos, gastos, cobros] = await Promise.all([
+    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", NOT({Cancelado}), ${enRango('Fecha_Evento')})`)}`),
+    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(enRango('Fecha'))}`),
+    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent(enRango('Fecha'))}`),
+  ]);
+  const deAyer = (lista, campo) => lista.filter(r => String(r.fields[campo] || '').slice(0, 10) === ayer);
+  return {
+    ayer,
+    delDia: PorNegocio.resumir({ eventos: deAyer(eventos, 'Fecha_Evento'), gastos: deAyer(gastos, 'Fecha'), cobros: deAyer(cobros, 'Fecha') }),
+    delMes: PorNegocio.resumir({ eventos, gastos, cobros }),
+  };
+}
+
 // Resumen del buenos días (los números los pone el sistema, no DiMa).
 function textoResumen(v, cuantos) {
   const linea = (e) => `• ${e.hora ? e.hora + ' · ' : ''}${e.folio}${e.cliente ? ' · ' + e.cliente : ''}${e.negocio ? ' (' + e.negocio + ')' : ''}${e.saldo > TOLERANCIA ? ' · falta ' + pesos(e.saldo) : ''}`;
@@ -457,6 +479,8 @@ function textoResumen(v, cuantos) {
     v.porCobrar.eventos ? `💰 Falta por cobrar: ${pesos(v.porCobrar.total)} en ${v.porCobrar.eventos === 1 ? '1 evento' : v.porCobrar.eventos + ' eventos'}.` : '💰 No hay nada pendiente por cobrar.',
     v.reembolsos && v.reembolsos.length ? `💵 Reembolsos pendientes: ${v.reembolsos.map(f => `${f.nombre} ${pesos(f.pendiente)}`).join(', ')}.` : null,
     cuantos ? `🔍 ${cuantos === 1 ? '1 evento no cuadra' : cuantos + ' eventos no cuadran'} (ayer); te los paso abajo.` : '✅ Las cuentas cuadran.',
+    v.porNegocio ? PorNegocio.textoResumen(v.porNegocio.delDia, { titulo: `🏢 Ayer (${v.porNegocio.ayer}) por negocio` }) : null,
+    v.porNegocio ? PorNegocio.textoResumen(v.porNegocio.delMes, { titulo: '📆 En lo que va del mes' }) + '\n(Incluye lo anotado aunque Diana no lo haya aprobado; el balance del lunes solo cuenta lo aprobado.)' : null,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -487,6 +511,7 @@ async function adminsConTelegram() {
 async function preguntasDelDia() {
   const v = await vistaCuadre();
   v.reembolsos = await R.datosReembolsos().catch(err => { console.error('Buenos días: no se pudieron leer los reembolsos:', err.message); return []; });
+  v.porNegocio = await porNegocioDelDia().catch(err => { console.error('Buenos días: no se pudo armar el resumen por negocio:', err.message); return null; });
   const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
   const admins = await adminsConTelegram();
   if (!admins.length) console.error('Buenos días: ningún Admin activo tiene Telegram vinculado');
@@ -584,6 +609,8 @@ async function atenderRespuestaCuadre(mensaje, colaborador) {
 }
 
 module.exports = {
+  porNegocioDelDia,
+  textoResumen,
   FECHA_INICIO,
   ESTADOS,
   TIPOS_CAJA,

@@ -2155,7 +2155,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 400 && !llamadas.some(l => l.url.includes('tblb8ADFukpm6nRZV')), 'calendario: no se registran pagos de un pedido sin autorizar');
 
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un día bonito. Te cuento con cariño: las cuentas de ayer no cuadraron en dos eventos. Va el detalle 👇' }] }];
   const Qmod = require(path.join(repo, 'api/_cuadre.js'));
   const rq = await Qmod.preguntasDelDia();
@@ -2171,7 +2171,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
 
   // Si DiMa mete cifras en el saludo (o falla), se usa un saludo de respaldo.
   reset();
-  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [ADMIN_T] }, {}, {}];
+  respuestas = [...datosQ(), { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 200, Pagado_Con: 'Dinero propio', Reportado_Por: ['recCOLABANGEL0001'] } }] }, { records: [] }, { records: [{ id: 'recCOLABANGEL0001', fields: { Nombre: 'Ángel Samano' } }] }, { records: [] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }, {}, {}];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hola Diana, faltan $2,000 en EVT-Q1.' }] }];
   await Qmod.preguntasDelDia();
   const saludoResp = telegram.find(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
@@ -2183,7 +2183,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   // Sin nada que aclarar, Diana recibe igual su buenos días con el resumen.
   reset();
   const EHOY = { id: 'recEVCUADREHOY001', fields: { Folio_Evento: 'EVT-H1', Fecha_Evento: hoyCln, Hora_Inicio: '17:00', Monto_Estimado_IA: 3000, Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: [CLI1] } };
-  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }];
+  respuestas = [{ records: [EQ3, EHOY] }, { records: [CQ3] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [{ id: CLI1, fields: { Nombre: 'Pepe' } }] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [] }, { records: [ADMIN_T] }];
   respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¡Buenos días, Diana! Que hoy sea un gran día. Te paso el resumen 👇' }] }];
   const rSin = await Qmod.preguntasDelDia();
   const sinPend = telegram.filter(t => t.metodo === 'sendMessage' && t.body.chat_id === '111');
@@ -3945,5 +3945,86 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const tg = fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8');
     ok(/Tickets\.esFotoDeGasto\(mensaje, colaborador\) \? await Tickets\.atenderFotoGasto/.test(tg) && /tipo === 'gt'/.test(tg) && /Tickets\.gastoPorTexto/.test(tg),
       'gastos (Telegram): fotos y /gasto pasan por el módulo de tickets');
+  }
+
+  // ---------- Reportes por negocio: Divanna, Casa Isabella, El Vaso Maíz y general (Víctor 2026-11-10) ----------
+  {
+    const PN = require('../api/_por-negocio');
+    const t = PN.resumir({
+      eventos: [
+        { fields: { Negocio: 'Divanna Eventos', Monto_Estimado_IA: 5000 } },
+        { fields: { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]', Monto_Estimado_IA: 4500 } },
+        { fields: { Negocio: 'El Vaso Maiz', Monto_Estimado_IA: 3000 } },
+        { fields: { Negocio: 'Divanna Eventos', Monto_Estimado_IA: 9999, Cancelado: true } },
+      ],
+      gastos: [
+        { fields: { Negocio: 'Divanna Eventos', Monto: 800 } },
+        { fields: { Negocio: 'Divanna Eventos', Casa_Isabella: true, Monto: 600 } },
+        { fields: { Negocio: 'El Vaso Maiz', Monto: 400 } },
+      ],
+      cobros: [{ fields: { Negocio: 'Divanna Eventos', Casa_Isabella: true, Monto: 2000 } }],
+    });
+    ok(t['Divanna Eventos'].ingresos === 5000 && t['Divanna Eventos'].gastos === 800 && t['Divanna Eventos'].utilidad === 4200
+      && t['Casa Isabella'].ingresos === 4500 && t['Casa Isabella'].gastos === 600 && t['Casa Isabella'].utilidad === 3900 && t['Casa Isabella'].cobrado === 2000
+      && t['El Vaso Maiz'].utilidad === 2600 && t.general.ingresos === 12500 && t.general.gastos === 1800 && t.general.utilidad === 10700 && t.general.eventos === 3,
+      'por negocio: el evento con salón y lo marcado Casa_Isabella van a Casa Isabella; el general suma los tres; los cancelados no cuentan');
+    const txt = PN.textoResumen(t);
+    ok(txt.includes('🪑 Divanna Eventos: ingresos $5,000 (1 evento) · gastos $800 · utilidad $4,200') && txt.includes('🏛️ Casa Isabella: ingresos $4,500') && txt.includes('🌽 El Vaso Maíz') && txt.includes('📊 General: ingresos $12,500 (3 eventos)') && !txt.includes('Sin negocio'),
+      'por negocio: el texto trae un renglón por negocio y el general');
+
+    // Balance semanal: con la sección por negocio.
+    reset();
+    respuestas = [
+      { records: [{ id: 'recREPORTEAPROB01', fields: {} }] },
+      { records: [{ fields: { Monto: 500, Negocio: 'Divanna Eventos', Casa_Isabella: true } }, { fields: { Monto: 300, Negocio: 'El Vaso Maiz', Reporte: ['recREPORTEAPROB01'] } }] },
+      { records: [{ fields: { Monto: 1000, Negocio: 'El Vaso Maiz', Forma: 'Efectivo', Reporte: ['recREPORTEAPROB01'] } }, { fields: { Monto: 700, Negocio: 'Divanna Eventos', Recibido_Por: 'Diana' } }] },
+      { records: [{ id: 'recEVSEMANA00001', fields: { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]', Monto_Estimado_IA: 4000 } }, { id: 'recEVSEMANA00002', fields: { Negocio: 'El Vaso Maiz', Monto_Estimado_IA: 2500 } }] },
+      {},
+    ];
+    res = resMock();
+    await balance({ headers: {}, query: {} }, res);
+    const balN = llamadas.find(l => l.method === 'POST').body.records[0].fields.Detalle_Completo;
+    ok(balN.includes('🏢 Cuánto gastó y cuánto ganó cada negocio') && balN.includes('🏛️ Casa Isabella: ingresos $4,000 (1 evento) · gastos $500 · utilidad $3,500')
+      && balN.includes('🌽 El Vaso Maíz: ingresos $2,500 (1 evento) · gastos $300 · utilidad $2,200 · cobrado $1,000')
+      && balN.includes('🪑 Divanna Eventos: ingresos $0 (0 eventos) · gastos $0 · utilidad $0 · cobrado $700')
+      && balN.includes('📊 General: ingresos $6,500 (2 eventos) · gastos $800 · utilidad $5,700 · cobrado $1,700'),
+      'balance semanal: cuánto gastó y ganó cada negocio (Casa Isabella aparte) y el general; cobrado incluye pagos a Diana');
+
+    // Historial de Finanzas: tres negocios y General por mes.
+    reset();
+    const mesH = hoyCln.slice(0, 7);
+    respuestas = [
+      { records: [{ fields: { Fecha_Evento: `${mesH}-05`, Negocio: 'Divanna Eventos', Articulos: 'Casa Isabella completo', Monto_Estimado_IA: 4500 } }, { fields: { Fecha_Evento: `${mesH}-06`, Negocio: 'Divanna Eventos', Monto_Estimado_IA: 2000 } }] },
+      { records: [{ fields: { Fecha: `${mesH}-05`, Negocio: 'Divanna Eventos', Casa_Isabella: true, Monto: 300 } }] },
+      { records: [] },
+      { records: [] },
+    ];
+    const FzH = require('../api/_finanzas');
+    const h = await FzH.historialMensual();
+    const ultimo = h.meses[h.meses.length - 1];
+    ok(h.negocios.join() === 'Divanna Eventos,Casa Isabella,El Vaso Maiz,General' && ultimo['Casa Isabella'].ingresos === 4500 && ultimo['Casa Isabella'].utilidad === 4200
+      && ultimo['Divanna Eventos'].ingresos === 2000 && ultimo.General.ingresos === 6500 && ultimo.General.gastos === 300,
+      'finanzas (historial): por mes trae Divanna, Casa Isabella, El Vaso Maíz y General');
+    ok(FzH.historialParaDima(h).includes('Casa Isabella:') && FzH.historialParaDima(h).includes('General:'), 'finanzas (DiMa): el historial que lee DiMa también separa Casa Isabella');
+    const tablero2 = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    ok(tablero2.includes("clave: 'Casa Isabella'") && tablero2.includes('--serie-ci:#199e70') && tablero2.includes('function tablaNegocios') && tablero2.includes('<th>General</th>'),
+      'finanzas (dashboard): gráfica con Casa Isabella y tabla del mes por negocio con el general');
+
+    // Buenos días: ayer y el mes, por negocio.
+    const Qn = require('../api/_cuadre');
+    const ayerD = new Date(`${hoyCln}T12:00:00Z`); ayerD.setUTCDate(ayerD.getUTCDate() - 1);
+    const ayerT = ayerD.toISOString().slice(0, 10);
+    reset();
+    respuestas = [
+      { records: [{ fields: { Fecha_Evento: ayerT, Negocio: 'El Vaso Maiz', Monto_Estimado_IA: 1800 } }] },
+      { records: [{ fields: { Fecha: ayerT, Negocio: 'El Vaso Maiz', Monto: 250, Reporte: ['recREPORTEPENDI01'] } }] },
+      { records: [] },
+    ];
+    const pd = await Qn.porNegocioDelDia(hoyCln);
+    ok(pd.ayer === ayerT && pd.delDia['El Vaso Maiz'].ingresos === 1800 && pd.delDia['El Vaso Maiz'].gastos === 250 && pd.delMes.general.utilidad === 1550,
+      'buenos días: suma lo de ayer y lo del mes por negocio (aunque el reporte no esté aprobado)');
+    const txtBD = Qn.textoResumen({ hoy: [], manana: [], porCobrar: { eventos: 0, total: 0 }, reembolsos: [], porNegocio: pd }, 0);
+    ok(txtBD.includes(`🏢 Ayer (${ayerT}) por negocio`) && txtBD.includes('📆 En lo que va del mes') && txtBD.includes('🌽 El Vaso Maíz: ingresos $1,800'),
+      'buenos días: el resumen de Diana y Víctor trae ayer y el mes por negocio');
   }
 })();

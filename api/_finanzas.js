@@ -673,71 +673,67 @@ async function porCobrarPeriodo(inicio, fin) {
 }
 
 // ---------- Historial mensual por empresa (gráfica del dashboard y DiMa) ----------
-// Por mes y por negocio: eventos autorizados, ingresos contratados (monto de los
-// eventos autorizados: es lo pactado, no lo cobrado), gastos (capturados a mano
-// o de reportes aprobados) y cobrado real (cobros de reportes aprobados).
+// Por mes y por negocio (Divanna Eventos, Casa Isabella, El Vaso Maíz) más el
+// general: eventos autorizados, ingresos contratados (lo pactado, no lo cobrado),
+// gastos (capturados a mano o de reportes aprobados), utilidad y cobrado (de
+// reportes aprobados y pagos que recibió Diana). Reglas en api/_por-negocio.js.
 // Los eventos sin negocio claro se cuentan aparte (sinNegocio) en vez de adivinarlo.
 const MAX_MESES = 24;
-
-function negocioDeEvento(f) {
-  if (f.Negocio === NEGOCIOS.DV || f.Negocio === NEGOCIOS.VM) return f.Negocio;
-  return Number(f.Piezas_Vaso_Maiz) > 0 ? NEGOCIOS.VM : null;
-}
+const PorNegocio = require('./_por-negocio');
+const SERIES_HISTORIAL = [...PorNegocio.NEGOCIOS, 'General'];
+const campos = (lista) => lista.map(c => `fields%5B%5D=${c}`).join('&');
 
 async function historialMensual() {
   const [eventos, gastos, cobros, aprobados] = await Promise.all([
-    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Fecha_Evento})`)}&fields%5B%5D=Fecha_Evento&fields%5B%5D=Negocio&fields%5B%5D=Monto_Estimado_IA&fields%5B%5D=Piezas_Vaso_Maiz`),
-    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
-    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
+    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Fecha_Evento}, NOT({Cancelado}))`)}&${campos(['Fecha_Evento', 'Negocio', 'Monto_Estimado_IA', 'Piezas_Vaso_Maiz', 'Productos', 'Articulos', 'Servicios_Solicitados'])}`),
+    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent('{Fecha}')}&${campos(['Fecha', 'Negocio', 'Casa_Isabella', 'Monto', 'Reporte'])}`),
+    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent('{Fecha}')}&${campos(['Fecha', 'Negocio', 'Casa_Isabella', 'Monto', 'Reporte', 'Recibido_Por'])}`),
     todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`{Estado} = "${ESTADOS.APROBADO}"`)}&fields%5B%5D=Estado`),
   ]);
   const ok = new Set(aprobados.map(r => r.id));
-  const meses = new Map();
-  let sinNegocio = 0;
-  const celda = (mes, negocio) => {
-    if (!meses.has(mes)) meses.set(mes, { mes, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
-    return meses.get(mes)[negocio];
-  };
-  function vacio() { return { eventos: 0, ingresos: 0, gastos: 0, cobrado: 0 }; }
   const mesDe = (fecha) => (esFecha(fecha) ? fecha.slice(0, 7) : null);
-
+  const porMes = new Map();
+  const del = (mes) => { if (!porMes.has(mes)) porMes.set(mes, { eventos: [], gastos: [], cobros: [] }); return porMes.get(mes); };
+  let sinNegocio = 0;
   for (const r of eventos) {
-    const mes = mesDe(r.fields.Fecha_Evento), negocio = negocioDeEvento(r.fields);
+    const mes = mesDe(r.fields.Fecha_Evento);
     if (!mes) continue;
-    if (!negocio) { sinNegocio++; continue; }
-    const c = celda(mes, negocio);
-    c.eventos++;
-    c.ingresos += Number(r.fields.Monto_Estimado_IA) || 0;
+    if (!PorNegocio.negocioDeEvento(r.fields)) { sinNegocio++; continue; }
+    del(mes).eventos.push(r);
   }
   for (const r of gastos) {
     const reporte = (r.fields.Reporte || [])[0];
-    if (reporte && !ok.has(reporte)) continue;
     const mes = mesDe(r.fields.Fecha);
-    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
-    celda(mes, r.fields.Negocio).gastos += Number(r.fields.Monto) || 0;
+    if (!mes || (reporte && !ok.has(reporte)) || !PorNegocio.negocioDeMovimiento(r.fields)) continue;
+    del(mes).gastos.push(r);
   }
   for (const r of cobros) {
-    if (!ok.has((r.fields.Reporte || [])[0])) continue;
+    const reporte = (r.fields.Reporte || [])[0];
+    const cuenta = reporte ? ok.has(reporte) : r.fields.Recibido_Por === 'Diana';
     const mes = mesDe(r.fields.Fecha);
-    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
-    celda(mes, r.fields.Negocio).cobrado += Number(r.fields.Monto) || 0;
+    if (!mes || !cuenta || !PorNegocio.negocioDeMovimiento(r.fields)) continue;
+    del(mes).cobros.push(r);
   }
   // Meses seguidos desde el primero con datos hasta el actual (los vacíos en 0).
-  const conDatos = [...meses.keys()].sort();
+  const conDatos = [...porMes.keys()].sort();
   const lista = [];
   if (conDatos.length) {
-    const fin = hoyCuliacan().slice(0, 7) > conDatos[conDatos.length - 1] ? hoyCuliacan().slice(0, 7) : conDatos[conDatos.length - 1];
+    const finMes = hoyCuliacan().slice(0, 7) > conDatos[conDatos.length - 1] ? hoyCuliacan().slice(0, 7) : conDatos[conDatos.length - 1];
     let [a, m] = conDatos[0].split('-').map(Number);
     for (;;) {
       const clave = `${a}-${String(m).padStart(2, '0')}`;
-      lista.push(meses.get(clave) || { mes: clave, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
-      if (clave >= fin) break;
+      const t = PorNegocio.resumir(porMes.get(clave) || {});
+      const fila = { mes: clave, General: t.general };
+      PorNegocio.NEGOCIOS.forEach(n => { fila[n] = t[n]; });
+      lista.push(fila);
+      if (clave >= finMes) break;
       m++; if (m > 12) { m = 1; a++; }
     }
   }
-  const redondear = (c) => ({ ...c, ingresos: Math.round(c.ingresos), gastos: Math.round(c.gastos), cobrado: Math.round(c.cobrado), utilidad: Math.round(c.ingresos - c.gastos) });
+  const redondear = (c) => ({ eventos: c.eventos, ingresos: Math.round(c.ingresos), gastos: Math.round(c.gastos), cobrado: Math.round(c.cobrado), utilidad: Math.round(c.ingresos - c.gastos) });
   return {
-    meses: lista.slice(-MAX_MESES).map(x => ({ mes: x.mes, [NEGOCIOS.DV]: redondear(x[NEGOCIOS.DV]), [NEGOCIOS.VM]: redondear(x[NEGOCIOS.VM]) })),
+    meses: lista.slice(-MAX_MESES).map(x => Object.fromEntries([['mes', x.mes], ...SERIES_HISTORIAL.map(n => [n, redondear(x[n])])])),
+    negocios: SERIES_HISTORIAL,
     sinNegocio,
   };
 }
@@ -745,18 +741,19 @@ async function historialMensual() {
 const MESES_NOMBRE = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (clave) => `${MESES_NOMBRE[Number(clave.slice(5, 7)) - 1]} ${clave.slice(0, 4)}`;
 
-// Texto para DiMa (solo Admin): tabla mensual y los mejores meses de cada empresa.
+// Texto para DiMa (solo Admin): tabla mensual y los mejores meses de cada negocio.
 function historialParaDima(h) {
   if (!h.meses.length) return 'Todavía no hay eventos autorizados con fecha: no hay historial para comparar.';
-  const filas = h.meses.map(x => [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+  const nombre = (n) => PorNegocio.NOMBRE[n] || n;
+  const filas = h.meses.map(x => SERIES_HISTORIAL.map(n => {
     const c = x[n];
-    return `${nombreMes(x.mes)} · ${n}: ${c.eventos} eventos, ingresos contratados ${pesos(c.ingresos)}, gastos ${pesos(c.gastos)}, utilidad ${pesos(c.utilidad)}, cobrado reportado ${pesos(c.cobrado)}`;
+    return `${nombreMes(x.mes)} · ${nombre(n)}: ${c.eventos} eventos, ingresos contratados ${pesos(c.ingresos)}, gastos ${pesos(c.gastos)}, utilidad ${pesos(c.utilidad)}, cobrado ${pesos(c.cobrado)}`;
   }).join('\n')).join('\n');
-  const mejores = [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+  const mejores = PorNegocio.NEGOCIOS.map(n => {
     const top = h.meses.filter(x => x[n].eventos > 0).sort((a, b) => b[n].ingresos - a[n].ingresos || b[n].eventos - a[n].eventos).slice(0, 3);
-    return `${n}: ${top.length ? top.map(x => `${nombreMes(x.mes)} (${x[n].eventos} eventos, ${pesos(x[n].ingresos)})`).join(', ') : 'sin eventos todavía'}`;
+    return `${nombre(n)}: ${top.length ? top.map(x => `${nombreMes(x.mes)} (${x[n].eventos} eventos, ${pesos(x[n].ingresos)})`).join(', ') : 'sin eventos todavía'}`;
   }).join('\n');
-  return `Meses con historial: ${h.meses.length} (de ${nombreMes(h.meses[0].mes)} a ${nombreMes(h.meses[h.meses.length - 1].mes)}).` +
+  return `Meses con historial: ${h.meses.length} (de ${nombreMes(h.meses[0].mes)} a ${nombreMes(h.meses[h.meses.length - 1].mes)}). Negocios: Divanna Eventos, Casa Isabella (eventos con el salón) y El Vaso Maíz; "General" es la suma. Los gastos y cobros de Casa Isabella anotados antes del 10-nov-2026 están dentro de Divanna.` +
     (h.sinNegocio ? ` Hay ${h.sinNegocio} eventos autorizados sin negocio definido que no están en las cifras.` : '') +
     `\n${filas}\n\nMEJORES MESES POR INGRESOS CONTRATADOS:\n${mejores}`;
 }
