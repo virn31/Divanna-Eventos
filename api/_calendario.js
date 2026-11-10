@@ -227,6 +227,18 @@ async function vistaMes(colaborador, mes) {
     todas(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada`),
   ]);
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
+  // Nombre y teléfono del cliente en la tarjeta (Víctor 2026-11-10), solo de los eventos que
+  // cada quien puede modificar; Diana y Víctor, de todos. Si falla, el calendario sale sin ellos.
+  const visibles = eventos.filter(r => !ocultoParaGerente(colaborador, r.fields));
+  const idsClientes = [...new Set(visibles.filter(r => puedeEditarEvento(colaborador, r.fields)).map(r => (r.fields.Cliente || [])[0]).filter(id => ID.test(id || '')))];
+  const clientes = new Map();
+  try {
+    for (let i = 0; i < idsClientes.length; i += 50) {
+      const formula = `OR(${idsClientes.slice(i, i + 50).map(id => `RECORD_ID()="${id}"`).join(',')})`;
+      (await todas(`${TABLA_CLIENTES}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=Nombre&fields%5B%5D=Telefono_WhatsApp`))
+        .forEach(c => clientes.set(c.id, { nombre: c.fields.Nombre || '', telefono: c.fields.Telefono_WhatsApp || '' }));
+    }
+  } catch (err) { console.error('Calendario: no se pudieron leer los clientes:', err.message); }
   // Días sin cupo del mes (con las reglas del semáforo). Si falla, se dice.
   const ultimo = new Date(`${sig}T12:00:00Z`); ultimo.setUTCDate(ultimo.getUTCDate() - 1);
   let llenos = [], llenosError = false;
@@ -249,8 +261,9 @@ async function vistaMes(colaborador, mes) {
     soloVasoMaiz: colaborador.rol !== ROLES.ADMIN,
     // Selector de manteles del ➕ Capturar evento (brigadas/manteles.js).
     manteles: esEditor(colaborador) ? infoManteles() : null,
-    eventos: eventos.filter(r => !ocultoParaGerente(colaborador, r.fields)).map(r => {
+    eventos: visibles.map(r => {
       const f = r.fields;
+      const cli = puedeEditarEvento(colaborador, f) ? clientes.get((f.Cliente || [])[0]) : null;
       return {
         id: r.id,
         folio: f.Folio_Evento || '',
@@ -264,6 +277,8 @@ async function vistaMes(colaborador, mes) {
         estatus: f.Estatus_Logistico || '',
         enGoogle: !!f.Google_Evento_ID,
         editable: puedeEditarEvento(colaborador, f),
+        clienteNombre: cli ? cli.nombre : '',
+        clienteTelefono: cli ? cli.telefono : '',
         // Evento suyo (gerencia, asignado o de su brigada): en la app abre la ficha completa
         // de su pantalla principal (cliente, dinero, ✏️ Editar, 👷 Asignar). Víctor 2026-11-10.
         propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f),

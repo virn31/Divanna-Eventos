@@ -768,7 +768,7 @@
     return `<button type="button" class="ev-ficha" data-evento="${ev.id}" aria-expanded="${abierta}">
         <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
         <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
-        <span class="ficha-sub">${ico('reloj')} ${ev.horaInicio ? esc(ev.horaInicio) : 'hora por confirmar'}${d && d.cliente ? ' · ' + ico('persona') + ' ' + esc(d.cliente) : ''}${ev.enteradoPor ? '' : ' · <span class="ico-aviso">' + ico('campana') + ' sin confirmar</span>'}</span>
+        <span class="ficha-sub">${ico('reloj')} ${ev.horaInicio ? esc(ev.horaInicio) : 'hora por confirmar'}${(ev.clienteNombre || (d && d.cliente)) ? ' · ' + ico('persona') + ' ' + esc(ev.clienteNombre || d.cliente) : ''}${ev.clienteTelefono ? ' · 📞 ' + esc(ev.clienteTelefono) : ''}${ev.enteradoPor ? '' : ' · <span class="ico-aviso">' + ico('campana') + ' sin confirmar</span>'}</span>
         <span class="ficha-fila">${dineroTxt}<span class="ficha-flecha">${abierta ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
       </button>`;
   }
