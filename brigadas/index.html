@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0c0b10">
+<meta name="theme-color" content="#080707">
 <title>DiMa Equipo</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10; --ink-2:#151319; --ink-3:#1d1b23;
@@ -25,34 +25,34 @@
   html,body{margin:0;height:100%;}
   body{
     background:var(--ink); color:var(--paper);
-    font-family:'Manrope',sans-serif;
+    font-family:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     -webkit-font-smoothing:antialiased;
     min-height:100vh;
     padding-top:var(--safe-top);
     padding-bottom:var(--safe-bottom);
   }
-  h1,h2,h3,.display{font-family:'Fraunces',serif;font-weight:700;margin:0;}
-  button{font-family:inherit;}
-  input{font-family:inherit;}
+  h1,h2,h3,.display{font-family:inherit;font-weight:700;margin:0;}
+  button, input, select, textarea{font-family:inherit;}
+  ::placeholder{color:var(--muted); opacity:1;}
+  /* Iconos de estado: SVG de trazo (estilo Lucide), toman el color del texto. */
+  .ico{width:1.15em; height:1.15em; flex:none; vertical-align:-0.2em; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+  .ico-emergencia{color:#ff6b6b;} .ico-seguridad{color:#ff9f4a;} .ico-aviso, .ico-retraso{color:var(--warn);}
 
   /* ---------- LOGIN ---------- */
   #loginScreen{
     min-height:100vh; display:flex; flex-direction:column; justify-content:center;
-    padding:32px 24px; gap:28px;
-    background:
-      radial-gradient(ellipse 700px 500px at 20% 0%, rgba(185,139,255,0.16), transparent 60%),
-      radial-gradient(ellipse 600px 400px at 100% 100%, rgba(240,185,58,0.12), transparent 55%);
+    padding:32px 24px; gap:28px; max-width:440px; margin:0 auto;
   }
-  .login-brand{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:1.3rem;justify-content:center;}
+  .login-brand{display:flex;align-items:center;gap:10px;font-size:1.15rem;font-weight:600;letter-spacing:-0.01em;justify-content:center;}
   .login-brand .dv{color:var(--divanna);} .login-brand .vm{color:var(--maiz);}
   .login-card{
-    background:var(--ink-2); border:1px solid var(--line); border-radius:22px;
+    background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radio-lg);
     padding:32px 26px;
   }
   .login-card h1{font-size:1.6rem;margin-bottom:8px;}
   .login-card p{color:var(--muted);font-size:0.95rem;margin:0 0 26px;line-height:1.5;}
   .code-input{
-    width:100%; padding:18px 20px; border-radius:14px;
+    width:100%; padding:18px 20px; border-radius:var(--radio-md);
     border:1.5px solid var(--line); background:var(--ink);
     color:var(--paper); font-size:1.15rem; font-weight:700;
     letter-spacing:0.06em; text-align:center; text-transform:uppercase;
@@ -60,8 +60,8 @@
   }
   .code-input:focus{border-color:var(--divanna);}
   .login-btn{
-    width:100%; margin-top:16px; padding:17px; border:none; border-radius:14px;
-    background:var(--maiz); color:var(--ink); font-weight:800; font-size:1.02rem;
+    width:100%; margin-top:16px; padding:17px; border:none; border-radius:var(--radio-md);
+    background:var(--maiz); color:var(--ink); font-weight:700; font-size:1.02rem;
     cursor:pointer; transition:transform .15s;
   }
   .login-btn:active{transform:scale(0.98);}
@@ -93,7 +93,7 @@
   .appbar-info span{color:var(--muted); font-size:0.82rem;}
   .icon-btn{
     background:var(--ink-2); border:1px solid var(--line); color:var(--paper);
-    width:40px; height:40px; border-radius:50%; display:flex;
+    width:44px; height:44px; border-radius:50%; display:flex;
     align-items:center; justify-content:center; cursor:pointer; font-size:1.1rem;
   }
 
@@ -102,7 +102,8 @@
   .empty-state{
     text-align:center; padding:60px 20px; color:var(--muted);
   }
-  .empty-state .big{font-size:2.6rem; margin-bottom:14px;}
+  .empty-state .big{margin-bottom:14px; color:var(--muted);}
+  .empty-state .big .ico{width:40px; height:40px; stroke-width:1.5;}
 
   .day-label{
     font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em;
@@ -111,13 +112,13 @@
   .day-label:first-child{margin-top:4px;}
 
   .event-card{
-    background:var(--ink-2); border:1px solid var(--line); border-radius:18px;
+    background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radio-lg);
     padding:20px; margin-bottom:14px;
   }
   .event-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;}
   .event-badge{
-    display:inline-block; font-size:0.72rem; font-weight:800; letter-spacing:0.03em;
-    padding:5px 11px; border-radius:100px; text-transform:uppercase;
+    display:inline-block; font-size:0.78rem; font-weight:600; letter-spacing:0.01em;
+    padding:5px 11px; border-radius:100px;
   }
   .badge-divanna{background:rgba(185,139,255,0.16); color:var(--divanna);}
   .badge-vasomaiz{background:rgba(240,185,58,0.16); color:var(--maiz);}
@@ -127,14 +128,14 @@
   .event-meta span{display:flex; align-items:center; gap:6px;}
   .event-services{
     font-size:0.9rem; color:var(--paper); background:var(--ink);
-    border-radius:10px; padding:10px 12px; margin-bottom:16px; line-height:1.4;
+    border-radius:var(--radio-sm); padding:10px 12px; margin-bottom:16px; line-height:1.4;
   }
 
   .checklist{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
   .check-item{
     display:flex; align-items:center; gap:9px;
-    background:var(--ink); border:1.5px solid var(--line); border-radius:12px;
-    padding:12px 10px; cursor:pointer; transition:border-color .15s, background .15s;
+    background:var(--ink); border:1.5px solid var(--line); border-radius:var(--radio-sm);
+    padding:12px 10px; min-height:44px; cursor:pointer; transition:border-color .15s, background .15s;
     font-size:0.85rem; font-weight:600; user-select:none;
   }
   .check-item .box{
@@ -148,14 +149,14 @@
   .progress-bar{
     height:5px; border-radius:100px; background:var(--ink); overflow:hidden; margin-top:14px;
   }
-  .progress-fill{height:100%; background:linear-gradient(90deg,var(--divanna),var(--maiz)); border-radius:100px; transition:width .3s;}
+  .progress-fill{height:100%; background:var(--good); border-radius:100px; transition:width .3s;}
 
   /* ---------- ESTATUS LOGÍSTICO + PAGO ---------- */
   .estatus-row{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0;}
   .estatus-select{
-    flex:1; min-width:180px; padding:12px 14px; border-radius:12px;
+    flex:1; min-width:180px; padding:12px 14px; border-radius:var(--radio-sm);
     border:1.5px solid var(--line); background:var(--ink); color:var(--paper);
-    font-size:0.88rem; font-weight:700; outline:none;
+    font-size:1rem; font-weight:600; min-height:44px; outline:none;
   }
   .estatus-select:focus{border-color:var(--divanna);}
   .pago-badge{
@@ -167,136 +168,141 @@
   .alert-actions{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px;}
   .alert-btn{
     border:1.5px solid var(--line); background:var(--ink); color:var(--paper);
-    border-radius:12px; padding:11px 6px; font-size:0.76rem; font-weight:700;
+    border-radius:var(--radio-sm); padding:10px 6px; min-height:52px; font-size:0.8rem; font-weight:600;
     cursor:pointer; text-align:center; line-height:1.3;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
   }
   .alert-btn.retraso{border-color:var(--warn); color:var(--warn);}
   .alert-btn.emergencia{border-color:#ff6b6b; color:#ff6b6b;}
   .alert-btn.seguridad{border-color:#ff9f4a; color:#ff9f4a;}
-  .alert-btn.active{background:currentColor;}
+  .alert-btn .ico{width:20px; height:20px;}
   .alert-btn.active.retraso{color:var(--ink); background:var(--warn);}
   .alert-btn.active.emergencia{color:var(--ink); background:#ff6b6b;}
   .alert-btn.active.seguridad{color:var(--ink); background:#ff9f4a;}
   .enterado-btn{
-    width:100%; margin-top:12px; padding:12px; border-radius:12px; border:1.5px solid var(--good);
-    background:var(--good); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;
+    width:100%; margin-top:12px; padding:12px; border-radius:var(--radio-sm); border:1.5px solid var(--good);
+    background:var(--good); color:var(--ink); font:inherit; font-weight:700; cursor:pointer;
   }
   .enterado-ok{margin-top:12px; font-size:0.82rem; font-weight:700; color:var(--good);}
   .motivo-tag{
     font-size:0.8rem; color:var(--muted); margin-top:8px; padding:8px 10px;
-    background:var(--ink); border-radius:10px; border:1px solid var(--line);
+    background:var(--ink); border-radius:var(--radio-sm); border:1px solid var(--line);
   }
 
   /* ---------- GERENTE: asignar eventos de El Vaso Maíz ---------- */
-  .asignar-box{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.85rem;}
-  .asignar-box summary{cursor:pointer; font-weight:800; color:var(--maiz);}
-  .asignar-box select{width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit;}
-  .asignar-box label{display:flex; align-items:center; gap:8px; margin-top:8px;}
-  .asignar-box .asig-guardar{width:100%; margin-top:10px; padding:11px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .asignar-box{margin-top:12px; padding:12px 14px; border-radius:var(--radio-sm); background:var(--ink); border:1.5px solid var(--line); font-size:0.85rem;}
+  .asignar-box summary{cursor:pointer; font-weight:700; color:var(--maiz);}
+  .asignar-box select{width:100%; margin-top:8px; padding:10px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; font-size:1rem; min-height:44px;}
+  .asignar-box summary{padding:12px 0; margin:-12px 0;}
+  .asignar-box label{display:flex; align-items:center; gap:8px; margin-top:8px; min-height:44px;}
+  .asignar-box .asig-guardar{width:100%; margin-top:10px; padding:11px; border-radius:var(--radio-sm); border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:700; min-height:44px; cursor:pointer;}
   .asignar-box .asig-msg{margin-top:8px; color:var(--muted); font-size:0.8rem;}
-  .asignar-box input:not([type=checkbox]), .asignar-box textarea{width:100%; margin-top:4px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .asignar-box input:not([type=checkbox]), .asignar-box textarea{width:100%; margin-top:4px; padding:10px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; font-size:1rem; box-sizing:border-box;}
   .editar-box .ed-label{display:block; margin-top:10px; color:var(--muted); font-size:0.78rem;}
-  .cliente-box{margin-top:12px; padding:10px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.9rem; display:flex; flex-wrap:wrap; gap:6px 14px;}
-  .cliente-box a{color:var(--maiz); font-weight:800; text-decoration:none;}
+  .cliente-box{margin-top:12px; padding:10px 14px; border-radius:var(--radio-sm); background:var(--ink); border:1.5px solid var(--line); font-size:0.9rem; display:flex; flex-wrap:wrap; gap:6px 14px;}
+  .cliente-box a{color:var(--maiz); font-weight:700; text-decoration:none;}
 
   /* ---------- CANAL CON DiMa (gerente) ---------- */
   .dima-fab{
     position:fixed; bottom:calc(24px + var(--safe-bottom)); left:20px; z-index:40;
     padding:0 18px; height:54px; border-radius:27px; border:none; background:var(--divanna); color:var(--ink);
-    font:inherit; font-weight:800; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
+    font:inherit; font-weight:700; box-shadow:0 10px 30px -8px rgba(0,0,0,0.6); cursor:pointer;
   }
   .dima-fab[hidden], .dima-panel[hidden]{display:none;}
 
   /* ---------- Reporte financiero del día ---------- */
-  .fin-btn{font-size:1.1rem; margin-right:8px;}
+  .fin-btn{margin-right:8px;}
+  .icon-btn .ico{width:20px; height:20px;}
   .fin-btn[hidden], .fin-panel[hidden]{display:none;}
   .fin-panel{position:fixed; inset:0; z-index:60; overflow-y:auto; background:var(--ink-2); padding:16px 16px calc(24px + var(--safe-bottom));}
   .fin-tabs{display:flex; gap:8px; margin:6px 0 12px;}
-  .fin-tabs button{flex:1; padding:10px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-weight:800;}
+  .fin-tabs button{flex:1; padding:10px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-weight:600; min-height:44px;}
   .fin-tabs button.activo{border-color:var(--maiz); color:var(--maiz);}
-  .fin-caja{margin-top:12px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1.5px solid var(--line); font-size:0.88rem;}
+  .fin-caja{margin-top:12px; padding:12px 14px; border-radius:var(--radio-sm); background:var(--ink); border:1.5px solid var(--line); font-size:0.88rem;}
   .fin-caja h4{margin:0 0 8px; font-size:0.95rem;}
-  .fin-caja input, .fin-caja select, .fin-caja textarea{width:100%; margin-top:6px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; box-sizing:border-box;}
+  .fin-caja input, .fin-caja select, .fin-caja textarea{width:100%; margin-top:6px; padding:10px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; font-size:1rem; box-sizing:border-box;}
   .fin-caja textarea{min-height:64px; resize:vertical;}
-  .fin-caja label{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .fin-caja label{display:flex; align-items:center; gap:8px; margin-top:8px; min-height:44px;}
   .fin-caja label input{width:auto; margin:0;}
   .fin-item{display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);}
   .fin-item small{color:var(--muted); display:block;}
   .fin-item a{color:var(--maiz);}
-  .fin-quitar{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
-  .fin-boton{width:100%; margin-top:10px; padding:12px; border-radius:10px; border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .fin-quitar{border:none; background:transparent; color:var(--muted); font:inherit; min-width:44px; min-height:44px; cursor:pointer;}
+  .fin-boton{width:100%; margin-top:10px; padding:12px; border-radius:var(--radio-sm); border:none; background:var(--maiz); color:var(--ink); font:inherit; font-weight:700; min-height:44px; cursor:pointer;}
   .fin-boton.secundario{background:var(--line); color:var(--paper);}
   .fin-boton:disabled{opacity:.5;}
-  .fin-estado{padding:10px 12px; border-radius:10px; background:var(--ink); border:1.5px solid var(--maiz); font-weight:700;}
+  .fin-estado{padding:10px 12px; border-radius:var(--radio-sm); background:var(--ink); border:1.5px solid var(--maiz); font-weight:700;}
   .fin-msg{margin-top:8px; color:var(--muted); font-size:0.85rem;}
   .dima-panel{
     position:fixed; inset:auto 0 0 0; z-index:50; max-height:80vh; display:flex; flex-direction:column;
-    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:18px 18px 0 0;
+    background:var(--ink-2); border-top:1.5px solid var(--divanna); border-radius:var(--radio-lg) var(--radio-lg) 0 0;
     padding:14px 14px calc(14px + var(--safe-bottom));
   }
-  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:800; margin-bottom:8px;}
-  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; cursor:pointer;}
+  .dima-top{display:flex; align-items:center; justify-content:space-between; font-weight:700; margin-bottom:8px;}
+  .dima-top > span:first-child{display:flex; align-items:center; gap:8px;}
+  .dima-top button{border:none; background:transparent; color:var(--muted); font:inherit; min-height:44px; padding:0 10px; cursor:pointer;}
   .dima-msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:120px;}
-  .dima-msg{max-width:85%; padding:10px 12px; border-radius:14px; font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
+  .dima-msg{max-width:85%; padding:10px 12px; border-radius:var(--radio-md); font-size:0.9rem; line-height:1.45; white-space:pre-wrap;}
   .dima-msg.yo{align-self:flex-end; background:var(--maiz); color:var(--ink);}
   .dima-msg.dima{align-self:flex-start; background:var(--ink); border:1px solid var(--line);}
   .dima-form{display:flex; gap:8px; margin-top:10px;}
-  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
-  .dima-form button{border:none; border-radius:12px; padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+  .dima-form textarea{flex:1; resize:none; height:46px; padding:10px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit; font-size:1rem;}
+  .dima-form button{border:none; border-radius:var(--radio-sm); padding:0 16px; background:var(--divanna); color:var(--ink); font:inherit; font-weight:700; cursor:pointer;}
 
   /* ---------- INSTRUCCIONES DE DIANA / DEL CLIENTE ---------- */
   .instr-box{
-    margin:12px 0; padding:12px 14px; border-radius:12px; font-size:0.88rem; line-height:1.45; white-space:pre-wrap;
-    background:rgba(185,139,255,0.1); border:1.5px solid var(--divanna);
+    margin:12px 0; padding:12px 14px; border-radius:var(--radio-sm); font-size:0.88rem; line-height:1.45; white-space:pre-wrap;
+    background:var(--ink-3); border:1px solid var(--line); border-left:3px solid var(--divanna);
   }
-  .instr-box b{display:block; margin-bottom:4px; color:var(--divanna);}
+  .instr-box b{display:flex; align-items:center; gap:6px; margin-bottom:4px; color:var(--divanna);}
 
   /* ---------- VISTA EQUIPO (solo Admin): ver la app como cada colaborador ---------- */
   .vista-admin{
-    margin:14px 18px 0; padding:12px 14px; border-radius:14px; background:var(--ink-2);
-    border:1.5px solid var(--divanna); display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:0.85rem;
+    margin:14px 18px 0; padding:12px 14px; border-radius:var(--radio-md); background:var(--ink-2);
+    border:1px solid var(--line); display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:0.85rem;
   }
   .vista-admin[hidden]{display:none;}
   .vista-admin select{
-    flex:1; min-width:180px; padding:10px 12px; border-radius:10px; border:1.5px solid var(--line);
-    background:var(--ink); color:var(--paper); font:inherit; font-weight:700;
+    flex:1; min-width:180px; padding:10px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line);
+    background:var(--ink); color:var(--paper); font:inherit; font-size:1rem; font-weight:600; min-height:44px;
   }
-  .vista-admin label{display:flex; align-items:center; gap:6px; color:var(--muted);}
-  .vista-admin a{color:var(--divanna); font-weight:800; text-decoration:none;}
+  .vista-admin label{display:flex; align-items:center; gap:6px; color:var(--muted); min-height:44px;}
+  .vista-admin a{display:inline-flex; align-items:center; min-height:44px; color:var(--divanna); font-weight:700; text-decoration:none;}
 
   /* ---------- ACTIVAR ALERTAS PUSH ---------- */
   .alertas-banner{
-    margin:14px 18px 0; padding:12px 14px; border-radius:14px; font-size:0.85rem; line-height:1.4;
-    background:rgba(240,185,58,0.12); border:1.5px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:14px 18px 0; padding:12px 14px; border-radius:var(--radio-md); font-size:0.85rem; line-height:1.4;
+    background:var(--ink-2); border:1px solid var(--line); border-left:3px solid var(--warn); display:flex; gap:10px; align-items:center; flex-wrap:wrap;
   }
   .alertas-banner[hidden]{display:none;}
   .alertas-banner span{flex:1; min-width:180px;}
-  .alertas-banner button{border:none; border-radius:10px; padding:10px 14px; background:var(--maiz); color:var(--ink); font-weight:800; cursor:pointer;}
+  .alertas-banner button{border:none; border-radius:var(--radio-sm); padding:10px 14px; min-height:44px; background:var(--maiz); color:var(--ink); font-weight:700; cursor:pointer;}
 
   /* ---------- ALERTAS DE OTRAS BRIGADAS (antes llegaban por WhatsApp) ---------- */
   .alerta-equipo{
-    margin-bottom:14px; padding:14px 16px; border-radius:14px;
+    margin-bottom:14px; padding:14px 16px; border-radius:var(--radio-md);
     border:1.5px solid #ff6b6b; background:rgba(255,107,107,0.1); font-size:0.88rem; line-height:1.45;
   }
   .alerta-equipo.seguridad{border-color:#ff9f4a; background:rgba(255,159,74,0.1);}
-  .alerta-equipo b{display:block; margin-bottom:2px;}
-  .link-mapa{color:var(--paper); font-weight:800;}
+  .alerta-equipo b{display:flex; align-items:center; gap:6px; margin-bottom:2px;}
+  .link-mapa{color:var(--paper); font-weight:700;}
 
   /* ---------- CHECKLIST DE CARGA (por items de la cotización) ---------- */
-  .carga-box{margin:14px 0; padding:14px 16px; background:var(--ink); border-radius:14px; border:1px solid var(--line);}
-  .carga-title{font-size:0.82rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
+  .carga-box{margin:14px 0; padding:14px 16px; background:var(--ink); border-radius:var(--radio-md); border:1px solid var(--line);}
+  .carga-title{display:flex; align-items:center; gap:8px; font-size:0.9rem; font-weight:600; color:var(--paper); margin-bottom:4px;}
   .carga-item{
-    display:flex; align-items:center; gap:10px; padding:9px 4px; font-size:0.9rem; cursor:pointer;
+    display:flex; align-items:center; gap:10px; padding:9px 4px; min-height:44px; font-size:0.95rem; cursor:pointer;
     border-bottom:1px solid var(--line);
   }
   .carga-item:last-child{border-bottom:none;}
   .carga-item .box{
-    width:22px; height:22px; border-radius:7px; border:1.5px solid var(--line);
+    width:22px; height:22px; border-radius:6px; border:1.5px solid var(--line);
     display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.85rem;
   }
   .carga-item.marcado .box{background:var(--e-cerrado, #39e991); border-color:var(--e-cerrado, #39e991); color:var(--ink);}
   .carga-item.marcado span.texto{color:var(--muted); text-decoration:line-through;}
-  .carga-warning{font-size:0.78rem; color:var(--warn); margin-top:6px;}
+  .carga-item.pendiente{opacity:0.6;}
+  .carga-warning{display:flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--warn); margin-top:8px;}
 
   .refresh-fab{
     position:fixed; bottom:calc(24px + var(--safe-bottom)); right:20px;
@@ -352,8 +358,8 @@
       <span id="brigadaDetalle">—</span>
     </div>
     <div style="display:flex; align-items:center;">
-    <button class="icon-btn fin-btn" id="calBtn" aria-label="Calendario">📅</button>
-    <button class="icon-btn fin-btn" id="finBtn" aria-label="Reporte del día" hidden>💰</button>
+    <button class="icon-btn fin-btn" id="calBtn" aria-label="Calendario"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></button>
+    <button class="icon-btn fin-btn" id="finBtn" aria-label="Reporte del día" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg></button>
     <button class="icon-btn" id="logoutBtn" aria-label="Cerrar sesión">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
@@ -374,7 +380,7 @@
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
   </button>
   <div class="fin-panel" id="finPanel" hidden>
-    <div class="dima-top"><span>💰 Reporte del día</span><button id="finCerrar">✕ Cerrar</button></div>
+    <div class="dima-top"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>Reporte del día</span><button id="finCerrar">✕ Cerrar</button></div>
     <div id="finCuerpo"></div>
   </div>
   <button class="dima-fab" id="dimaFab" hidden>💬 Pregúntale a DiMa</button>
@@ -393,6 +399,22 @@
 <script src="dinero.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
+  // Iconos de estado en SVG (trazo estilo Lucide; color por clase .ico-*).
+  const ICONOS = {
+    reloj: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    persona: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    campana: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+    sinSenal: '<path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="m2 2 20 20"/>',
+    calendario: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    dinero: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+    lista: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/>',
+    aviso: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+    seguridad: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/>',
+    emergencia: '<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/><path d="M21 12h1M18.5 4.5 18 5M2 12h1M12 2v1M4.93 4.93l.71.71M12 12v6"/>',
+    retraso: '<path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/>',
+    lapiz: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
+  };
+  const ico = (n, clase) => `<svg class="ico${clase ? ' ' + clase : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONOS[n]}</svg>`;
   // Sesión compartida con dashboard.html (mismo origen): { token, nombre, rol }.
   const SESION_KEY = 'dima_sesion';
 
@@ -451,10 +473,10 @@
         </select>
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
         ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
-          <div style="margin-top:10px; font-weight:800;">👩‍🍳 Equipo de producción</div>
+          <div style="margin-top:10px; font-weight:700;">👩‍🍳 Equipo de producción</div>
           ${opcionesAsignar.produccion.map(p => `<label><input type="checkbox" class="asig-equipo" value="${esc(p.id)}" ${(ev.equipoProduccionIds || []).includes(p.id) ? 'checked' : ''}> ${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</label>`).join('')}
           <div class="asig-msg">Quién prepara (1, 2 o más). Puede estar también en el staff. Les llega un aviso por Telegram con el botón 🆘.</div>
-          <div style="margin-top:10px; font-weight:800;">🍳 Encargado de producción</div>
+          <div style="margin-top:10px; font-weight:700;">🍳 Encargado de producción</div>
           <select class="asig-produccion">
             <option value="">Sin encargado de producción</option>
             ${opcionesAsignar.produccion.map(p => `<option value="${esc(p.id)}" ${p.id === ev.produccionId ? 'selected' : ''}>${esc(p.nombre)}${p.conTelegram ? '' : ' (📵 sin Telegram)'}</option>`).join('')}
@@ -470,7 +492,7 @@
   function bloqueCliente(ev){
     const dig = String(ev.clienteTelefono || '').replace(/\D/g, '');
     return `<div class="cliente-box">
-        <span>👤 <b>${esc(ev.clienteNombre || 'Cliente sin nombre')}</b></span>
+        <span>${ico('persona')} <b>${esc(ev.clienteNombre || 'Cliente sin nombre')}</b></span>
         <span>📞 ${dig ? `<a href="tel:+${dig}">${esc(ev.clienteTelefono)}</a>` : 'sin teléfono'}</span>
         ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
       </div>`;
@@ -580,7 +602,7 @@
       return `<div class="instr-box"><b>🔄 El pedido cambió (${cuando(c.confirmadoEl)})</b>El cliente pidió un cambio y la gerencia lo confirmó. Lo que hay que llevar ya está actualizado abajo.${antes}</div>`;
     }
     if(c.estado === 'pendiente' && opcionesAsignar){
-      return `<div class="instr-box"><b>${c.urgente ? '⚠️ URGENTE · ' : ''}✏️ El cliente pidió un cambio (${cuando(c.pedidoEl)})</b>Pendiente de que Diana lo confirme; el equipo todavía no lo sabe.<br><br>${esc(c.servicios)}${antes}</div>`;
+      return `<div class="instr-box"><b>${c.urgente ? ico('aviso', 'ico-aviso') + ' URGENTE · ' : ''}✏️ El cliente pidió un cambio (${cuando(c.pedidoEl)})</b>Pendiente de que Diana lo confirme; el equipo todavía no lo sabe.<br><br>${esc(c.servicios)}${antes}</div>`;
     }
     return '';
   }
@@ -703,8 +725,8 @@
 
   function renderAlertasEquipo(alertas){
     return (alertas || []).map(a => a.emergencia
-      ? `<div class="alerta-equipo"><b>🆘 Emergencia de otra brigada · ${esc(a.folio)}</b>${esc(a.ubicacion)}${a.motivoEmergencia ? ' — ' + esc(a.motivoEmergencia) : ''}<br>Si estás cerca, comunícate con Diana o Víctor.${linkUbicacion(a)}</div>`
-      : `<div class="alerta-equipo seguridad"><b>⚠️ Alerta de seguridad · ${esc(a.folio)}</b>Zona: ${esc(a.zonaAlertaSeguridad)}. Eviten la zona si es posible.${linkUbicacion(a)}</div>`
+      ? `<div class="alerta-equipo"><b>${ico('emergencia', 'ico-emergencia')}Emergencia de otra brigada · ${esc(a.folio)}</b>${esc(a.ubicacion)}${a.motivoEmergencia ? ' — ' + esc(a.motivoEmergencia) : ''}<br>Si estás cerca, comunícate con Diana o Víctor.${linkUbicacion(a)}</div>`
+      : `<div class="alerta-equipo seguridad"><b>${ico('seguridad', 'ico-seguridad')}Alerta de seguridad · ${esc(a.folio)}</b>Zona: ${esc(a.zonaAlertaSeguridad)}. Eviten la zona si es posible.${linkUbicacion(a)}</div>`
     ).join('');
   }
 
@@ -735,13 +757,13 @@
 
   function fichaEvento(ev){
     const d = ev.dinero && !ev.dinero.error ? ev.dinero : null;
-    const avisos = [ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambio && ev.cambio.estado === 'pendiente' ? '✏️' : ''].filter(Boolean).join(' ');
+    const avisos = [ev.emergencia ? ico('emergencia', 'ico-emergencia') : '', ev.zonaAlertaSeguridad ? ico('seguridad', 'ico-seguridad') : '', ev.retraso ? ico('retraso', 'ico-retraso') : '', ev.cambio && ev.cambio.estado === 'pendiente' ? ico('lapiz') : ''].filter(Boolean).join(' ');
     const dineroTxt = DimaDinero.etiqueta(d);
     const abierta = fichasAbiertas.has(ev.id);
     return `<button type="button" class="ev-ficha" data-evento="${ev.id}" aria-expanded="${abierta}">
         <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
         <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
-        <span class="ficha-sub">${ev.horaInicio ? '🕒 ' + esc(ev.horaInicio) : '🕒 hora por confirmar'}${d && d.cliente ? ' · 👤 ' + esc(d.cliente) : ''}${ev.enteradoPor ? '' : ' · 🔔 sin confirmar'}</span>
+        <span class="ficha-sub">${ico('reloj')} ${ev.horaInicio ? esc(ev.horaInicio) : 'hora por confirmar'}${d && d.cliente ? ' · ' + ico('persona') + ' ' + esc(d.cliente) : ''}${ev.enteradoPor ? '' : ' · <span class="ico-aviso">' + ico('campana') + ' sin confirmar</span>'}</span>
         <span class="ficha-fila">${dineroTxt}<span class="ficha-flecha">${abierta ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
       </button>`;
   }
@@ -760,7 +782,7 @@
     eventosActuales = eventos;
     const alertasHtml = renderAlertasEquipo(alertasEquipo);
     if(!eventos.length){
-      mainContent.innerHTML = alertasHtml + `<div class="empty-state"><div class="big">🗓️</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
+      mainContent.innerHTML = alertasHtml + `<div class="empty-state"><div class="big">${ico('calendario')}</div>Sin eventos asignados por ahora.<br>Vuelve a checar más tarde.</div>`;
       return;
     }
 
@@ -787,7 +809,7 @@
           ${DimaDinero.cobroRapido(ev)}
           <div class="ev-detalle" ${fichasAbiertas.has(ev.id) ? '' : 'hidden'}>
           <div class="event-meta">
-            ${ev.horaInicio ? `<span>🕒 Empieza ${esc(ev.horaInicio)}</span>` : ''}
+            ${ev.horaInicio ? `<span>${ico('reloj')} Empieza ${esc(ev.horaInicio)}</span>` : ''}
             ${ev.personalRequerido ? `<span>🧑‍🍳 ${ev.personalRequerido} personas</span>` : ''}
             <span>👥 ${ev.invitados ? ev.invitados + ' invitados' : 'Invitados por confirmar'}</span>
             <span>📍 ${esc(ev.estado)}</span>
@@ -801,7 +823,7 @@
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="resumen" role="tab">Resumen</button>
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="cargar" role="tab">Cargar${ev.checklistItems && ev.checklistItems.length ? ` <small>${ev.checklistItems.filter(i => i.marcado).length}/${ev.checklistItems.length}</small>` : ''}</button>
             <button class="ev-tab-btn" data-evento="${ev.id}" data-tab="tareas" role="tab">Tareas <small>${doneCount}/${stages.length}</small></button>
-            ${ev.dinero ? `<button class="ev-tab-btn" data-evento="${ev.id}" data-tab="dinero" role="tab">💰 Dinero</button>` : ''}
+            ${ev.dinero ? `<button class="ev-tab-btn" data-evento="${ev.id}" data-tab="dinero" role="tab">${ico('dinero')} Dinero</button>` : ''}
           </div>
           ${ev.dinero ? `<div class="ev-tab" data-tab="dinero">${DimaDinero.bloque(ev)}</div>` : ''}
           <div class="ev-tab" data-tab="resumen">
@@ -816,7 +838,7 @@
             <select class="estatus-select" data-evento="${ev.id}" data-tipo="estatus">
               ${ESTATUS_LOGISTICO_OPCIONES.map(op => `<option value="${op}" ${ev.estatusLogistico === op ? 'selected' : ''}>${op}</option>`).join('')}
             </select>
-            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">💰 ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
+            ${ev.estatusPago ? `<span class="pago-badge ${ev.estatusPago.startsWith('Pagado') || ev.estatusPago === 'Liquidado 100%' ? 'pagado' : 'pendiente'}">${ico('dinero')} ${ev.estatusPago}${ev.montoAdeudado ? ' · $' + ev.montoAdeudado : ''}</span>` : ''}
           </div>
           </div>
           <div class="ev-tab" data-tab="cargar">
@@ -825,14 +847,14 @@
 
           ${ev.checklistItems && ev.checklistItems.length ? `
             <div class="carga-box">
-              <div class="carga-title">📋 Checklist de carga</div>
+              <div class="carga-title">${ico('lista')}Checklist de carga</div>
               ${ev.checklistItems.map((item, i) => `
                 <div class="carga-item ${item.marcado ? 'marcado' : ''}" data-evento="${ev.id}" data-idx="${i}">
                   <span class="box">${item.marcado ? '✓' : ''}</span>
                   <span class="texto">${esc(item.texto)}</span>
                 </div>
               `).join('')}
-              ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">⚠️ Falta marcar todo para poder salir del almacén</div>` : ''}
+              ${ev.checklistItems.some(i => !i.marcado) ? `<div class="carga-warning">${ico('aviso')}Falta marcar todo para poder salir del almacén</div>` : ''}
             </div>
           ` : ''}
           </div>
@@ -849,13 +871,13 @@
 
           <!-- Alertas: siempre a la vista, fuera de las pestañas. -->
           <div class="alert-actions">
-            <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">🚦 Retraso</div>
-            <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">🆘 Emergencia</div>
-            <div class="alert-btn seguridad ${ev.zonaAlertaSeguridad ? 'active' : ''}" data-evento="${ev.id}" data-accion="alerta_seguridad">⚠️ Seguridad</div>
+            <div class="alert-btn retraso ${ev.retraso ? 'active' : ''}" data-evento="${ev.id}" data-accion="retraso">${ico('retraso')}Retraso</div>
+            <div class="alert-btn emergencia ${ev.emergencia ? 'active' : ''}" data-evento="${ev.id}" data-accion="emergencia">${ico('emergencia')}Emergencia</div>
+            <div class="alert-btn seguridad ${ev.zonaAlertaSeguridad ? 'active' : ''}" data-evento="${ev.id}" data-accion="alerta_seguridad">${ico('seguridad')}Seguridad</div>
           </div>
-          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">🚦 Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
-          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">🆘 Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
-          ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">⚠️ Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
+          ${ev.retraso && ev.motivoRetraso ? `<div class="motivo-tag">${ico('retraso', 'ico-retraso')} Retraso: ${esc(ev.motivoRetraso)}</div>` : ''}
+          ${ev.emergencia && ev.motivoEmergencia ? `<div class="motivo-tag">${ico('emergencia', 'ico-emergencia')} Emergencia: ${esc(ev.motivoEmergencia)}</div>` : ''}
+          ${ev.zonaAlertaSeguridad ? `<div class="motivo-tag">${ico('seguridad', 'ico-seguridad')} Zona reportada: ${esc(ev.zonaAlertaSeguridad)}</div>` : ''}
           ${(ev.emergencia || ev.zonaAlertaSeguridad) && linkUbicacion(ev) ? `<div class="motivo-tag">${linkUbicacion(ev).replace('<br>', '')}</div>` : ''}
           </div>
         </div>
@@ -929,15 +951,46 @@
     });
   }
 
+  // Marca o desmarca al instante (sin repintar la lista ni perder el scroll); si falla, se revierte.
   async function toggleCargaItem(item){
+    if(item.classList.contains('pendiente')) return; // evita doble toque mientras se guarda
     const eventoId = item.dataset.evento;
     const idx = item.dataset.idx;
     const yaMarcado = item.classList.contains('marcado');
+    item.classList.add('pendiente');
+    pintarCargaItem(item, !yaMarcado);
     try {
       await enviarEstatus({ eventoId, tipo: 'checklist_item', valor: idx, motivo: yaMarcado ? 'desmarcar' : 'marcar' });
-      loadEventos();
     } catch(e){
+      pintarCargaItem(item, yaMarcado);
       showToast('No se pudo actualizar, intenta de nuevo');
+    } finally {
+      item.classList.remove('pendiente');
+    }
+  }
+
+  // Pinta un item de carga y recalcula el contador "Cargar N/M" y el aviso de su evento.
+  function pintarCargaItem(item, marcado){
+    item.classList.toggle('marcado', marcado);
+    item.querySelector('.box').textContent = marcado ? '✓' : '';
+    const ev = eventosActuales.find(e => e.id === item.dataset.evento);
+    const dato = ev && ev.checklistItems && ev.checklistItems[item.dataset.idx];
+    if(dato) dato.marcado = marcado;
+    const caja = item.closest('.carga-box');
+    const card = item.closest('.event-card');
+    if(!caja || !card) return;
+    const total = caja.querySelectorAll('.carga-item').length;
+    const hechos = caja.querySelectorAll('.carga-item.marcado').length;
+    const contador = card.querySelector('.ev-tab-btn[data-tab="cargar"] small');
+    if(contador) contador.textContent = `${hechos}/${total}`;
+    let aviso = caja.querySelector('.carga-warning');
+    if(hechos < total && !aviso){
+      aviso = document.createElement('div');
+      aviso.className = 'carga-warning';
+      aviso.innerHTML = ico('aviso') + 'Falta marcar todo para poder salir del almacén';
+      caja.appendChild(aviso);
+    } else if(hechos === total && aviso){
+      aviso.remove();
     }
   }
 
@@ -1207,7 +1260,7 @@
       mostrarApp();
     } catch(e){
       if(e.message === 'sesion' || silencioso) return;
-      mainContent.innerHTML = `<div class="empty-state"><div class="big">📡</div>No se pudieron cargar tus eventos.<br>Revisa tu señal y toca actualizar.</div>`;
+      mainContent.innerHTML = `<div class="empty-state"><div class="big">${ico('sinSenal')}</div>No se pudieron cargar tus eventos.<br>Revisa tu señal y toca actualizar.</div>`;
       mostrarApp();
     }
   }
@@ -1326,7 +1379,7 @@
       pintarFinanzas();
     } catch(e){
       if(e.message === 'sesion') return;
-      $('finCuerpo').innerHTML = `<div class="fin-caja">⚠️ No se pudo cargar el reporte (${esc(e.message && e.message !== 'fail' ? e.message : 'sin conexión')}). Revisa tu señal e intenta de nuevo.</div>`;
+      $('finCuerpo').innerHTML = `<div class="fin-caja">${ico('aviso', 'ico-aviso')} No se pudo cargar el reporte (${esc(e.message && e.message !== 'fail' ? e.message : 'sin conexión')}). Revisa tu señal e intenta de nuevo.</div>`;
     }
   }
 
@@ -1358,7 +1411,7 @@
         <h4>💸 Gastos · ${pesos(gastos.reduce((t, g) => t + g.monto, 0))}</h4>
         ${gastos.length ? gastos.map(g => `
           <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
-          <div>${fotoLink(g.foto, '⚠️ sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
+          <div>${fotoLink(g.foto, ico('aviso', 'ico-aviso') + ' sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
         ${editable ? `
           <input id="gConcepto" maxlength="120" placeholder="¿En qué se gastó? (ej. Gasolina, hielo, comida)">
           <input id="gMonto" inputmode="decimal" placeholder="Monto (ej. 350)">
@@ -1375,7 +1428,7 @@
         <h4>💵 Cobros · ${pesos(cobros.reduce((t, c) => t + c.monto, 0))}</h4>
         ${cobros.length ? cobros.map(c => `
           <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.forma)}</small></div>
-          <div>${fotoLink(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')} ${editable ? `<button class="fin-quitar" data-tipo="cobro" data-id="${esc(c.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin cobros.</div>'}
+          <div>${fotoLink(c.foto, c.forma === 'Efectivo' ? '' : ico('aviso', 'ico-aviso') + ' sin comprobante')} ${editable ? `<button class="fin-quitar" data-tipo="cobro" data-id="${esc(c.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin cobros.</div>'}
         ${editable && d.eventos.length ? `
           <select id="cEvento">${opcionesEventos}</select>
           <input id="cMonto" inputmode="decimal" placeholder="Monto cobrado">
@@ -1397,7 +1450,7 @@
         <div class="fin-msg" id="finMsg"></div>
       </div>
 
-      ${(d.misReportes || []).length ? `<div class="fin-caja"><h4>📅 Mis reportes</h4>${d.misReportes.map(m => `
+      ${(d.misReportes || []).length ? `<div class="fin-caja"><h4>${ico('calendario')} Mis reportes</h4>${d.misReportes.map(m => `
         <div class="fin-item"><div>${esc(m.fecha)}<small>${esc(m.estado)}</small></div><div>gastos ${pesos(m.totalGastos)} · cobros ${pesos(m.totalCobros)}${m.reembolsoPendiente ? `<small>te deben ${pesos(m.reembolsoPendiente)}</small>` : ''}</div></div>`).join('')}</div>` : ''}`;
   }
 
@@ -1408,7 +1461,7 @@
       <div class="fin-caja">
         <h4>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.estado)}${r.soloNegocio || r.soloVasoMaiz ? ` <small>(solo lo de ${esc(r.soloNegocio || 'El Vaso Maíz')})</small>` : ''}</h4>
         <div>Gastos ${pesos(r.totalGastos)} · Cobros ${pesos(r.totalCobros)} · Efectivo entregado ${pesos(r.efectivoEntregado)}${r.reembolsoPendiente ? ' · reembolso ' + pesos(r.reembolsoPendiente) : ''}</div>
-        ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, '⚠️ sin ticket')}</div></div>`).join('')}
+        ${r.gastos.map(g => `<div class="fin-item"><div>${esc(g.concepto)} · ${pesos(g.monto)}<small>${esc(g.categoria)} · ${esc(g.pagadoCon)}</small></div><div>${fotoLink(g.foto, ico('aviso', 'ico-aviso') + ' sin ticket')}</div></div>`).join('')}
         ${r.cobros.map(c => `<div class="fin-item"><div>Cobro ${esc(c.concepto)} · ${pesos(c.monto)}</div><div>${fotoLink(c.foto, '')}</div></div>`).join('')}
         ${r.insumos ? `<div class="fin-msg">Insumos: ${esc(r.insumos)}</div>` : ''}
       </div>`;
