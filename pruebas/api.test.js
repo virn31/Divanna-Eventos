@@ -2324,11 +2324,53 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenGer), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
   ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'calendario: la gerente no modifica eventos de Divanna');
 
+  // Líder de brigada (Víctor 2026-11-10): modifica solo los eventos de su brigada.
+  {
+    const Cl = require(path.join(repo, 'api/_calendario.js'));
+    const lider = { id: LIDER.id, nombre: 'Juan', rol: 'Lider de brigada', brigadaId: 'recBRIGADA0000001' };
+    const otraBrigada = { ...EV_CAL.fields, Brigada_Asignada: ['recBRIGADA0000009'] };
+    ok(Cl.puedeEditarEvento(lider, EV_CAL.fields) && !Cl.puedeEditarEvento(lider, otraBrigada) && !Cl.puedeEditarEvento({ ...lider, rol: 'Asistente' }, EV_CAL.fields)
+      && !Cl.puedeEditarEvento({ ...lider, rol: 'Encargada de evento' }, EV_CAL.fields),
+      'calendario: el líder modifica los eventos de su brigada; los de otra brigada no; asistente y encargada solo ven');
+    ok(Cl.puedeBloquear(lider, 'Divanna Eventos') && !Cl.puedeBloquear(lider, 'El Vaso Maiz') && !Cl.puedeBloquear(lider, 'Ambos')
+      && Cl.puedeQuitarBloqueo(lider, { Negocio: 'Divanna Eventos', Creado_Por: 'Juan' }) && !Cl.puedeQuitarBloqueo(lider, { Negocio: 'Divanna Eventos', Creado_Por: 'Diana' }),
+      'calendario: el líder bloquea días de Divanna y solo quita los que puso él');
+  }
+  reset();
+  respuestas = [LIDER, { ...EV_CAL, fields: { ...EV_CAL.fields, Brigada_Asignada: ['recBRIGADA0000009'] } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'calendario: el líder no mueve eventos de otra brigada');
   reset();
   respuestas = [LIDER];
   res = resMock();
-  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
-  ok(res.code === 403 && llamadas.length === 1, 'calendario: el líder ve pero no modifica');
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'capturar_evento', clienteNombre: 'Ana', clienteTelefono: '6671234567', fecha: '2026-12-05' } }, res);
+  ok(res.code === 403 && llamadas.length === 1, 'calendario: el líder no captura eventos nuevos (eso sigue con Diana y los gerentes)');
+  reset();
+  respuestas = [ASIST];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAsist), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'calendario: el asistente ve pero no modifica');
+  reset();
+  respuestas = [LIDER, EV_CAL, {}, { records: [ADMIN, LIDER_CAL] }, { records: [] }, { records: [ADMIN_T, LIDER_CAL] },
+    { ...EV_CAL, fields: { ...EV_CAL.fields, Fecha_Evento: '2026-12-05' } }, BRIG_CAL, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'calendario_mover', eventoId: EV_CAL.id, fecha: '2026-12-05', hora: '18:00', horasServicio: 2 } }, res);
+  const movLider = llamadas.find(l => l.method === 'PATCH');
+  ok(res.code === 200 && movLider && movLider.body.records[0].fields.Fecha_Evento === '2026-12-05' && telegram.some(t => t.body.chat_id === '111' && /Se movió EVT-CL1/.test(t.body.text || '')),
+    'calendario: el líder mueve un evento de su brigada y a Diana le llega el aviso');
+  reset();
+  respuestas = [LIDER, { ...EV_CAL, fields: { ...EV_CAL.fields, Brigada_Asignada: ['recBRIGADA0000009'] } }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenLider), body: { accion: 'editar', eventoId: EV_CAL.id, ubicacion: 'Otro lugar' } }, res);
+  ok(res.code === 403 && !llamadas.some(l => l.method === 'PATCH'), 'calendario: el líder no edita datos de eventos de otra brigada');
+  {
+    const cal2 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    const app3 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    ok(cal2.includes('data-cal="ficha"') && cal2.includes('ev.propio && o.abrirFicha') && cal2.includes('(datos.puedeEditar || datos.modifica) && negociosBloqueo.length')
+      && app3.includes('abrirFicha: fichaDesdeCalendario') && app3.includes('soyLider && miBrigadaId && ev.brigadaId === miBrigadaId'),
+      'calendario (app): "📋 Ver ficha completa" en sus eventos, bloquear días y ✏️ Editar en la ficha del líder');
+  }
 
   reset();
   respuestas = [ADMIN, { ...EV_CAL, fields: { ...EV_CAL.fields, Google_Evento_ID: 'gcalVIEJO' } }, {}, { records: [ADMIN, LIDER_CAL] }, { records: [] }, { records: [ADMIN_T, LIDER_CAL] },
@@ -3893,7 +3935,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v41/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v41)');
+    ok(/dima-brigadas-v42/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v42)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
