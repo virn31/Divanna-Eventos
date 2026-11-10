@@ -283,11 +283,15 @@ async function saldoActual(eventoId) {
 // cobró la brigada (no Diana). unaVez: viene de un botón de Telegram; si ese
 // evento ya quedó contestado no se vuelve a registrar (botón viejo tocado otra vez).
 // Devuelve { ok, texto } o { error }.
-async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota, recibio, unaVez }) {
+async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, nota, recibio, unaVez, negocio }) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor cuadran el dinero.', codigo: 403 };
   if (!ID.test(eventoId || '')) return { error: 'Parámetros inválidos' };
   const { e, dinero } = await saldoActual(eventoId);
   const f = e.fields;
+  // De qué negocio es el cobro: lo que eligió Diana o, si no, el del evento (Casa Isabella si lleva el salón).
+  // require aquí adentro para no hacer un ciclo de módulos con _finanzas.
+  const N = require('./_finanzas');
+  const campoNegocio = N.camposNegocio(N.NEGOCIOS_ELEGIR.includes(negocio) ? negocio : N.eleccionDeEvento(f)) || {};
   const quien = colaborador.nombre;
   if (unaVez) {
     const estado = f.Cuadre_Estado || '';
@@ -303,7 +307,7 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       method: 'POST',
       body: JSON.stringify({ records: [{ fields: {
         Concepto: `${f.Folio_Evento || ''} · efectivo que cobró la brigada (lo anotó ${quien})`, Monto: valor, Forma: FORMAS.e, Fecha: hoyCuliacan(),
-        ...(f.Negocio === 'Divanna Eventos' || f.Negocio === 'El Vaso Maiz' ? { Negocio: f.Negocio } : {}),
+        ...campoNegocio,
         Evento: [eventoId], Reportado_Por: [colaborador.id],
       } }] }),
     });
@@ -319,7 +323,7 @@ async function aclarar(colaborador, { eventoId, tipo, monto: montoTexto, forma, 
       method: 'POST',
       body: JSON.stringify({ records: [{ fields: {
         Concepto: `${f.Folio_Evento || ''} · pago a ${quien}`, Monto: valor, Forma: forma, Fecha: hoyCuliacan(),
-        ...(f.Negocio === 'Divanna Eventos' || f.Negocio === 'El Vaso Maiz' ? { Negocio: f.Negocio } : {}),
+        ...campoNegocio,
         Evento: [eventoId], Recibido_Por: 'Diana', Reportado_Por: [colaborador.id],
       } }] }),
     });

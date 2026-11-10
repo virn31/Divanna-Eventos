@@ -1455,7 +1455,7 @@
         <h3>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.negocio)}</h3>
         <div class="evento-sub">${r.estado === 'Aclaración' ? '✏️ Pediste aclaración; esperando corrección' : '⏳ Enviado para revisión'}${r.enviadoHora ? ' · ' + new Date(r.enviadoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
         <div class="meta-line"><span>💸 Gastos <span class="dinero-gasto">${pesosFin(r.totalGastos)}</span></span><span>💵 Cobros <span class="dinero-favor">${pesosFin(r.totalCobros)}</span></span><span>🧾 Efectivo entregado <span class="dinero-favor">${pesosFin(r.efectivoEntregado)}</span></span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero <span class="dinero-gasto">${pesosFin(r.reembolsoPendiente)}</span></span>` : ''}</div>
-        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
+        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocioTexto || g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
         ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <span class="dinero-favor">${pesosFin(c.monto)}</span> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
         ${r.insumos ? `<div class="motivo">🌽 Insumos: ${esc(r.insumos)}</div>` : ''}
         ${r.notas ? `<div class="motivo">📝 ${esc(r.notas)}</div>` : ''}

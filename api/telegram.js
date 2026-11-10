@@ -255,7 +255,7 @@ async function atenderBoton(cb) {
     // /gasto: Diana elige el tipo (gs:<Evento|General|Extra>) y se guarda.
     const r = await botonGasto(colaborador, accion, cb.message.text || '');
     await responderBoton(cb.id, r.aviso, !!r.alerta);
-    if (r.textoFinal) await editarTelegram(chatId, mensajeId, r.textoFinal);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, r.textoFinal, r.id ? Tickets.botonesNegocio(r.id, false).concat([[{ texto: '🗑️ Borrar', dato: `gt:x:${r.id}:0` }]]) : null);
     return;
   }
   if (tipo === 'dn') {

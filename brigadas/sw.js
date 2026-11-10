@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dima-brigadas-v39';
+const CACHE_NAME = 'dima-brigadas-v40';
 const APP_SHELL = [
   '/brigadas/',
   '/brigadas/index.html',

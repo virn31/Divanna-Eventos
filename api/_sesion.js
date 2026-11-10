@@ -159,6 +159,16 @@ function usaCasaIsabella(eventoFields) {
     || /casa\s*isabella/i.test(String(f.Servicios_Solicitados || ''));
 }
 
+// De qué negocio es el dinero de un evento, para gastos, cobros y reportes por
+// negocio (Víctor 2026-11-10): con el salón es Casa Isabella; con piezas de El
+// Vaso Maíz y sin ser de Divanna, El Vaso Maíz; si no, su Negocio (o Divanna).
+function eleccionDeEvento(eventoFields) {
+  const f = eventoFields || {};
+  if (usaCasaIsabella(f)) return GERENCIAS.CI;
+  const vm = f.Negocio === GERENCIAS.VM || Number(f.Piezas_Vaso_Maiz) > 0;
+  return vm && f.Negocio !== GERENCIAS.DV ? GERENCIAS.VM : (f.Negocio === GERENCIAS.VM ? GERENCIAS.VM : GERENCIAS.DV);
+}
+
 // ¿Este evento le toca a la gerencia indicada?
 function eventoDeGerencia(gerencia, eventoFields) {
   const f = eventoFields || {};
@@ -207,5 +217,5 @@ function puedeOperarEvento(colaborador, eventoFields) {
 
 module.exports = {
   ROLES, COLABORADORES_TABLE, iniciarSesion, requerirSesion, puedeOperarEvento, esVasoMaiz,
-  GERENCIAS, NOMBRE_GERENCIA, ROLES_GERENTE, gerenciaDe, rolDe, rolValido, usaCasaIsabella, eventoDeGerencia, esDeSuGerencia, ocultoParaGerente, formulaGerencia, puestoGerente, negocioDeGerencia,
+  GERENCIAS, NOMBRE_GERENCIA, ROLES_GERENTE, gerenciaDe, rolDe, rolValido, usaCasaIsabella, eleccionDeEvento, eventoDeGerencia, esDeSuGerencia, ocultoParaGerente, formulaGerencia, puestoGerente, negocioDeGerencia,
 };

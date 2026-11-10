@@ -3830,8 +3830,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(g.Monto === 350 && g.Concepto === 'gasolina' && g.Categoria === 'Combustible' && g.Pagado_Con === 'Dinero del negocio' && g.Tipo === 'General' && (g.Reporte || [])[0] === 'recREPORTEPRUEB01'
       && postRep && postRep.body.records[0].fields.Negocio === 'Divanna Eventos',
       'gastos: un asistente sin eventos anota /gasto 350 gasolina en su reporte del día');
-    ok(typeof r === 'object' && r.texto.includes('$350') && r.botones.flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1',
-      'gastos: contesta con 👛 Lo pagué yo y 🗑️ Borrar (se reenvía solo porque no tuvo eventos)');
+    ok(typeof r === 'object' && r.texto.includes('$350') && r.botones.slice(1).flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1',
+      'gastos: contesta con el negocio, 👛 Lo pagué yo y 🗑️ Borrar (se manda solo porque no tuvo eventos)');
     reset();
     ok(typeof (await T.gastoPorTexto(asist, 'gasolina')) === 'string' && llamadas.length === 0, 'gastos: sin monto pide el formato y no guarda nada');
 
@@ -3864,8 +3864,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     respuestas = [{ records: [{ id: 'recGASTOADMIN0001' }] }, {}];
     r = await T.atenderFotoGasto({ chat: { id: 111 }, photo: [{ file_id: 'x' }], caption: 'gasto 200 globos' }, admin);
     const ga = llamadas.find(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T'));
-    ok(ga && !ga.body.records[0].fields.Reporte && ga.body.records[0].fields.Monto === 200 && ga.body.records[0].fields.Concepto === 'globos' && r.botones.flat().map(x => x.dato).join() === 'gt:x:recGASTOADMIN0001:0',
-      'gastos: el gasto de Diana por foto va directo (sin reporte) con botón Borrar');
+    ok(ga && !ga.body.records[0].fields.Reporte && ga.body.records[0].fields.Monto === 200 && ga.body.records[0].fields.Concepto === 'globos' && r.botones.flat().map(x => x.dato).join() === 'gt:n:recGASTOADMIN0001:DV0,gt:n:recGASTOADMIN0001:CI0,gt:n:recGASTOADMIN0001:VM0,gt:x:recGASTOADMIN0001:0',
+      'gastos: el gasto de Diana por foto va directo (sin reporte), pregunta el negocio y tiene Borrar');
 
     // 👛 Lo pagué yo: cambia a dinero propio y reabre el reporte enviado.
     reset();
@@ -3893,7 +3893,55 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v39/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v39)');
+    ok(/dima-brigadas-v40/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v40)');
+    // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
+    ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
+      && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
+      'negocio: Casa Isabella se guarda como Divanna + casilla Casa_Isabella (sigue sumando en Divanna)');
+    const S2 = require('../api/_sesion');
+    ok(S2.eleccionDeEvento({ Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' }) === 'Casa Isabella'
+      && S2.eleccionDeEvento({ Negocio: 'El Vaso Maiz' }) === 'El Vaso Maiz' && S2.eleccionDeEvento({ Negocio: 'Divanna Eventos' }) === 'Divanna Eventos',
+      'negocio: el evento con salón sugiere Casa Isabella');
+    // Gasto por Telegram: pregunta el negocio; sin eventos, al elegirlo se manda a Diana.
+    reset();
+    respuestas = SIN_EVENTOS.slice();
+    r = await T.gastoPorTexto(asist, '350 gasolina');
+    ok(r.texto.includes('¿De qué negocio es?') && r.botones[0].map(x => x.dato).join() === 'gt:n:recGASTOPRUEBA001:DV1,gt:n:recGASTOPRUEBA001:CI1,gt:n:recGASTOPRUEBA001:VM1'
+      && !llamadas.some(l => l.method === 'PATCH' && l.url.includes('tbllUK2N9ZDv2Bpdt') && l.body.records[0].fields.Estado === 'Enviado'),
+      'negocio (Telegram): después de guardar pregunta Divanna / Casa Isabella / El Vaso Maíz y todavía no lo manda');
+    reset();
+    respuestas = [
+      { id: 'recGASTOPRUEBA001', fields: { Reportado_Por: [ASIST.id], Reporte: ['recREPORTEPRUEB01'], Fecha: hoyT, Monto: 350, Negocio: 'Divanna Eventos' } },
+      { id: 'recREPORTEPRUEB01', fields: { Colaborador: [ASIST.id], Estado: 'Abierto', Fecha: hoyT, Negocio: 'Divanna Eventos' } },
+      {}, {},
+    ];
+    r = await T.botonTicket(asist, 'n', 'recGASTOPRUEBA001', 'CI1');
+    const pn = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(pn && pn.body.records[0].fields.Negocio === 'Divanna Eventos' && pn.body.records[0].fields.Casa_Isabella === true && r.textoFinal.includes('Casa Isabella')
+      && r.botones.flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1',
+      'negocio (Telegram): al tocar Casa Isabella se guarda y quedan 👛 y 🗑️');
+    reset();
+    respuestas = [
+      { id: 'recGASTOPRUEBA001', fields: { Reportado_Por: [ASIST.id], Reporte: ['recREPORTEPRUEB01'], Fecha: hoyT } },
+      { id: 'recREPORTEPRUEB01', fields: { Colaborador: [ASIST.id], Estado: 'Abierto', Fecha: hoyT, Negocio: 'Divanna Eventos' } },
+      {}, {},
+    ];
+    await T.botonTicket(asist, 'n', 'recGASTOPRUEBA001', 'VM0');
+    ok(llamadas.some(l => l.method === 'PATCH' && l.url.includes('tbllUK2N9ZDv2Bpdt') && l.body.records[0].fields.Negocio === 'Ambos'),
+      'negocio: un gasto de El Vaso Maíz en un reporte de Divanna lo pasa a "Ambos" (lo ven las dos gerencias)');
+    reset();
+    r = await T.botonTicket(asist, 'n', 'recGASTOPRUEBA001', 'XX1');
+    ok(llamadas.length === 0, 'negocio: un código de negocio inválido no cambia nada');
+    // App: el gasto sin negocio no se guarda; el cobro guarda el negocio elegido.
+    reset();
+    respuestas = [LIDER, { id: 'recBRIGADA0000001', fields: { EVENTOS: [] } }];
+    res = await fin(tokenLider, { accion: 'gasto', fecha: hoyT, concepto: 'Hielo', monto: '90', categoria: 'Inventario', pagadoCon: 'Dinero del negocio', negocio: '' });
+    ok(res.code === 400 && /Casa Isabella/.test(res.body.error) && !llamadas.some(l => l.method === 'POST'), 'negocio (app): sin elegir negocio el gasto no se guarda');
+    const app2 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    const din2 = fs.readFileSync(path.join(repo, 'brigadas/dinero.js'), 'utf8');
+    ok(app2.includes('¿De qué negocio es el gasto?') && app2.includes('id="cNegocio"') && din2.includes('din-cobro-negocio') && /negocio: valor\('\.din-cobro-negocio'\)/.test(din2),
+      'negocio (app): gasto, cobro del reporte y cobro de la ficha preguntan el negocio');
+
     const tg = fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8');
     ok(/Tickets\.esFotoDeGasto\(mensaje, colaborador\) \? await Tickets\.atenderFotoGasto/.test(tg) && /tipo === 'gt'/.test(tg) && /Tickets\.gastoPorTexto/.test(tg),
       'gastos (Telegram): fotos y /gasto pasan por el módulo de tickets');

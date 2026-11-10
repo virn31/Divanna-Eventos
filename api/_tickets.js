@@ -105,6 +105,13 @@ async function leerTicket(foto, pista = '') {
 
 const fechaHoy = () => F.hoyCuliacan();
 
+// ¿De qué negocio es? (Víctor 2026-11-10). gt:n:<gasto>:<DV|CI|VM><auto>.
+const CODIGOS = { DV: 'Divanna Eventos', CI: 'Casa Isabella', VM: 'El Vaso Maiz' };
+const ETIQUETAS = { DV: '🪑 Divanna', CI: '🏛️ Casa Isabella', VM: '🌽 El Vaso Maíz' };
+function botonesNegocio(id, auto) {
+  return [Object.keys(CODIGOS).map(c => ({ texto: ETIQUETAS[c], dato: `gt:n:${id}:${c}${auto ? 1 : 0}` }))];
+}
+
 function botonesGasto(id, conEventos, auto, fecha) {
   const filas = [[{ texto: '👛 Lo pagué yo', dato: `gt:p:${id}:${auto ? 1 : 0}` }, { texto: '🗑️ Borrar', dato: `gt:x:${id}:${auto ? 1 : 0}` }]];
   if (conEventos) filas.push([{ texto: '📨 Enviar reporte a Diana', dato: `gt:e:${fecha}` }]);
@@ -119,8 +126,8 @@ async function guardarGasto(colaborador, { monto: valor, concepto, categoria }, 
     const r = await F.agregarGastoAdmin(colaborador, { concepto: concept, monto: valor, categoria: cat, foto });
     if (r.error) return { texto: `⚠️ ${r.error}` };
     return {
-      texto: `✅ Anoté ${pesos(valor)} · ${concept} (${cat}) · ${fechaHoy()} · dinero del negocio.${r.avisoFoto ? `\n⚠️ ${r.avisoFoto}` : ''}`,
-      botones: [[{ texto: '🗑️ Borrar', dato: `gt:x:${r.id}:0` }]],
+      texto: `✅ Anoté ${pesos(valor)} · ${concept} (${cat}) · ${fechaHoy()} · dinero del negocio.${r.avisoFoto ? `\n⚠️ ${r.avisoFoto}` : ''}\n¿De qué negocio es?`,
+      botones: botonesNegocio(r.id, false).concat([[{ texto: '🗑️ Borrar', dato: `gt:x:${r.id}:0` }]]),
     };
   }
   const fecha = fechaHoy();
@@ -129,16 +136,15 @@ async function guardarGasto(colaborador, { monto: valor, concepto, categoria }, 
     autoNegocio: true, autoEvento: true, foto,
   });
   if (r.error) return { texto: `⚠️ No pude guardar el gasto: ${r.error}` };
-  // Sin eventos ese día no hay cobros ni efectivo que esperar: se manda solo.
-  let enviado = false;
-  if (!r.conEventos) enviado = !(await F.enviar(colaborador, { fecha }).catch(err => ({ error: err.message }))).error;
+  // Primero se confirma el negocio. Sin eventos ese día (no hay cobros ni efectivo
+  // que esperar), al confirmarlo el reporte se le manda solo a Diana.
   const texto = [
     `✅ Anoté ${pesos(valor)} · ${concept} (${cat}), pagado con dinero del negocio.`,
     r.avisoFoto ? `⚠️ ${r.avisoFoto}` : null,
-    enviado ? '📨 Ya le llegó a Diana para revisarlo.' : r.conEventos ? 'Va en tu reporte de hoy: al terminar el día envíaselo a Diana (botón de abajo o 💰 en la app).' : null,
+    '👉 ¿De qué negocio es? Toca uno.',
     'Si lo pagaste con tu dinero toca 👛 y te lo reembolsan.',
   ].filter(Boolean).join('\n');
-  return { texto, botones: botonesGasto(r.id, r.conEventos, !r.conEventos, fecha) };
+  return { texto, botones: botonesNegocio(r.id, !r.conEventos).concat(botonesGasto(r.id, r.conEventos, !r.conEventos, fecha)) };
 }
 
 // ---------- Telegram ----------
@@ -191,6 +197,18 @@ async function botonTicket(colaborador, accion, id, auto) {
     const r = await F.enviar(colaborador, { fecha: id });
     return r.error ? { aviso: r.error, alerta: true } : { aviso: 'Enviado', textoFinal: '📨 Reporte enviado a Diana.', botones: [] };
   }
+  if (accion === 'n') {
+    const codigo = String(auto || '').slice(0, 2), sola = String(auto || '').slice(2) === '1';
+    if (!ID.test(id || '') || !CODIGOS[codigo]) return { aviso: '' };
+    const r = await F.cambiarGasto(colaborador, id, 'negocio', CODIGOS[codigo]);
+    if (r.error) return { aviso: r.error, alerta: true };
+    let enviado = false;
+    if (sola && r.gasto && r.gasto.reporteId && r.gasto.fecha) enviado = !(await F.enviar(colaborador, { fecha: r.gasto.fecha }).catch(err => ({ error: err.message }))).error;
+    const quedan = r.gasto && r.gasto.reporteId
+      ? botonesGasto(id, !sola, sola, r.gasto.fecha || fechaHoy())
+      : [[{ texto: '🗑️ Borrar', dato: `gt:x:${id}:0` }]];
+    return { aviso: F.NOMBRE_NEGOCIO[CODIGOS[codigo]], textoFinal: `🏷️ Negocio: ${F.NOMBRE_NEGOCIO[CODIGOS[codigo]]}.${enviado ? ' 📨 Ya le llegó a Diana para revisarlo.' : r.gasto && r.gasto.reporteId && !sola ? ' Va en tu reporte de hoy: al terminar el día envíaselo a Diana.' : ''}`, botones: quedan };
+  }
   if (!ID.test(id || '') || !['p', 'x'].includes(accion)) return { aviso: '' };
   const r = await F.cambiarGasto(colaborador, id, accion === 'p' ? 'propio' : 'borrar');
   if (r.error) return { aviso: r.error, alerta: true };
@@ -221,4 +239,4 @@ async function leerParaApp(colaborador, body) {
   }
 }
 
-module.exports = { leerTexto, categoriaDeTexto, leerTicket, guardarGasto, esFotoDeGasto, atenderFotoGasto, gastoPorTexto, botonTicket, leerParaApp, HERRAMIENTA };
+module.exports = { botonesNegocio, CODIGOS, leerTexto, categoriaDeTexto, leerTicket, guardarGasto, esFotoDeGasto, atenderFotoGasto, gastoPorTexto, botonTicket, leerParaApp, HERRAMIENTA };

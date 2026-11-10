@@ -1393,7 +1393,7 @@
     const gastos = r ? r.gastos : [], cobros = r ? r.cobros : [];
     const evento = (id) => (d.eventos.find(e => e.id === id) || {}).folio || '';
     const ultimaRevision = r && r.revision ? r.revision.trim().split('\n').pop() : '';
-    const opcionesEventos = d.eventos.map(e => `<option value="${esc(e.id)}">${esc(e.folio)}${e.ubicacion ? ' · ' + esc(e.ubicacion) : ''}${e.montoAdeudado ? ' · debe ' + pesos(e.montoAdeudado) : ''}</option>`).join('');
+    const opcionesEventos = d.eventos.map(e => `<option value="${esc(e.id)}" data-negocio="${esc(e.negocioSugerido || '')}">${esc(e.folio)}${e.ubicacion ? ' · ' + esc(e.ubicacion) : ''}${e.montoAdeudado ? ' · debe ' + pesos(e.montoAdeudado) : ''}</option>`).join('');
     return `
       <div class="fin-caja">
         <label>Día del reporte
@@ -1410,7 +1410,7 @@
       <div class="fin-caja">
         <h4>💸 Gastos · ${pesos(gastos.reduce((t, g) => t + g.monto, 0))}</h4>
         ${gastos.length ? gastos.map(g => `
-          <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
+          <div class="fin-item"><div>${esc(g.concepto)} · <b>${pesos(g.monto)}</b><small>${esc(g.negocioTexto || g.negocio)} · ${esc(g.categoria)} · ${esc(g.pagadoCon)}${g.eventoId ? ' · ' + esc(evento(g.eventoId)) : ''}</small></div>
           <div>${fotoLink(g.foto, ico('aviso', 'ico-aviso') + ' sin ticket')} ${editable ? `<button class="fin-quitar" data-tipo="gasto" data-id="${esc(g.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin gastos.</div>'}
         ${editable ? `
           <label class="fin-ticket">📷 Foto del ticket <small>(DiMa lee el monto por ti)</small> <input type="file" id="gFoto" accept="image/*" capture="environment"></label>
@@ -1418,7 +1418,7 @@
           <input id="gConcepto" maxlength="120" placeholder="¿En qué se gastó? (ej. Gasolina, hielo, comida)">
           <input id="gMonto" inputmode="decimal" placeholder="Monto (ej. 350)">
           <select id="gCategoria">${d.categorias.map(c => `<option>${esc(c)}</option>`).join('')}</select>
-          ${d.negocios.length > 1 ? `<select id="gNegocio">${d.negocios.map(n => `<option>${esc(n)}</option>`).join('')}</select>` : ''}
+          <select id="gNegocio"><option value="">¿De qué negocio es el gasto?</option>${(d.negociosElegir || []).map(n => `<option value="${esc(n.valor)}">${esc(n.texto)}</option>`).join('')}</select>
           ${d.eventos.length ? `<select id="gEvento"><option value="">Sin evento en particular</option>${opcionesEventos}</select>` : ''}
           <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}" ${t === (d.eventos.length ? 'Evento' : 'General') ? 'checked' : ''}> ${esc(t)}</label>`).join(' ')}</div>
           ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
@@ -1429,12 +1429,13 @@
       ${d.soloGastos ? '' : `<div class="fin-caja">
         <h4>💵 Cobros · ${pesos(cobros.reduce((t, c) => t + c.monto, 0))}</h4>
         ${cobros.length ? cobros.map(c => `
-          <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.forma)}</small></div>
+          <div class="fin-item"><div>${esc(evento(c.eventoId) || c.concepto)} · <b>${pesos(c.monto)}</b><small>${esc(c.negocioTexto || c.negocio)} · ${esc(c.forma)}</small></div>
           <div>${fotoLink(c.foto, c.forma === 'Efectivo' ? '' : ico('aviso', 'ico-aviso') + ' sin comprobante')} ${editable ? `<button class="fin-quitar" data-tipo="cobro" data-id="${esc(c.id)}">✕</button>` : ''}</div></div>`).join('') : '<div class="fin-msg">Sin cobros.</div>'}
         ${editable && d.eventos.length ? `
           <select id="cEvento">${opcionesEventos}</select>
           <input id="cMonto" inputmode="decimal" placeholder="Monto cobrado">
           <select id="cForma">${d.formas.map(f => `<option>${esc(f)}</option>`).join('')}</select>
+          <label>¿De qué negocio es el cobro? <select id="cNegocio">${(d.negociosElegir || []).map(n => `<option value="${esc(n.valor)}" ${d.eventos[0] && d.eventos[0].negocioSugerido === n.valor ? 'selected' : ''}>${esc(n.texto)}</option>`).join('')}</select></label>
           <label>📷 Foto del comprobante <input type="file" id="cFoto" accept="image/*" capture="environment"></label>
           <button class="fin-boton" id="cAgregar">+ Agregar cobro</button>` : ''}
       </div>`}
@@ -1481,6 +1482,8 @@
     if($('gAgregar')) $('gAgregar').addEventListener('click', agregarGasto);
     if($('gFoto')) $('gFoto').addEventListener('change', leerTicket);
     if($('cAgregar')) $('cAgregar').addEventListener('click', agregarCobro);
+    // Al cambiar de evento se marca su negocio (se puede cambiar).
+    if($('cEvento') && $('cNegocio')) $('cEvento').addEventListener('change', () => { const n = ($('cEvento').selectedOptions[0] || {}).dataset; if(n && n.negocio) $('cNegocio').value = n.negocio; });
     if($('fGuardar')) $('fGuardar').addEventListener('click', () => guardarCierre(false));
     if($('fEnviar')) $('fEnviar').addEventListener('click', () => guardarCierre(true));
     $('finCuerpo').querySelectorAll('.fin-quitar').forEach(b => b.addEventListener('click', () => quitarFin(b)));
@@ -1522,6 +1525,7 @@
     try {
       const tipoGasto = (document.querySelector('input[name="gTipo"]:checked') || {}).value;
       if(document.querySelector('input[name="gTipo"]') && !tipoGasto){ showToast('Elige el tipo del gasto: Evento, General o Extra.'); return; }
+      if($('gNegocio') && !$('gNegocio').value){ showToast('Elige de qué negocio es el gasto: Divanna Eventos, Casa Isabella o El Vaso Maíz.'); $('gNegocio').focus(); return; }
       boton.textContent = 'Guardando…';
       const foto = fotoTicket || await comprimirFoto($('gFoto').files[0]);
       const d = await postFin({
@@ -1550,7 +1554,7 @@
     try {
       boton.textContent = 'Guardando…';
       const foto = await comprimirFoto($('cFoto').files[0]);
-      const d = await postFin({ accion: 'cobro', eventoId: $('cEvento').value, monto: $('cMonto').value, forma: $('cForma').value, foto }, boton);
+      const d = await postFin({ accion: 'cobro', eventoId: $('cEvento').value, monto: $('cMonto').value, forma: $('cForma').value, negocio: $('cNegocio') ? $('cNegocio').value : '', foto }, boton);
       if(d.avisoFoto) showToast(d.avisoFoto);
       await cargarFinanzas();
     } catch(e){
