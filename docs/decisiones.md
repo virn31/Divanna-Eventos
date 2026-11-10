@@ -493,3 +493,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Pedido de Víctor:** que un evento pagado ya no se vea en la pantalla de eventos de la APK. Eligió "pagado y ya pasado".
 **Cómo quedó:** sale desde 2 días después de la fecha del evento (el mobiliario se recoge al día siguiente) si está liquidado por cobros o por `Estatus_Pago` (`Liquidado 100%` o `Pagado - …`). Con daños por cobrar, abonos o crédito de decorador se queda. Solo filtra la lista de `api/brigada-eventos.js`: no toca `Estado`, así que el dashboard, el cuadre, el calendario y Telegram siguen igual.
 **Descartado:** ocultar al pagar (los clientes liquidan 24 h antes y la brigada no vería qué entregar); cerrar el evento (`Cerrado` también cambia cuadre y semáforo).
+
+## 2026-11-10 — Marcar la carga sin repintar y tema sobrio de la app
+
+**Pedido de Víctor:** que marcar un artículo en "Cargar" no saque a la brigada de donde va (repintaba la lista y regresaba el scroll arriba), y que la app se vea sobria y profesional sin tocar lógica ni datos.
+**Cómo quedó:** `toggleCargaItem` marca al instante (contador "Cargar N/M" y aviso "Falta marcar todo" incluidos), ignora el doble toque mientras guarda y revierte con mensaje si falla; ya no llama `loadEventos()`. Tema: solo Inter con pesos 400 a 700; tres radios (`--radio-sm/md/lg`: 10/14/18 px); iconos de estado en SVG de trazo (`ICONOS`/`ico()` en `brigadas/index.html`) con su color de estado; colores de marca solo como acento (filete, texto, botón), nunca fondo de tarjeta; campos de 16 px y controles de 44 px; login sin degradado; `theme-color` `#080707`. `tema.css` sin `!important`: gana con `body` delante del selector.
+**Efecto en el dashboard:** los `!important` tapaban colores de estado; ahora vuelven la franja de color de cada evento, el fondo rojo de emergencias y alertas, y las rayas de días bloqueados del calendario.
+**Pendiente:** emojis que vienen de `dinero.js`/`alertas.js` y los de toasts y mensajes de texto (van con `textContent`; pasarlos a HTML sería tocar lógica). La barra del dashboard ya se salía de la pantalla en teléfono (estilo propio de `dashboard.html`).
+**Descartado:** ganar especificidad con `:not(#id)` u otros trucos; repintar en silencio con `loadEventos(true)` (sigue repintando todo y pierde lo escrito en otras cajas).

@@ -1,68 +1,97 @@
 /* brigadas/tema.css
-   Tema visual del equipo (pedido de Víctor 2026-10-29): negro puro para
-   pantallas OLED, tarjetas flotantes, tipografía Inter, carga animada y
-   transiciones suaves. Solo apariencia: los colores de los datos NO cambian
-   (gastos rojo, ingresos/saldo azul, por cobrar verde oliva, Divanna morado,
-   El Vaso Maíz amarillo/naranja). Lo cargan la app y el dashboard al final,
-   así que sobrescribe los estilos base de cada página. */
+   Tema visual del equipo (pedido de Víctor 2026-10-29, sobrio desde 2026-11-10):
+   negro puro para pantallas OLED, tarjetas flotantes, tipografía Inter, carga
+   animada y transiciones suaves. Solo apariencia: los colores de los datos NO
+   cambian (gastos rojo, ingresos/saldo azul, por cobrar verde oliva, Divanna
+   morado, El Vaso Maíz amarillo). Los colores de marca son acentos (texto,
+   filetes, botones), nunca fondo de tarjetas. Lo cargan la app y el dashboard
+   al final.
+
+   Sin !important: donde hay que ganarle a la página se antepone `body` al
+   selector (una etiqueta más de especificidad), así siguen mandando las reglas
+   de estado más específicas (.evento-row.emergencia, .cal-dia.bloq…) y la
+   franja de color en línea de cada evento. */
 
 :root{
   --ink:#080707;              /* fondo base: negro puro */
   --ink-2:#1A1A1A;            /* tarjetas */
   --ink-3:#222222;            /* tarjetas internas / campos */
   --paper:#F8F7F6;            /* títulos y texto principal */
-  --muted:#B1A5A3;            /* descripciones secundarias */
+  --muted:#B1A5A3;            /* secundario: 6.6:1 sobre --ink-3 (WCAG AA) */
   --line:rgba(248,247,246,0.09);
-  --radio:20px;
+  /* Tres radios para todo: chico (campos, botones), medio (cajas internas), grande (tarjetas). */
+  --radio-sm:10px;
+  --radio-md:14px;
+  --radio-lg:18px;
+  --radio:var(--radio-lg);
   --sombra:0 14px 34px -18px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.03) inset;
 }
 
-/* ---------- Tipografía: Inter con pesos marcados ---------- */
+/* ---------- Tipografía: solo Inter, pesos 400 a 700 ---------- */
 html, body, button, input, select, textarea{
   font-family:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-h1, h2, h3, .display, .login-brand, .summary-card .num, .cifra .val, .section-title, .day-label{
-  font-family:'Inter', system-ui, sans-serif !important;
+body :is(h1, h2, h3, .display, .login-brand, .summary-card .num, .cifra .val, .section-title, .day-label){
+  font-family:'Inter', system-ui, sans-serif;
   letter-spacing:-0.02em;
 }
-h1, h2, h3, .display{ font-weight:800; color:var(--paper); }
-.cifra .val, .summary-card .num{ font-weight:900; }
+body :is(h1, h2, h3, .display){ font-weight:700; color:var(--paper); }
+body :is(.cifra .val, .summary-card .num){ font-weight:700; font-variant-numeric:tabular-nums; }
 body{ background:var(--ink); color:var(--paper); }
 
 /* ---------- Tarjetas flotantes ---------- */
-.event-card, .evento-row, .pedido-card, .hist-card, .balance-card, .summary-card,
-.login-card, .fin-caja, .cal-ev, .cuadre-ev, .fin-rep{
-  background:var(--ink-2) !important;
-  border:1px solid var(--line) !important;
-  border-radius:var(--radio) !important;
+body :is(.event-card, .evento-row, .pedido-card, .hist-card, .balance-card, .summary-card,
+.login-card, .fin-caja, .cal-ev, .cuadre-ev, .fin-rep){
+  background:var(--ink-2);
+  border-radius:var(--radio-lg);
   box-shadow:var(--sombra);
 }
-.evento-row{ border-left-width:4px !important; } /* conserva la franja de color del estatus */
-.cifra, .motivo, .instr-box, .event-services, .carga-box, .asignar-box, .agenda, .msgcli, .instr,
-.cal-dia, .semaforo{
-  border-radius:14px !important;
+body :is(.event-card, .pedido-card, .hist-card, .balance-card, .summary-card,
+.login-card, .fin-caja, .cuadre-ev, .fin-rep){
+  border:1px solid var(--line);
 }
-.cifra, .motivo, .instr-box, .event-services, .carga-box, .cal-dia{ background:var(--ink-3) !important; }
-header.appbar{ background:rgba(8,7,7,0.86) !important; }
+/* Filas con franja de color del estatus: se neutralizan tres lados y la
+   franja izquierda conserva su color (viene en línea o de calendario.js). */
+body :is(.evento-row, .cal-ev){
+  border-width:1px 1px 1px 4px;
+  border-style:solid;
+  border-top-color:var(--line); border-right-color:var(--line); border-bottom-color:var(--line);
+}
+body :is(.cifra, .motivo, .instr-box, .event-services, .carga-box, .asignar-box, .agenda, .msgcli, .instr,
+.cal-dia, .semaforo){
+  border-radius:var(--radio-md);
+}
+body :is(.cifra, .motivo, .instr-box, .event-services, .carga-box, .cal-dia){ background:var(--ink-3); }
+body header.appbar{ background:rgba(8,7,7,0.86); }
 
-/* Botones redondeados y con respuesta al toque */
+/* Botones con respuesta al toque */
 button, .alert-btn, .enterado-btn{ transition:transform .12s ease, opacity .2s ease, background-color .2s ease; }
 button:active, .alert-btn:active, .enterado-btn:active{ transform:scale(0.97); }
+:focus-visible{ outline:2px solid var(--paper); outline-offset:2px; }
+
+/* ---------- Legibilidad en campo ---------- */
+/* Campos a 16 px (iPhone no hace zoom) y controles de al menos 44 px. */
+body :is(.din-caja select, .din-caja input){ font-size:1rem; min-height:44px; }
+body :is(.din-btn, .ev-tab-btn){ min-height:44px; }
+body .din-quitar{ min-width:44px; min-height:44px; padding:0 12px; }
+body .din-caja summary{ padding:12px 0; margin:-10px 0; }
 
 /* ---------- Feed vertical: las tarjetas entran suave ---------- */
 @keyframes entrar { from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
 @keyframes salir { to{ opacity:0; transform:translateX(40px) scale(0.98); height:0; margin:0; padding:0; } }
 .event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev{ animation:entrar .32s ease both; }
-.saliendo{ animation:salir .45s ease forwards !important; overflow:hidden; }
+body .saliendo{ animation:salir .45s ease forwards; overflow:hidden; }
 
 /* ---------- Ficha del evento con pestañas ---------- */
-.ev-tabs{ display:flex; gap:6px; margin:14px 0 4px; padding:4px; background:var(--ink); border-radius:14px; }
+.ev-tabs{ display:flex; gap:6px; margin:14px 0 4px; padding:4px; background:var(--ink); border-radius:var(--radio-md); }
 .ev-tab-btn{
-  flex:1; border:none; background:transparent; color:var(--muted); font:inherit; font-weight:700; font-size:0.9rem;
-  padding:10px 6px; border-radius:11px; cursor:pointer;
+  flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; line-height:1.2;
+  border:none; background:transparent; color:var(--muted); font:inherit; font-weight:600; font-size:0.9rem;
+  padding:10px 6px; border-radius:var(--radio-sm); cursor:pointer;
 }
-.ev-tab-btn small{ font-weight:600; opacity:.8; }
+.ev-tab-btn small{ font-weight:500; font-variant-numeric:tabular-nums; }
 .ev-tab-btn.activa{ background:var(--ink-3); color:var(--paper); box-shadow:0 1px 0 rgba(255,255,255,0.05) inset; }
+.ev-tab-btn .ico{ width:16px; height:16px; }
 .ev-tab{ animation:entrar .22s ease both; }
 body.rol-asistente .ev-tab-btn[data-tab="tareas"]{ display:none; }
 
@@ -70,51 +99,53 @@ body.rol-asistente .ev-tab-btn[data-tab="tareas"]{ display:none; }
 @keyframes brillo { 0%{ background-position:-400px 0; } 100%{ background-position:400px 0; } }
 .esqueleto{ display:grid; gap:12px; margin-top:6px; }
 .esqueleto .hueso{
-  height:118px; border-radius:var(--radio);
+  height:118px; border-radius:var(--radio-lg);
   background:linear-gradient(90deg, var(--ink-2) 0%, #262424 50%, var(--ink-2) 100%);
   background-size:800px 100%; animation:brillo 1.2s linear infinite;
 }
 .esqueleto .hueso.chico{ height:54px; }
 
 @media (prefers-reduced-motion: reduce){
-  .event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev, .ev-tab, .saliendo, .esqueleto .hueso{ animation:none !important; }
+  body :is(.event-card, .evento-row, .pedido-card, .cuadre-ev, .fin-rep, .cal-ev, .ev-tab, .saliendo, .esqueleto .hueso){ animation:none; }
 }
 
-/* Ficha de identificación del evento y 💰 Dinero (app y dashboard, brigadas/dinero.js) */
+/* Ficha de identificación del evento y Dinero (app y dashboard, brigadas/dinero.js) */
 /* Ficha de identificación: lo único visible hasta que se toca. */
 .ev-ficha{display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; background:none; border:none; padding:0; color:var(--paper); font:inherit; cursor:pointer;}
 .ficha-fila{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-.ficha-lugar{font-size:1.12rem; font-weight:800;}
-.ficha-sub{font-size:0.86rem; color:var(--muted);}
-.ficha-avisos{margin-left:auto;}
-.ficha-pago{font-size:0.82rem; font-weight:800; padding:4px 10px; border-radius:100px; background:rgba(255,107,107,0.14); color:#ff8f8f;}
+.ficha-lugar{font-size:1.12rem; font-weight:700; letter-spacing:-0.01em;}
+.ficha-sub{display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; font-size:0.86rem; color:var(--muted);}
+.ficha-sub .ico{width:15px; height:15px;}
+.ficha-avisos{display:flex; gap:8px; margin-left:auto;}
+.ficha-avisos .ico{width:18px; height:18px;}
+.ficha-pago{font-size:0.82rem; font-weight:700; padding:4px 10px; border-radius:100px; background:rgba(255,107,107,0.14); color:#ff8f8f;}
 .ficha-pago.ok{background:rgba(127,174,90,0.18); color:#9fd27a;}
-.ficha-flecha{margin-left:auto; font-size:0.8rem; color:var(--muted); font-weight:700;}
+.ficha-flecha{margin-left:auto; font-size:0.8rem; color:var(--muted); font-weight:600;}
 .event-card.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:4px;}
 .ev-detalle[hidden]{display:none;}
-/* 💰 Dinero del evento */
+/* Dinero del evento */
 .din-cliente{margin:12px 0 8px; font-size:0.92rem;}
-.din-cliente a{color:var(--maiz); font-weight:800; text-decoration:none;}
-.din-resumen{background:var(--ink); border-radius:12px; padding:10px 12px; margin:8px 0;}
-.din-fila{display:flex; justify-content:space-between; padding:4px 0; font-size:0.92rem;}
+.din-cliente a{color:var(--maiz); font-weight:700; text-decoration:none;}
+.din-resumen{background:var(--ink); border-radius:var(--radio-sm); padding:10px 12px; margin:8px 0;}
+.din-fila{display:flex; justify-content:space-between; padding:4px 0; font-size:0.92rem; font-variant-numeric:tabular-nums;}
 .din-fila.falta b{color:#ff8f8f; font-size:1.05rem;}
 .din-fila.ok b{color:#9fd27a;}
 .din-lista{font-size:0.85rem; margin:10px 0; line-height:1.6;}
 .din-lista b{display:block; color:var(--muted);}
-.din-quitar{border:1px solid var(--line); background:none; color:var(--muted); border-radius:8px; padding:2px 8px; font:inherit; font-size:0.78rem; cursor:pointer;}
-.din-caja{margin:10px 0; border:1.5px solid var(--line); border-radius:12px; padding:10px 12px;}
-.din-caja summary{font-weight:800; cursor:pointer;}
+.din-quitar{border:1px solid var(--line); background:none; color:var(--muted); border-radius:var(--radio-sm); padding:2px 8px; font:inherit; font-size:0.78rem; cursor:pointer;}
+.din-caja{margin:10px 0; border:1.5px solid var(--line); border-radius:var(--radio-sm); padding:10px 12px;}
+.din-caja summary{font-weight:700; cursor:pointer;}
 .din-caja label{display:block; margin-top:10px; font-size:0.85rem; color:var(--muted);}
-.din-caja select, .din-caja input{display:block; width:100%; margin-top:8px; padding:11px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
+.din-caja select, .din-caja input{display:block; width:100%; margin-top:8px; padding:11px 12px; border-radius:var(--radio-sm); border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;}
 .din-caja input[hidden]{display:none;}
-.din-previa{margin-top:8px; font-weight:800; color:var(--maiz);}
-.din-btn{margin-top:10px; width:100%; padding:12px; border:none; border-radius:12px; background:var(--maiz); color:var(--ink); font:inherit; font-weight:800; cursor:pointer;}
+.din-previa{margin-top:8px; font-weight:700; color:var(--maiz);}
+.din-btn{margin-top:10px; width:100%; padding:12px; border:none; border-radius:var(--radio-sm); background:var(--maiz); color:var(--ink); font:inherit; font-weight:700; cursor:pointer;}
 .din-btn:disabled{opacity:.6;}
 .cobro-rapido{margin-top:10px;}
 .din-msg{margin-top:8px; font-size:0.82rem; color:var(--muted);}
-.ev-ficha .event-folio{font-size:0.78rem; color:var(--muted); font-family:monospace;}
+.ev-ficha .event-folio{font-size:0.78rem; color:var(--muted); font-family:inherit; font-variant-numeric:tabular-nums;}
 .evento-row.abierta .ev-ficha{padding-bottom:12px; border-bottom:1px solid var(--line); margin-bottom:10px;}
 .din-seccion{margin-top:14px; padding-top:10px; border-top:1px solid var(--line);}
 .aviso-breve{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); opacity:0; pointer-events:none; z-index:200;
-  background:var(--ink-3, #1d1b23); color:var(--paper); border:1px solid var(--line); border-radius:12px; padding:12px 16px; max-width:90vw; font-weight:700; transition:all .25s;}
+  background:var(--ink-3, #1d1b23); color:var(--paper); border:1px solid var(--line); border-radius:var(--radio-sm); padding:12px 16px; max-width:90vw; font-weight:600; transition:all .25s;}
 .aviso-breve.show{opacity:1; transform:translateX(-50%) translateY(0);}
