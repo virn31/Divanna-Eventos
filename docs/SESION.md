@@ -28,29 +28,21 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-09 · **Rama de Estado:** `entrenar-dima` (igual a `main` más este commit de estado) · **Producción:** `main` en `b3c9c2b`, caché v36, **542 pruebas pasan**. Revertir lo publicado: `git revert -m 1 b3c9c2b` y push.
+**Actualizado:** 2026-11-10 · **Rama de Estado:** `tema-sobrio-y-carga` · **Producción:** `main` en GitHub sigue en `c948836` (caché v36). **547 pruebas pasan.**
 
-**Hecho y publicado el 2026-11-09** (detalle en `docs/decisiones.md`, dos entradas de esa fecha):
-- `/entrenamiento`, `/reglas` y `/desactivar N` en Telegram, solo Admin (`api/_entrenamiento.js`). Solo guarda con ✅ o con "sí" contestado encima del borrador; un "sí" suelto no confirma.
-- Panel "🧠 Entrenar a DiMa y ver sus reglas" en Inicio del dashboard de Admin, con las reglas activas abiertas.
-- 4 reglas activas en CORRECCIONES_DIMA (autor Víctor): manteles, mesas y paquetes, sillas, y estilos ("avisa que primero tiene que quedar confirmado").
-- Nota `PENDIENTE COLORES:` → `COLORES DEFINIDOS:` y `PROVEEDOR EXTERNO:` en `EVENTOS.Instrucciones_Equipo` (`api/_colores.js`); aviso al gerente de Divanna.
-- Selector de manteles: Liso con 16 colores; corrugado y lentejuela con color escrito. La clave interna sigue siendo `basico`.
-- Eden sin Casa Isabella aunque se la asignen (alcance, operación y calendario). Eden, Mario y Ángela ven todo su negocio. Origen manual = primer nombre de quien capturó.
-- Aviso de compras a la gerente de El Vaso Maíz a 7 y 2 días (`avisosCompras`, cron diario 8:00). Dice productos y piezas, no kilos: no hay recetas.
-- Resumen de Telegram: "N eventos no cuadran (ayer)". `.gitignore` con `.claude/` y `*.bak`.
+**Publicación a medias:** la unión `c89f670` ("Publicar: marcar la carga sin repintar y tema sobrio de la app") está hecha en `main` **local**, pero el push a `main` no se hizo (permiso de despliegue negado a Claude). Víctor: `! git push origin main` desde el repo. Si al continuar `main` local ya no tiene esa unión, rehacerla: `git switch main`, `git pull`, `git merge --no-ff tema-sobrio-y-carga`. Revertir después de publicar: `git revert -m 1 c89f670` y push.
 
-**A medias:** nada de código. Este commit de estado está solo en `entrenar-dima`; en `main` este archivo sigue con el estado anterior hasta la próxima publicación.
-
-**Verificado en producción:** caché v36, panel de reglas, selector y 401 sin sesión. **Sin probar en real:** comandos del bot, nota de colores con un cliente y el aviso de compras.
+**Hecho el 2026-11-10** (commit `bad8413`; detalle en `docs/decisiones.md`, entrada de esa fecha):
+- Cargar: marcar un artículo es instantáneo (contador N/M y aviso "Falta marcar todo"), sin repintar ni perder el scroll; ignora doble toque; si falla revierte con mensaje.
+- Tema sobrio en `brigadas/index.html` y `tema.css`: solo Inter 400-700; radios `--radio-sm/md/lg` (10/14/18); emojis de estado → SVG (`ICONOS`/`ico()`); marca solo como acento; campos 16 px y controles 44 px; login sin degradado; `theme-color` `#080707`; `tema.css` sin `!important`. Caché `dima-brigadas-v38`.
+- Efecto en el dashboard: vuelven la franja de color de cada evento, el rojo de emergencias y las rayas de días bloqueados (los `!important` los tapaban).
+- Verificado en local con Playwright y datos inventados (390 px y escritorio): sin texto cortado ni encimados.
 
 **Siguientes pasos, en orden:**
-1. Víctor: `/configurar` en Telegram y `/reglas` (deben salir 4).
-2. Probar `/entrenamiento` con una regla de prueba y quitarla con `/desactivar`.
-3. Revisar que a Ángela le llegue el aviso de compras en el cron de las 8:00 (si hay eventos de El Vaso Maíz autorizados en los próximos 7 días).
-4. Eden, Mario y Ángela prueban en el teléfono (cerrar y abrir la APK): sus eventos, 👷 Asignar, ✏️ Editar, 💵 Cobrar; Eden sin Casa Isabella.
-5. Evento de prueba capturado a mano: `Origen` = nombre de quien capturó.
-6. En ~4 semanas, con el balance por origen, decidir si DiMa es rentable. Víctor: `/login` con el plan Pro y bajar el límite de gasto en la consola.
+1. Víctor: `git push origin main` y esperar el deploy de Vercel; confirmar caché v38 en `https://divanna-eventos.vercel.app/brigadas/sw.js`.
+2. En un teléfono (cerrar y abrir la APK): marcar 3 artículos en Cargar sin que salte la lista; ver pestañas, alertas y el dashboard con la franja de color.
+3. Pendientes visuales: emojis de `dinero.js`/`alertas.js` y de toasts; `manifest.json` aún con `#0c0b10`; la barra del dashboard se sale en teléfono (`dashboard.html`); revisar con datos reales si la etiqueta de El Vaso Maíz sale morada.
+4. Lo que seguía del 2026-11-09: `/configurar` y `/reglas` (deben salir 4); probar `/entrenamiento` y `/desactivar`; aviso de compras a Ángela a las 8:00; Eden, Mario y Ángela prueban en el teléfono; `Origen` en captura manual; en ~4 semanas decidir si DiMa es rentable.
 
 **Decisiones pendientes de Víctor:**
 - CONVERSACIONES: 37 filas vacías (la última del 17-jul) y ningún código la usa; las pláticas van en `EVENTOS.Notas`. ¿Se deja o se vuelve a llenar?
