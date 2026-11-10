@@ -461,7 +461,7 @@
   // Negocio que gerencia quien entró ('El Vaso Maiz', 'Divanna Eventos', 'Casa Isabella') o null.
   let miGerencia = null;
   // Líder de brigada: edita los eventos de su brigada (Víctor 2026-11-10).
-  let miBrigadaId = null, soyLider = false;
+  let miBrigadaId = null, soyLider = false, miId = null;
   const esDeMiGerencia = (ev) => !!miGerencia && (ev.gerencias || []).includes(miGerencia);
 
   function bloqueAsignar(ev){
@@ -503,7 +503,9 @@
   // ✏️ Editar evento, cliente y pedido (gerentes en su negocio y el líder en los eventos de su brigada; sin monto).
   function bloqueEditar(ev){
     const deMiBrigada = soyLider && miBrigadaId && ev.brigadaId === miBrigadaId;
-    if(!(opcionesAsignar && esDeMiGerencia(ev)) && !deMiBrigada) return '';
+    // Gerente asignado en "👷 Asignar" a un evento de otro negocio (Mario en uno de Divanna): también edita.
+    const asignadoAMi = !!opcionesAsignar && !!miId && (ev.encargadaIds || []).includes(miId);
+    if(!(opcionesAsignar && esDeMiGerencia(ev)) && !deMiBrigada && !asignadoAMi) return '';
     const tel = String(ev.clienteTelefono || '').replace(/\D/g, '').slice(-10);
     return `
       <details class="asignar-box editar-box" data-caja="ed-${esc(ev.id)}">
@@ -1243,6 +1245,7 @@
       const rolTexto = data.colaborador.gerente ? (data.colaborador.puesto || 'Gerente') : (ROL_TEXTO[data.colaborador.rol] || data.colaborador.rol);
       miGerencia = data.colaborador.gerencia || null;
       soyLider = data.colaborador.rol === 'Lider de brigada';
+      miId = data.colaborador.id || null;
       miBrigadaId = data.brigada ? data.brigada.id : null;
       opcionesAsignar = data.opcionesAsignar || null;
       staffEventos = data.staffEventos || null;

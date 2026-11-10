@@ -533,3 +533,8 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Avisos:** mover y cancelar hechos por alguien que no es Admin ahora avisan también a Diana y Víctor; una edición del líder les manda qué cambió.
 - **Por qué:** Víctor pidió que las brigadas puedan hacer todas las modificaciones en el calendario con fichas completas.
 - **Riesgo y cómo revertir:** un líder puede cancelar un evento de su brigada; queda en Notas quién y por qué, y Diana recibe el aviso. Revertir = quitar `esDeSuBrigada` de `puedeEditarEvento` y la lista `DEL_LIDER` en `api/dashboard-eventos.js`.
+
+## 2026-11-10 — Calendario: ficha completa de los eventos propios para gerentes, y arreglo urgente
+
+- **Decisión:** en el calendario todos ven todos los eventos, y cada quien abre "📋 Abrir ficha completa" (la misma ficha de su pantalla principal: dinero, cliente, ✏️ Editar, 👷 Asignar) en los suyos: Eden lo de Divanna (sin Casa Isabella), Mario Casa Isabella y lo que Eden le asigne (Encargada), Ángela El Vaso Maíz, el líder lo de su brigada. El gerente asignado en "👷 Asignar" a un evento de otro negocio también lo modifica.
+- **Incidente:** la publicación `9179f6c` dejó un salto de línea dentro de un texto de `api/_instrucciones.js`; el bot de Telegram y el chat de la página (que lo cargan) no arrancaban. Las pruebas se cortaban antes de imprimir FALLA y se contó 0. Arreglo: el texto corregido y una prueba al inicio que compila todos los `.js` de `api/` y `brigadas/` y los `<script>` de las páginas. **Regla:** revisar que `npm test` termine (código de salida 0 y la última prueba impresa), no solo contar FALLA.
