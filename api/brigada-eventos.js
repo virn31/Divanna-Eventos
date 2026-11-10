@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
     }
 
     res.status(200).json({
-      colaborador: { nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, gerencia: colaborador.gerente || null, puesto: puestoGerente(colaborador.gerente), veDinero: veDinero(colaborador) },
+      colaborador: { id: colaborador.id, nombre: colaborador.nombre, rol: colaborador.rol, gerente: !!colaborador.gerente, gerencia: colaborador.gerente || null, puesto: puestoGerente(colaborador.gerente), veDinero: veDinero(colaborador) },
       brigada,
       eventos,
       alertasEquipo,

@@ -47,9 +47,7 @@ const TEMAS = {
       '• Hora de inicio, personas que se necesitan e instrucciones. Si cambian las instrucciones te llega otro aviso.\n' +
       '• Checklist de carga: toca cada cosa al subirla. No puedes pasar a "Salió del almacén" hasta marcar todo.\n' +
       '• Estatus: cámbialo conforme avanzas (salida, llegada, montaje, recolección).\n\n' +
-      '📅 Líder de brigada: en el calendario de la app puedes cambiar fecha u hora, cancelar, mandar el recibo y bloquear días de Divanna en los eventos de tu brigada. Con "📋 Ver ficha completa" abres la ficha (cliente, dinero, artículos) y ahí "✏️ Editar evento, cliente y pedido" (sin cambiar el monto). Diana y Víctor reciben aviso de cada cambio.
-
-' +
+      '📅 Líder de brigada: en el calendario de la app puedes cambiar fecha u hora, cancelar, mandar el recibo y bloquear días de Divanna en los eventos de tu brigada. Con "📋 Abrir ficha completa" abres la ficha (cliente, dinero, artículos) y ahí "✏️ Editar evento, cliente y pedido" (sin cambiar el monto). Diana y Víctor reciben aviso de cada cambio.\n\n' +
       'Aquí en Telegram: /hoy te dice tus eventos de hoy y /eventos los próximos.',
   },
   alertas: {

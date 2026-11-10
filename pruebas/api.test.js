@@ -184,6 +184,22 @@ const ASIST = { id: 'recCOLAB000000003', fields: { Nombre: 'Luis', Rol: 'Asisten
 const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encargada de evento', Activo: true } };
 
 (async () => {
+  // ---------- Sintaxis de todos los archivos (2026-11-10: un salto de línea dentro de un
+  // texto de api/_instrucciones.js tumbó el bot y el chat; las pruebas se cortaban antes de avisar) ----------
+  {
+    const vm = require('vm');
+    const rotos = [];
+    for (const carpeta of ['api', 'brigadas']) {
+      for (const archivo of fs.readdirSync(path.join(repo, carpeta)).filter(a => a.endsWith('.js'))) {
+        try { new vm.Script(fs.readFileSync(path.join(repo, carpeta, archivo), 'utf8'), { filename: archivo }); } catch (err) { rotos.push(`${carpeta}/${archivo}: ${err.message}`); }
+      }
+    }
+    for (const pagina of ['brigadas/index.html', 'brigadas/dashboard.html', 'index.html']) {
+      const html = fs.readFileSync(path.join(repo, pagina), 'utf8');
+      [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].forEach((m, i) => { try { new vm.Script(m[1]); } catch (err) { rotos.push(`${pagina} (script ${i + 1}): ${err.message}`); } });
+    }
+    ok(!rotos.length, `sintaxis: todos los archivos de api/ y brigadas/ se pueden leer${rotos.length ? ' → ' + rotos.join(' | ') : ''}`);
+  }
   const pedido = require(path.join(repo, 'api/pedido.js'));
   const dash = require(path.join(repo, 'api/dashboard-eventos.js'));
   const estatus = require(path.join(repo, 'api/brigada-estatus.js'));
@@ -3935,7 +3951,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v42/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v42)');
+    ok(/dima-brigadas-v43/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v43)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4105,5 +4121,22 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const tg2 = fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8');
     ok(tg2.includes("description: 'Anotar un gasto: /gasto 350 gasolina o manda la foto del ticket'") && tg2.includes("command: 'ticket'") && /Tickets\.esFotoParaGasto\(mensaje\) \? await Tickets\.atenderFotoParaGasto/.test(tg2) && /case '\/ticket':/.test(tg2),
       'menú de Telegram: /gasto ya no dice (Admin) y está /ticket');
+  }
+  // ---------- Calendario: cada gerente abre la ficha completa de sus eventos (Víctor 2026-11-10) ----------
+  {
+    const Cg = require('../api/_calendario');
+    const eden = { id: 'recCOLABEDEN00001', nombre: 'Eden', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: 'reckbMg7o3MpeZVWx' };
+    const mario = { id: 'recCOLABMARIO0001', nombre: 'Mario', rol: 'Lider de brigada', gerente: 'Casa Isabella', brigadaId: 'recv2InYtkXJLfvz6' };
+    const DV = { Negocio: 'Divanna Eventos', Productos: '[]' };
+    const CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    ok(Cg.puedeEditarEvento(eden, DV) && !Cg.puedeEditarEvento(eden, CI) && Cg.puedeEditarEvento(mario, CI) && !Cg.puedeEditarEvento(mario, DV)
+      && Cg.puedeEditarEvento(mario, { ...DV, Encargada: [mario.id] }) && !Cg.puedeEditarEvento(eden, { ...CI, Encargada: [eden.id] }),
+      'calendario: Eden lo de Divanna (sin el salón), Mario Casa Isabella y lo que Eden le asigne; nadie lo que no le toca');
+    const cal3 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    const app4 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    const srv = fs.readFileSync(path.join(repo, 'api/_calendario.js'), 'utf8');
+    ok(cal3.includes('📋 Abrir ficha completa') && srv.includes("propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f)")
+      && app4.includes('(ev.encargadaIds || []).includes(miId)') && fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8').includes('colaborador: { id: colaborador.id'),
+      'calendario (app): sus eventos traen "📋 Abrir ficha completa" (la de su pantalla principal) y el gerente asignado también edita');
   }
 })();

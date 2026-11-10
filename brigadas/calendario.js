@@ -3,7 +3,8 @@
 // eventos autorizados del mes y los días bloqueados, sin montos. Diana, Víctor
 // y los gerentes (cada uno su negocio) pueden mover fecha/hora, cambiar horas
 // de servicio, cancelar y bloquear días; el líder de brigada, en los eventos de
-// su brigada (con "📋 Ver ficha completa" para abrir su ficha en la app). Los cambios avisan al equipo y se
+// su brigada. En la app, los eventos de cada quien traen "📋 Abrir ficha completa"
+// (la misma ficha de su pantalla principal); los demás solo se ven. Los cambios avisan al equipo y se
 // reflejan en Google Calendar (api/_calendario.js).
 // Uso: DimaCalendario.abrir({ api, esc, abrirFicha }) — api(url, opciones) es el fetch con
 // sesión de cada página (lanza Error con el mensaje del servidor); abrirFicha(id), opcional,
@@ -94,8 +95,8 @@ window.DimaCalendario = (function(){
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
-        ${ev.editable ? `<div class="cal-acc"><button data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button>${datos.puedeCobrar ? `<button data-cal="pre-pago" data-id="${e(ev.id)}">💵 Registrar pago</button>` : ''}<button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
-        ${ev.propio && o.abrirFicha ? `<div class="cal-acc"><button class="sec" data-cal="ficha" data-id="${e(ev.id)}">📋 Ver ficha completa</button></div>` : ''}
+        ${ev.propio && o.abrirFicha ? `<div class="cal-acc"><button data-cal="ficha" data-id="${e(ev.id)}">📋 Abrir ficha completa</button></div>` : ''}
+        ${ev.editable ? `<div class="cal-acc"><button ${ev.propio && o.abrirFicha ? 'class="sec" ' : ''}data-cal="editar" data-id="${e(ev.id)}">✏️ Cambiar fecha u hora</button>${datos.puedeCobrar ? `<button data-cal="pre-pago" data-id="${e(ev.id)}">💵 Registrar pago</button>` : ''}<button class="sec" data-cal="recibo" data-id="${e(ev.id)}">🧾 Mandar recibo</button><button class="sec" data-cal="pre-cancelar" data-id="${e(ev.id)}">❌ Cancelar evento</button></div>` : ''}
         <div class="cal-zona"></div>
       </div>`;
   }

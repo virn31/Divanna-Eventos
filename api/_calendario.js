@@ -84,7 +84,9 @@ const modificaCalendario = (c) => esEditor(c) || esLider(c);
 function puedeEditarEvento(c, f) {
   if (c.rol === ROLES.ADMIN) return true;
   if (ocultoParaGerente(c, f)) return false;
-  return esDeSuGerencia(c, f) || esDeSuBrigada(c, f);
+  // Gerente asignado en "👷 Asignar" (Encargada): p. ej. Mario en un evento de Divanna que le dio Eden.
+  const asignado = !!c.gerente && ((f || {}).Encargada || []).includes(c.id);
+  return esDeSuGerencia(c, f) || esDeSuBrigada(c, f) || asignado;
 }
 // El líder (sin gerencia) bloquea días de Divanna: las brigadas de mobiliario son de Divanna.
 const negociosBloqueo = (c) => c.rol === ROLES.ADMIN ? [NEGOCIOS.AMBOS, NEGOCIOS.DV, NEGOCIOS.VM]
@@ -262,8 +264,9 @@ async function vistaMes(colaborador, mes) {
         estatus: f.Estatus_Logistico || '',
         enGoogle: !!f.Google_Evento_ID,
         editable: puedeEditarEvento(colaborador, f),
-        // Evento de su brigada: en la app tiene la ficha completa (cliente, dinero, artículos).
-        propio: esDeSuBrigada(colaborador, f),
+        // Evento suyo (gerencia, asignado o de su brigada): en la app abre la ficha completa
+        // de su pantalla principal (cliente, dinero, ✏️ Editar, 👷 Asignar). Víctor 2026-11-10.
+        propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f),
       };
     }).sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)),
     bloqueos: bloqueos.map(r => ({
