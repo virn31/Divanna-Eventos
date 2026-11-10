@@ -496,6 +496,7 @@
     return `<div class="cliente-box">
         <span>${ico('persona')} <b>${esc(ev.clienteNombre || 'Cliente sin nombre')}</b></span>
         <span>📞 ${dig ? `<a href="tel:+${dig}">${esc(ev.clienteTelefono)}</a>` : 'sin teléfono'}</span>
+        ${dig ? `<span>💬 <a href="https://wa.me/${dig.length === 10 ? '52' + dig : dig}" target="_blank" rel="noopener">WhatsApp</a></span>` : ''}
         ${ev.clienteEmail ? `<span>✉️ <a href="mailto:${esc(ev.clienteEmail)}">${esc(ev.clienteEmail)}</a></span>` : ''}
       </div>`;
   }

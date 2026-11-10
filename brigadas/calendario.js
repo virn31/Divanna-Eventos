@@ -19,6 +19,8 @@ window.DimaCalendario = (function(){
   const hoy = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
   const textoDia = (f) => { const d = new Date(`${f}T12:00:00Z`); return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()]}`; };
   const textoMes = (m) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+  // WhatsApp del cliente desde el WhatsApp de quien lo toca (enlace wa.me; el sistema no manda nada).
+  const linkWhats = (tel) => { const d = String(tel || '').replace(/\D/g, ''); return d ? `https://wa.me/${d.length === 10 ? '52' + d : d}` : ''; };
   const moverMes = (m, n) => { let [a, b] = m.split('-').map(Number); b += n; if(b > 12){ b = 1; a++; } if(b < 1){ b = 12; a--; } return `${a}-${String(b).padStart(2, '0')}`; };
 
   function estilos(){
@@ -93,7 +95,7 @@ window.DimaCalendario = (function(){
       <div class="cal-ev" style="--c:${COLOR[ev.negocio] || '#888'};" data-ev="${e(ev.id)}">
         <b>${e(ev.folio)}</b> · ${e(NOMBRE[ev.negocio] || ev.negocio)}<br>
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
-        ${ev.clienteNombre || ev.clienteTelefono ? `<small>👤 ${e(ev.clienteNombre || 'Cliente sin nombre')}${ev.clienteTelefono ? ` · 📞 <a href="tel:${e(String(ev.clienteTelefono).replace(/[^\d+]/g, ''))}" style="color:inherit;">${e(ev.clienteTelefono)}</a>` : ''}</small><br>` : ''}
+        ${ev.clienteNombre || ev.clienteTelefono ? `<small>👤 ${e(ev.clienteNombre || 'Cliente sin nombre')}${ev.clienteTelefono ? ` · 📞 <a href="tel:${e(String(ev.clienteTelefono).replace(/[^\d+]/g, ''))}" style="color:inherit;">${e(ev.clienteTelefono)}</a> · 💬 <a href="${e(linkWhats(ev.clienteTelefono))}" target="_blank" rel="noopener" style="color:inherit;">WhatsApp</a>` : ''}</small><br>` : ''}
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
         ${ev.propio && o.abrirFicha ? `<div class="cal-acc"><button data-cal="ficha" data-id="${e(ev.id)}">📋 Abrir ficha completa</button></div>` : ''}

@@ -44,7 +44,7 @@ Roles: Admin (Diana, Víctor), Lider de brigada, Asistente, Encargada, Gerentes 
 2. Campos de Airtable con nombre exacto: verificar esquema antes de escribir uno nuevo (ej. `Monto_Estimado_IA`, no `Monto_Cotizacion`).
 3. **12 funciones serverless = el máximo de Hobby, ya usadas.** Ruta nueva = juntar con una existente.
 4. No cambiar scope `/brigadas/` ni `start_url` de la PWA.
-5. Subir `CACHE_NAME` de `brigadas/sw.js` (hoy `dima-brigadas-v45`) al cambiar cualquier archivo del app shell.
+5. Subir `CACHE_NAME` de `brigadas/sw.js` (hoy `dima-brigadas-v46`) al cambiar cualquier archivo del app shell.
 6. `claude-sonnet-5-5`: sin `tool_choice` any/tool, sin `thinking: disabled`, `budget_tokens` ni `temperature`; historial solo texto.
 7. Datos de pago nunca en el prompt de DiMa.
 8. Con el cliente DiMa no nombra a nadie del equipo (hay prueba que falla si dice "Diana").

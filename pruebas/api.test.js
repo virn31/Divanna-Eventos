@@ -3951,7 +3951,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v45/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v45)');
+    ok(/dima-brigadas-v46/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v46)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4160,5 +4160,15 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       'calendario: en sus eventos sale nombre y teléfono del cliente; en los de otros no (ni se leen)');
     const cal4 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
     ok(cal4.includes('👤 ${e(ev.clienteNombre') && cal4.includes('href="tel:'), 'calendario (app): la tarjeta muestra 👤 cliente y 📞 teléfono para llamar');
+  }
+  // ---------- WhatsApp del cliente desde el WhatsApp de cada colaborador (Víctor 2026-11-10) ----------
+  {
+    const cal5 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    const app5 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    const linkWhats = eval(cal5.match(/const linkWhats = ([^;]+;[^;]+;[^;]+;)/)[1].replace(/;$/, ''));
+    ok(linkWhats('+526671234567') === 'https://wa.me/526671234567' && linkWhats('6671234567') === 'https://wa.me/526671234567' && linkWhats('') === '',
+      'whatsapp: el enlace wa.me lleva lada 52 (con o sin +52 guardado) y no sale sin teléfono');
+    ok(cal5.includes('target="_blank" rel="noopener" style="color:inherit;">WhatsApp</a>') && app5.includes('https://wa.me/${dig.length === 10 ?'),
+      'whatsapp: está en la tarjeta del calendario y en el cliente de la ficha completa');
   }
 })();

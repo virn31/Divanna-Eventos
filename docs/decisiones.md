@@ -538,3 +538,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 
 - **Decisión:** en el calendario todos ven todos los eventos, y cada quien abre "📋 Abrir ficha completa" (la misma ficha de su pantalla principal: dinero, cliente, ✏️ Editar, 👷 Asignar) en los suyos: Eden lo de Divanna (sin Casa Isabella), Mario Casa Isabella y lo que Eden le asigne (Encargada), Ángela El Vaso Maíz, el líder lo de su brigada. El gerente asignado en "👷 Asignar" a un evento de otro negocio también lo modifica.
 - **Incidente:** la publicación `9179f6c` dejó un salto de línea dentro de un texto de `api/_instrucciones.js`; el bot de Telegram y el chat de la página (que lo cargan) no arrancaban. Las pruebas se cortaban antes de imprimir FALLA y se contó 0. Arreglo: el texto corregido y una prueba al inicio que compila todos los `.js` de `api/` y `brigadas/` y los `<script>` de las páginas. **Regla:** revisar que `npm test` termine (código de salida 0 y la última prueba impresa), no solo contar FALLA.
+
+## 2026-11-10 — WhatsApp del cliente desde el WhatsApp de cada colaborador
+
+- **Decisión:** junto al teléfono del cliente (tarjeta del calendario en los eventos propios y 👤 Cliente de la ficha completa) hay un enlace **💬 WhatsApp** (`https://wa.me/52…`) que abre el WhatsApp del teléfono de quien lo toca, en el chat con ese cliente. No pasa por DiMa ni por el número de Víctor.
+- **Por qué no rompe "Sin WhatsApp ni Twilio":** el sistema no manda ni recibe nada por WhatsApp; es solo un enlace que abre la app del colaborador. Los avisos del sistema siguen por correo, push y Telegram.
+- **Límite:** la vista previa de la tarjeta principal no lleva el enlace (toda la vista previa es un botón que abre la ficha).
