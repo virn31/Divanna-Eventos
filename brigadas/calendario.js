@@ -93,6 +93,7 @@ window.DimaCalendario = (function(){
       <div class="cal-ev" style="--c:${COLOR[ev.negocio] || '#888'};" data-ev="${e(ev.id)}">
         <b>${e(ev.folio)}</b> · ${e(NOMBRE[ev.negocio] || ev.negocio)}<br>
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
+        ${ev.clienteNombre || ev.clienteTelefono ? `<small>👤 ${e(ev.clienteNombre || 'Cliente sin nombre')}${ev.clienteTelefono ? ` · 📞 <a href="tel:${e(String(ev.clienteTelefono).replace(/[^\d+]/g, ''))}" style="color:inherit;">${e(ev.clienteTelefono)}</a>` : ''}</small><br>` : ''}
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>
         <small>👷 ${e(ev.brigada || 'sin brigada')}${ev.estatus ? ` · ${e(ev.estatus)}` : ''}${ev.enGoogle ? ' · 📆 en Google' : ''}</small>
         ${ev.propio && o.abrirFicha ? `<div class="cal-acc"><button data-cal="ficha" data-id="${e(ev.id)}">📋 Abrir ficha completa</button></div>` : ''}

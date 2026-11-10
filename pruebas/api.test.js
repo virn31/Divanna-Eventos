@@ -3951,7 +3951,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v44/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v44)');
+    ok(/dima-brigadas-v45/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v45)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4138,5 +4138,27 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(cal3.includes('📋 Abrir ficha completa') && srv.includes("propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f)")
       && app4.includes('(ev.encargadaIds || []).includes(miId)') && fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8').includes('colaborador: { id: colaborador.id'),
       'calendario (app): sus eventos traen "📋 Abrir ficha completa" (la de su pantalla principal) y el gerente asignado también edita');
+  }
+  // ---------- Calendario: nombre y teléfono del cliente en sus eventos (Víctor 2026-11-10) ----------
+  {
+    const Cc = require('../api/_calendario');
+    const eden = { id: 'recCOLABEDEN00001', nombre: 'Eden', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: null };
+    reset();
+    respuestas = [
+      { records: [
+        { id: 'recEVCALCLI000001', fields: { Folio_Evento: 'EVT-C1', Fecha_Evento: '2026-12-05', Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI', Cliente: ['recCLIENTECAL0001'] } },
+        { id: 'recEVCALCLI000002', fields: { Folio_Evento: 'EVT-C2', Fecha_Evento: '2026-12-06', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Cliente: ['recCLIENTECAL0002'] } },
+      ] },
+      { records: [] }, // brigadas (los días bloqueados tienen su propia respuesta)
+      { records: [{ id: 'recCLIENTECAL0001', fields: { Nombre: 'Laura Pérez', Telefono_WhatsApp: '+526671234567' } }] },
+    ];
+    const v = await Cc.vistaMes(eden, '2026-12');
+    const c1 = v.eventos.find(x => x.folio === 'EVT-C1'), c2 = v.eventos.find(x => x.folio === 'EVT-C2');
+    const lecturaCli = llamadas.find(l => l.url.includes('tblgViisKQRG9TVjh'));
+    ok(c1 && c1.clienteNombre === 'Laura Pérez' && c1.clienteTelefono === '+526671234567' && c2 && c2.clienteNombre === '' && c2.clienteTelefono === ''
+      && lecturaCli && lecturaCli.url.includes('recCLIENTECAL0001') && !lecturaCli.url.includes('recCLIENTECAL0002'),
+      'calendario: en sus eventos sale nombre y teléfono del cliente; en los de otros no (ni se leen)');
+    const cal4 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    ok(cal4.includes('👤 ${e(ev.clienteNombre') && cal4.includes('href="tel:'), 'calendario (app): la tarjeta muestra 👤 cliente y 📞 teléfono para llamar');
   }
 })();
