@@ -1634,6 +1634,16 @@
 
   // Registrar service worker para que la app sea instalable
   if('serviceWorker' in navigator){
+    // Versión nueva publicada (Víctor 2026-11-10: Eden no veía los cambios hasta abrir
+    // la app dos veces): cuando el service worker nuevo toma el control, se recarga una
+    // vez. Solo si ya había uno (la primera instalación no recarga).
+    const habiaVersion = !!navigator.serviceWorker.controller;
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(!habiaVersion || recargando) return;
+      recargando = true;
+      location.reload();
+    });
     navigator.serviceWorker.register('/brigadas/sw.js').catch(() => {});
   }
 </script>
