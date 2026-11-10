@@ -1423,7 +1423,7 @@
           <div class="fin-tipo">Tipo: ${(d.tiposGasto || []).map(t => `<label><input type="radio" name="gTipo" value="${esc(t)}" ${t === (d.eventos.length ? 'Evento' : 'General') ? 'checked' : ''}> ${esc(t)}</label>`).join(' ')}</div>
           ${d.pagadoCon.map((p, i) => `<label><input type="radio" name="gPagado" value="${esc(p)}" ${i === 0 ? 'checked' : ''}> ${esc(p)}${p === 'Dinero propio' ? ' (te lo reembolsan)' : ''}</label>`).join('')}
           <button class="fin-boton" id="gAgregar">+ Agregar gasto</button>
-          <div class="fin-msg">También por Telegram: manda la foto del ticket al bot.</div>` : ''}
+          <div class="fin-msg">También por Telegram: manda la foto del ticket al bot. ¿Lo anotaste sin foto? Súbela después en Telegram con /ticket.</div>` : ''}
       </div>
 
       ${d.soloGastos ? '' : `<div class="fin-caja">

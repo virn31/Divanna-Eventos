@@ -125,7 +125,7 @@ evento hoy, el evento queda en emergencia. Después puede escribir qué pasa y t
 
 ## Reporte financiero del día
 
-- **Gastos (todo el equipo, aunque ese día no haya eventos):** lo más fácil es mandar la **foto del ticket al bot de Telegram**: DiMa lee el total y lo anota en el reporte del día con dinero del negocio; **👛 Lo pagué yo** si fue con dinero propio (se reembolsa), **🗑️ Borrar** si se equivocó. También `/gasto 350 gasolina`. Diana y los gerentes ponen "gasto" en el pie de la foto (sin eso se lee como comanda). Si no hubo eventos ese día, el reporte le llega solo a Diana.
+- **Gastos (todo el equipo, aunque ese día no haya eventos):** lo más fácil es mandar la **foto del ticket al bot de Telegram**: DiMa lee el total y lo anota en el reporte del día con dinero del negocio; **👛 Lo pagué yo** si fue con dinero propio (se reembolsa), **🗑️ Borrar** si se equivocó. También `/gasto 350 gasolina` (con botón **📷 Agregar foto del ticket** para mandarla después). Si se anotó sin foto (Telegram o app), **`/ticket`** muestra los gastos propios sin foto de los últimos 14 días: se toca uno y se responde con la foto. Diana y los gerentes ponen "gasto" en el pie de la foto (sin eso se lee como comanda). Si no hubo eventos ese día, el reporte le llega solo a Diana.
 - En la app: el líder de brigada, la encargada, los gerentes y los asistentes tocan **💰** (arriba, junto a salir). Al elegir la foto del ticket, DiMa llena monto, concepto y categoría; se revisa, se elige **dinero del negocio o dinero propio** y se agrega. El asistente solo anota gastos.
 - **Cobros:** de qué evento, monto, efectivo / transferencia / depósito y foto del comprobante.
 - **Cierre:** efectivo entregado a Diana e insumos que se usaron o sobraron. Luego **Enviar a Diana**.

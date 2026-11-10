@@ -108,7 +108,7 @@ const TEMAS = {
     boton: '💰 Reporte del día',
     texto: () =>
       '💰 Reporte del día (al terminar tu día)\n\n' +
-      '🧾 Gastos, lo más fácil (aunque ese día no tengas eventos): mándale aquí al bot la FOTO del ticket. Yo leo el total y lo anoto en tu reporte con dinero del negocio; si lo pagaste tú, toca 👛 "Lo pagué yo" y te lo reembolsan. También: /gasto 350 gasolina. (Diana y los gerentes: pongan "gasto" en el pie de la foto; sin eso la leo como comanda.)\n\n' +
+      '🧾 Gastos, lo más fácil (aunque ese día no tengas eventos): mándale aquí al bot la FOTO del ticket. Yo leo el total y lo anoto en tu reporte con dinero del negocio; si lo pagaste tú, toca 👛 "Lo pagué yo" y te lo reembolsan. También: /gasto 350 gasolina (sale el botón 📷 para mandar la foto después). ¿Lo anotaste sin foto, aquí o en la app? Escribe /ticket, toca el gasto y respóndeme con la foto. (Diana y los gerentes: pongan "gasto" en el pie de la foto; sin eso la leo como comanda.)\n\n' +
       'En la app toca 💰 (arriba, junto a salir):\n' +
       '1. Gastos: toma la foto del ticket y DiMa llena el monto y en qué se gastó; revisa, elige si fue con dinero del negocio o con tu dinero (ese te lo reembolsan) y toca Agregar.\n' +
       '2. Cobros (líder, encargada y gerentes): de qué evento, cuánto y si fue efectivo, transferencia o depósito (foto del comprobante).\n' +

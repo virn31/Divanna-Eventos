@@ -3830,8 +3830,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(g.Monto === 350 && g.Concepto === 'gasolina' && g.Categoria === 'Combustible' && g.Pagado_Con === 'Dinero del negocio' && g.Tipo === 'General' && (g.Reporte || [])[0] === 'recREPORTEPRUEB01'
       && postRep && postRep.body.records[0].fields.Negocio === 'Divanna Eventos',
       'gastos: un asistente sin eventos anota /gasto 350 gasolina en su reporte del día');
-    ok(typeof r === 'object' && r.texto.includes('$350') && r.botones.slice(1).flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1',
-      'gastos: contesta con el negocio, 👛 Lo pagué yo y 🗑️ Borrar (se manda solo porque no tuvo eventos)');
+    ok(typeof r === 'object' && r.texto.includes('$350') && r.botones.slice(1).flat().map(x => x.dato).join() === 'gt:p:recGASTOPRUEBA001:1,gt:x:recGASTOPRUEBA001:1,gt:f:recGASTOPRUEBA001',
+      'gastos: contesta con el negocio, 👛 Lo pagué yo, 🗑️ Borrar y 📷 Agregar foto (se manda solo porque no tuvo eventos)');
     reset();
     ok(typeof (await T.gastoPorTexto(asist, 'gasolina')) === 'string' && llamadas.length === 0, 'gastos: sin monto pide el formato y no guarda nada');
 
@@ -3893,7 +3893,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v40/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v40)');
+    ok(/dima-brigadas-v41/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'gastos (app): se subió la caché de la app (v41)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4026,5 +4026,42 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const txtBD = Qn.textoResumen({ hoy: [], manana: [], porCobrar: { eventos: 0, total: 0 }, reembolsos: [], porNegocio: pd }, 0);
     ok(txtBD.includes(`🏢 Ayer (${ayerT}) por negocio`) && txtBD.includes('📆 En lo que va del mes') && txtBD.includes('🌽 El Vaso Maíz: ingresos $1,800'),
       'buenos días: el resumen de Diana y Víctor trae ayer y el mes por negocio');
+  }
+  // ---------- Gasto a mano y la foto después por Telegram (/ticket) ----------
+  {
+    const T2 = require('../api/_tickets');
+    const yo = { id: LIDER.id, nombre: 'Juan', rol: 'Lider de brigada', brigadaId: 'recBRIGADA0000001' };
+    const hoyF = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    reset();
+    respuestas = [{ records: [
+      { id: 'recGASTOSINFOTO01', fields: { Concepto: 'gasolina', Monto: 350, Fecha: hoyF, Reportado_Por: [LIDER.id] } },
+      { id: 'recGASTOCONFOTO01', fields: { Concepto: 'hielo', Monto: 90, Fecha: hoyF, Reportado_Por: [LIDER.id], Attachments: [{ url: 'https://x/y.jpg' }] } },
+      { id: 'recGASTODEOTRO001', fields: { Concepto: 'comida', Monto: 200, Fecha: hoyF, Reportado_Por: ['recOTRAPERSONA001'] } },
+    ] }];
+    let r = await T2.listaSinTicket(yo);
+    ok(typeof r === 'object' && r.botones.length === 1 && r.botones[0][0].dato === 'gt:f:recGASTOSINFOTO01' && r.botones[0][0].texto.includes('$350') && r.botones[0][0].texto.includes('gasolina'),
+      '/ticket: lista solo mis gastos sin foto, con un botón cada uno');
+    reset();
+    respuestas = [{ records: [] }];
+    ok(typeof (await T2.listaSinTicket(yo)) === 'string', '/ticket: si no hay gastos sin foto lo dice');
+    reset();
+    r = await T2.botonTicket(yo, 'f', 'recGASTOSINFOTO01', undefined, 222);
+    const pide = telegram.find(t => t.metodo === 'sendMessage');
+    ok(pide && pide.body.reply_markup.force_reply === true && pide.body.text.startsWith(T2.MARCA_FOTO) && pide.body.text.includes('(recGASTOSINFOTO01)'),
+      'foto después: el botón 📷 pide la foto con "responder" y lleva el gasto');
+    const respuesta = { chat: { id: 222 }, photo: [{ file_id: 'x' }], reply_to_message: { from: { is_bot: true }, text: `${T2.MARCA_FOTO} (recGASTOSINFOTO01)\nMándame la foto` } };
+    ok(T2.esFotoParaGasto(respuesta) && !T2.esFotoParaGasto({ photo: [{ file_id: 'x' }] }), 'foto después: reconoce la foto que responde al mensaje');
+    reset();
+    respuestas = [{ id: 'recGASTOSINFOTO01', fields: { Concepto: 'gasolina', Monto: 350, Fecha: hoyF, Reportado_Por: [LIDER.id] } }, {}];
+    r = await T2.atenderFotoParaGasto(respuesta, yo);
+    ok(r.texto.includes('le puse la foto') && llamadas.some(l => l.url.includes('recGASTOSINFOTO01/Attachments/uploadAttachment')) && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblfuEW0oiX4xTw7T?')) && llamadasClaude.length === 0,
+      'foto después: la foto se le pone a ese gasto (no crea otro ni llama a Claude)');
+    reset();
+    respuestas = [{ id: 'recGASTOSINFOTO01', fields: { Concepto: 'gasolina', Monto: 350, Reportado_Por: ['recOTRAPERSONA001'] } }];
+    r = await T2.atenderFotoParaGasto(respuesta, yo);
+    ok(r.texto.includes('no es tuyo') && !llamadas.some(l => l.url.includes('uploadAttachment')), 'foto después: no se le pone foto al gasto de otra persona');
+    const tg2 = fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8');
+    ok(tg2.includes("description: 'Anotar un gasto: /gasto 350 gasolina o manda la foto del ticket'") && tg2.includes("command: 'ticket'") && /Tickets\.esFotoParaGasto\(mensaje\) \? await Tickets\.atenderFotoParaGasto/.test(tg2) && /case '\/ticket':/.test(tg2),
+      'menú de Telegram: /gasto ya no dice (Admin) y está /ticket');
   }
 })();

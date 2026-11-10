@@ -520,3 +520,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Por qué:** Víctor quiere saber cuánto gasta y cuánto gana cada negocio, además del balance general.
 - **Límite conocido:** lo anotado antes de hoy no tiene la casilla y cuenta en Divanna; los ingresos de eventos con salón sí se separan hacia atrás (se deducen del evento). Los eventos con salón y mobiliario no reparten el monto: todo es de Casa Isabella.
 - **Alternativa descartada:** agregar "Casa Isabella" como tercera opción de `Negocio` (habría sacado esos montos de los totales de Divanna y de la vista de la gerencia).
+
+## 2026-11-10 — Gasto a mano y foto del ticket después por Telegram
+
+- **Decisión:** quien anota un gasto sin foto (app o `/gasto`) la sube después por Telegram: el gasto sin foto trae **📷 Agregar foto del ticket** (`gt:f:<gasto>`), y **`/ticket`** lista los gastos propios sin foto de los últimos 14 días (botón por gasto). El bot pide la foto con "responder" (`force_reply`, marca "📷 Foto para el gasto (<id>)"); la foto que llega respondiendo se adjunta a ese gasto (`adjuntarTicket`), sin crear otro ni llamar a Claude. Solo quien lo anotó; un gasto que ya tiene foto no se toca. Menú del bot: `/gasto` ya no dice "(Admin)" y se agrega `/ticket` (requiere `/configurar` una vez).
+- **Por qué:** Víctor pidió poder anotar el gasto a mano y mandar la foto después.
+- **Alternativa descartada:** pegar sola a un gasto sin foto cualquier foto que llegue (riesgo de ponerla en el gasto equivocado o de duplicar el gasto).

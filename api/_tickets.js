@@ -112,8 +112,9 @@ function botonesNegocio(id, auto) {
   return [Object.keys(CODIGOS).map(c => ({ texto: ETIQUETAS[c], dato: `gt:n:${id}:${c}${auto ? 1 : 0}` }))];
 }
 
-function botonesGasto(id, conEventos, auto, fecha) {
+function botonesGasto(id, conEventos, auto, fecha, sinFoto = false) {
   const filas = [[{ texto: '👛 Lo pagué yo', dato: `gt:p:${id}:${auto ? 1 : 0}` }, { texto: '🗑️ Borrar', dato: `gt:x:${id}:${auto ? 1 : 0}` }]];
+  if (sinFoto) filas.push([{ texto: '📷 Agregar foto del ticket', dato: `gt:f:${id}` }]);
   if (conEventos) filas.push([{ texto: '📨 Enviar reporte a Diana', dato: `gt:e:${fecha}` }]);
   return filas;
 }
@@ -127,7 +128,7 @@ async function guardarGasto(colaborador, { monto: valor, concepto, categoria }, 
     if (r.error) return { texto: `⚠️ ${r.error}` };
     return {
       texto: `✅ Anoté ${pesos(valor)} · ${concept} (${cat}) · ${fechaHoy()} · dinero del negocio.${r.avisoFoto ? `\n⚠️ ${r.avisoFoto}` : ''}\n¿De qué negocio es?`,
-      botones: botonesNegocio(r.id, false).concat([[{ texto: '🗑️ Borrar', dato: `gt:x:${r.id}:0` }]]),
+      botones: botonesNegocio(r.id, false).concat([[{ texto: '🗑️ Borrar', dato: `gt:x:${r.id}:0` }]], foto ? [] : [[{ texto: '📷 Agregar foto del ticket', dato: `gt:f:${r.id}` }]]),
     };
   }
   const fecha = fechaHoy();
@@ -144,7 +145,7 @@ async function guardarGasto(colaborador, { monto: valor, concepto, categoria }, 
     '👉 ¿De qué negocio es? Toca uno.',
     'Si lo pagaste con tu dinero toca 👛 y te lo reembolsan.',
   ].filter(Boolean).join('\n');
-  return { texto, botones: botonesNegocio(r.id, !r.conEventos).concat(botonesGasto(r.id, r.conEventos, !r.conEventos, fecha)) };
+  return { texto, botones: botonesNegocio(r.id, !r.conEventos).concat(botonesGasto(r.id, r.conEventos, !r.conEventos, fecha, !foto)) };
 }
 
 // ---------- Telegram ----------
@@ -190,8 +191,45 @@ async function gastoPorTexto(colaborador, texto) {
   return guardarGasto(colaborador, { monto: d.monto, concepto: d.concepto, categoria: categoriaDeTexto(d.concepto) });
 }
 
-// Botones gt:p|x:<gasto>:<auto> y gt:e:<fecha>. Devuelve { aviso, alerta, textoFinal, botones }.
-async function botonTicket(colaborador, accion, id, auto) {
+// ---------- Foto del ticket después ----------
+// gt:f:<gasto> → el bot pide la foto con "responder" (force_reply). El mensaje
+// lleva la marca y el ID del gasto; la foto que llega respondiendo a él se le
+// pone a ese gasto (atenderFotoParaGasto).
+const MARCA_FOTO = '📷 Foto para el gasto';
+
+async function pedirFoto(colaborador, chatId, gastoId) {
+  if (!ID.test(gastoId || '')) return { aviso: '' };
+  await telegramApi('sendMessage', { chat_id: chatId, text: `${MARCA_FOTO} (${gastoId})\nMándame la foto del ticket respondiendo a este mensaje (mantén presionado → Responder, y adjunta la foto).`, reply_markup: { force_reply: true } });
+  return { aviso: 'Mándame la foto' };
+}
+
+const esFotoParaGasto = (mensaje) => !!(mensaje.reply_to_message && mensaje.reply_to_message.from && mensaje.reply_to_message.from.is_bot
+  && String(mensaje.reply_to_message.text || '').startsWith(MARCA_FOTO));
+
+async function atenderFotoParaGasto(mensaje, colaborador) {
+  const m = /\((rec[A-Za-z0-9]{14})\)/.exec(String(mensaje.reply_to_message.text || ''));
+  if (!m) return { texto: 'No encontré a qué gasto va la foto. Usa /ticket otra vez.' };
+  let foto;
+  try { foto = await descargarFotoTelegram(conFotoQueQuepa(mensaje)); } catch (err) { return { texto: `No pude abrir la foto: ${err.message}` }; }
+  if (!foto) return { texto: 'Eso no es una foto. Respóndeme con la foto del ticket.' };
+  const r = await F.adjuntarTicket(colaborador, m[1], foto);
+  if (r.error) return { texto: `⚠️ ${r.error}` };
+  return { texto: `✅ Listo: le puse la foto al gasto de ${pesos(r.gasto.monto)} · ${r.gasto.concepto} (${r.gasto.fecha}).` };
+}
+
+// /ticket: gastos propios sin foto de los últimos días, con un botón cada uno.
+async function listaSinTicket(colaborador) {
+  const lista = (await F.gastosSinTicket(colaborador)).slice(0, 10);
+  if (!lista.length) return '✅ No tienes gastos sin foto de los últimos 14 días.\nPara anotar uno nuevo mándame la foto del ticket o escribe /gasto 350 gasolina.';
+  return {
+    texto: `🧾 Tus gastos sin foto del ticket (${lista.length}). Toca uno y luego mándame la foto respondiendo:`,
+    botones: lista.map(g => [{ texto: `📷 ${g.fecha.slice(5)} · ${pesos(g.monto)} · ${g.concepto}`.slice(0, 60), dato: `gt:f:${g.id}` }]),
+  };
+}
+
+// Botones gt:p|x:<gasto>:<auto>, gt:e:<fecha> y gt:f:<gasto>. Devuelve { aviso, alerta, textoFinal, botones }.
+async function botonTicket(colaborador, accion, id, auto, chatId) {
+  if (accion === 'f') return pedirFoto(colaborador, chatId, id);
   if (accion === 'e') {
     if (!esFecha(id)) return { aviso: '' };
     const r = await F.enviar(colaborador, { fecha: id });
@@ -239,4 +277,4 @@ async function leerParaApp(colaborador, body) {
   }
 }
 
-module.exports = { botonesNegocio, CODIGOS, leerTexto, categoriaDeTexto, leerTicket, guardarGasto, esFotoDeGasto, atenderFotoGasto, gastoPorTexto, botonTicket, leerParaApp, HERRAMIENTA };
+module.exports = { esFotoParaGasto, atenderFotoParaGasto, listaSinTicket, MARCA_FOTO, botonesNegocio, CODIGOS, leerTexto, categoriaDeTexto, leerTicket, guardarGasto, esFotoDeGasto, atenderFotoGasto, gastoPorTexto, botonTicket, leerParaApp, HERRAMIENTA };

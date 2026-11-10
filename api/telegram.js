@@ -112,8 +112,8 @@ function ayuda(colaborador) {
     '/sos — emergencia: alerta con tu ubicación a todo el equipo',
   ];
   comandos.push(Tickets.esFotoDeGasto({ caption: '' }, colaborador)
-    ? '🧾 Gastos: mándame la foto del ticket (o /gasto 350 gasolina) y lo anoto en tu reporte'
-    : '🧾 Gastos: foto del ticket con la palabra "gasto" en el pie (sin ella la leo como comanda)');
+    ? '🧾 Gastos: mándame la foto del ticket (o /gasto 350 gasolina) y lo anoto en tu reporte. /ticket — subir la foto de un gasto que anotaste sin ella'
+    : '🧾 Gastos: foto del ticket con la palabra "gasto" en el pie (sin ella la leo como comanda). /ticket — subir la foto de un gasto que anotaste sin ella');
   if (colaborador.rol === ROLES.ADMIN || colaborador.coordinaStaff) comandos.push('/staff — invitar al staff de El Vaso Maíz a un evento');
   if (colaborador.rol === ROLES.ADMIN || colaborador.gerente) comandos.push('/comanda pedido — capturar un pedido escrito (o manda la foto de la comanda)');
   if (colaborador.rol === ROLES.ADMIN) comandos.push('/gasto 350 gasolina — anotar un gasto (te pregunto el tipo)', '/pedidos — pedidos por cotizar', '/anuncio texto — mensaje a todo el equipo (sin staff)', '/configurar — activar botones y comandos del bot', '/entrenamiento texto — enseñarle una regla a DiMa', '/reglas — reglas activas de DiMa', '/desactivar N — quitar una regla');
@@ -205,7 +205,8 @@ async function configurarBot() {
       { command: 'sos', description: 'Emergencia: alerta con tu ubicación a todo el equipo' },
       { command: 'pedidos', description: 'Pedidos por cotizar (Admin)' },
       { command: 'comanda', description: 'Capturar un pedido escrito (Admin y gerentes)' },
-      { command: 'gasto', description: 'Anotar un gasto: /gasto 350 gasolina (Admin)' },
+      { command: 'gasto', description: 'Anotar un gasto: /gasto 350 gasolina o manda la foto del ticket' },
+      { command: 'ticket', description: 'Subir la foto de un gasto que anotaste sin ticket' },
       { command: 'entrenamiento', description: 'Enseñarle una regla a DiMa (Admin)' },
       { command: 'reglas', description: 'Reglas activas de DiMa (Admin)' },
       { command: 'desactivar', description: 'Quitar una regla: /desactivar 2 (Admin)' },
@@ -316,7 +317,7 @@ async function atenderBoton(cb) {
 
   if (tipo === 'gt') {
     // Gasto anotado por foto o /gasto: 👛 lo pagué yo (gt:p), borrar (gt:x), enviar reporte (gt:e:<fecha>).
-    const r = await Tickets.botonTicket(colaborador, accion, id, sel);
+    const r = await Tickets.botonTicket(colaborador, accion, id, sel, chatId);
     await responderBoton(cb.id, r.aviso, !!r.alerta);
     if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`, r.botones);
     return;
@@ -479,6 +480,9 @@ async function responder(mensaje) {
     case '/gasto':
       // Diana y Víctor: con pregunta de tipo; el resto del equipo: se guarda directo en su reporte del día.
       return colaborador.rol === ROLES.ADMIN ? comandoGasto(colaborador, texto.slice(primera.length).trim()) : Tickets.gastoPorTexto(colaborador, texto.slice(primera.length).trim());
+    case '/ticket':
+    case '/tickets':
+      return Tickets.listaSinTicket(colaborador);
     case '/comanda':
       return Comanda.atenderTexto(texto.slice(primera.length).trim(), colaborador, chatId);
     case '/eventos': return listaEventos(colaborador, false);
@@ -560,6 +564,7 @@ module.exports = async (req, res) => {
         const colaborador = await colaboradorPorChat(mensaje.chat.id);
         // Ticket de gasto (cualquiera del equipo) o comanda (Diana, Víctor y gerentes; ver api/_tickets.js).
         respuesta = !colaborador ? 'Primero vincula tu Telegram con /entrar usuario PIN.'
+          : Tickets.esFotoParaGasto(mensaje) ? await Tickets.atenderFotoParaGasto(mensaje, colaborador)
           : Tickets.esFotoDeGasto(mensaje, colaborador) ? await Tickets.atenderFotoGasto(mensaje, colaborador)
             : await Comanda.atenderFoto(mensaje, colaborador);
       } else {
