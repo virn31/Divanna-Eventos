@@ -334,6 +334,32 @@ async function subirFoto(recordId, campo, foto) {
   if (!res.ok) throw new Error(`No se pudo subir la foto (${res.status}): ${(await res.text()).slice(0, 200)}`);
 }
 
+// ---------- Foto del ticket después (Víctor 2026-11-10) ----------
+// Quien anotó un gasto a mano (app o /gasto) sube la foto después por Telegram
+// (/ticket o el botón 📷 Agregar foto, api/_tickets.js).
+const DIAS_TICKET = 14;
+
+// Gastos propios sin foto de los últimos 14 días (más nuevos primero).
+async function gastosSinTicket(colaborador) {
+  const desde = sumarDias(hoyCuliacan(), -DIAS_TICKET);
+  const registros = await todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${desde}")))`)}`);
+  // El vínculo se compara por ID en JS (ARRAYJOIN de un vínculo devuelve el nombre).
+  return registros.map(aGasto).filter(g => g.reportadoPor === colaborador.id && !g.foto)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+}
+
+// Le pone la foto a un gasto propio. Devuelve { ok, gasto } o { error }.
+async function adjuntarTicket(colaborador, gastoId, foto) {
+  if (!ID.test(gastoId || '')) return { error: 'No encontré ese gasto.' };
+  const v = validarFoto(foto);
+  if (!v.ok || !v.foto) return { error: v.error || 'Manda la foto del ticket.' };
+  const g = aGasto(await airtable(`${TABLES.GASTOS}/${gastoId}`));
+  if (g.reportadoPor !== colaborador.id) return { error: 'Ese gasto no es tuyo.' };
+  if (g.foto) return { error: 'Ese gasto ya tiene su foto.' };
+  await subirFoto(gastoId, 'Attachments', v.foto);
+  return { ok: true, gasto: g };
+}
+
 async function agregarGasto(colaborador, body) {
   const fecha = esFecha(body.fecha) ? body.fecha : hoyCuliacan();
   const concepto = String(body.concepto || '').trim().slice(0, 120);
@@ -812,6 +838,8 @@ module.exports = {
   CATEGORIAS,
   monto,
   validarFoto,
+  gastosSinTicket,
+  adjuntarTicket,
   vista,
   agregarGasto,
   agregarCobro,
