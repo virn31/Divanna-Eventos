@@ -1,6 +1,7 @@
 // api/produccion-diaria.js
 // (También manda el buenos días diario a Diana y Víctor de api/_cuadre.js: resumen
-// del día y preguntas por eventos que no cuadran; los lunes, el efectivo sin destino.
+// del día y preguntas por eventos que no cuadran; los lunes, el efectivo sin destino;
+// y a Diana, los eventos pasados que siguen abiertos para que confirme el cierre.
 // El buenos días sí se repite si el cron se corre dos veces el mismo día.)
 // Cron diario (vercel.json, 8:00 de Culiacán = 15:00 UTC): manda por Telegram
 // la lista de producción de El Vaso Maíz a cada encargado de producción, dos
@@ -10,6 +11,7 @@
 
 const { avisosDelDia, avisosCompras } = require('./_produccion');
 const { preguntasDelDia, preguntaCaja } = require('./_cuadre');
+const { preguntarCierres } = require('./_cierre');
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -27,9 +29,12 @@ module.exports = async (req, res) => {
     const caja = esLunes ? await preguntaCaja().catch(err => { console.error('Error en la pregunta de caja:', err.message); return { error: err.message }; }) : null;
     // Compras de insumos de la gerente (7 y 2 días antes): al final, y si falla no detiene lo demás.
     const compras = await avisosCompras().catch(err => { console.error('Error en los avisos de compras:', err.message); return { error: err.message }; });
+    // Eventos pasados que siguen abiertos: solo Diana confirma si ya se cerraron (api/_cierre.js).
+    const cierres = await preguntarCierres().catch(err => { console.error('Error preguntando cierres:', err.message); return { error: err.message }; });
     res.status(200).json({
       success: true,
       compras,
+      cierres,
       resultados: resultados.map(r => ({ tipo: r.tipo, fecha: r.fecha, enviados: r.enviados.length, fallidos: r.fallidos.length })),
       cuadre,
       caja,

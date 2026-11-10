@@ -3712,4 +3712,84 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(idsDe(vistos) === 'recABONO' && vistos[0].dinero.resta === 600, 'apk: también sale si los cobros ya cubren el total; un abono se queda');
     ok(/leerEventos\(eventoIds, \{[^}]*sinPagadosPasados: true/.test(fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8')), 'apk: la pantalla de eventos usa el filtro');
   }
+
+  // ---------- Evento nuevo → gerentes (Víctor 2026-11-10: a Eden no le llegaba) ----------
+  {
+    const calN = require('../api/_calendario');
+    const GENTE = { records: [
+      { id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: ' Gerente Divanna', Activo: true, Telegram_Chat_ID: '333' } },
+      { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario', Rol: 'Gerente Casa Isabella', Activo: true, Telegram_Chat_ID: '444' } },
+      { id: 'recCOLABANGELA001', fields: { Nombre: 'Ángela', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Activo: true, Telegram_Chat_ID: '555' } },
+      { id: ADMIN.id, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+    ] };
+    const chats = () => telegram.filter(t => t.metodo === 'sendMessage').map(t => String(t.body.chat_id)).sort().join();
+    const EVD = { Folio_Evento: 'EVT-100001', Negocio: 'Divanna Eventos', Fecha_Evento: '2026-12-05', Servicios_Solicitados: '10 mesas', Monto_Estimado_IA: 4500, Ubicacion: 'Las Quintas' };
+    reset();
+    respuestas = [GENTE, GENTE, GENTE];
+    await calN.avisarEventoNuevo({ id: ADMIN.id, rol: 'Admin' }, EVD);
+    const txt = (telegram.find(t => t.metodo === 'sendMessage') || { body: {} }).body.text || '';
+    ok(chats() === '333' && txt.includes('EVT-100001') && txt.includes('10 mesas') && !/\$|4500|4,500/.test(txt), 'evento nuevo: a Eden le llega el de Divanna, sin monto; a Diana (quien autorizó), Mario y Ángela no');
+    reset();
+    respuestas = [GENTE, GENTE, GENTE];
+    await calN.avisarEventoNuevo({ id: ADMIN.id, rol: 'Admin' }, { ...EVD, Productos: JSON.stringify([{ clave: 'dv_casa_isabella', cantidad: 1 }]) });
+    ok(chats() === '444', 'evento nuevo: el de Casa Isabella le llega a Mario y no a Eden');
+    reset();
+    respuestas = [GENTE, GENTE, GENTE];
+    await calN.avisarEventoNuevo({ id: 'recCOLABEDEN00001', rol: 'Lider de brigada', gerente: 'Divanna Eventos' }, EVD);
+    ok(chats() === '', 'evento nuevo: a quien lo capturó no se le avisa');
+    reset();
+    respuestas = [{ __error: 500 }];
+    ok(await calN.avisarEventoNuevo(null, EVD) === 0, 'evento nuevo: si Airtable falla no rompe la captura');
+    ok(/avisarEventoNuevo\(colaborador, campos\)/.test(fs.readFileSync(path.join(repo, 'api/_calendario.js'), 'utf8'))
+      && /Autorizacion_Diana !== 'SI'\) await C\.avisarEventoNuevo/.test(fs.readFileSync(path.join(repo, 'api/dashboard-eventos.js'), 'utf8')),
+      'evento nuevo: se avisa al capturar y al autorizar (solo la primera vez)');
+  }
+
+  // ---------- Cierre de eventos pasados: solo Diana confirma ----------
+  {
+    const Ci = require('../api/_cierre');
+    const hoyC = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
+    const PASADOS = { records: [
+      { id: 'recPASADO00000001', fields: { Folio_Evento: 'EVT-200001', Fecha_Evento: '2026-11-06', Negocio: 'Divanna Eventos', Ubicacion: 'Las Quintas' } },
+      { id: 'recPASADO00000002', fields: { Folio_Evento: 'EVT-200002', Fecha_Evento: '2026-11-07', Negocio: 'El Vaso Maiz' } },
+    ] };
+    const ADMINS = { records: [
+      { id: 'recCOLABVICTOR01', fields: { Nombre: 'victor', Rol: 'Admin', Activo: true, Telegram_Chat_ID: '222' } },
+      { id: ADMIN.id, fields: { ...ADMIN.fields, Telegram_Chat_ID: '111' } },
+    ] };
+    reset();
+    respuestas = [PASADOS, ADMINS];
+    let r = await Ci.preguntarCierres();
+    const msj = telegram.filter(t => t.metodo === 'sendMessage');
+    const botones = msj.length ? msj[0].body.reply_markup.inline_keyboard.flat().map(b => b.callback_data) : [];
+    ok(r.enviado && r.pendientes === 2 && msj.length === 1 && String(msj[0].body.chat_id) === '111', 'cierre: la pregunta le llega solo a Diana (no a Víctor)');
+    ok(botones.join() === `ce:s:recPASADO00000001,ce:s:recPASADO00000002,ce:t:${hoyC},ce:n` && botones.every(b => Buffer.byteLength(b) <= 64), 'cierre: un botón por evento, "Cerrar todos" y "Luego" (callback de 64 bytes o menos)');
+    const filtro = llamadas[0].url;
+    ok(filtro.includes('{Estado} != "Cerrado"') && filtro.includes('NOT({Cancelado})') && filtro.includes(`IS_BEFORE({Fecha_Evento}, DATETIME_PARSE("${hoyC}"))`) && filtro.includes('{Autorizacion_Diana} = "SI"'), 'cierre: solo autorizados, no cancelados ni cerrados, de antes de hoy');
+    reset();
+    respuestas = [{ records: [] }];
+    r = await Ci.preguntarCierres();
+    ok(!r.enviado && telegram.length === 0, 'cierre: si no hay eventos pasados abiertos no le escribe');
+
+    const mensaje = { text: 'x', reply_markup: { inline_keyboard: [[{ text: '✅ EVT-200001', callback_data: 'ce:s:recPASADO00000001' }, { text: '✅ EVT-200002', callback_data: 'ce:s:recPASADO00000002' }], [{ text: '✅ Cerrar todos', callback_data: `ce:t:${hoyC}` }, { text: '⏳ Luego', callback_data: 'ce:n' }]] } };
+    reset();
+    r = await Ci.botonCierre({ id: 'recCOLABEDEN00001', rol: 'Lider de brigada', gerente: 'Divanna Eventos' }, 's', 'recPASADO00000001', mensaje);
+    ok(r.alerta && llamadas.length === 0, 'cierre: un gerente no puede cerrar con el botón');
+    reset();
+    respuestas = [{ id: 'recPASADO00000001', fields: { Folio_Evento: 'EVT-200001', Estado: 'Reservacion confirmada' } }, {}];
+    r = await Ci.botonCierre({ id: ADMIN.id, rol: 'Admin' }, 's', 'recPASADO00000001', mensaje);
+    const patch = llamadas.find(l => l.method === 'PATCH');
+    ok(patch && patch.body.records.length === 1 && patch.body.records[0].id === 'recPASADO00000001' && patch.body.records[0].fields.Estado === 'Cerrado' && Object.keys(patch.body.records[0].fields).length === 1,
+      'cierre: el botón marca Estado = Cerrado y nada más');
+    ok(r.textoFinal.includes('EVT-200001') && r.botones.flat().map(b => b.dato).join() === `ce:s:recPASADO00000002,ce:t:${hoyC},ce:n`, 'cierre: el botón del evento cerrado desaparece y quedan los demás');
+    reset();
+    respuestas = [PASADOS, {}];
+    r = await Ci.botonCierre({ id: ADMIN.id, rol: 'Admin' }, 't', hoyC, mensaje);
+    const p2 = llamadas.find(l => l.method === 'PATCH');
+    ok(p2 && p2.body.records.map(x => x.id).join() === 'recPASADO00000001,recPASADO00000002' && r.botones.length === 0 && r.textoFinal.includes('2 eventos'), 'cierre: "Cerrar todos" cierra los pasados abiertos y quita los botones');
+    reset();
+    r = await Ci.botonCierre({ id: ADMIN.id, rol: 'Admin' }, 'n', undefined, mensaje);
+    ok(llamadas.length === 0 && r.botones.length === 0, 'cierre: "Luego" no cambia nada');
+    ok(/preguntarCierres\(\)/.test(fs.readFileSync(path.join(repo, 'api/produccion-diaria.js'), 'utf8')) && /tipo === 'ce'/.test(fs.readFileSync(path.join(repo, 'api/telegram.js'), 'utf8')), 'cierre: va en el cron de las 8:00 y el bot atiende los botones ce:');
+  }
 })();

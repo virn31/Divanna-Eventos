@@ -32,6 +32,7 @@ const { cursoDe, responderCurso, avanceEquipo, invitarAlCurso } = require('./_cu
 const { esRespuestaMensaje, comandoMensaje, botonResponder, atenderRespuesta } = require('./_mensajes');
 const { botonProduccion, esRespuestaProduccion, atenderRespuestaProduccion } = require('./_produccion');
 const { botonCuadre, esRespuestaCuadre, atenderRespuestaCuadre } = require('./_cuadre');
+const { botonCierre } = require('./_cierre');
 const { comandoGasto, botonGasto } = require('./_finanzas');
 const Comanda = require('./_comanda');
 const { puedeUsarDima, preguntarDima } = require('./_dima-equipo');
@@ -306,6 +307,14 @@ async function atenderBoton(cb) {
       await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.aviso}`);
       await enviarTelegram(chatId, r.siguiente.texto, r.siguiente.botones);
     }
+    return;
+  }
+
+  if (tipo === 'ce') {
+    // Cierre de eventos pasados: Diana confirma cuáles ya terminaron (ce:s:<evento>, ce:t:<fecha>, ce:n).
+    const r = await botonCierre(colaborador, accion, id, cb.message);
+    await responderBoton(cb.id, r.aviso, !!r.alerta);
+    if (r.textoFinal) await editarTelegram(chatId, mensajeId, `${cb.message.text || ''}\n\n${r.textoFinal}`, r.botones);
     return;
   }
 

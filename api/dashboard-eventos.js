@@ -560,6 +560,8 @@ async function resolverPedido(req, res, colaborador) {
 
   // ¿Con este evento se llenó el día? Avisa a Diana, Víctor (y gerente si es El Vaso Maíz).
   const diaLleno = await C.avisarSiLleno(f.Fecha_Evento, esVasoMaiz(f) ? 'El Vaso Maiz' : (f.Negocio || 'Divanna Eventos'));
+  // Evento nuevo para los gerentes del negocio (solo la primera vez que se autoriza).
+  if (f.Autorizacion_Diana !== 'SI') await C.avisarEventoNuevo(colaborador, { ...f, ...camposAutorizar, Servicios_Solicitados: listaItems.join('\n') });
   res.status(200).json({ success: true, googleOk, erroresGoogle, diaLleno });
 }
 
