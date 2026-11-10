@@ -468,4 +468,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
 }
 
-module.exports = { HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
+module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };

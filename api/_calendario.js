@@ -492,6 +492,42 @@ async function avisarSiLleno(fecha, negocio) {
   }
 }
 
+// ---------- Evento nuevo → gerentes ----------
+// Al autorizar o capturar un evento, avisa por Telegram y push a los gerentes
+// del negocio (Eden, Mario, Ángela), sin montos, menos a quien lo hizo y
+// menos lo que ese gerente no ve (Eden y Casa Isabella). Víctor 2026-11-10:
+// a Eden no le llegaba nada de los eventos nuevos. Nunca lanza error.
+function textoEventoNuevo(f) {
+  const negocio = f.Negocio === NEGOCIOS.VM ? 'El Vaso Maíz' : f.Negocio === NEGOCIOS.DV ? 'Divanna' : 'sin negocio';
+  const items = String(f.Servicios_Solicitados || '').trim();
+  return `🆕 Evento nuevo ${f.Folio_Evento || ''} (${negocio})\n` +
+    `📅 ${esFecha(f.Fecha_Evento) ? fechaTexto(f.Fecha_Evento) : 'sin fecha'}${f.Hora_Inicio ? ' · 🕒 ' + f.Hora_Inicio : ''}${f.Invitados ? ' · 👥 ' + f.Invitados : ''}\n` +
+    (f.Ubicacion ? `📍 ${f.Ubicacion}\n` : '') +
+    (items ? `\n${items.slice(0, 1500)}\n` : '') +
+    '\nAsígnale brigada en la app ("👷 Asignar").';
+}
+
+async function avisarEventoNuevo(colaborador, f) {
+  try {
+    const gente = await todas(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent('{Activo}')}`);
+    const ids = gente.filter(c => {
+      if (colaborador && c.id === colaborador.id) return false;
+      const g = gerenciaDe(c.fields);
+      if (!g || !eventoDeGerencia(g, f)) return false;
+      return !ocultoParaGerente({ id: c.id, rol: ROLES.LIDER, gerente: g }, f);
+    }).map(c => c.id);
+    if (!ids.length) return 0;
+    const [porTelegram] = await Promise.all([
+      enviarTelegramEquipo({ texto: textoEventoNuevo(f), soloColaboradores: ids }),
+      enviarPushEquipo({ titulo: `🆕 Evento nuevo ${f.Folio_Evento || ''}`, cuerpo: esFecha(f.Fecha_Evento) ? fechaTexto(f.Fecha_Evento) : 'Toca para verlo.', soloColaboradores: ids }),
+    ]);
+    return porTelegram;
+  } catch (err) {
+    console.error('No se pudo avisar el evento nuevo a los gerentes:', err.message);
+    return 0;
+  }
+}
+
 // Días llenos de hoy a 4 meses, para DiMa (se guarda 5 min por instancia).
 async function llenosProximos() {
   if (Date.now() < cacheLlenos.hasta) return cacheLlenos.datos;
@@ -610,6 +646,7 @@ async function capturarEvento(colaborador, b) {
   }
   const google = await sincronizarEvento(eventoId);
   const diaLleno = negocio ? await avisarSiLleno(b.fecha, negocio) : null;
+  await avisarEventoNuevo(colaborador, campos);
   // Sin recibo automático con el anticipo (Víctor 2026-11-07): se manda con 🧾 Mandar recibo si el cliente lo pide.
   const recibo = null;
   return { ok: true, eventoId, folio, diaLleno, recibo, clienteNuevo, cliente: cliente.fields ? cliente.fields.Nombre || nombre : nombre, anticipoGuardado, google, total, cargoManteles: manteles.cargo, decorador };
@@ -639,6 +676,8 @@ async function sincronizarPendientes(colaborador) {
 module.exports = {
   fechaTexto,
   avisarSiLleno,
+  avisarEventoNuevo,
+  textoEventoNuevo,
   llenosProximos,
   olvidarLlenos,
   capturarEvento,

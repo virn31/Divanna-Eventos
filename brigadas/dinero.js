@@ -15,6 +15,13 @@ window.DimaDinero = (function(){
 
   function configurar(opciones){ o = opciones; }
 
+  // De qué negocio es el cobro (Víctor 2026-11-10): marcado según el evento, se puede cambiar.
+  const NEGOCIOS = [['Divanna Eventos', '🪑 Divanna Eventos'], ['Casa Isabella', '🏛️ Casa Isabella'], ['El Vaso Maiz', '🌽 El Vaso Maíz']];
+  function selectorNegocio(ev){
+    const sug = ev.negocioSugerido || (ev.negocio === 'El Vaso Maiz' ? 'El Vaso Maiz' : 'Divanna Eventos');
+    return `<label>¿De qué negocio es?<select class="din-cobro-negocio">${NEGOCIOS.map(([v, t]) => `<option value="${v}" ${v === sug ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
+  }
+
   // Etiqueta corta para la ficha: "Falta $X", "✅ Pagado" o "Sin monto".
   function etiqueta(d){
     if(!d || d.error) return '';
@@ -42,6 +49,7 @@ window.DimaDinero = (function(){
         <label>¿Qué pagó el cliente?<select class="din-cobro-tipo"><option value="abono">Anticipo o abono</option>${d.resta > 0 ? `<option value="todo">Liquidó todo (${pesos(d.resta)})</option>` : ''}</select></label>
         <input class="din-cobro-monto" inputmode="decimal" placeholder="Cantidad que te pagó">
         <label>Forma de pago<select class="din-cobro-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
+        ${selectorNegocio(ev)}
         <button type="button" class="din-btn" data-din="cobro">Guardar cobro</button>
         <div class="din-msg">${o.esAdmin() ? 'Queda como pago a Diana. El recibo sale solo si el cliente lo pide (🧾 Mandar recibo).' : 'Entra a tu reporte del día; Diana lo aprueba al recibir el dinero.'}</div>
       </details>
@@ -105,6 +113,7 @@ window.DimaDinero = (function(){
     const esc = o.esc;
     return `<details class="din-caja cobro-rapido" data-caja="rapido-${esc(ev.id)}"><summary>💵 Cobrar</summary>
         <label>Forma de pago<select class="din-cobro-forma"><option>Efectivo</option><option>Transferencia</option><option>Depósito</option></select></label>
+        ${selectorNegocio(ev)}
         ${d.resta > 0 ? `<button type="button" class="din-btn" data-din="cobro" data-todo="1">Liquidó todo · ${pesos(d.resta)}</button>` : ''}
         <input class="din-cobro-monto" inputmode="decimal" placeholder="${d.resta > 0 ? 'O escribe el abono' : 'Cantidad que te pagó'}">
         <button type="button" class="din-btn" data-din="cobro">Guardar abono</button>
@@ -124,8 +133,8 @@ window.DimaDinero = (function(){
         const todo = b.dataset.todo === '1' || valor('.din-cobro-tipo') === 'todo';
         const monto = todo ? String(ev.dinero.resta) : valor('.din-cobro-monto');
         const d = o.esAdmin()
-          ? await postJson('/api/dashboard-eventos', { accion: 'registrar_pago', eventoId: ev.id, monto: todo ? 'todo' : monto, forma: valor('.din-cobro-forma') })
-          : await postJson('/api/finanzas', { accion: 'cobro', desdeFicha: true, fecha: hoy(), eventoId: ev.id, monto, forma: valor('.din-cobro-forma') });
+          ? await postJson('/api/dashboard-eventos', { accion: 'registrar_pago', eventoId: ev.id, monto: todo ? 'todo' : monto, forma: valor('.din-cobro-forma'), negocio: valor('.din-cobro-negocio') })
+          : await postJson('/api/finanzas', { accion: 'cobro', desdeFicha: true, fecha: hoy(), eventoId: ev.id, monto, forma: valor('.din-cobro-forma'), negocio: valor('.din-cobro-negocio') });
         o.toast(d.cerrado ? '✅ Liquidado: el evento quedó cerrado' : (d.texto || `Cobro de ${pesos(monto)} guardado en tu reporte del día`));
         if(o.alCobrar) o.alCobrar(ev.id);
       } else if(b.dataset.din === 'cargo'){

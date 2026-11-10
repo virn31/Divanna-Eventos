@@ -12,7 +12,7 @@
 // Estados: Abierto (se está llenando) -> Enviado -> Aprobado, o Aclaración
 // (Diana pide corregir; se puede editar y volver a enviar). Aprobado ya no cambia.
 
-const { ROLES, COLABORADORES_TABLE, GERENCIAS, gerenciaDe } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, GERENCIAS, gerenciaDe, eleccionDeEvento } = require('./_sesion');
 const { enviarRecibo, sheetsConfigurado } = require('./_sheets');
 const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { enviarPushEquipo } = require('./_push');
@@ -33,6 +33,20 @@ const CATEGORIAS = ['Combustible', 'Inventario', 'Brigada', 'Nomina', 'Remodelac
 const PAGADO_CON = ['Dinero del negocio', 'Dinero propio', 'Inversión personal'];
 // GASTOS.Tipo: del evento, general del negocio o extra (pedido de Víctor 2026-11-07).
 const TIPOS_GASTO = ['Evento', 'General', 'Extra'];
+// De qué negocio es un gasto o cobro (Víctor 2026-11-10): se confirma siempre.
+// Casa Isabella se guarda como Negocio = Divanna Eventos + casilla Casa_Isabella,
+// para que siga sumando en los totales de Divanna (balance, historial, cuadre).
+const CASA = 'Casa Isabella';
+const NEGOCIOS_ELEGIR = ['Divanna Eventos', CASA, 'El Vaso Maiz'];
+const NOMBRE_NEGOCIO = { 'Divanna Eventos': 'Divanna Eventos', [CASA]: 'Casa Isabella', 'El Vaso Maiz': 'El Vaso Maíz' };
+// Campos de Airtable para la elección (o null si no es válida).
+function camposNegocio(eleccion) {
+  if (!NEGOCIOS_ELEGIR.includes(eleccion)) return null;
+  return eleccion === CASA ? { Negocio: 'Divanna Eventos', Casa_Isabella: true } : { Negocio: eleccion, Casa_Isabella: false };
+}
+// Elección de un registro ya guardado (para mostrarla).
+const eleccionDe = (f) => f.Casa_Isabella ? CASA : (f.Negocio || '');
+// Negocio de un evento como elección: eleccionDeEvento en api/_sesion.js.
 const FORMAS = ['Efectivo', 'Transferencia', 'Depósito'];
 const MAX_MONTO = 1000000;
 const MAX_FOTO_BYTES = 3 * 1024 * 1024;
@@ -78,7 +92,10 @@ function monto(valor) {
   return Number.isFinite(n) && n > 0 && n <= MAX_MONTO ? n : null;
 }
 
-const puedeReportar = (c) => c.rol === ROLES.LIDER || c.rol === ROLES.ENCARGADA;
+// Gastos: cualquiera del equipo (Víctor 2026-11-10). El asistente solo anota
+// gastos (sin cobros ni efectivo: no ve el dinero de los eventos).
+const puedeReportar = (c) => c.rol === ROLES.LIDER || c.rol === ROLES.ENCARGADA || c.rol === ROLES.ASISTENTE;
+const soloGastos = (c) => c.rol === ROLES.ASISTENTE || c.rol === ROLES.STAFF;
 // Revisan reportes: Admin todo; la gerente de El Vaso Maíz y la de Divanna, lo
 // de su negocio. Casa Isabella no: los reportes del día no separan el salón.
 const negocioRevisa = (c) => c.gerente === GERENCIAS.VM ? NEGOCIOS.VM : c.gerente === GERENCIAS.DV ? NEGOCIOS.DV : null;
@@ -95,6 +112,8 @@ function aGasto(r) {
     monto: f.Monto || 0,
     categoria: f.Categoria || '',
     negocio: f.Negocio || '',
+    negocioElegido: eleccionDe(f),
+    negocioTexto: NOMBRE_NEGOCIO[eleccionDe(f)] || f.Negocio || '',
     pagadoCon: f.Pagado_Con || '',
     tipo: f.Tipo || '',
     reembolsado: !!f.Reembolsado,
@@ -115,6 +134,8 @@ function aCobro(r) {
     monto: f.Monto || 0,
     forma: f.Forma || '',
     negocio: f.Negocio || '',
+    negocioElegido: eleccionDe(f),
+    negocioTexto: NOMBRE_NEGOCIO[eleccionDe(f)] || f.Negocio || '',
     eventoId: (f.Evento || [])[0] || '',
     reporteId: (f.Reporte || [])[0] || '',
     fecha: f.Fecha || '',
@@ -186,6 +207,7 @@ async function eventosDelDia(colaborador, fecha) {
       folio: r.fields.Folio_Evento || '',
       ubicacion: r.fields.Ubicacion || '',
       negocio: vm && r.fields.Negocio !== NEGOCIOS.DV ? NEGOCIOS.VM : (r.fields.Negocio || NEGOCIOS.DV),
+      negocioSugerido: eleccionDeEvento(r.fields),
       montoAdeudado: r.fields.Monto_Adeudado || null,
       estatusPago: r.fields.Estatus_Pago || '',
     };
@@ -197,7 +219,7 @@ function negocioDe(colaborador, eventos) {
   const set = new Set(eventos.map(e => e.negocio));
   if (set.size > 1) return NEGOCIOS.AMBOS;
   if (set.size === 1) return [...set][0];
-  return colaborador.gerente === GERENCIAS.VM || colaborador.rol === ROLES.ENCARGADA ? NEGOCIOS.VM : NEGOCIOS.DV;
+  return colaborador.gerente === GERENCIAS.VM || colaborador.rol === ROLES.ENCARGADA || colaborador.rol === ROLES.STAFF ? NEGOCIOS.VM : NEGOCIOS.DV;
 }
 
 // La gerente ve de los reportes "Ambos" solo lo de El Vaso Maíz.
@@ -223,7 +245,8 @@ async function nombresColaboradores(ids) {
 
 // Lo que ve la app/dashboard. fecha: día del reporte propio.
 async function vista(colaborador, fecha) {
-  const salida = { fecha, puedeReportar: puedeReportar(colaborador), categorias: CATEGORIAS, pagadoCon: PAGADO_CON, tiposGasto: TIPOS_GASTO, formas: FORMAS };
+  const salida = { fecha, puedeReportar: puedeReportar(colaborador), categorias: CATEGORIAS, pagadoCon: PAGADO_CON, tiposGasto: TIPOS_GASTO, formas: FORMAS,
+    negociosElegir: NEGOCIOS_ELEGIR.map(n => ({ valor: n, texto: NOMBRE_NEGOCIO[n] })) };
   if (salida.puedeReportar) {
     const [mio, eventos, historial] = await Promise.all([
       reporteDe(colaborador.id, fecha),
@@ -231,7 +254,8 @@ async function vista(colaborador, fecha) {
       todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`NOT(IS_BEFORE({Fecha}, DATETIME_PARSE("${sumarDias(hoyCuliacan(), -DIAS_HISTORIAL)}")))`)}`),
     ]);
     const detalle = await detalleDe(mio ? [mio] : []);
-    salida.eventos = eventos;
+    salida.soloGastos = soloGastos(colaborador);
+    salida.eventos = salida.soloGastos ? eventos.map(e => ({ ...e, montoAdeudado: null, estatusPago: '' })) : eventos;
     salida.negocios = eventos.length ? [...new Set(eventos.map(e => e.negocio))] : [negocioDe(colaborador, [])];
     salida.miReporte = mio ? { ...mio, gastos: detalle.gastos.get(mio.id), cobros: detalle.cobros.get(mio.id) } : null;
     salida.misReportes = historial.map(aReporte).filter(r => r.colaboradorId === colaborador.id)
@@ -322,17 +346,27 @@ async function agregarGasto(colaborador, body) {
   if (!foto.ok) return { error: foto.error };
   const eventos = await eventosDelDia(colaborador, fecha);
   const negocios = eventos.length ? [...new Set(eventos.map(e => e.negocio))] : [negocioDe(colaborador, [])];
-  const negocio = negocios.length === 1 ? negocios[0] : body.negocio;
-  if (![NEGOCIOS.DV, NEGOCIOS.VM].includes(negocio) || !negocios.includes(negocio)) return { error: 'Elige de qué negocio es el gasto.' };
-  const eventoId = ID.test(body.eventoId || '') && eventos.some(e => e.id === body.eventoId) ? body.eventoId : '';
+  // De qué negocio es: Divanna Eventos, Casa Isabella o El Vaso Maíz (cualquiera, aunque
+  // ese día no tenga eventos de ese negocio). Telegram guarda una sugerencia y pregunta
+  // con botones (api/_tickets.js); una app vieja sin la pregunta usa el negocio del día.
+  let eleccion = NEGOCIOS_ELEGIR.includes(body.negocio) ? body.negocio : null;
+  if (!eleccion && body.autoNegocio) eleccion = colaborador.gerente === GERENCIAS.CI ? CASA : (negocios.includes(negocioDe(colaborador, [])) ? negocioDe(colaborador, []) : negocios[0]);
+  if (!eleccion && negocios.length === 1 && body.negocio === undefined) eleccion = negocios[0];
+  const campoNegocio = camposNegocio(eleccion);
+  if (!campoNegocio) return { error: 'Elige de qué negocio es el gasto: Divanna Eventos, Casa Isabella o El Vaso Maíz.' };
+  const negocio = campoNegocio.Negocio;
+  let eventoId = ID.test(body.eventoId || '') && eventos.some(e => e.id === body.eventoId) ? body.eventoId : '';
+  // Desde Telegram, si ese día tuvo un solo evento, el gasto va a ese evento.
+  if (!eventoId && body.autoEvento && eventos.length === 1) eventoId = eventos[0].id;
   // La app pregunta el tipo; una app vieja (sin la pregunta) cae en Evento/General.
   const tipo = TIPOS_GASTO.includes(body.tipo) ? body.tipo : (eventoId ? 'Evento' : 'General');
   const { reporte, error } = await reporteEditable(colaborador, fecha, eventos);
   if (error) return { error };
+  await reporteConNegocio(reporte, negocio);
   const creado = await airtable(TABLES.GASTOS, {
     method: 'POST',
     body: JSON.stringify({ records: [{ fields: {
-      Concepto: concepto, Monto: valor, Fecha: fecha, Negocio: negocio, Categoria: body.categoria, Tipo: tipo,
+      Concepto: concepto, Monto: valor, Fecha: fecha, ...campoNegocio, Categoria: body.categoria, Tipo: tipo,
       Pagado_Con: body.pagadoCon, Reporte: [reporte.id], Reportado_Por: [colaborador.id],
       ...(eventoId ? { Evento_Relacionado: [eventoId] } : {}),
     } }] }),
@@ -342,13 +376,68 @@ async function agregarGasto(colaborador, body) {
   if (foto.foto) {
     try { await subirFoto(id, 'Attachments', foto.foto); } catch (err) {
       console.error(err.message);
-      return { ok: true, id, avisoFoto: 'El gasto quedó guardado, pero la foto del ticket no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
+      return { ok: true, id, conEventos: eventos.length > 0, avisoFoto: 'El gasto quedó guardado, pero la foto del ticket no se pudo subir. Quítalo y agrégalo otra vez con la foto.' };
     }
   }
-  return { ok: true, id };
+  return { ok: true, id, conEventos: eventos.length > 0, negocio: eleccion, tipo };
+}
+
+// Si el gasto o cobro es de otro negocio que el del reporte, el reporte pasa a
+// "Ambos" para que lo vea la gerencia de los dos negocios.
+async function reporteConNegocio(reporte, negocio) {
+  if (!reporte || !reporte.id || !reporte.negocio || reporte.negocio === NEGOCIOS.AMBOS || reporte.negocio === negocio) return;
+  await airtable(TABLES.REPORTES, { method: 'PATCH', body: JSON.stringify({ records: [{ id: reporte.id, fields: { Negocio: NEGOCIOS.AMBOS } }] }) })
+    .then(() => { reporte.negocio = NEGOCIOS.AMBOS; })
+    .catch(err => console.error('No se pudo pasar el reporte a Ambos:', err.message));
+}
+
+// Gasto de Diana o Víctor: sin reporte del día (cuenta directo en el balance),
+// con dinero del negocio y, si viene, la foto del ticket.
+async function agregarGastoAdmin(colaborador, { concepto, monto: valor, categoria, tipo = 'General', foto = null, negocio = 'Divanna Eventos' }) {
+  if (colaborador.rol !== ROLES.ADMIN) return { error: 'Solo Diana y Víctor.' };
+  const campos = { Concepto: String(concepto || '').trim().slice(0, 120) || 'Gasto', Monto: monto(valor), Fecha: hoyCuliacan(), Tipo: TIPOS_GASTO.includes(tipo) ? tipo : 'General',
+    ...(camposNegocio(negocio) || camposNegocio('Divanna Eventos')),
+    Categoria: CATEGORIAS.includes(categoria) ? categoria : 'Otros', Pagado_Con: 'Dinero del negocio', Reportado_Por: [colaborador.id] };
+  if (!campos.Monto) return { error: 'Escribe un monto válido.' };
+  const creado = await airtable(TABLES.GASTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
+  const id = creado.records[0].id;
+  if (foto) {
+    try { await subirFoto(id, 'Attachments', foto); } catch (err) {
+      console.error(err.message);
+      return { ok: true, id, campos, avisoFoto: 'El gasto quedó guardado, pero la foto no se pudo subir.' };
+    }
+  }
+  return { ok: true, id, campos };
+}
+
+// Botones de Telegram sobre un gasto ya anotado: "propio" (lo pagó con su
+// dinero, se le reembolsa) o "borrar". Solo quien lo anotó y si no está aprobado.
+async function cambiarGasto(colaborador, gastoId, accion, negocio = null) {
+  if (!ID.test(gastoId || '') || !['propio', 'borrar', 'negocio'].includes(accion)) return { error: 'Parámetros inválidos' };
+  const campoNegocio = accion === 'negocio' ? camposNegocio(negocio) : null;
+  if (accion === 'negocio' && !campoNegocio) return { error: 'Negocio inválido' };
+  const cambio = accion === 'negocio' ? campoNegocio : { Pagado_Con: 'Dinero propio' };
+  const g = aGasto(await airtable(`${TABLES.GASTOS}/${gastoId}`));
+  if (g.reportadoPor !== colaborador.id) return { error: 'Ese gasto no es tuyo.' };
+  if (!g.reporteId) {
+    // Gasto directo de Diana o Víctor (sin reporte).
+    if (accion === 'borrar') await airtable(`${TABLES.GASTOS}/${gastoId}`, { method: 'DELETE' });
+    else await airtable(TABLES.GASTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: gastoId, fields: cambio }] }) });
+    return { ok: true, gasto: g };
+  }
+  if (accion === 'borrar') { const r = await quitar(colaborador, { tipo: 'gasto', id: gastoId }); return r.error ? r : { ok: true, gasto: g }; }
+  const rep = aReporte(await airtable(`${TABLES.REPORTES}/${g.reporteId}`));
+  if (rep.colaboradorId !== colaborador.id) return { error: 'Ese gasto no es tuyo.' };
+  if (rep.estado === ESTADOS.APROBADO) return { error: 'El reporte ya fue aprobado; ya no se puede cambiar.' };
+  await airtable(TABLES.GASTOS, { method: 'PATCH', body: JSON.stringify({ records: [{ id: gastoId, fields: cambio }] }) });
+  if (campoNegocio) await reporteConNegocio(rep, campoNegocio.Negocio);
+  // Si ya estaba enviado, se reabre (igual que al quitar) para que se vuelva a enviar con el total nuevo.
+  if (rep.estado === ESTADOS.ENVIADO) await airtable(TABLES.REPORTES, { method: 'PATCH', body: JSON.stringify({ records: [{ id: rep.id, fields: { Estado: ESTADOS.ABIERTO } }] }) });
+  return { ok: true, gasto: g };
 }
 
 async function agregarCobro(colaborador, body) {
+  if (soloGastos(colaborador)) return { error: 'Los cobros los anota el líder de brigada o la encargada.', codigo: 403 };
   const fecha = esFecha(body.fecha) ? body.fecha : hoyCuliacan();
   const valor = monto(body.monto);
   if (!valor) return { error: 'Escribe un monto válido.' };
@@ -364,17 +453,21 @@ async function agregarCobro(colaborador, body) {
     if ((eventoIds || []).includes(body.eventoId)) {
       const r = await airtable(`${TABLES.EVENTOS}/${body.eventoId}`);
       const vm = r.fields.Negocio === NEGOCIOS.VM || Number(r.fields.Piezas_Vaso_Maiz) > 0;
-      ev = { id: r.id, folio: r.fields.Folio_Evento || '', negocio: vm && r.fields.Negocio !== NEGOCIOS.DV ? NEGOCIOS.VM : (r.fields.Negocio || NEGOCIOS.DV) };
+      ev = { id: r.id, folio: r.fields.Folio_Evento || '', negocio: vm && r.fields.Negocio !== NEGOCIOS.DV ? NEGOCIOS.VM : (r.fields.Negocio || NEGOCIOS.DV), negocioSugerido: eleccionDeEvento(r.fields) };
       eventos.push(ev);
     }
   }
   if (!ev) return { error: 'Elige de qué evento es el cobro (solo tus eventos de ese día).' };
+  // De qué negocio es el cobro: lo que eligió (la app lo trae marcado según el evento).
+  const campoNegocio = camposNegocio(NEGOCIOS_ELEGIR.includes(body.negocio) ? body.negocio : ev.negocioSugerido || ev.negocio);
+  if (!campoNegocio) return { error: 'Elige de qué negocio es el cobro: Divanna Eventos, Casa Isabella o El Vaso Maíz.' };
   const { reporte, error } = await reporteEditable(colaborador, fecha, eventos);
   if (error) return { error };
+  await reporteConNegocio(reporte, campoNegocio.Negocio);
   const creado = await airtable(TABLES.COBROS, {
     method: 'POST',
     body: JSON.stringify({ records: [{ fields: {
-      Concepto: `${ev.folio} · ${body.forma}`, Monto: valor, Forma: body.forma, Fecha: fecha, Negocio: ev.negocio,
+      Concepto: `${ev.folio} · ${body.forma}`, Monto: valor, Forma: body.forma, Fecha: fecha, ...campoNegocio,
       Evento: [ev.id], Reporte: [reporte.id], Reportado_Por: [colaborador.id],
     } }] }),
   });
@@ -580,71 +673,67 @@ async function porCobrarPeriodo(inicio, fin) {
 }
 
 // ---------- Historial mensual por empresa (gráfica del dashboard y DiMa) ----------
-// Por mes y por negocio: eventos autorizados, ingresos contratados (monto de los
-// eventos autorizados: es lo pactado, no lo cobrado), gastos (capturados a mano
-// o de reportes aprobados) y cobrado real (cobros de reportes aprobados).
+// Por mes y por negocio (Divanna Eventos, Casa Isabella, El Vaso Maíz) más el
+// general: eventos autorizados, ingresos contratados (lo pactado, no lo cobrado),
+// gastos (capturados a mano o de reportes aprobados), utilidad y cobrado (de
+// reportes aprobados y pagos que recibió Diana). Reglas en api/_por-negocio.js.
 // Los eventos sin negocio claro se cuentan aparte (sinNegocio) en vez de adivinarlo.
 const MAX_MESES = 24;
-
-function negocioDeEvento(f) {
-  if (f.Negocio === NEGOCIOS.DV || f.Negocio === NEGOCIOS.VM) return f.Negocio;
-  return Number(f.Piezas_Vaso_Maiz) > 0 ? NEGOCIOS.VM : null;
-}
+const PorNegocio = require('./_por-negocio');
+const SERIES_HISTORIAL = [...PorNegocio.NEGOCIOS, 'General'];
+const campos = (lista) => lista.map(c => `fields%5B%5D=${c}`).join('&');
 
 async function historialMensual() {
   const [eventos, gastos, cobros, aprobados] = await Promise.all([
-    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Fecha_Evento})`)}&fields%5B%5D=Fecha_Evento&fields%5B%5D=Negocio&fields%5B%5D=Monto_Estimado_IA&fields%5B%5D=Piezas_Vaso_Maiz`),
-    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
-    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent('{Fecha}')}&fields%5B%5D=Fecha&fields%5B%5D=Negocio&fields%5B%5D=Monto&fields%5B%5D=Reporte`),
+    todas(`${TABLES.EVENTOS}?filterByFormula=${encodeURIComponent(`AND({Autorizacion_Diana} = "SI", {Fecha_Evento}, NOT({Cancelado}))`)}&${campos(['Fecha_Evento', 'Negocio', 'Monto_Estimado_IA', 'Piezas_Vaso_Maiz', 'Productos', 'Articulos', 'Servicios_Solicitados'])}`),
+    todas(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent('{Fecha}')}&${campos(['Fecha', 'Negocio', 'Casa_Isabella', 'Monto', 'Reporte'])}`),
+    todas(`${TABLES.COBROS}?filterByFormula=${encodeURIComponent('{Fecha}')}&${campos(['Fecha', 'Negocio', 'Casa_Isabella', 'Monto', 'Reporte', 'Recibido_Por'])}`),
     todas(`${TABLES.REPORTES}?filterByFormula=${encodeURIComponent(`{Estado} = "${ESTADOS.APROBADO}"`)}&fields%5B%5D=Estado`),
   ]);
   const ok = new Set(aprobados.map(r => r.id));
-  const meses = new Map();
-  let sinNegocio = 0;
-  const celda = (mes, negocio) => {
-    if (!meses.has(mes)) meses.set(mes, { mes, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
-    return meses.get(mes)[negocio];
-  };
-  function vacio() { return { eventos: 0, ingresos: 0, gastos: 0, cobrado: 0 }; }
   const mesDe = (fecha) => (esFecha(fecha) ? fecha.slice(0, 7) : null);
-
+  const porMes = new Map();
+  const del = (mes) => { if (!porMes.has(mes)) porMes.set(mes, { eventos: [], gastos: [], cobros: [] }); return porMes.get(mes); };
+  let sinNegocio = 0;
   for (const r of eventos) {
-    const mes = mesDe(r.fields.Fecha_Evento), negocio = negocioDeEvento(r.fields);
+    const mes = mesDe(r.fields.Fecha_Evento);
     if (!mes) continue;
-    if (!negocio) { sinNegocio++; continue; }
-    const c = celda(mes, negocio);
-    c.eventos++;
-    c.ingresos += Number(r.fields.Monto_Estimado_IA) || 0;
+    if (!PorNegocio.negocioDeEvento(r.fields)) { sinNegocio++; continue; }
+    del(mes).eventos.push(r);
   }
   for (const r of gastos) {
     const reporte = (r.fields.Reporte || [])[0];
-    if (reporte && !ok.has(reporte)) continue;
     const mes = mesDe(r.fields.Fecha);
-    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
-    celda(mes, r.fields.Negocio).gastos += Number(r.fields.Monto) || 0;
+    if (!mes || (reporte && !ok.has(reporte)) || !PorNegocio.negocioDeMovimiento(r.fields)) continue;
+    del(mes).gastos.push(r);
   }
   for (const r of cobros) {
-    if (!ok.has((r.fields.Reporte || [])[0])) continue;
+    const reporte = (r.fields.Reporte || [])[0];
+    const cuenta = reporte ? ok.has(reporte) : r.fields.Recibido_Por === 'Diana';
     const mes = mesDe(r.fields.Fecha);
-    if (!mes || ![NEGOCIOS.DV, NEGOCIOS.VM].includes(r.fields.Negocio)) continue;
-    celda(mes, r.fields.Negocio).cobrado += Number(r.fields.Monto) || 0;
+    if (!mes || !cuenta || !PorNegocio.negocioDeMovimiento(r.fields)) continue;
+    del(mes).cobros.push(r);
   }
   // Meses seguidos desde el primero con datos hasta el actual (los vacíos en 0).
-  const conDatos = [...meses.keys()].sort();
+  const conDatos = [...porMes.keys()].sort();
   const lista = [];
   if (conDatos.length) {
-    const fin = hoyCuliacan().slice(0, 7) > conDatos[conDatos.length - 1] ? hoyCuliacan().slice(0, 7) : conDatos[conDatos.length - 1];
+    const finMes = hoyCuliacan().slice(0, 7) > conDatos[conDatos.length - 1] ? hoyCuliacan().slice(0, 7) : conDatos[conDatos.length - 1];
     let [a, m] = conDatos[0].split('-').map(Number);
     for (;;) {
       const clave = `${a}-${String(m).padStart(2, '0')}`;
-      lista.push(meses.get(clave) || { mes: clave, [NEGOCIOS.DV]: vacio(), [NEGOCIOS.VM]: vacio() });
-      if (clave >= fin) break;
+      const t = PorNegocio.resumir(porMes.get(clave) || {});
+      const fila = { mes: clave, General: t.general };
+      PorNegocio.NEGOCIOS.forEach(n => { fila[n] = t[n]; });
+      lista.push(fila);
+      if (clave >= finMes) break;
       m++; if (m > 12) { m = 1; a++; }
     }
   }
-  const redondear = (c) => ({ ...c, ingresos: Math.round(c.ingresos), gastos: Math.round(c.gastos), cobrado: Math.round(c.cobrado), utilidad: Math.round(c.ingresos - c.gastos) });
+  const redondear = (c) => ({ eventos: c.eventos, ingresos: Math.round(c.ingresos), gastos: Math.round(c.gastos), cobrado: Math.round(c.cobrado), utilidad: Math.round(c.ingresos - c.gastos) });
   return {
-    meses: lista.slice(-MAX_MESES).map(x => ({ mes: x.mes, [NEGOCIOS.DV]: redondear(x[NEGOCIOS.DV]), [NEGOCIOS.VM]: redondear(x[NEGOCIOS.VM]) })),
+    meses: lista.slice(-MAX_MESES).map(x => Object.fromEntries([['mes', x.mes], ...SERIES_HISTORIAL.map(n => [n, redondear(x[n])])])),
+    negocios: SERIES_HISTORIAL,
     sinNegocio,
   };
 }
@@ -652,18 +741,19 @@ async function historialMensual() {
 const MESES_NOMBRE = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (clave) => `${MESES_NOMBRE[Number(clave.slice(5, 7)) - 1]} ${clave.slice(0, 4)}`;
 
-// Texto para DiMa (solo Admin): tabla mensual y los mejores meses de cada empresa.
+// Texto para DiMa (solo Admin): tabla mensual y los mejores meses de cada negocio.
 function historialParaDima(h) {
   if (!h.meses.length) return 'Todavía no hay eventos autorizados con fecha: no hay historial para comparar.';
-  const filas = h.meses.map(x => [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+  const nombre = (n) => PorNegocio.NOMBRE[n] || n;
+  const filas = h.meses.map(x => SERIES_HISTORIAL.map(n => {
     const c = x[n];
-    return `${nombreMes(x.mes)} · ${n}: ${c.eventos} eventos, ingresos contratados ${pesos(c.ingresos)}, gastos ${pesos(c.gastos)}, utilidad ${pesos(c.utilidad)}, cobrado reportado ${pesos(c.cobrado)}`;
+    return `${nombreMes(x.mes)} · ${nombre(n)}: ${c.eventos} eventos, ingresos contratados ${pesos(c.ingresos)}, gastos ${pesos(c.gastos)}, utilidad ${pesos(c.utilidad)}, cobrado ${pesos(c.cobrado)}`;
   }).join('\n')).join('\n');
-  const mejores = [NEGOCIOS.DV, NEGOCIOS.VM].map(n => {
+  const mejores = PorNegocio.NEGOCIOS.map(n => {
     const top = h.meses.filter(x => x[n].eventos > 0).sort((a, b) => b[n].ingresos - a[n].ingresos || b[n].eventos - a[n].eventos).slice(0, 3);
-    return `${n}: ${top.length ? top.map(x => `${nombreMes(x.mes)} (${x[n].eventos} eventos, ${pesos(x[n].ingresos)})`).join(', ') : 'sin eventos todavía'}`;
+    return `${nombre(n)}: ${top.length ? top.map(x => `${nombreMes(x.mes)} (${x[n].eventos} eventos, ${pesos(x[n].ingresos)})`).join(', ') : 'sin eventos todavía'}`;
   }).join('\n');
-  return `Meses con historial: ${h.meses.length} (de ${nombreMes(h.meses[0].mes)} a ${nombreMes(h.meses[h.meses.length - 1].mes)}).` +
+  return `Meses con historial: ${h.meses.length} (de ${nombreMes(h.meses[0].mes)} a ${nombreMes(h.meses[h.meses.length - 1].mes)}). Negocios: Divanna Eventos, Casa Isabella (eventos con el salón) y El Vaso Maíz; "General" es la suma. Los gastos y cobros de Casa Isabella anotados antes del 10-nov-2026 están dentro de Divanna.` +
     (h.sinNegocio ? ` Hay ${h.sinNegocio} eventos autorizados sin negocio definido que no están en las cifras.` : '') +
     `\n${filas}\n\nMEJORES MESES POR INGRESOS CONTRATADOS:\n${mejores}`;
 }
@@ -693,9 +783,11 @@ async function botonGasto(colaborador, tipo, textoMensaje) {
   const m = t.startsWith(MARCA_GASTO) ? /^\$([\d.,]+) · ([^\n]+)/.exec(t.slice(MARCA_GASTO.length)) : null;
   const valor = m ? monto(m[1]) : null;
   if (!valor) return { aviso: 'No encontré el gasto; escríbelo otra vez con /gasto.', alerta: true };
-  const campos = { Concepto: m[2].trim(), Monto: valor, Fecha: hoyCuliacan(), Tipo: tipo, Categoria: 'Otros', Pagado_Con: 'Dinero del negocio', Reportado_Por: [colaborador.id] };
-  await airtable(TABLES.GASTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
-  return { aviso: 'Guardado', textoFinal: `✅ Guardado: ${pesos(valor)} · ${campos.Concepto} · tipo ${tipo} · ${campos.Fecha} · dinero del negocio.` };
+  // Negocio: Divanna por omisión; abajo salen los botones para confirmarlo (api/_tickets.js, gt:n).
+  const campos = { Concepto: m[2].trim(), Monto: valor, Fecha: hoyCuliacan(), Tipo: tipo, Categoria: 'Otros', Pagado_Con: 'Dinero del negocio', Reportado_Por: [colaborador.id], ...camposNegocio('Divanna Eventos') };
+  const creado = await airtable(TABLES.GASTOS, { method: 'POST', body: JSON.stringify({ records: [{ fields: campos }] }) });
+  const id = creado && creado.records && creado.records[0] && creado.records[0].id;
+  return { aviso: 'Guardado', id, textoFinal: `✅ Guardado: ${pesos(valor)} · ${campos.Concepto} · tipo ${tipo} · ${campos.Fecha} · dinero del negocio.\n¿De qué negocio es?` };
 }
 
 module.exports = {
@@ -710,6 +802,16 @@ module.exports = {
   NEGOCIOS,
   TABLES,
   puedeReportar,
+  soloGastos,
+  NEGOCIOS_ELEGIR,
+  NOMBRE_NEGOCIO,
+  camposNegocio,
+  eleccionDeEvento,
+  agregarGastoAdmin,
+  cambiarGasto,
+  CATEGORIAS,
+  monto,
+  validarFoto,
   vista,
   agregarGasto,
   agregarCobro,

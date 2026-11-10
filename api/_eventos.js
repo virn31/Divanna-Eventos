@@ -3,7 +3,7 @@
 // día. Lo usan la app (api/brigada-eventos.js) y el bot de Telegram (api/telegram.js).
 // También la confirmación "Enterado" de un evento asignado (app y botón de Telegram).
 
-const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz, formulaGerencia, GERENCIAS, eventoDeGerencia, gerenciaDe, puestoGerente } = require('./_sesion');
+const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz, formulaGerencia, GERENCIAS, eventoDeGerencia, gerenciaDe, puestoGerente, eleccionDeEvento } = require('./_sesion');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
@@ -58,6 +58,8 @@ function formatearEvento(r) {
     id: r.id,
     folio: r.fields.Folio_Evento || '',
     negocio: r.fields.Negocio || '',
+    // Negocio que se marca al registrar un cobro (Divanna Eventos, Casa Isabella o El Vaso Maiz).
+    negocioSugerido: eleccionDeEvento(r.fields),
     vasoMaiz: esVasoMaiz(r.fields),
     // Gerencias a las que les toca el evento (El Vaso Maiz, Divanna Eventos, Casa Isabella).
     gerencias: Object.values(GERENCIAS).filter(g => eventoDeGerencia(g, r.fields)),

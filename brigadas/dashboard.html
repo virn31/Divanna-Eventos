@@ -198,7 +198,14 @@
 
   /* ---------- Más claro para Diana (2026-10-29): letra más grande y montos en color ---------- */
   html{font-size:112.5%;}
-  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --cobrar:#a9b843; --serie-dv:#3987e5; --serie-vm:#d95926; }
+  :root{ --gasto:#ff7a7a; --favor:#6cb0ff; --cobrar:#a9b843; --serie-dv:#3987e5; --serie-vm:#d95926; --serie-ci:#199e70; }
+  .hist-negocios-caja{ overflow-x:auto; margin:8px 0 12px; }
+  .hist-negocios{ width:100%; border-collapse:collapse; font-size:12px; }
+  .hist-negocios th, .hist-negocios td{ padding:6px; text-align:right; white-space:nowrap; border-bottom:1px solid rgba(246,241,234,0.08); }
+  .hist-negocios th:first-child, .hist-negocios td:first-child{ text-align:left; }
+  .hist-negocios tr.general td{ font-weight:700; border-top:1px solid rgba(246,241,234,0.35); }
+  .hist-negocios .hist-ev{ display:block; font-weight:400; color:rgba(246,241,234,0.6); font-size:11px; }
+  .hist-negocios i{ display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--c); margin-right:6px; }
   .dinero-gasto{color:var(--gasto); font-weight:800; font-size:1.12em;}
   .dinero-favor{color:var(--favor); font-weight:800; font-size:1.12em;}
   .cifras{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px;}
@@ -1455,7 +1462,7 @@
         <h3>${esc(r.quien)} · ${esc(r.fecha)} · ${esc(r.negocio)}</h3>
         <div class="evento-sub">${r.estado === 'Aclaración' ? '✏️ Pediste aclaración; esperando corrección' : '⏳ Enviado para revisión'}${r.enviadoHora ? ' · ' + new Date(r.enviadoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
         <div class="meta-line"><span>💸 Gastos <span class="dinero-gasto">${pesosFin(r.totalGastos)}</span></span><span>💵 Cobros <span class="dinero-favor">${pesosFin(r.totalCobros)}</span></span><span>🧾 Efectivo entregado <span class="dinero-favor">${pesosFin(r.efectivoEntregado)}</span></span>${r.reembolsoPendiente ? `<span>🔁 Pagó con su dinero <span class="dinero-gasto">${pesosFin(r.reembolsoPendiente)}</span></span>` : ''}</div>
-        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
+        ${r.gastos.map(g => `<div class="motivo">💸 ${esc(g.concepto)} · <span class="dinero-gasto">${pesosFin(g.monto)}</span> · ${esc(g.categoria)} · ${esc(g.negocioTexto || g.negocio)} · ${esc(g.pagadoCon)} ${fotoFin(g.foto, '⚠️ sin ticket')}</div>`).join('')}
         ${r.cobros.map(c => `<div class="motivo">💵 ${esc(c.concepto)} · <span class="dinero-favor">${pesosFin(c.monto)}</span> ${fotoFin(c.foto, c.forma === 'Efectivo' ? '' : '⚠️ sin comprobante')}</div>`).join('')}
         ${r.insumos ? `<div class="motivo">🌽 Insumos: ${esc(r.insumos)}</div>` : ''}
         ${r.notas ? `<div class="motivo">📝 ${esc(r.notas)}</div>` : ''}
@@ -1534,20 +1541,22 @@
   }
 
   // ---------- Cómo van las empresas: historial mensual (api/finanzas.js?vista=historial) ----------
-  // Dos series (Divanna azul, El Vaso Maíz naranja; validadas para daltonismo),
-  // una sola escala, leyenda + nombre al final de cada línea, detalle al pasar
+  // Tres series (Divanna azul, Casa Isabella aqua, El Vaso Maíz naranja; las tres
+  // validadas para daltonismo en modo oscuro, todas las parejas) y el General en la
+  // tabla de arriba y en "Ver tabla". Una sola escala, leyenda + nombre al final de cada línea, detalle al pasar
   // el dedo y tabla. Ingresos = lo contratado en eventos autorizados.
   const histContent = $('histContent');
   const SERIES = [
     { clave: 'Divanna Eventos', nombre: 'Divanna', color: 'var(--serie-dv)' },
     { clave: 'El Vaso Maiz', nombre: 'El Vaso Maíz', color: 'var(--serie-vm)' },
+    { clave: 'Casa Isabella', nombre: 'Casa Isabella', color: 'var(--serie-ci)' },
   ];
   const METRICAS = [
     { clave: 'ingresos', nombre: 'Ingresos contratados', dinero: true },
     { clave: 'gastos', nombre: 'Gastos', dinero: true },
     { clave: 'utilidad', nombre: 'Utilidad', dinero: true },
     { clave: 'eventos', nombre: 'Eventos', dinero: false },
-    { clave: 'cobrado', nombre: 'Cobrado (reportes)', dinero: true },
+    { clave: 'cobrado', nombre: 'Cobrado', dinero: true },
   ];
   const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const nombreMes = (m) => `${MESES_CORTOS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
@@ -1577,6 +1586,17 @@
     return { ini, fin, ticks };
   }
 
+  // Este mes: cuánto gastó y cuánto ganó cada negocio, y el general.
+  function tablaNegocios(m){
+    if(!m) return '';
+    const filas = [...SERIES.map(s => ({ ...s, c: m[s.clave] })), { nombre: 'General', c: m.General, general: true }].filter(f => f.c);
+    const celda = (v) => '$' + Math.round(v || 0).toLocaleString('es-MX');
+    return `<div class="hist-negocios-caja"><table class="hist-negocios" aria-label="${esc(nombreMes(m.mes))} por negocio">
+      <tr><th>${esc(nombreMes(m.mes))}</th><th>Ingresos</th><th>Gastos</th><th>Utilidad</th><th>Cobrado</th></tr>
+      ${filas.map(f => `<tr class="${f.general ? 'general' : ''}"><td>${f.general ? '' : `<i style="--c:${f.color};"></i>`}${esc(f.nombre)}<small class="hist-ev">${f.c.eventos} evento${f.c.eventos === 1 ? '' : 's'}</small></td><td>${celda(f.c.ingresos)}</td><td>${celda(f.c.gastos)}</td><td>${celda(f.c.utilidad)}</td><td>${celda(f.c.cobrado)}</td></tr>`).join('')}
+    </table></div>`;
+  }
+
   function pintarHistorial(){
     const h = historial;
     if(!h || !h.meses.length){
@@ -1585,15 +1605,19 @@
     }
     const met = METRICAS.find(m => m.clave === histMetrica);
     const meses = h.meses;
-    const valores = SERIES.map(s => meses.map(x => x[s.clave][met.clave]));
+    const valores = SERIES.map(s => meses.map(x => (x[s.clave] || {})[met.clave] || 0));
     const todos = valores.flat();
     const { ini, fin, ticks } = escalaBonita(Math.min(0, ...todos), Math.max(0, ...todos));
     const W = 640, H = 260, M = { l: 64, r: 92, t: 14, b: 30 };
     const x = (i) => M.l + (meses.length === 1 ? (W - M.l - M.r) / 2 : i * (W - M.l - M.r) / (meses.length - 1));
     const y = (v) => M.t + (fin - v) * (H - M.t - M.b) / (fin - ini);
     const cadaCuanto = meses.length > 12 ? 2 : 1;
+    // Altura de la etiqueta de cada serie al final de su línea, separadas al menos 14 px.
+    const finY = SERIES.map((s, k) => ({ k, y: y(valores[k][meses.length - 1]) + 4 })).sort((a, b) => a.y - b.y);
+    for(let i = 1; i < finY.length; i++) if(finY[i].y - finY[i - 1].y < 14) finY[i].y = finY[i - 1].y + 14;
+    const yEtiqueta = (k) => finY.find(e => e.k === k).y;
     const svg = `
-      <svg class="hist-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(met.nombre)} por mes de Divanna y El Vaso Maíz">
+      <svg class="hist-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(met.nombre)} por mes de Divanna, El Vaso Maíz y Casa Isabella">
         ${ticks.map(t => `<line x1="${M.l}" x2="${W - M.r}" y1="${y(t)}" y2="${y(t)}" stroke="${t === 0 ? 'rgba(246,241,234,0.35)' : 'rgba(246,241,234,0.08)'}" stroke-width="1"/>
           <text x="${M.l - 8}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="rgba(246,241,234,0.6)">${fmtValor(t, met.dinero)}</text>`).join('')}
         ${meses.map((m, i) => i % cadaCuanto === 0 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="rgba(246,241,234,0.6)">${nombreMes(m.mes)}</text>` : '').join('')}
@@ -1601,24 +1625,25 @@
         ${SERIES.map((s, k) => `
           <polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${valores[k].map((v, i) => `${x(i)},${y(v)}`).join(' ')}"/>
           ${valores[k].map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${s.color}" stroke="var(--ink-2)" stroke-width="2"/>`).join('')}
-          <text x="${x(meses.length - 1) + 10}" y="${y(valores[k][meses.length - 1]) + 4 + (k === 0 ? -6 : 8) * (Math.abs(y(valores[0][meses.length - 1]) - y(valores[1][meses.length - 1])) < 14 ? 1 : 0)}" font-size="12" font-weight="700" fill="rgba(246,241,234,0.9)">${s.nombre}</text>`).join('')}
+          <text x="${x(meses.length - 1) + 10}" y="${yEtiqueta(k)}" font-size="12" font-weight="700" fill="rgba(246,241,234,0.9)">${s.nombre}</text>`).join('')}
         ${meses.map((m, i) => `<rect class="hist-zona" data-i="${i}" x="${x(i) - (W - M.l - M.r) / Math.max(1, meses.length - 1) / 2}" y="${M.t}" width="${(W - M.l - M.r) / Math.max(1, meses.length - 1)}" height="${H - M.t - M.b}" fill="transparent"/>`).join('')}
       </svg>`;
     const mejores = SERIES.map(s => {
-      const top = meses.filter(m => m[s.clave].eventos > 0).sort((a, b) => b[s.clave].ingresos - a[s.clave].ingresos || b[s.clave].eventos - a[s.clave].eventos).slice(0, 3);
+      const top = meses.filter(m => m[s.clave] && m[s.clave].eventos > 0).sort((a, b) => b[s.clave].ingresos - a[s.clave].ingresos || b[s.clave].eventos - a[s.clave].eventos).slice(0, 3);
       return `<div style="--c:${s.color};"><b>Mejores meses de ${s.nombre}</b><br>${top.length ? top.map(m => `${nombreMes(m.mes)}: <span class="dinero-favor">$${m[s.clave].ingresos.toLocaleString('es-MX')}</span> · ${m[s.clave].eventos} evento${m[s.clave].eventos === 1 ? '' : 's'}`).join('<br>') : 'Sin eventos todavía.'}</div>`;
     }).join('');
     histContent.innerHTML = `
       <div class="hist-card">
         <h2 class="section-title">📈 Cómo van las empresas, mes por mes</h2>
+        ${tablaNegocios(meses[meses.length - 1])}
         <div class="hist-filtros">${METRICAS.map(m => `<button data-m="${m.clave}" class="${m.clave === histMetrica ? 'activo' : ''}">${m.nombre}</button>`).join('')}</div>
         <div class="hist-leyenda">${SERIES.map(s => `<span style="--c:${s.color};">${s.nombre}</span>`).join('')}</div>
         <div style="position:relative;" id="histLienzo">${svg}<div class="hist-tip" id="histTip" hidden></div></div>
         <div class="evento-sub">${meses.length} mes${meses.length === 1 ? '' : 'es'} de historial${meses.length < 12 ? ': todavía no alcanza para ver temporadas que se repitan cada año' : ''}. "Ingresos contratados" es lo pactado en eventos autorizados, no lo cobrado.${h.sinNegocio ? ` ${h.sinNegocio} evento${h.sinNegocio === 1 ? '' : 's'} sin negocio definido no se cuentan.` : ''}</div>
         <div class="mejores">${mejores}</div>
         <details style="margin-top:10px;"><summary class="evento-sub" style="cursor:pointer;">Ver tabla</summary>
-          <table class="hist-tabla"><tr><th>Mes</th>${SERIES.map(s => `<th>${s.nombre}</th>`).join('')}</tr>
-          ${meses.map((m, i) => `<tr><td>${nombreMes(m.mes)}</td>${SERIES.map((s, k) => `<td>${fmtValor(valores[k][i], met.dinero)}</td>`).join('')}</tr>`).join('')}</table>
+          <table class="hist-tabla"><tr><th>Mes</th>${SERIES.map(s => `<th>${s.nombre}</th>`).join('')}<th>General</th></tr>
+          ${meses.map((m, i) => `<tr><td>${nombreMes(m.mes)}</td>${SERIES.map((s, k) => `<td>${fmtValor(valores[k][i], met.dinero)}</td>`).join('')}<td><b>${fmtValor((m.General || {})[met.clave] || 0, met.dinero)}</b></td></tr>`).join('')}</table>
         </details>
       </div>`;
     histContent.querySelectorAll('.hist-filtros button').forEach(b => b.addEventListener('click', () => { histMetrica = b.dataset.m; pintarHistorial(); }));
@@ -1626,7 +1651,7 @@
     const lienzo = $('histLienzo'), tip = $('histTip'), cruz = $('histCruz');
     const mostrar = (i) => {
       cruz.setAttribute('x1', x(i)); cruz.setAttribute('x2', x(i)); cruz.setAttribute('visibility', 'visible');
-      tip.innerHTML = `<b>${nombreMes(meses[i].mes)}</b><br>${SERIES.map((s, k) => `<i style="--c:${s.color};"></i>${s.nombre}: <b>${fmtValor(valores[k][i], met.dinero)}</b>`).join('<br>')}`;
+      tip.innerHTML = `<b>${nombreMes(meses[i].mes)}</b><br>${SERIES.map((s, k) => `<i style="--c:${s.color};"></i>${s.nombre}: <b>${fmtValor(valores[k][i], met.dinero)}</b>`).join('<br>')}<br>General: <b>${fmtValor((meses[i].General || {})[met.clave] || 0, met.dinero)}</b>`;
       tip.hidden = false;
       const caja = lienzo.getBoundingClientRect();
       const px = x(i) / W * caja.width;

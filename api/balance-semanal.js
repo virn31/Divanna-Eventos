@@ -69,6 +69,8 @@ function semanaAnterior() {
   return { inicio: fmt(lunesPasado), fin: fmt(domingoPasado), finExclusivo: fmt(lunesSiguiente), inicioExclusivo: fmt(domingoAntesDeInicio) };
 }
 
+const PorNegocio = require('./_por-negocio');
+
 module.exports = async (req, res) => {
   try {
     // Protección simple: solo Vercel Cron o alguien con el secreto puede disparar esto.
@@ -102,6 +104,7 @@ module.exports = async (req, res) => {
     let gastosTotales = 0;
     let gastosPorNegocio = {};
     let sinAprobar = 0, montoSinAprobar = 0, reembolsosPendientes = 0;
+    const gastosQueCuentan = []; // para el desglose por negocio
     try {
       const gastosData = await airtableGet(`${TABLES.GASTOS}?filterByFormula=${encodeURIComponent(rango('Fecha'))}`);
       gastosData.records.forEach(r => {
@@ -109,6 +112,7 @@ module.exports = async (req, res) => {
         const reporte = (r.fields.Reporte || [])[0];
         if (reporte && !aprobados.has(reporte)) { sinAprobar++; montoSinAprobar += monto; return; }
         gastosTotales += monto;
+        gastosQueCuentan.push(r);
         const negocio = r.fields.Negocio || 'Sin especificar';
         gastosPorNegocio[negocio] = (gastosPorNegocio[negocio] || 0) + monto;
         if (r.fields.Pagado_Con === 'Dinero propio' && !r.fields.Reembolsado) reembolsosPendientes += monto;
@@ -145,8 +149,10 @@ module.exports = async (req, res) => {
     const ventasPorOrigen = {}; // { 'DiMa': { eventos, monto }, ... }
     const ventasPorAutorizo = {}; // { 'Diana': { eventos, monto }, ... }
     let porCobrar = null; // null = no se pudo calcular (se dice en el texto)
+    let eventosSemana = [];
     try {
       const eventosData = await airtableGet(`${TABLES.EVENTOS}?filterByFormula=${formulaEventos}`);
+      eventosSemana = eventosData.records;
       numEventos = eventosData.records.length;
       // Lo que todavía deben los clientes de los eventos de la semana.
       porCobrar = calcularPorCobrar(eventosData.records, cobrosRegistros, aprobados);
@@ -189,6 +195,12 @@ module.exports = async (req, res) => {
 
     const utilidad = ingresosTotales - gastosTotales;
 
+    // Cuánto gasta y cuánto gana cada negocio (Divanna, Casa Isabella, El Vaso Maíz) y el general.
+    // Cobrado: lo de las brigadas en reportes aprobados más los pagos que recibió Diana.
+    const cobrosQueCuentan = cobrosRegistros.filter(r => aprobados.has((r.fields.Reporte || [])[0]) || (!(r.fields.Reporte || [])[0] && r.fields.Recibido_Por === 'Diana'));
+    const porNegocio = PorNegocio.resumir({ eventos: eventosSemana, gastos: gastosQueCuentan, cobros: cobrosQueCuentan });
+    const textoPorNegocio = `${PorNegocio.textoResumen(porNegocio, { titulo: '🏢 Cuánto gastó y cuánto ganó cada negocio' })}\n\n`;
+
     // Guardar el registro en BALANCES (sin tocar Periodo/Negocio para evitar
     // errores de opciones de singleSelect que no conocemos de antemano).
     const desglose = (obj) => Object.entries(obj).map(([k, v]) => `  ${k}: $${v.toLocaleString('es-MX')}`).join('\n') || '  (sin registros)';
@@ -218,6 +230,7 @@ module.exports = async (req, res) => {
       (sinAprobar ? `⏳ ${sinAprobar} gasto${sinAprobar === 1 ? '' : 's'} ($${montoSinAprobar.toLocaleString('es-MX')}) en reportes sin aprobar: no cuentan todavía.\n\n` : '') +
       (avisosLectura.length ? `⚠️ ${avisosLectura.join(' ')}\n\n` : '') +
       `📈 Utilidad neta aproximada: $${utilidad.toLocaleString('es-MX')}\n\n` +
+      textoPorNegocio +
       `Nota: los ingresos son el monto contratado de eventos autorizados, no necesariamente lo ya cobrado en efectivo. Los gastos dependen de que se hayan registrado en la tabla GASTOS. ¡Que tengas excelente semana! 💜`;
 
     const [correoEnviado] = await Promise.all([
