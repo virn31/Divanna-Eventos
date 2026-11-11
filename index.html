@@ -537,7 +537,7 @@
             <a class="link-sutil" href="https://www.instagram.com/elvasomaiz?igsh=MWw1bjM5NXhkczU3Yg==" target="_blank" rel="noopener">Instagram de El Vaso Maíz</a>
           </div>
         </div>
-        <div class="servicio-logo vm" data-portarretrato="El Vaso Maíz"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" loading="lazy" decoding="async"></div>
+        <div class="servicio-logo vm portarretrato" data-portarretrato="El Vaso Maíz"><img class="pr-foto visible" src="img/home/vasomaiz-fresas-vasos.jpg" alt="Vasos de fresas con crema de El Vaso Maíz" loading="lazy" decoding="async"><div class="pr-sello"><img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" decoding="async"></div></div>
       </article>
       <article class="servicio ci" id="casa-isabella" data-revelar>
         <span class="num">03</span>
@@ -1216,7 +1216,7 @@
         for(let i = urls.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [urls[i], urls[j]] = [urls[j], urls[i]]; }
         if(!urls.length) return;
         const sello = document.createElement('div'); sello.className = 'pr-sello';
-        const logo = marco.querySelector('img:not(.pr-foto)'); // Casa Isabella ya trae su foto de respaldo, no un logo
+        const logo = marco.querySelector('img:not(.pr-foto)'); // el de El Vaso Maíz va en su sello; Casa Isabella no trae logo
         if(logo) sello.append(logo); else sello.textContent = marco.dataset.portarretrato;
         const capas = [0, 1].map(() => { const im = document.createElement('img'); im.className = 'pr-foto'; im.alt = `Fotos de ${marco.dataset.portarretrato}`; im.decoding = 'async'; return im; });
         marco.replaceChildren(...capas, sello);
