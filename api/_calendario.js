@@ -20,7 +20,7 @@ const { enviarTelegram, enviarTelegramEquipo } = require('./_telegram');
 const { botonConfirmar } = require('./_eventos');
 const { capacidadEvento, leerProductos, normalizarProductos, resumenManteles, infoManteles, PRODUCTOS, CLAVES } = require('./_productos');
 const { esDecorador, conDescuento, redondo, MARCA_DECORADOR } = require('./_decorador');
-const { buscarClientePorTelefono, camposAgenda } = require('./_pedidos');
+const { buscarClientePorTelefono, camposAgenda, folioNuevo } = require('./_pedidos');
 const { origenDePersona } = require('./_origen');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
@@ -643,7 +643,7 @@ async function capturarEvento(colaborador, b) {
   const total = decorador ? conDescuento(sinDescuento) : sinDescuento;
   if (anticipo && total && anticipo > total) return { error: 'El anticipo es mayor que lo contratado (ya con el 10% de decorador).' };
 
-  const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  const folio = await folioNuevo();
   const items = servicios.split('\n').map(s => s.trim()).filter(Boolean);
   const campos = {
     Folio_Evento: folio,

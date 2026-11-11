@@ -576,3 +576,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Cómo:** `api/_contacto.js` (nombres de COLABORADORES por Rol de gerente); el texto es fijo del servidor, no lo escribe Claude. Va como `contacto` aparte del texto y no regresa a DiMa en el historial.
 - **Alternativa descartada:** nombre y teléfono del gerente con "Guardar contacto" (Víctor: teléfonos privados); meter los nombres en el texto de DiMa (DiMa los repetiría en la plática).
 
+## 2026-11-11 — Seguridad de la página donde el cliente cotiza
+
+- **Pedido de Víctor:** que no nos hackeen la página pública (la app ya la considera segura). Aprobó los 6 puntos.
+- **Hallazgos y decisión:** (1) folios `EVT-` con los últimos 6 dígitos del reloj: se repiten cada ~17 min y el cambio de un cliente podía caer en el evento de otro → al azar y revisando que no exista (`folioNuevo`). (2) "¿Ya tienes número de pedido?" se podía probar a fuerza con el teléfono de otra persona y DiMa le daba dirección y fecha del evento → 5 fallos por teléfono / 10 por conexión en 1 h bloquean y avisan a los Admin. (3) límites del chat solo en memoria y formulario sin límite (gasto de saldo de Claude, pedidos basura) → topes diarios en Airtable (`api/_limites.js`, LIMITES_WEB). (4) el navegador podía inventar lo que "dijo" DiMa (precios, descuentos) → cada respuesta va firmada y se rechazan historiales editados. (5) cabeceras de seguridad en `vercel.json`. (6) Nodemailer 6 con fallas conocidas → 10.5 (pide Node 20: `engines` a `>=20`).
+- **Por qué topes holgados:** en Culiacán muchos teléfonos salen con la misma IP de la compañía; por eso por conexión hay margen y el tope fuerte es por teléfono.
+- **Efecto al publicar:** quien tenga el chat abierto en ese momento debe tocar "Nueva" (sus mensajes viejos no traen firma).
+- **Alternativa descartada:** Turnstile (anti-robot) por ahora: requiere cuenta y llave de Cloudflare; queda para después. Vercel KV/Upstash para los contadores: otro servicio y otra llave; Airtable ya está.
+- **Pendiente de Víctor:** límite de gasto mensual en la consola de Anthropic.
+- **Modo medición del chat (Víctor, mismo día):** los topes del chat no se activan todavía: Víctor quiere medir ~2 meses el tráfico real antes de fijarlos y de poner el límite de gasto en Anthropic, para no dejar a DiMa sin créditos. El chat cuenta por día (mensajes, conversaciones, por conexión) sin bloquear y el buenos días trae la línea "🌐 DiMa ayer". Lo demás (folios, bloqueo de "¿Ya tienes número de pedido?", 3 pedidos por teléfono, firma, cabeceras, Nodemailer) sí queda activo: no gasta créditos. Revisar a mediados de enero 2027 y activar con `CONFIG.bloquearChat = true`.
+
