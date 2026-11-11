@@ -47,6 +47,9 @@ Al asignar un evento llega un Telegram con el botón **Confirmar**; también se 
    hora sin confirmar, el mismo vehículo en dos lugares a menos de 90 min). Todos la ven; la editan Diana y Víctor
    (todo), Ángela (El Vaso Maíz) y Eden (Divanna) con **✏️ Editar logística**: hora de llegada, vehículo (= brigada),
    recolección y notas del traslado. Casa Isabella no aparece (lugar fijo).
+6. **📞 Llamar al cliente:** al registrar su pedido el cliente recibe la tarjeta **"Quién te atenderá"** con el nombre
+   y puesto de su gerente (Eden, Mario o Ángela; nunca teléfonos) y el aviso de que la brigada puede llamarle. La
+   tarjeta le dice que quien llame del equipo sabrá su número de pedido: **al llamar, di tu nombre y su EVT-…**.
 
 | Botón | Cuándo usarlo | Quién se entera |
 | --- | --- | --- |

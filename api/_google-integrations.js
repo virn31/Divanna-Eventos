@@ -126,7 +126,7 @@ async function agregarFilaCotizacion({ folio, negocio, fechaEvento, ubicacion, i
 }
 
 // ---------- ENVÍO DE CORREO (opcional, solo si el cliente dio su email) ----------
-async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto }, errores = []) {
+async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEvento, ubicacion, invitados, servicios, monto, contactoHtml }, errores = []) {
   if (!emailCliente) return false;
 
   try {
@@ -143,6 +143,7 @@ async function enviarCotizacionPorCorreo({ emailCliente, folio, negocio, fechaEv
         <p><strong>Servicios:</strong> ${escapeHtml(servicios || 'por confirmar')}</p>
         <p><strong>Monto total:</strong> $${monto || 'por confirmar'}</p>
         <p style="color:#777; font-size:0.9em;">Este es un costo aproximado y se ajustaría cuando se revise detalladamente.</p>
+        ${contactoHtml || ''}
         <hr style="border:none;border-top:1px solid #eee; margin:20px 0;">
         <p style="font-size:0.85em; color:#999;">
           Divanna Eventos · El Vaso Maíz<br>

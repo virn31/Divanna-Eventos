@@ -888,6 +888,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'Es en Navolato' }] });
   const promptCompleto = llamadasClaude[0].system + JSON.stringify(llamadasClaude[0].messages) + JSON.stringify(llamadasClaude[0].tools);
   ok(!/Diana/.test(res.body.texto), 'chat: el texto que ve el cliente al registrar no menciona a Diana');
+  ok(res.body.contacto && res.body.folio && res.body.contacto.frases.seguridad.includes(res.body.folio) && !/Diana/.test(JSON.stringify(res.body.contacto)),
+    'chat: al registrar sale la tarjeta "Quién te atenderá" con el número de pedido (sin Diana)');
   ok((promptCompleto.match(/Diana/g) || []).length === 1 && promptCompleto.includes('nunca menciones a nadie del equipo por su nombre'), 'chat: lo único sobre Diana en el prompt es la regla de no nombrarla');
   res = await chat({ historial: Array.from({ length: 41 }, (_, i) => ({ rol: i % 2 ? 'dima' : 'cliente', texto: 'x' })) });
   ok(!/Diana/.test(res.body.texto), 'chat: la despedida por límite no menciona a Diana');
@@ -4343,5 +4345,46 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(calL.includes('data-t="log"') && calL.includes("accion: 'logistica_guardar'") && calL.includes('vista=logistica') && dashL.includes('logistica_guardar: Logistica.guardarLogistica') && brigL.includes("vista === 'logistica'"),
       'logística: pestaña 🚚 en el calendario conectada a las rutas existentes (sin función nueva)');
     ok(/dima-brigadas-v48/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'logística: se subió la caché de la app (v48)');
+  }
+  // ---------- Tarjeta "Quién te atenderá" al cerrar el pedido (Víctor 2026-11-11) ----------
+  {
+    const K = require('../api/_contacto');
+    const GER = { records: [
+      { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Celular: '+526670000001' } },
+      { id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: ' Gerente Divanna', Celular: '+526670000002' } },
+      { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario Samano ', Rol: 'Gerente Casa Isabella', Celular: '+526670000003' } },
+      { id: 'recCOLABANGELA001', fields: { Nombre: 'Angela Samano', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Celular: '+526670000004' } },
+    ] };
+    const tarjeta = async (pedido) => { reset(); K.olvidarGerentes(); respuestas = [GER]; return K.contactoDelPedido(pedido, 'EVT-123456'); };
+    const nombres = (c) => c.personas.map(p => p.nombre).join(',');
+    const dv = await tarjeta({ productos: [{ clave: 'dv_mesa_mantel', cantidad: 5 }], negocio: 'Divanna Eventos' });
+    ok(nombres(dv) === 'Eden' && dv.personas[0].puesto === 'Gerente de Divanna Eventos' && dv.brigada, 'tarjeta: Divanna → Eden, con aviso de la brigada');
+    const ci = await tarjeta({ productos: [{ clave: 'dv_casa_isabella', cantidad: 1 }, { clave: 'dv_mesa_mantel', cantidad: 5 }] });
+    ok(nombres(ci) === 'Mario' && ci.personas[0].area === 'Salón Casa Isabella y decoración' && ci.brigada, 'tarjeta: Casa Isabella con decoración → Mario (no Eden), con brigada');
+    const ciSolo = await tarjeta({ productos: [{ clave: 'dv_casa_isabella', cantidad: 1 }] });
+    ok(nombres(ciSolo) === 'Mario' && !ciSolo.brigada, 'tarjeta: solo el salón → Mario, sin brigada');
+    const vm = await tarjeta({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }] });
+    ok(nombres(vm) === 'Angela' && !vm.brigada, 'tarjeta: El Vaso Maíz → Ángela, sin brigada');
+    const mixto = await tarjeta({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }, { clave: 'dv_mesa_mantel', cantidad: 5 }] });
+    const fm = K.frasesContacto(mixto);
+    ok(nombres(mixto) === 'Eden,Angela' && mixto.brigada && fm.llamada.startsWith('Te llamarán'), 'tarjeta: mixto → Eden y Ángela, "te llamarán", con brigada');
+    const sinCat = await tarjeta({ productos: [], negocio: 'Ambos', servicios: 'Mesas y esquites' });
+    ok(nombres(sinCat) === 'Eden,Angela', 'tarjeta: sin catálogo usa el negocio del pedido');
+    const txt = K.textoContacto(mixto) + K.htmlContacto(mixto) + JSON.stringify(K.tarjetaParaCliente(mixto));
+    ok(!/Diana/.test(txt) && !/667000000/.test(txt) && txt.includes('EVT-123456') && /no le des datos ni hagas depósitos/.test(txt),
+      'tarjeta: nunca Diana ni teléfonos; trae el número de pedido y el aviso contra fraudes');
+    reset(); K.olvidarGerentes(); respuestas = [{ __error: 500 }];
+    const caida = await K.contactoDelPedido({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }] }, 'EVT-1');
+    ok(!caida.personas.length && K.frasesContacto(caida).llamada.startsWith('Nuestro equipo'), 'tarjeta: si no se leen los gerentes dice "nuestro equipo"');
+    reset(); K.olvidarGerentes(); respuestas = [{ records: [{ id: 'x', fields: { Nombre: '<b>Eden</b>', Rol: 'Gerente Divanna' } }] }];
+    const h = K.htmlContacto(await K.contactoDelPedido({ negocio: 'Divanna Eventos' }, 'EVT-2'));
+    ok(h.includes('&lt;b&gt;Eden') && !h.includes('<b>Eden'), 'tarjeta: el correo escapa el texto');
+    K.olvidarGerentes();
+    const land = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
+    const chatJs = fs.readFileSync(path.join(repo, 'api/dima-chat.js'), 'utf8');
+    ok(land.includes('agregarTarjeta(data.contacto)') && land.includes("t.innerHTML = htmlTarjeta(data.contacto)") && land.includes('historial: chat.historial.map(({ rol, texto }) => ({ rol, texto }))')
+      && chatJs.includes('contacto: contactoNuevo') && fs.readFileSync(path.join(repo, 'api/pedido.js'), 'utf8').includes('contacto: tarjetaParaCliente(contacto)'),
+      'tarjeta: sale en el chat y en el formulario, y no vuelve a DiMa en el historial');
+    ok(/escapar\(p\.nombre\)/.test(land) && /escapar\(f\.seguridad\)/.test(land), 'tarjeta: la página escapa lo que pinta');
   }
 })();

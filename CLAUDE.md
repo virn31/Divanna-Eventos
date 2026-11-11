@@ -47,7 +47,7 @@ Roles: Admin (Diana, Víctor), Lider de brigada, Asistente, Encargada, Gerentes 
 5. Subir `CACHE_NAME` de `brigadas/sw.js` (hoy `dima-brigadas-v48`) al cambiar cualquier archivo del app shell.
 6. `claude-sonnet-5-5`: sin `tool_choice` any/tool, sin `thinking: disabled`, `budget_tokens` ni `temperature`; historial solo texto.
 7. Datos de pago nunca en el prompt de DiMa.
-8. Con el cliente DiMa no nombra a nadie del equipo (hay prueba que falla si dice "Diana").
+8. Con el cliente DiMa no nombra a nadie del equipo (hay prueba que falla si dice "Diana"). Única excepción: la tarjeta "Quién te atenderá" (`api/_contacto.js`): primer nombre y puesto del gerente, sin teléfonos, nunca Diana.
 9. Nunca generalizar modelo ni color (copas, manteles, platos, Tiffany): Diana asigna en `EVENTOS.Articulos`.
 10. Cobertura: límite duro 35 km desde la salida de Culiacán; fuera de la ciudad → `Fuera_De_Ciudad`, confirma Diana.
 11. Webhook de Telegram con `message` y `callback_query` (o `/configurar`).

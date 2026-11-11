@@ -21,6 +21,7 @@ function textoGerenteDivanna(gerencia) {
     `• Comandas en papel${casa ? ' de Casa Isabella' : ' de Divanna'}: tómales foto y mándamela aquí, o en el calendario: "➕ Capturar evento" → "📷 Llenar con la foto de una comanda".${casa ? ' El evento tiene que llevar el salón.' : ''}\n` +
     '• Cuando se registra un anticipo o un pago de tus eventos te llega aquí el recibo en PDF para mandárselo al cliente; también con "🧾 Mandar recibo" en el evento del calendario.\n' +
     (casa ? '' : '• 🚚 Logística (en el calendario de la app, segunda pestaña): las entregas y recolecciones de Divanna por día y por vehículo. Con "✏️ Editar logística" pones la hora de llegada, el vehículo (la brigada), la recolección y notas del traslado; al equipo le llega el aviso. Casa Isabella no entra (es lugar fijo).\n') +
+    '• 📞 Al cliente le llega una tarjeta "Quién te atenderá" con tu nombre (sin tu teléfono). Cuando le llames, dile primero tu nombre y su número de pedido (EVT-…): así sabe que eres del equipo y no un fraude.\n' +
     '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.';
 }
 
@@ -50,6 +51,7 @@ const TEMAS = {
       '• Estatus: cámbialo conforme avanzas (salida, llegada, montaje, recolección).\n\n' +
       '📅 Líder de brigada: en el calendario de la app puedes cambiar fecha u hora, cancelar, mandar el recibo y bloquear días de Divanna en los eventos de tu brigada. Con "📋 Abrir ficha completa" abres la ficha (cliente, dinero, artículos) y ahí "✏️ Editar evento, cliente y pedido" (sin cambiar el monto). Diana y Víctor reciben aviso de cada cambio.\n\n' +
       '🚚 En el calendario, la pestaña "Logística" muestra las entregas y recolecciones del día con hora, vehículo y dirección (toca la dirección para abrir el mapa). La editan Diana, Víctor, Ángela y Eden.\n\n' +
+      '📞 Si le llamas a un cliente, dile primero tu nombre, que eres de la brigada y su número de pedido (EVT-…): su tarjeta le dice que así reconoce a nuestro equipo.\n\n' +
       'Aquí en Telegram: /hoy te dice tus eventos de hoy y /eventos los próximos.',
   },
   alertas: {
@@ -96,6 +98,7 @@ const TEMAS = {
       '• También puedes mandarme el pedido escrito: /comanda y el pedido en el mismo mensaje. Si falta algo (color o estilo del mantel, color de los cerezos, temática de los personalizados…) te pregunto antes de guardar.\n' +
       '• Cuando se registra un anticipo o un pago de El Vaso Maíz te llega aquí el recibo en PDF para mandárselo al cliente; también con "🧾 Mandar recibo" en el evento del calendario.\n' +
       '• 🚚 Logística (en el calendario de la app, segunda pestaña): los servicios de El Vaso Maíz por día y por vehículo. Con "✏️ Editar logística" pones la hora de llegada del staff, el vehículo (la brigada) y notas del traslado; al equipo le llega el aviso.\n' +
+      '• 📞 Al cliente le llega una tarjeta "Quién te atenderá" con tu nombre (sin tu teléfono). Cuando le llames, dile primero tu nombre y su número de pedido (EVT-…): así sabe que eres del equipo y no un fraude.\n' +
       '• No ves precios ni pagos de los pedidos: eso lo llevan Diana y Víctor.',
   },
   mensajes: {

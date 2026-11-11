@@ -346,6 +346,15 @@
   .dc-msg.dima{align-self:flex-start;background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px;}
   .dc-msg.cliente{align-self:flex-end;background:var(--divanna);color:var(--ink);border-bottom-right-radius:4px;}
   .dc-msg.error{align-self:center;background:none;color:#ff8a8a;font-size:0.85rem;text-align:center;}
+  /* Tarjeta "Quién te atenderá" (api/_contacto.js) al registrar el pedido. */
+  .dc-tarjeta{align-self:flex-start;max-width:85%;padding:14px 16px;border-radius:16px;background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--divanna);font-size:0.9rem;line-height:1.45;}
+  .dc-tarjeta .tt{font-size:0.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--divanna);margin:0 0 10px;}
+  .dc-tarjeta .pp{margin:0 0 10px;}
+  .dc-tarjeta .pp b{display:block;font-size:1.02rem;color:var(--paper);}
+  .dc-tarjeta .pp span{color:var(--muted);font-size:0.85rem;}
+  .dc-tarjeta p{margin:8px 0 0;}
+  .dc-tarjeta .seg{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:0.8rem;}
+  .pedido-form .dc-tarjeta{max-width:none;margin-top:14px;}
   .dc-fotos{align-self:flex-start;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-width:85%;}
   .dc-fotos a{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
   .dc-fotos img{display:block;width:100%;height:120px;object-fit:cover;}
@@ -830,6 +839,25 @@
     return div;
   }
 
+  // Tarjeta "Quién te atenderá": nombre y puesto de quien llamará, brigada y aviso de seguridad.
+  function htmlTarjeta(c){
+    const f = (c && c.frases) || {};
+    return `<p class="tt">${escapar(f.titulo || 'Quién te atenderá')}</p>`
+      + (c.personas || []).map(p => `<div class="pp"><b>${escapar(p.nombre)}</b><span>${escapar(p.puesto)} · ${escapar(p.area)}</span></div>`).join('')
+      + (f.llamada ? `<p>${escapar(f.llamada)}</p>` : '')
+      + (f.brigada ? `<p>🚚 ${escapar(f.brigada)}</p>` : '')
+      + (f.seguridad ? `<p class="seg">🔒 ${escapar(f.seguridad)}</p>` : '');
+  }
+  function agregarTarjeta(c){
+    if(!c) return;
+    const div = document.createElement('div');
+    div.className = 'dc-tarjeta';
+    div.setAttribute('role', 'note');
+    div.innerHTML = htmlTarjeta(c);
+    dimaMsgs.appendChild(div);
+    dimaMsgs.scrollTop = dimaMsgs.scrollHeight;
+  }
+
   function agregarFotos(urls){
     if(!urls || !urls.length) return;
     const div = document.createElement('div');
@@ -871,6 +899,7 @@
     chat.historial.forEach((m, i) => {
       agregarBurbuja(m.rol === 'cliente' ? 'cliente' : 'dima', formatear(m.texto));
       if(m.fotos) agregarFotos(m.fotos);
+      if(m.contacto) agregarTarjeta(m.contacto);
     });
     aplicarTerminado();
   }
@@ -968,12 +997,13 @@
       escribiendo.remove();
       const fotos = (data.fotos || []).filter(u => !chat.vistas.includes(u));
       chat.vistas.push(...fotos);
-      chat.historial.push({ rol: 'dima', texto: data.texto, fotos });
+      chat.historial.push({ rol: 'dima', texto: data.texto, fotos, ...(data.contacto ? { contacto: data.contacto } : {}) });
       if(data.folio){ chat.folio = data.folio; chat.folioFirma = data.folioFirma || null; iniciarRevisionDiana(); }
       if(data.limite) chat.terminado = true;
       guardarChat();
       agregarBurbuja('dima', formatear(data.texto));
       agregarFotos(fotos);
+      agregarTarjeta(data.contacto);
     } catch(err){
       escribiendo.remove();
       // El mensaje no llegó: se saca del historial y se regresa a la caja de texto.
@@ -1041,6 +1071,16 @@
       pedidoForm.reset();
       pedidoMsg.className = 'pf-msg ok';
       pedidoMsg.textContent = `¡Listo! Recibimos tu pedido${data.folio ? ' (folio ' + data.folio + ')' : ''}. Ya tenemos todos los datos: en un lapso no mayor a 12 horas te confirmamos tu cotización.`;
+      const tarjetaVieja = document.getElementById('pedidoTarjeta');
+      if(tarjetaVieja) tarjetaVieja.remove();
+      if(data.contacto){
+        const t = document.createElement('div');
+        t.className = 'dc-tarjeta';
+        t.id = 'pedidoTarjeta';
+        t.setAttribute('role', 'note');
+        t.innerHTML = htmlTarjeta(data.contacto);
+        pedidoMsg.after(t);
+      }
     } catch(err){
       pedidoMsg.className = 'pf-msg error';
       pedidoMsg.textContent = err.message;

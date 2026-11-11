@@ -51,6 +51,7 @@ const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRA
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
+const { contactoDelPedido, tarjetaParaCliente } = require('./_contacto');
 const { correccionesParaPrompt, correccionesActivas, textoCorrecciones, guardarCorreccion, desactivarCorreccion, motivoRechazo } = require('./_correcciones');
 
 const MODELO = 'claude-sonnet-5-5';
@@ -470,7 +471,9 @@ async function registrarPedido(input, historial, folioPrevio) {
   const descuento = !decorador ? ''
     : monto ? ` Como cliente decorador tienes 10% de descuento sobre el total: de $${montoSinDescuento.toLocaleString('es-MX')} queda en $${monto.toLocaleString('es-MX')}.`
       : ' Como cliente decorador tienes 10% de descuento sobre el total.';
-  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${descuento}${aviso}`, folio };
+  // Tarjeta "Quién te atenderá" (api/_contacto.js): va aparte del texto, así DiMa no la recuerda.
+  const contacto = await contactoDelPedido(datos, folio).catch(err => { console.error('Tarjeta de contacto:', err.message); return null; });
+  return { texto: `Listo, quedó registrado tu pedido con el folio ${folio}.${descuento}${aviso}`, folio, contacto };
 }
 
 // Canal interno: la app manda { modo: 'equipo', historial: [{ rol: 'yo' | 'dima', texto }] }.
@@ -762,6 +765,7 @@ module.exports = async (req, res) => {
     const partes = [];
     let fotos = [];
     let folioNuevo = folioPrevio;
+    let contactoNuevo = null;
     let registrado = false;
     // Fotos que el cliente ya vio en esta conversación (el navegador las guarda en el historial).
     const yaVistas = new Set(historial.flatMap(h => (h && h.rol === 'dima' && Array.isArray(h.fotos)) ? h.fotos : []));
@@ -834,6 +838,7 @@ module.exports = async (req, res) => {
           if (resultado.texto) partes.push(resultado.texto);
           if (resultado.folio && !folioNuevo) {
             folioNuevo = resultado.folio;
+            if (resultado.contacto) contactoNuevo = tarjetaParaCliente(resultado.contacto);
             partes.push(`Ya tenemos todos los datos de tu evento. El equipo revisa la disponibilidad y en un lapso no mayor a ${HORAS_RESPUESTA} horas te confirmamos la cotización; te contactamos por teléfono para el anticipo y los datos de pago. Guarda tu número de pedido (${resultado.folio}): si después quieres agregar o cambiar algo, escríbelo en la página en "¿Ya tienes número de pedido?". Los cambios se piden con al menos ${HORAS_ANTICIPACION_CAMBIO} horas de anticipación.`);
           } else if (resultado.folio) {
             folioNuevo = resultado.folio;
@@ -859,6 +864,7 @@ module.exports = async (req, res) => {
       fotos,
       folio: folioNuevo,
       folioFirma: folioNuevo ? firmaFolio(folioNuevo) : null,
+      ...(contactoNuevo ? { contacto: contactoNuevo } : {}),
       limite: mensajesCliente >= MAX_MENSAJES_CLIENTE,
     });
   } catch (err) {

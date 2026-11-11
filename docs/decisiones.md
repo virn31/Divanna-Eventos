@@ -569,3 +569,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Alternativa descartada:** un campo de vehículo aparte de la brigada (se duplicaría con `BRIGADAS.Vehiculo`); un campo `Tipo_Servicio` para marcar "entregas" (Víctor: son todos los de Divanna y El Vaso Maíz menos Casa Isabella).
 - **Revertir:** `git revert` del commit; los campos nuevos de Airtable quedan vacíos y no los usa nada más.
 
+## 2026-11-11 — Tarjeta "Quién te atenderá" al cerrar el pedido (excepción a "DiMa no nombra a nadie")
+
+- **Pedido de Víctor:** que el cierre diga quién se va a comunicar (Divanna → Eden, Casa Isabella → Mario, El Vaso Maíz → Ángela) y, si lleva decoración o entrega, que la brigada también puede marcarle. Que sea elegante y profesional, porque hay muchos fraudes.
+- **Decisión (respuestas de Víctor):** excepción a la regla de no nombrar al equipo, solo en esta tarjeta: primer nombre y puesto, **sin teléfonos**. Mixto: los dos gerentes, cualquiera cobra el anticipo. Sale **siempre**: chat, formulario y correo de cotización confirmada. Con el salón la lleva el gerente de Casa Isabella aunque tenga decoración (Eden no ve Casa Isabella). Línea contra fraude: "quien te llame sabrá tu número de pedido; si no lo sabe, no le des datos ni hagas depósitos". Por eso el equipo debe decir su nombre y el EVT al llamar (manual y `/instrucciones`).
+- **Cómo:** `api/_contacto.js` (nombres de COLABORADORES por Rol de gerente); el texto es fijo del servidor, no lo escribe Claude. Va como `contacto` aparte del texto y no regresa a DiMa en el historial.
+- **Alternativa descartada:** nombre y teléfono del gerente con "Guardar contacto" (Víctor: teléfonos privados); meter los nombres en el texto de DiMa (DiMa los repetiría en la plática).
+
