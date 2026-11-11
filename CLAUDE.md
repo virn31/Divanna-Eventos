@@ -56,4 +56,4 @@ Roles: Admin (Diana, Víctor), Lider de brigada, Asistente, Encargada, Gerentes 
 
 ## Seguridad abierta
 
-Página pública protegida (2026-11-11, `api/_limites.js`, tabla LIMITES_WEB): topes de chat y pedidos, bloqueo de "¿Ya tienes número de pedido?" tras intentos fallidos, respuestas de DiMa firmadas, folios al azar, cabeceras en `vercel.json`. Sigue abierto en la app: PIN en texto plano en Airtable y login sin bloqueo tras varios intentos. Sin anti-robot (Turnstile) en la página.
+Página pública protegida (2026-11-11, `api/_limites.js`, tabla LIMITES_WEB): topes de pedidos (los del chat en modo medición hasta ~enero 2027: `CONFIG.bloquearChat`), bloqueo de "¿Ya tienes número de pedido?" tras intentos fallidos, respuestas de DiMa firmadas, folios al azar, cabeceras en `vercel.json`. Sigue abierto en la app: PIN en texto plano en Airtable y login sin bloqueo tras varios intentos. Sin anti-robot (Turnstile) en la página.

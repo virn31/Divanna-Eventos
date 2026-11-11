@@ -473,7 +473,7 @@ async function registrarPedido(input, historial, folioPrevio, ip = 'sin-ip') {
   }
 
   // Tope de pedidos nuevos al día por teléfono y por conexión (contra pedidos basura).
-  const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, ip]]);
+  const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, ip], [Limites.REGLAS.pedidosDia, 'total']]);
   if (!cupo.permitido) return { texto: Limites.MENSAJES.pedido };
   const { folio, decorador, monto, montoSinDescuento } = await crearPedido(datos, {
     origen: 'chat',
@@ -696,10 +696,12 @@ module.exports = async (req, res) => {
   }
   // Límites que no se borran (Airtable): por conexión al día y un tope total al
   // día que protege el saldo de Claude aunque cambien de conexión.
-  const cupo = await Limites.consumir([[Limites.REGLAS.chatIp, ip], [Limites.REGLAS.chatTotal, 'dia']]);
+  // Por ahora en modo medición (Limites.CONFIG.bloquearChat = false): cuenta y no bloquea.
+  const nuevaConversacion = mensajesCliente === 1 && !folioPrevio && !pedidoExistente;
+  const cupo = await Limites.consumir([[Limites.REGLAS.chatIp, ip], [Limites.REGLAS.chatTotal, 'total'], ...(nuevaConversacion ? [[Limites.REGLAS.conversaciones, 'total']] : [])]);
   if (!cupo.permitido) {
     console.error(`DiMa: límite diario alcanzado (${cupo.regla}).`);
-    res.status(200).json(conFirma({ texto: cupo.regla === 'chat-total' ? Limites.MENSAJES.chatTotal : Limites.MENSAJES.chat, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true }));
+    res.status(200).json(conFirma({ texto: cupo.regla === Limites.REGLAS.chatTotal.tipo ? Limites.MENSAJES.chatTotal : Limites.MENSAJES.chat, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true }));
     return;
   }
 

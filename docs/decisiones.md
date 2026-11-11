@@ -584,4 +584,5 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Efecto al publicar:** quien tenga el chat abierto en ese momento debe tocar "Nueva" (sus mensajes viejos no traen firma).
 - **Alternativa descartada:** Turnstile (anti-robot) por ahora: requiere cuenta y llave de Cloudflare; queda para después. Vercel KV/Upstash para los contadores: otro servicio y otra llave; Airtable ya está.
 - **Pendiente de Víctor:** límite de gasto mensual en la consola de Anthropic.
+- **Modo medición del chat (Víctor, mismo día):** los topes del chat no se activan todavía: Víctor quiere medir ~2 meses el tráfico real antes de fijarlos y de poner el límite de gasto en Anthropic, para no dejar a DiMa sin créditos. El chat cuenta por día (mensajes, conversaciones, por conexión) sin bloquear y el buenos días trae la línea "🌐 DiMa ayer". Lo demás (folios, bloqueo de "¿Ya tienes número de pedido?", 3 pedidos por teléfono, firma, cabeceras, Nodemailer) sí queda activo: no gasta créditos. Revisar a mediados de enero 2027 y activar con `CONFIG.bloquearChat = true`.
 

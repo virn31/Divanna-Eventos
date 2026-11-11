@@ -138,7 +138,12 @@ global.fetch = async (url, opts = {}) => {
     if (metodo === 'PATCH') { cuerpo.records.forEach(r => { const x = limitesPrueba.get(r.id); if (x) Object.assign(x.fields, r.fields); }); return resp({ records: cuerpo.records }); }
     if (metodo === 'DELETE') { (u.match(/rec[A-Za-z0-9]{14}/g) || []).forEach(id => limitesPrueba.delete(id)); return resp({ records: [] }); }
     const clave = (/\{Clave\} = "([^"]+)"/.exec(u) || [])[1];
-    return resp({ records: clave ? [...limitesPrueba.values()].filter(r => r.fields.Clave === clave).map(r => ({ id: r.id, fields: { ...r.fields } })) : [] });
+    const prefijo = (/FIND\("([^"]+)", \{Clave\}\) = 1/.exec(u) || [])[1];
+    const minimo = Number((/\{Conteo\} >= (\d+)/.exec(u) || [])[1] || -Infinity);
+    let recs = [...limitesPrueba.values()].filter(r => clave ? r.fields.Clave === clave : prefijo ? r.fields.Clave.startsWith(prefijo) && Number(r.fields.Conteo) >= minimo : false);
+    if (u.includes('sort[0][field]=Conteo')) recs = recs.sort((a, b) => b.fields.Conteo - a.fields.Conteo);
+    if (/maxRecords=1/.test(u)) recs = recs.slice(0, 1);
+    return resp({ records: recs.map(r => ({ id: r.id, fields: { ...r.fields } })) });
   }
   // DIAS_BLOQUEADOS tiene su propia respuesta (el chat la consulta en cada mensaje):
   // las lecturas no consumen respuestas de Airtable; las escrituras se registran.
@@ -4457,14 +4462,47 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     reset(); limitesCaido = true;
     ok((await Lim.consumir([[regla, 'x']])).permitido, 'límites: si Airtable falla se deja pasar al cliente');
 
-    const sembrar = (tipo, valor, conteo) => limitesPrueba.set('recLIMSEMILLA' + tipo.length + conteo, { id: 'recLIMSEMILLA' + tipo.length + conteo, fields: { Clave: Lim.huella(tipo, valor), Conteo: conteo, Desde: Date.now() } });
-    reset(); sembrar('chat-total', 'dia', Lim.REGLAS.chatTotal.max);
+    const sembrar = (tipo, valor, conteo, fecha = null) => limitesPrueba.set('recLIMSEMILLA' + tipo.length + conteo, { id: 'recLIMSEMILLA' + tipo.length + conteo, fields: { Clave: Lim.huella(tipo, valor, fecha), Conteo: conteo, Desde: Date.now() } });
+    const hoyL = Lim.fechaCuliacan();
+    // Modo medición (Víctor 2026-11-11): el chat cuenta pero no bloquea.
+    reset(); sembrar('dia-chat', 'total', Lim.REGLAS.chatTotal.max, hoyL);
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Con gusto' }] }];
+    res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
+    const totalHoy = [...limitesPrueba.values()].find(r => r.fields.Clave === Lim.huella('dia-chat', 'total', hoyL));
+    ok(!Lim.CONFIG.bloquearChat && res.code === 200 && !res.body.limite && llamadasClaude.length === 1 && totalHoy.fields.Conteo === Lim.REGLAS.chatTotal.max + 1,
+      'medición: aunque se pase del tope previsto, DiMa sigue atendiendo y se cuenta el mensaje');
+    reset();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hola' }] }];
+    await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] }, { ip: '10.7.7.7' });
+    const claves = [...limitesPrueba.values()].map(r => r.fields.Clave);
+    ok(claves.some(c => c.startsWith(`dia-chat-ip:${hoyL}:`)) && claves.includes(Lim.huella('dia-chat', 'total', hoyL)) && claves.includes(Lim.huella('dia-conv', 'total', hoyL)) && !claves.some(c => c.includes('10.7.7.7')),
+      'medición: se cuentan mensajes del día, por conexión (cifrada) y conversaciones nuevas');
+    // Con el interruptor encendido, sí bloquea.
+    Lim.CONFIG.bloquearChat = true;
+    reset(); sembrar('dia-chat', 'total', Lim.REGLAS.chatTotal.max, hoyL);
     res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] });
     ok(res.code === 200 && res.body.limite && res.body.texto === Lim.MENSAJES.chatTotal && llamadasClaude.length === 0 && res.body.firma,
-      'límites: con el tope diario de DiMa alcanzado no se llama a Claude y se ofrece el formulario');
-    reset(); sembrar('chat-ip', '10.9.9.9', Lim.REGLAS.chatIp.max);
+      'límites: con los topes activados y el tope diario alcanzado no se llama a Claude y se ofrece el formulario');
+    reset(); sembrar('dia-chat-ip', '10.9.9.9', Lim.REGLAS.chatIp.max, hoyL);
     res = await chat({ historial: [{ rol: 'cliente', texto: 'hola' }] }, { ip: '10.9.9.9' });
-    ok(res.body.limite && res.body.texto === Lim.MENSAJES.chat && llamadasClaude.length === 0, 'límites: tope diario por conexión en el chat');
+    ok(res.body.limite && res.body.texto === Lim.MENSAJES.chat && llamadasClaude.length === 0, 'límites: con los topes activados, tope diario por conexión en el chat');
+    Lim.CONFIG.bloquearChat = false;
+
+    // Cifras de ayer para el buenos días
+    reset();
+    const ayerL = Lim.fechaCuliacan(-1);
+    sembrar('dia-chat', 'total', 412, ayerL); sembrar('dia-conv', 'total', 37, ayerL); sembrar('dia-pedido', 'total', 3, ayerL);
+    sembrar('dia-chat-ip', '1.1.1.1', 38, ayerL); sembrar('dia-chat-ip', '2.2.2.2', 5, ayerL);
+    const est = await Lim.estadisticasDia();
+    ok(est && est.mensajes === 412 && est.conversaciones === 37 && est.pedidos === 3 && est.pico === 38 && est.topadas === 0, 'medición: cifras de ayer (mensajes, conversaciones, pedidos, conexión más activa)');
+    const linea = Lim.textoEstadisticas(est);
+    ok(/DiMa ayer: 412 mensajes en 37 conversaciones · 3 pedidos nuevos desde la página · conexión más activa: 38 mensajes \(modo medición/.test(linea) && linea.includes('nadie habría llegado al tope'),
+      'medición: la línea del buenos días explica las cifras y que no se bloquea a nadie');
+    sembrar('dia-chat-ip', '3.3.3.3', Lim.REGLAS.chatIp.max + 10, ayerL);
+    const est2 = await Lim.estadisticasDia();
+    ok(est2.topadas === 1 && est2.pico === Lim.REGLAS.chatIp.max + 10 && Lim.textoEstadisticas(est2).includes('1 conexión habría llegado al tope'), 'medición: avisa cuántas conexiones habrían llegado al tope');
+    const cuadreSrc = fs.readFileSync(path.join(repo, 'api/_cuadre.js'), 'utf8');
+    ok(cuadreSrc.includes('v.trafico = await Limites.estadisticasDia();') && cuadreSrc.includes('Limites.textoEstadisticas(v.trafico)'), 'medición: la línea va en el buenos días de las 8:00');
 
     // Pedidos por teléfono
     reset(); sembrar('pedido-tel', '6671112233', Lim.REGLAS.pedidoTel.max);

@@ -454,6 +454,7 @@ const SALUDOS_SIN_PENDIENTES = [
 // mes (Víctor 2026-11-10). Cuenta todo lo anotado, aunque Diana no haya
 // aprobado el reporte (el balance semanal solo cuenta lo aprobado).
 const PorNegocio = require('./_por-negocio');
+const Limites = require('./_limites');
 async function porNegocioDelDia(hoy = hoyCuliacan()) {
   const d = new Date(`${hoy}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1);
   const ayer = d.toISOString().slice(0, 10);
@@ -485,6 +486,8 @@ function textoResumen(v, cuantos) {
     cuantos ? `🔍 ${cuantos === 1 ? '1 evento no cuadra' : cuantos + ' eventos no cuadran'} (ayer); te los paso abajo.` : '✅ Las cuentas cuadran.',
     v.porNegocio ? PorNegocio.textoResumen(v.porNegocio.delDia, { titulo: `🏢 Ayer (${v.porNegocio.ayer}) por negocio` }) : null,
     v.porNegocio ? PorNegocio.textoResumen(v.porNegocio.delMes, { titulo: '📆 En lo que va del mes' }) + '\n(Incluye lo anotado aunque Diana no lo haya aprobado; el balance del lunes solo cuenta lo aprobado.)' : null,
+    // Tráfico de la página de ayer (modo medición del chat, api/_limites.js).
+    v.trafico ? Limites.textoEstadisticas(v.trafico) : null,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -516,6 +519,7 @@ async function preguntasDelDia() {
   const v = await vistaCuadre();
   v.reembolsos = await R.datosReembolsos().catch(err => { console.error('Buenos días: no se pudieron leer los reembolsos:', err.message); return []; });
   v.porNegocio = await porNegocioDelDia().catch(err => { console.error('Buenos días: no se pudo armar el resumen por negocio:', err.message); return null; });
+  v.trafico = await Limites.estadisticasDia();
   const nuevos = v.porAclarar.filter(e => !e.preguntado && !e.estado).slice(0, 15);
   const admins = await adminsConTelegram();
   if (!admins.length) console.error('Buenos días: ningún Admin activo tiene Telegram vinculado');

@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
     }
 
     // Tope de pedidos nuevos al día por teléfono y por conexión (contra pedidos basura).
-    const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, Limites.ipDe(req)]]);
+    const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, Limites.ipDe(req)], [Limites.REGLAS.pedidosDia, 'total']]);
     if (!cupo.permitido) { res.status(429).json({ error: Limites.MENSAJES.pedido }); return; }
 
     const { folio } = await crearPedido(datos, { origen: 'formulario' });

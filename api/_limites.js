@@ -4,7 +4,11 @@
 // valgan en todas las instancias de Vercel; el límite en memoria de dima-chat.js
 // sigue como primer freno.
 // - Chat de DiMa: mensajes por conexión al día y un tope total al día (protege el
-//   saldo de Claude aunque cambien de conexión).
+//   saldo de Claude aunque cambien de conexión). MODO MEDICIÓN (Víctor
+//   2026-11-11): por ~2 meses solo se cuenta, no se bloquea, para medir el
+//   tráfico real antes de fijar topes y el límite de gasto de Anthropic. Las
+//   cifras de ayer salen en el buenos días de las 8:00 (api/_cuadre.js). Para
+//   activar los topes: CONFIG.bloquearChat = true (y ajustar max con lo medido).
 // - Pedidos nuevos (chat y formulario): por teléfono y por conexión al día.
 // - "¿Ya tienes número de pedido?": intentos FALLIDOS por teléfono y por conexión
 //   en una hora; al llegar al tope se bloquea y se avisa a Diana y Víctor.
@@ -18,12 +22,20 @@ const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLA = 'tblhWEpjaizM0qUtO';
 const HORA = 60 * 60 * 1000;
 const DIA = 24 * HORA;
+const ZONA = 'America/Mazatlan';
+
+// Interruptor del chat: false = modo medición (cuenta y no bloquea).
+const CONFIG = { bloquearChat: false };
 
 // Topes holgados: en Culiacán muchos teléfonos salen a internet con la misma IP
 // de la compañía (Telcel, AT&T), así que por conexión se deja bastante margen.
 const REGLAS = {
-  chatIp: { tipo: 'chat-ip', max: 300, ventanaMs: DIA },
-  chatTotal: { tipo: 'chat-total', max: 2500, ventanaMs: DIA },
+  // Chat: por día del calendario (así se reporta "ayer"). Topes provisionales.
+  chatIp: { tipo: 'dia-chat-ip', dia: true, max: 300, bloquea: () => CONFIG.bloquearChat },
+  chatTotal: { tipo: 'dia-chat', dia: true, max: 2500, bloquea: () => CONFIG.bloquearChat },
+  // Solo para medir (nunca bloquean).
+  conversaciones: { tipo: 'dia-conv', dia: true, max: Infinity },
+  pedidosDia: { tipo: 'dia-pedido', dia: true, max: Infinity },
   pedidoTel: { tipo: 'pedido-tel', max: 3, ventanaMs: DIA },
   pedidoIp: { tipo: 'pedido-ip', max: 8, ventanaMs: DIA },
   verifTel: { tipo: 'verif-tel', max: 5, ventanaMs: HORA },
@@ -37,9 +49,12 @@ const MENSAJES = {
   verif: 'Por seguridad pausamos la búsqueda de pedidos por un rato (hubo varios intentos que no coincidieron). Intenta en una hora, o espera la llamada de nuestro equipo.',
 };
 
-function huella(tipo, valor) {
+const fechaCuliacan = (dias = 0) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(Date.now() + dias * DIA));
+
+// Clave: tipo + (fecha, en las reglas por día) + huella HMAC del valor.
+function huella(tipo, valor, fecha = null) {
   const secreto = process.env.SESSION_SECRET || 'sin-secreto';
-  return `${tipo}:${crypto.createHmac('sha256', secreto).update(`${tipo}|${valor}`).digest('hex').slice(0, 24)}`;
+  return `${tipo}:${fecha ? fecha + ':' : ''}${crypto.createHmac('sha256', secreto).update(`${tipo}|${valor}`).digest('hex').slice(0, 24)}`;
 }
 
 // IP del cliente según Vercel (la primera de x-forwarded-for).
@@ -63,9 +78,10 @@ async function leer(clave) {
 
 // Estado vigente de una regla: { conteo, registro } (conteo 0 si la ventana ya pasó).
 async function estado(regla, valor) {
-  const clave = huella(regla.tipo, valor);
+  const clave = huella(regla.tipo, valor, regla.dia ? fechaCuliacan() : null);
   const r = await leer(clave);
-  const vigente = r && Date.now() - Number(r.fields.Desde || 0) < regla.ventanaMs;
+  // Las reglas por día tienen su propia clave cada día; las demás, una ventana.
+  const vigente = !!r && (regla.dia || Date.now() - Number(r.fields.Desde || 0) < regla.ventanaMs);
   return { clave, registro: r, conteo: vigente ? Number(r.fields.Conteo || 0) : 0, vigente };
 }
 
@@ -94,7 +110,7 @@ async function limpiar() {
 async function consumir(pares) {
   try {
     const estados = await Promise.all(pares.map(([regla, valor]) => estado(regla, valor).then(e => ({ ...e, regla }))));
-    const agotada = estados.find(e => e.conteo >= e.regla.max);
+    const agotada = estados.find(e => e.conteo >= e.regla.max && (!e.regla.bloquea || e.regla.bloquea()));
     if (agotada) return { permitido: false, regla: agotada.regla.tipo };
     await Promise.all(estados.map(sumarA));
     return { permitido: true };
@@ -136,4 +152,31 @@ async function fallo(pares) {
   }
 }
 
-module.exports = { REGLAS, MENSAJES, consumir, bloqueado, fallo, huella, ipDe, telefonoDe, TABLA };
+// Cifras de un día (para el buenos días): mensajes y conversaciones del chat,
+// pedidos nuevos de la página, la conexión con más mensajes y cuántas habrían
+// llegado al tope por conexión. null si no se pudo leer.
+async function estadisticasDia(fecha = fechaCuliacan(-1)) {
+  try {
+    const conteo = async (regla) => { const r = await leer(huella(regla.tipo, 'total', fecha)); return r ? Number(r.fields.Conteo || 0) : 0; };
+    const prefijo = `${REGLAS.chatIp.tipo}:${fecha}:`;
+    const [mensajes, conversaciones, pedidos, pico, topadas] = await Promise.all([
+      conteo(REGLAS.chatTotal), conteo(REGLAS.conversaciones), conteo(REGLAS.pedidosDia),
+      airtable(`${TABLA}?filterByFormula=${encodeURIComponent(`FIND("${prefijo}", {Clave}) = 1`)}&sort%5B0%5D%5Bfield%5D=Conteo&sort%5B0%5D%5Bdirection%5D=desc&maxRecords=1&fields%5B%5D=Conteo`),
+      airtable(`${TABLA}?filterByFormula=${encodeURIComponent(`AND(FIND("${prefijo}", {Clave}) = 1, {Conteo} >= ${REGLAS.chatIp.max})`)}&fields%5B%5D=Conteo&pageSize=100`),
+    ]);
+    return { fecha, mensajes, conversaciones, pedidos, pico: Number((((pico.records || [])[0] || {}).fields || {}).Conteo || 0), topadas: (topadas.records || []).length };
+  } catch (err) {
+    console.error('Límites: no se pudieron leer las cifras del día:', err.message);
+    return null;
+  }
+}
+
+// Línea del buenos días.
+function textoEstadisticas(e) {
+  if (!e) return null;
+  const medicion = !CONFIG.bloquearChat;
+  return `🌐 DiMa ayer: ${e.mensajes} mensajes en ${e.conversaciones} conversaciones · ${e.pedidos} pedidos nuevos desde la página · conexión más activa: ${e.pico} mensajes`
+    + (medicion ? ` (modo medición: no se bloquea a nadie; con el tope previsto de ${REGLAS.chatIp.max} por conexión ${e.topadas ? `${e.topadas === 1 ? '1 conexión habría' : e.topadas + ' conexiones habrían'} llegado al tope` : 'nadie habría llegado al tope'}). El costo en dólares está en console.anthropic.com → Usage.` : '.');
+}
+
+module.exports = { REGLAS, MENSAJES, CONFIG, consumir, bloqueado, fallo, huella, ipDe, telefonoDe, estadisticasDia, textoEstadisticas, fechaCuliacan, TABLA };
