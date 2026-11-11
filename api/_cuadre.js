@@ -44,6 +44,7 @@ const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: '
 const MARCA_MONTO = '✍️ ¿Cuánto te pagaron y cómo? ';
 const MARCA_OTRO = '❓ ¿Qué pasó con el dinero de ';
 const MARCA_VARIOS = '💼 ¿Qué se hizo con el efectivo? ';
+const MARCA_REEMBOLSO = '💵 Abono de reembolso ';
 const ID = /^rec[A-Za-z0-9]{14}$/;
 const ID_EN_TEXTO = /\((rec[A-Za-z0-9]{14})\)/;
 
@@ -357,7 +358,7 @@ async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto, colabor
   const nombreTipo = TIPOS_CAJA[tipo];
   if (!nombreTipo) return { error: 'Destino inválido' };
   const ef = efectivoDe(await datosCuadre());
-  if (tipo === 'rb') return reembolsoDesdeCaja(colaborador, ef, colaboradorId);
+  if (tipo === 'rb') return reembolsoDesdeCaja(colaborador, ef, colaboradorId, montoTexto);
   const valor = montoTexto ? monto(montoTexto) : (tipo === 'caja' ? redondo(ef.sinDestino + ef.enCaja) : ef.sinDestino);
   if (!valor) return { error: 'No hay efectivo sin destino.' };
   const texto = String(nota || '').trim().slice(0, 300);
@@ -371,13 +372,16 @@ async function destinoCaja(colaborador, { tipo, nota, monto: montoTexto, colabor
 
 // 💵 Reembolso: el efectivo sin destino se usó para reembolsar a alguien del equipo.
 // Sin colaboradorId devuelve a quién se le debe (para elegir); con él, paga en
-// efectivo lo que alcance (lo pendiente o el efectivo sin destino, lo menor).
-async function reembolsoDesdeCaja(colaborador, ef, colaboradorId) {
-  const { filas } = await R.vistaReembolsos(colaborador);
+// efectivo el monto que se diga (abono) o, con "todo" o sin monto, lo que alcance
+// (lo pendiente o el efectivo sin destino, lo menor). Víctor 2026-11-11: a veces
+// Diana solo abona; la app y Telegram preguntan "¿todo o cuánto?".
+async function reembolsoDesdeCaja(colaborador, ef, colaboradorId, montoTexto) {
+  const filas = await R.datosReembolsos();
   if (!filas || !filas.length) return { error: 'No hay reembolsos pendientes.' };
   if (!colaboradorId) return { ok: true, elegir: filas.map(f => ({ colaboradorId: f.colaboradorId, nombre: f.nombre, pendiente: f.pendiente })), texto: '¿A quién le reembolsaste?' };
   const fila = filas.find(f => f.colaboradorId === colaboradorId);
   if (!fila) return { error: 'Esa persona no tiene reembolsos pendientes.' };
+  if (montoTexto != null && montoTexto !== 'todo') return R.pagarReembolso(colaborador, { colaboradorId, monto: String(montoTexto), forma: 'Efectivo' });
   const valor = ef.sinDestino > TOLERANCIA ? Math.min(fila.pendiente, ef.sinDestino) : fila.pendiente;
   return R.pagarReembolso(colaborador, { colaboradorId, monto: String(valor), forma: 'Efectivo' });
 }
@@ -558,7 +562,21 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
       await telegramApi('sendMessage', { chat_id: chatId, text: `${MARCA_VARIOS}Escribe qué se hizo (ej. deposité 3000 y pagué la gasolina con 500):`, reply_markup: { force_reply: true } });
       return { aviso: 'Escribe qué se hizo' };
     }
-    const r = await destinoCaja(colaborador, { tipo: accion, colaboradorId: ID.test(id || '') ? id : '' });
+    // Elegida la persona del reembolso: ¿todo o cuánto? (cj:rt:<id> = todo; ✍️ = abono escrito).
+    if (accion === 'rb' && ID.test(id || '')) {
+      const fila = (await R.datosReembolsos()).find(f => f.colaboradorId === id);
+      if (!fila) return { aviso: 'Esa persona ya no tiene reembolsos pendientes.', alerta: true };
+      await enviarTelegram(chatId, `💵 ¿Cuánto le reembolsaste a ${fila.nombre}? Se le deben ${pesos(fila.pendiente)}.`, [
+        [{ texto: `💵 Todo (${pesos(fila.pendiente)})`, dato: `cj:rt:${id}` }],
+        [{ texto: '✍️ Solo un abono', dato: `cj:ra:${id}` }],
+      ]);
+      return { aviso: '¿Todo o cuánto?' };
+    }
+    if (accion === 'ra' && ID.test(id || '')) {
+      await telegramApi('sendMessage', { chat_id: chatId, text: `${MARCA_REEMBOLSO}(${id})\nEscribe cuánto le diste en efectivo, por ejemplo: 1000`, reply_markup: { force_reply: true } });
+      return { aviso: 'Escribe el monto' };
+    }
+    const r = await destinoCaja(colaborador, accion === 'rt' ? { tipo: 'rb', colaboradorId: ID.test(id || '') ? id : '', monto: 'todo' } : { tipo: accion, colaboradorId: ID.test(id || '') ? id : '' });
     if (r.error) return { aviso: r.error, alerta: true };
     if (r.elegir) {
       await enviarTelegram(chatId, '💵 ¿A quién le reembolsaste en efectivo?', r.elegir.map(f => [{ texto: `${f.nombre} · ${pesos(f.pendiente)}`, dato: `cj:rb:${f.colaboradorId}` }]));
@@ -582,7 +600,7 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
 function esRespuestaCuadre(mensaje) {
   const previo = mensaje.reply_to_message;
   const t = String((previo && previo.text) || '');
-  return !!(previo && previo.from && previo.from.is_bot && (t.startsWith(MARCA_MONTO) || t.startsWith(MARCA_OTRO) || t.startsWith(MARCA_VARIOS)));
+  return !!(previo && previo.from && previo.from.is_bot && (t.startsWith(MARCA_MONTO) || t.startsWith(MARCA_OTRO) || t.startsWith(MARCA_VARIOS) || t.startsWith(MARCA_REEMBOLSO)));
 }
 
 // "2000 efectivo" / texto libre escrito encima de la pregunta.
@@ -596,6 +614,11 @@ async function atenderRespuestaCuadre(mensaje, colaborador) {
   }
   const id = (previo.match(ID_EN_TEXTO) || [])[1];
   if (!id) return null;
+  if (previo.startsWith(MARCA_REEMBOLSO)) {
+    if (!monto(texto)) return 'No entendí el monto. Escríbelo solo con números, por ejemplo: 1000';
+    const r = await destinoCaja(colaborador, { tipo: 'rb', colaboradorId: id, monto: texto });
+    return r.error || r.texto;
+  }
   if (previo.startsWith(MARCA_OTRO)) {
     const r = await aclarar(colaborador, { eventoId: id, tipo: 'otro', nota: texto });
     return r.error || r.texto;

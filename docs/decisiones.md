@@ -552,3 +552,11 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Límite:** en "Ambos" sigue por catálogo (la descripción mezcla los dos negocios).
 - **Renglones que faltan:** la plantilla tiene 11 renglones (Divanna) / 12 (El Vaso Maíz). Si no caben, se insertan renglones dentro del bloque de artículos (copian el formato; las sumas de la plantilla los abarcan) y el total, lo pagado y las notas bajan otro tanto. Cuántos se agregaron se guarda en los metadatos de la pestaña (`dima_renglones_extra`); nunca se quitan (si el pedido se achica quedan vacíos). Si se agregan renglones a mano en una pestaña, DiMa no lo sabe y escribiría el total en la fila vieja: no hacerlo.
 - **Alternativa descartada:** comparar descripción y catálogo para agregar solo lo que falte (frágil con texto libre).
+
+## 2026-11-11 — Abonos de reembolso, deshacer pago y ficha completa para Admin
+
+- **Reembolsos:** en 🔍 Cuadre → 💵 Reembolso (app y Telegram), después de elegir a la persona se pregunta "¿todo o cuánto?" (Telegram: `cj:rt:<id>` = todo, `cj:ra:<id>` = abono escrito encima de "💵 Abono de reembolso"). En 🔁 Reembolsos ya existía el monto (vacío = todo). Nuevo **🧾 Últimos pagos** con **↩️ Deshacer** (`reembolso_deshacer`, `deshacerPago` en `_reembolsos.js`): solo el último pago de cada persona; borra el registro de PAGOS_REEMBOLSO, quita `Reembolsado` a los gastos que tenía ligados y marcados, y avisa a la persona por Telegram.
+- **Por qué:** el 10-nov se registró a Mario como pagado completo ($2,218.84) cuando solo se le abonaron $1,118.84; se corrigió a mano en Airtable (pago a $1,118.84 y Resistol, Gasolina y Cable otra vez pendientes = $1,100).
+- **Calendario:** Diana y Víctor también tienen "📋 Abrir ficha completa" (`propio` ya no excluye Admin); en el dashboard lleva a la ficha en 🗓️ Eventos.
+- **Origen:** los eventos nuevos siempre lo llevan (chat, formulario, captura y comanda pasan por `_pedidos.js` o `capturarEvento`). A los viejos (2 al 5 de noviembre) no se les llena: Víctor decidió dejarlos así.
+- **Alternativa descartada:** editar el monto de un pago ya registrado (más casos raros con lo que queda "a cuenta"); deshacer y volver a registrar es más claro.

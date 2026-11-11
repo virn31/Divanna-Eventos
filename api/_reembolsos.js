@@ -107,7 +107,50 @@ async function datos() {
 async function vistaReembolsos(colaborador) {
   if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor ven los reembolsos.', codigo: 403 };
   const filas = (await datos()).map(({ chatId, ...f }) => f);
-  return { filas, total: redondo(filas.reduce((t, f) => t + f.pendiente, 0)), formas: FORMAS };
+  const pagos = await todas(TABLES.PAGOS); // para 🧾 Últimos pagos (tabla chica)
+  return { filas, total: redondo(filas.reduce((t, f) => t + f.pendiente, 0)), formas: FORMAS, ultimos: ultimosPagos(pagos) };
+}
+
+// Últimos pagos (para ↩️ Deshacer). Solo el más reciente de cada persona se puede
+// deshacer: deshacer uno viejo dejaría mal lo que cubrieron los siguientes.
+function ultimosPagos(pagos, cuantos = 8) {
+  const orden = [...pagos].sort((a, b) => String(b.createdTime || '').localeCompare(String(a.createdTime || '')));
+  const vistos = new Set();
+  return orden.slice(0, cuantos).map(p => {
+    const quien = (p.fields.Colaborador || [])[0] || '';
+    const deshacer = !!quien && !vistos.has(quien);
+    vistos.add(quien);
+    return { id: p.id, referencia: p.fields.Referencia || '', monto: Number(p.fields.Monto) || 0, fecha: p.fields.Fecha || '', forma: p.fields.Forma || '', registro: p.fields.Registrado_Por || '', deshacer };
+  });
+}
+
+// ↩️ Deshacer el último pago de una persona (Víctor 2026-11-11: se registró todo
+// cuando solo fue un abono). Borra el pago y le quita la marca Reembolsado a los
+// gastos que había cubierto: queda igual que antes de registrarlo.
+async function deshacerPago(colaborador, { pagoId }) {
+  if (!esAdmin(colaborador)) return { error: 'Solo Diana y Víctor corrigen reembolsos.', codigo: 403 };
+  if (!ID.test(pagoId || '')) return { error: 'Parámetros inválidos' };
+  const pagos = await todas(TABLES.PAGOS);
+  const pago = pagos.find(p => p.id === pagoId);
+  if (!pago) return { error: 'Ese pago ya no existe (quizá ya se deshizo).' };
+  const quien = (pago.fields.Colaborador || [])[0] || '';
+  const masNuevo = pagos.find(p => (p.fields.Colaborador || [])[0] === quien && String(p.createdTime || '') > String(pago.createdTime || ''));
+  if (masNuevo) return { error: 'Solo se puede deshacer el último pago de esa persona.' };
+  const ligados = pago.fields.Gastos || [];
+  const marcados = ligados.length ? (await porLotes(ligados, `${TABLES.GASTOS}?fields%5B%5D=Reembolsado`)).filter(r => r.fields.Reembolsado) : [];
+  for (let i = 0; i < marcados.length; i += 10) {
+    await airtable(TABLES.GASTOS, { method: 'PATCH', body: JSON.stringify({ records: marcados.slice(i, i + 10).map(g => ({ id: g.id, fields: { Reembolsado: false } })) }) });
+  }
+  await airtable(`${TABLES.PAGOS}/${pago.id}`, { method: 'DELETE' });
+  const valor = Number(pago.fields.Monto) || 0;
+  const fila = quien ? (await datos()).find(f => f.colaboradorId === quien) : null;
+  const persona = quien ? await airtable(`${COLABORADORES_TABLE}/${quien}`).catch(() => null) : null;
+  const chatId = persona && persona.fields.Telegram_Chat_ID;
+  if (chatId) {
+    await enviarTelegram(chatId, `↩️ ${colaborador.nombre} corrigió un reembolso: el pago de ${pesos(valor)} del ${pago.fields.Fecha || ''} se registró mal y se quitó.${fila ? ` Se te deben ${pesos(fila.pendiente)}.` : ''}`)
+      .catch(err => console.error('Reembolso: no se pudo avisar la corrección', err.message));
+  }
+  return { ok: true, texto: `↩️ Listo: se quitó el pago de ${pesos(valor)}${persona ? ' a ' + (persona.fields.Nombre || '').trim() : ''}.${fila ? ` Ahora se le deben ${pesos(fila.pendiente)}.` : ''} Regístralo otra vez con el monto correcto.` };
 }
 
 // Gastos que quedan cubiertos con el crédito (del más viejo al más nuevo).
@@ -160,4 +203,4 @@ async function reembolsadoEnEfectivo() {
   return redondo(pagos.reduce((t, p) => t + (Number(p.fields.Monto) || 0), 0));
 }
 
-module.exports = { vistaReembolsos, pagarReembolso, reembolsadoEnEfectivo, gastosCubiertos, datosReembolsos: datos, FORMAS_REEMBOLSO: FORMAS };
+module.exports = { vistaReembolsos, pagarReembolso, deshacerPago, ultimosPagos, reembolsadoEnEfectivo, gastosCubiertos, datosReembolsos: datos, FORMAS_REEMBOLSO: FORMAS };
