@@ -28,23 +28,25 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-10 · **Rama de Estado:** `tema-sobrio-y-carga` · **Producción:** `main` en GitHub sigue en `c948836` (caché v36). **547 pruebas pasan.**
+**Actualizado:** 2026-11-11 · **Rama de Estado:** `ccr-15703d0b-rtwqbc` (sesión en la nube) · **Producción:** `main` en `189e500` (caché `dima-brigadas-v47`), ya con todo lo de esta sesión. **626 pruebas pasan.**
 
-**Publicación a medias:** la unión `c89f670` ("Publicar: marcar la carga sin repintar y tema sobrio de la app") está hecha en `main` **local**, pero el push a `main` no se hizo (permiso de despliegue negado a Claude). Víctor: `! git push origin main` desde el repo. Si al continuar `main` local ya no tiene esa unión, rehacerla: `git switch main`, `git pull`, `git merge --no-ff tema-sobrio-y-carga`. Revertir después de publicar: `git revert -m 1 c89f670` y push.
-
-**Hecho el 2026-11-10** (commit `bad8413`; detalle en `docs/decisiones.md`, entrada de esa fecha):
-- Cargar: marcar un artículo es instantáneo (contador N/M y aviso "Falta marcar todo"), sin repintar ni perder el scroll; ignora doble toque; si falla revierte con mensaje.
-- Tema sobrio en `brigadas/index.html` y `tema.css`: solo Inter 400-700; radios `--radio-sm/md/lg` (10/14/18); emojis de estado → SVG (`ICONOS`/`ico()`); marca solo como acento; campos 16 px y controles 44 px; login sin degradado; `theme-color` `#080707`; `tema.css` sin `!important`. Caché `dima-brigadas-v38`.
-- Efecto en el dashboard: vuelven la franja de color de cada evento, el rojo de emergencias y las rayas de días bloqueados (los `!important` los tapaban).
-- Verificado en local con Playwright y datos inventados (390 px y escritorio): sin texto cortado ni encimados.
+**Hecho el 2026-11-11** (detalle en `docs/decisiones.md`, entradas de esa fecha):
+- Recibo (`api/_sheets.js`): los artículos salen de la descripción del evento (`Items_Detallados_Cotizacion` / `Servicios_Solicitados`), un renglón por línea; después los cambios y extras de mantel con precio, cargos y descuento. "Ambos" sigue por catálogo. Si no caben, se insertan renglones en la pestaña (metadato `dima_renglones_extra`) y el total y lo pagado bajan.
+- Reembolsos: en 🔍 Cuadre → 💵 Reembolso (app y Telegram) pregunta "¿todo o cuánto?"; 🔁 Reembolsos tiene 🧾 Últimos pagos con ↩️ Deshacer (solo el último pago de cada persona).
+- Mario: corregido a mano en Airtable (pago del 10-nov a $1,118.84; Resistol, Gasolina y Cable otra vez pendientes = $1,100). A él le llegó "ya quedas al corriente": avisarle.
+- Calendario: Diana y Víctor también tienen "📋 Abrir ficha completa" (lleva a la ficha en 🗓️ Eventos del dashboard).
+- Origen: todos los caminos nuevos lo guardan; los eventos del 2 al 5 de noviembre se quedan sin llenar (decisión de Víctor).
+- Se revisó qué le llega a Ángela por Telegram (gerente VM + producción + coordinadora de staff + Brigada El Vaso Maíz). Sin cambios.
 
 **Siguientes pasos, en orden:**
-1. Víctor: `git push origin main` y esperar el deploy de Vercel; confirmar caché v38 en `https://divanna-eventos.vercel.app/brigadas/sw.js`.
-2. En un teléfono (cerrar y abrir la APK): marcar 3 artículos en Cargar sin que salte la lista; ver pestañas, alertas y el dashboard con la franja de color.
-3. Pendientes visuales: emojis de `dinero.js`/`alertas.js` y de toasts; `manifest.json` aún con `#0c0b10`; la barra del dashboard se sale en teléfono (`dashboard.html`); revisar con datos reales si la etiqueta de El Vaso Maíz sale morada.
-4. Lo que seguía del 2026-11-09: `/configurar` y `/reglas` (deben salir 4); probar `/entrenamiento` y `/desactivar`; aviso de compras a Ángela a las 8:00; Eden, Mario y Ángela prueban en el teléfono; `Origen` en captura manual; en ~4 semanas decidir si DiMa es rentable.
+1. Víctor: mandar 🧾 Mandar recibo de EVT-715919 (debe traer las 6 cosas) y revisar que el total quede en su lugar la primera vez que salga un pedido largo (ej. EVT-732433, 13 líneas): la inserción de renglones no se probó contra la hoja real.
+2. Avisarle a Mario que se le deben $1,100; probar un abono en Cuadre y ↩️ Deshacer en un caso real.
+3. Preguntarle a Eden qué eventos capturó el 11-nov: en Airtable solo hay 2 suyos (EVT-933849, EVT-566367, del 10-nov) y ninguna comanda en borrador.
+4. Pendientes visuales: emojis de `dinero.js`/`alertas.js` y de toasts; `manifest.json` aún con `#0c0b10`; la barra del dashboard se sale en teléfono.
+5. Lo que seguía del 2026-11-09: `/configurar` y `/reglas` (deben salir 4); probar `/entrenamiento` y `/desactivar`; Eden, Mario y Ángela prueban en el teléfono; en ~4 semanas decidir si DiMa es rentable.
 
 **Decisiones pendientes de Víctor:**
+- Recibo de eventos "Ambos": hoy sale por catálogo (la descripción mezcla los dos negocios). ¿Se reparte a mano o se deja así?
 - CONVERSACIONES: 37 filas vacías (la última del 17-jul) y ningún código la usa; las pláticas van en `EVENTOS.Notas`. ¿Se deja o se vuelve a llenar?
 - Recetas por producto, si se quiere que el aviso de compras diga kilos y litros.
 - "(ayer)" en el resumen: la cuenta incluye todos los eventos pasados sin aclarar, no solo los de ayer. ¿Se deja o se cuenta solo ayer?
@@ -53,8 +55,8 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 **Idea aprobada para después (2026-11-06):** decirle a DiMa "agrega tambor plateado, $250, tenemos 4" y que quede en una tabla PRODUCTOS de Airtable. Requiere pasar el catálogo a Airtable. Faltan tambores y figuras de coroplast de varias medidas.
 
-**Pendientes viejos de Víctor:** precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; los 2 flyers de Casa Isabella leídos como "de la competencia" (borrar su descripción en Drive para que se relean); probar en teléfono `/daño`, cobro desde la ficha, foto de comanda, recibo y "Activar alertas".
+**Pendientes viejos de Víctor:** precios en `INVENTARIO.Precio_Reposicion`; borrar en Google Calendar EVT-182088, EVT-750236, EVT-413125, EVT-581563; los 2 flyers de Casa Isabella leídos como "de la competencia" (borrar su descripción en Drive para que se relean); probar en teléfono `/daño`, cobro desde la ficha, foto de comanda y "Activar alertas".
 
-**Regla (incidente 2026-11-03):** nunca poner en Airtable un Rol que producción no conozca todavía.
+**Reglas:** nunca poner en Airtable un Rol que producción no conozca todavía (incidente 2026-11-03). No agregar renglones a mano en la pestaña de un recibo: DiMa escribiría el total en la fila vieja.
 
-**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima`. El token de `keys\airtable dima os.txt` da 403 en esta base. Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`.
+**Acceso:** Vercel por CLI (`vercel ls`, `vercel env ls`, `vercel logs`, `vercel curl --deployment <url>`). Claude no puede `vercel env add` ni redesplegar producción: comando para `!` de Víctor. Google: cuenta de servicio `dima-calendar-sheets@dima-os-513103.iam.gserviceaccount.com`, llave local en Downloads (nunca al repo). Herramientas locales fuera del repo en `Proyectos\herramientas-dima`. El token de `keys\airtable dima os.txt` da 403 en esta base. Git en esta máquina: commit y merge con `-c user.name=virn31 -c user.email=virn31@gmail.com`. En las sesiones en la nube Airtable se usa por el conector (MCP), sin token.
