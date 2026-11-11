@@ -281,7 +281,8 @@ async function vistaMes(colaborador, mes) {
         clienteTelefono: cli ? cli.telefono : '',
         // Evento suyo (gerencia, asignado o de su brigada): en la app abre la ficha completa
         // de su pantalla principal (cliente, dinero, ✏️ Editar, 👷 Asignar). Víctor 2026-11-10.
-        propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f),
+        // Diana y Víctor: todos (la ficha del dashboard). Víctor 2026-11-11.
+        propio: puedeEditarEvento(colaborador, f),
       };
     }).sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)),
     bloqueos: bloqueos.map(r => ({

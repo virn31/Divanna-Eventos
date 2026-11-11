@@ -3,7 +3,7 @@
 // GET ?fecha=YYYY-MM-DD: el reporte propio de ese día (líder / encargada) y,
 //   para Admin y la gerente de El Vaso Maíz, los reportes por revisar.
 // GET ?vista=historial: historial mensual por empresa (solo Admin).
-// GET ?vista=reembolsos y POST reembolso_pagar: reembolsos por colaborador (solo Admin, api/_reembolsos.js).
+// GET ?vista=reembolsos y POST reembolso_pagar | reembolso_deshacer: reembolsos por colaborador (solo Admin, api/_reembolsos.js).
 // GET ?vista=cuadre y POST aclarar | caja: cuadre por excepción (solo Admin, api/_cuadre.js).
 // POST accion: gasto | cobro | quitar | datos | enviar (quien reporta);
 //   aprobar | aclaracion | reembolsado (Diana y Víctor).
@@ -67,6 +67,8 @@ module.exports = async (req, res) => {
       r = await Q.destinoCaja(colaborador, body);
     } else if (body.accion === 'reembolso_pagar') {
       r = await R.pagarReembolso(colaborador, body);
+    } else if (body.accion === 'reembolso_deshacer') {
+      r = await R.deshacerPago(colaborador, body);
     } else if (body.accion === 'reembolsado') {
       r = await F.marcarReembolsado(colaborador, body);
     } else {

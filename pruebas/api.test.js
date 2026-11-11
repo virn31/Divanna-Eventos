@@ -2085,6 +2085,28 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_pagar', colaboradorId: ANGEL, monto: '250', forma: 'Efectivo' } }, res);
     ok(res.code === 400 && !llamadas.some(l => l.method === 'POST'), 'reembolsos: no se paga más de lo pendiente (Ángel $200)');
 
+    // ↩️ Deshacer: solo el último pago de cada persona; quita el pago y la marca de los gastos que cubrió.
+    const P_VIEJO = { id: 'recPAGOREEMB00001', createdTime: '2026-11-09T10:00:00.000Z', fields: { Monto: 600, Colaborador: [MARIO], Gastos: ['recGASTOMARIO0001', 'recGASTOMARIO0002'], Forma: 'Efectivo', Fecha: '2026-11-09', Referencia: 'Reembolso Mario Samano · 2026-11-09' } };
+    const P_NUEVO = { id: 'recPAGOREEMB00002', createdTime: '2026-11-10T10:00:00.000Z', fields: { Monto: 480.34, Colaborador: [MARIO], Gastos: ['recGASTOMARIO0002'], Forma: 'Efectivo', Fecha: '2026-11-10', Referencia: 'Reembolso Mario Samano · 2026-11-10' } };
+    const ult = require(path.join(repo, 'api/_reembolsos.js')).ultimosPagos([P_VIEJO, P_NUEVO]);
+    ok(ult[0].id === P_NUEVO.id && ult[0].deshacer && !ult[1].deshacer, 'reembolsos: en 🧾 Últimos pagos solo el más reciente de cada persona trae ↩️ Deshacer');
+    reset();
+    respuestas = [ADMIN, { records: [P_VIEJO, P_NUEVO] }];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_deshacer', pagoId: P_VIEJO.id } }, res);
+    ok(res.code === 400 && res.body.error.includes('último pago') && !llamadas.some(l => l.method === 'DELETE'), 'reembolsos: no se deshace un pago que ya tiene otro más nuevo');
+    reset();
+    respuestas = [ADMIN, { records: [P_VIEJO, P_NUEVO] }, { records: [{ id: 'recGASTOMARIO0002', fields: { Reembolsado: true } }] }, {}, {},
+      { records: [G_PEND.records[1]] }, { records: [P_VIEJO] }, { records: [{ id: 'recGASTOMARIO0001', fields: { Monto: 500, Reembolsado: true, Reportado_Por: [MARIO] } }] }, NOMBRES_R,
+      { id: MARIO, fields: { Nombre: 'Mario Samano', Telegram_Chat_ID: '901' } }];
+    res = resMock();
+    await finR({ method: 'POST', headers: auth(tokenAdmin), body: { accion: 'reembolso_deshacer', pagoId: P_NUEVO.id } }, res);
+    const quitaMarca = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T'));
+    ok(res.code === 200 && quitaMarca && quitaMarca.body.records[0].id === 'recGASTOMARIO0002' && quitaMarca.body.records[0].fields.Reembolsado === false
+      && llamadas.some(l => l.method === 'DELETE' && l.url.includes(`tbln6uJwZMFd6nS0J/${P_NUEVO.id}`)) && res.body.texto.includes('se le deben $480.34')
+      && telegram.some(t => t.body.chat_id === '901' && t.body.text.includes('corrigió un reembolso')),
+      'reembolsos: ↩️ Deshacer quita el pago, devuelve a pendiente lo que cubrió y le avisa a la persona');
+
     reset();
     respuestas = [LIDER];
     res = resMock();
@@ -2264,10 +2286,31 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && !llamadas.some(l => l.method === 'POST'),
       'cuadre: 💵 Reembolso pregunta a quién, con lo que se le debe a cada uno');
 
+    // Elegida la persona, pregunta ¿todo o cuánto? (no paga nada todavía).
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, G_MARIO, { records: [] }, N_MARIO];
+    res = resMock();
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cj:rb:${MARIO}`) }, res);
+    const cuanto = telegram.find(t => t.metodo === 'sendMessage' && t.body.text.includes('¿Cuánto le reembolsaste a Mario Samano?'));
+    ok(cuanto && cuanto.body.reply_markup.inline_keyboard[0][0].callback_data === `cj:rt:${MARIO}` && cuanto.body.reply_markup.inline_keyboard[1][0].callback_data === `cj:ra:${MARIO}`
+      && !llamadas.some(l => l.method === 'POST'),
+      'cuadre: al elegir a quién se reembolsó pregunta si fue todo o solo un abono (no registra nada aún)');
+
+    // Abono escrito encima de la pregunta: registra solo ese monto.
+    reset();
+    respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO, G_MARIO, { records: [] }, N_MARIO, { records: [{ id: 'recPAGOREEMB00004' }] }];
+    res = resMock();
+    const abonoQ = msg('500', 111);
+    abonoQ.message.reply_to_message = { from: { is_bot: true }, text: `💵 Abono de reembolso (${MARIO})\nEscribe cuánto le diste en efectivo, por ejemplo: 1000` };
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: abonoQ }, res);
+    const abonoCaja = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
+    ok(abonoCaja && abonoCaja.body.records[0].fields.Monto === 500 && !llamadas.some(l => l.method === 'PATCH' && l.url.includes('tblfuEW0oiX4xTw7T')) && respuestaTg().includes('Le quedan $580.34'),
+      'cuadre: el abono escrito registra solo ese monto y dice cuánto se le sigue debiendo');
+
     reset();
     respuestas = [{ records: [ADMIN_T] }, ...datosQ(), G_MARIO, { records: [] }, N_MARIO, G_MARIO, { records: [] }, N_MARIO, { records: [{ id: 'recPAGOREEMB00003' }] }, {}];
     res = resMock();
-    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cj:rb:${MARIO}`) }, res);
+    await telegramApi({ method: 'POST', headers: tgHeaders, body: botonQ(`cj:rt:${MARIO}`) }, res);
     const pagoCaja = llamadas.find(l => l.method === 'POST' && l.url.includes('tbln6uJwZMFd6nS0J'));
     ok(pagoCaja && pagoCaja.body.records[0].fields.Monto === 1080.34 && pagoCaja.body.records[0].fields.Forma === 'Efectivo' && !llamadas.some(l => l.method === 'POST' && l.url.includes('tbl9UVlnxzfXscnW5'))
       && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('$1,080.34 a Mario Samano')),
@@ -3984,7 +4027,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v46/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v46)');
+    ok(/dima-brigadas-v47/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v47)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4168,9 +4211,12 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const cal3 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
     const app4 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     const srv = fs.readFileSync(path.join(repo, 'api/_calendario.js'), 'utf8');
-    ok(cal3.includes('📋 Abrir ficha completa') && srv.includes("propio: colaborador.rol !== ROLES.ADMIN && puedeEditarEvento(colaborador, f)")
+    ok(cal3.includes('📋 Abrir ficha completa') && srv.includes("propio: puedeEditarEvento(colaborador, f)")
       && app4.includes('(ev.encargadaIds || []).includes(miId)') && fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8').includes('colaborador: { id: colaborador.id'),
       'calendario (app): sus eventos traen "📋 Abrir ficha completa" (la de su pantalla principal) y el gerente asignado también edita');
+    const dash4 = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    ok(dash4.includes('DimaCalendario.abrir({ api, esc, abrirFicha: fichaDesdeCalendario })') && dash4.includes('.evento-row[data-din-ev="${CSS.escape(id)}"]'),
+      'calendario (dashboard): Diana y Víctor también tienen "📋 Abrir ficha completa" en todos los eventos');
   }
   // ---------- Calendario: nombre y teléfono del cliente en sus eventos (Víctor 2026-11-10) ----------
   {

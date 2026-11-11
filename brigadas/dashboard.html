@@ -1416,13 +1416,22 @@
     cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = true; });
     msg.textContent = 'Guardando…';
     try {
-      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '', colaboradorId: btn.dataset.colab || '' }) });
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'caja', tipo: btn.dataset.tipo, nota: btn.dataset.tipo === 'var' ? $('cajaNota').value : '', colaboradorId: btn.dataset.colab || '',
+        ...(btn.dataset.monto ? { monto: btn.dataset.monto } : btn.dataset.abono ? { monto: ($('cajaAbono') || {}).value || '' } : {}) }) });
       msg.textContent = d.texto || '✅ Anotado';
-      // 💵 Reembolso: primero se elige a quién (igual que en Telegram).
+      // 💵 Reembolso: primero se elige a quién (igual que en Telegram) y luego
+      // ¿todo o cuánto? (a veces Diana solo abona; Víctor 2026-11-11).
       if(d.elegir){
-        $('cajaElegir').innerHTML = d.elegir.map(f => `<button class="msgcli-enviar caja-acc" data-tipo="rb" data-colab="${esc(f.colaboradorId)}">${esc(f.nombre)} · ${$$(f.pendiente)}</button>`).join('');
+        $('cajaElegir').innerHTML = d.elegir.map(f => `<button class="msgcli-enviar caja-persona" data-colab="${esc(f.colaboradorId)}" data-nombre="${esc(f.nombre)}" data-pendiente="${esc(f.pendiente)}">${esc(f.nombre)} · ${$$(f.pendiente)}</button>`).join('');
         cuadreContent.querySelectorAll('.caja-acc').forEach(b => { b.disabled = false; });
-        $('cajaElegir').querySelectorAll('.caja-acc').forEach(b => b.addEventListener('click', () => destinoCaja(b)));
+        $('cajaElegir').querySelectorAll('.caja-persona').forEach(b => b.addEventListener('click', () => {
+          const colab = esc(b.dataset.colab);
+          $('cajaElegir').innerHTML = `<span class="evento-sub" style="flex-basis:100%;">💵 ¿Cuánto le reembolsaste a ${esc(b.dataset.nombre)}? Se le deben ${$$(b.dataset.pendiente)}.</span>
+            <button class="msgcli-enviar caja-acc" data-tipo="rb" data-colab="${colab}" data-monto="todo">Todo (${$$(b.dataset.pendiente)})</button>
+            <input id="cajaAbono" inputmode="decimal" placeholder="Solo un abono: monto" style="max-width:190px; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink); color:var(--paper); font:inherit;">
+            <button class="msgcli-enviar caja-acc" data-tipo="rb" data-colab="${colab}" data-abono="1">Registrar abono</button>`;
+          $('cajaElegir').querySelectorAll('.caja-acc').forEach(x => x.addEventListener('click', () => destinoCaja(x)));
+        }));
         return;
       }
       cuadreFirma = '';
@@ -1739,8 +1748,29 @@
             <button class="msgcli-enviar reemb-pagar">💵 Registrar pago</button>
           </div>
           <div class="instr-msg reemb-msg"></div>
-        </div>`).join('') : '<div class="motivo">✅ No se le debe nada a nadie.</div>'}</div>`;
+        </div>`).join('') : '<div class="motivo">✅ No se le debe nada a nadie.</div>'}
+      ${(d.ultimos || []).length ? `<h3 style="margin:16px 0 8px; font-size:1.05rem;">🧾 Últimos pagos</h3>
+        <div class="evento-sub" style="margin-bottom:6px;">¿Registraste todo y solo fue un abono? Deshaz el pago y regístralo otra vez con el monto correcto.</div>
+        ${d.ultimos.map(p => `<div class="motivo reemb-pago" data-id="${esc(p.id)}">${esc(p.fecha)} · ${esc(p.referencia.replace(/ · \d{4}-\d{2}-\d{2}$/, ''))} · <span class="dinero-gasto">${$$(p.monto)}</span> · ${esc(p.forma)}${p.registro ? ' · registró ' + esc(p.registro) : ''}
+          ${p.deshacer ? `<button class="msgcli-enviar reemb-deshacer" style="margin-left:6px; background:var(--line); color:var(--paper);">↩️ Deshacer</button>` : ''}<span class="instr-msg reemb-msg"></span></div>`).join('')}` : ''}</div>`;
     cont.querySelectorAll('.reemb-pagar').forEach(b => b.addEventListener('click', () => pagarReembolso(b)));
+    cont.querySelectorAll('.reemb-deshacer').forEach(b => b.addEventListener('click', () => deshacerReembolso(b)));
+  }
+  // ↩️ Deshacer el último pago de una persona (api/_reembolsos.js deshacerPago).
+  async function deshacerReembolso(btn){
+    const caja = btn.closest('.reemb-pago');
+    const msg = caja.querySelector('.reemb-msg');
+    if(!confirm('¿Deshacer este pago? Los gastos que cubrió vuelven a quedar pendientes y se le avisa a la persona.')) return;
+    btn.disabled = true; msg.textContent = ' Guardando…';
+    try {
+      const d = await api('/api/finanzas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'reembolso_deshacer', pagoId: caja.dataset.id }) });
+      msg.textContent = ' ' + (d.texto || '✅ Listo');
+      setTimeout(() => { cargarReembolsos(); cargarCuadre(true); }, 2500);
+    } catch(e){
+      if(e.message === 'sesion') return;
+      msg.textContent = ' ⚠️ ' + (e.message && e.message !== 'fail' ? e.message : 'No se pudo deshacer');
+      btn.disabled = false;
+    }
   }
   async function pagarReembolso(btn){
     const caja = btn.closest('.reemb-fila');
@@ -1868,7 +1898,18 @@
   $('entrenar').addEventListener('toggle', () => { if($('entrenar').open) cargarCorrecciones(); });
 
   refreshBtn.addEventListener('click', () => { histCargado = 0; cuadreCargado = 0; loadDashboard(); });
-  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc }));
+  // Desde el calendario: "📋 Abrir ficha completa" lleva a la ficha del evento en 🗓️ Eventos
+  // (✏️ Editar, 👷 Asignar, 💰 Dinero), igual que a los gerentes en la app. Víctor 2026-11-11.
+  function fichaDesdeCalendario(id){
+    if(location.hash !== '#eventos') location.hash = '#eventos';
+    mostrarVentana();
+    const fila = mainContent.querySelector(`.evento-row[data-din-ev="${CSS.escape(id)}"]`);
+    if(!fila){ avisoBreve('Ese evento no está en la lista de Eventos (puede que ya se haya cerrado).'); return; }
+    const boton = fila.querySelector('.ev-ficha');
+    if(boton && !fichasAbiertas.has(id)) abrirFicha(boton);
+    fila.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  $('calBtn').addEventListener('click', () => DimaCalendario.abrir({ api, esc, abrirFicha: fichaDesdeCalendario }));
   $('logoutBtn').addEventListener('click', salir);
 
   // ---------- Canal con DiMa (Diana, como la gerente en su app) ----------
