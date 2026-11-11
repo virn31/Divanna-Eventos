@@ -29,6 +29,7 @@
 
 const { enviarCotizacionPorCorreo } = require('./_google-integrations');
 const C = require('./_calendario');
+const Logistica = require('./_logistica');
 const { sincronizarEvento } = C;
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz, esDeSuGerencia, GERENCIAS, NOMBRE_GERENCIA, gerenciaDe, puestoGerente, eleccionDeEvento } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
@@ -592,6 +593,8 @@ const ACCIONES_CALENDARIO = {
   falla_foto: fallaFoto,
   enviar_recibo: reciboAPeticion,
   registrar_pago: pagoAPeticion,
+  // 🚚 Logística: Admin todo, Ángela El Vaso Maíz, Eden Divanna (se revisa en api/_logistica.js).
+  logistica_guardar: Logistica.guardarLogistica,
 };
 
 // 📷 El teléfono no pudo abrir o mandar la foto de una comanda: solo se anota en

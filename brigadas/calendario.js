@@ -9,12 +9,17 @@
 // Uso: DimaCalendario.abrir({ api, esc, abrirFicha }) — api(url, opciones) es el fetch con
 // sesión de cada página (lanza Error con el mensaje del servidor); abrirFicha(id), opcional,
 // abre la ficha completa del evento en la página.
+// 🚚 Logística (segunda pestaña, api/_logistica.js): entregas y recolecciones de Divanna y
+// los servicios de El Vaso Maíz por día y por vehículo. Todos la ven; editan Diana y Víctor
+// (todo), Ángela (El Vaso Maíz) y Eden (Divanna). Casa Isabella no entra (lugar fijo).
 window.DimaCalendario = (function(){
   const COLOR = { 'Divanna Eventos': '#3987e5', 'El Vaso Maiz': '#d95926' };
   const NOMBRE = { 'Divanna Eventos': 'Divanna', 'El Vaso Maiz': 'El Vaso Maíz', 'Ambos': 'los dos negocios' };
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   let o = null, mes = null, datos = null, diaSel = null, panel = null;
+  // Pestaña activa y estado de Logística.
+  let vista = 'mes', logDesde = null, logDias = 1, logFiltro = null, logAgrupar = 'hora', logDatos = null;
 
   const hoy = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date());
   const textoDia = (f) => { const d = new Date(`${f}T12:00:00Z`); return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()]}`; };
@@ -61,6 +66,28 @@ window.DimaCalendario = (function(){
       .cal-lleno-tag{display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:.02em; color:#1a1208; background:#e6a23c; border-radius:6px; padding:1px 4px; margin-left:2px;}
       .cal-lleno{margin-top:10px; padding:10px 12px; border-radius:12px; border:1px solid #e6a23c; color:var(--paper);}
       .cal-bloq{margin-top:10px; padding:10px 12px; border-radius:12px; border:1px dashed #e66767; display:flex; justify-content:space-between; gap:8px; align-items:center;}
+      .cal-tabs{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; padding:4px; border-radius:14px; background:var(--ink); border:1px solid var(--line);}
+      .cal-tabs button{border:none; border-radius:10px; padding:10px 8px; min-height:44px; font:inherit; font-weight:700; cursor:pointer; background:none; color:var(--muted);}
+      .cal-tabs button.on{background:var(--maiz); color:var(--ink);}
+      .log-chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; align-items:center;}
+      .log-chips button, .log-chips input{border:1.5px solid var(--line); border-radius:999px; padding:0 14px; height:40px; min-height:40px; box-sizing:border-box; width:auto; font:inherit; font-size:0.9rem; font-weight:700; cursor:pointer; background:var(--ink); color:var(--paper);}
+      .log-chips button.on{border-color:var(--maiz); background:var(--maiz); color:var(--ink);}
+      .log-res{margin-top:10px; font-size:0.9rem; color:var(--muted);}
+      .log-dia{margin-top:18px; font-weight:800; font-size:1.05rem;}
+      .log-grupo{margin-top:12px; font-weight:700; font-size:0.92rem; color:var(--muted);}
+      .log-mov{margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--ink); border:1px solid var(--line); border-left:5px solid var(--c); display:grid; grid-template-columns:auto 1fr; gap:4px 12px;}
+      .log-mov.hecho{opacity:0.6;}
+      .log-cuerpo{display:grid; gap:4px; min-width:0;}
+      .log-hora{font-weight:800; font-size:1.2rem; min-width:56px; line-height:1.2;}
+      .log-hora small{display:block; font-size:0.72rem; font-weight:600; color:var(--muted);}
+      .log-tipo{font-size:0.75rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase;}
+      .log-mov small{color:var(--muted); font-size:0.85rem;}
+      .log-mov a{color:inherit;}
+      .log-avisos{display:flex; flex-wrap:wrap; gap:4px;}
+      .log-avisos span{font-size:0.75rem; font-weight:700; border-radius:6px; padding:2px 6px; background:rgba(230,162,60,0.18); color:#e6a23c;}
+      .log-mov .cal-acc, .log-mov .cal-zona{grid-column:1 / -1;}
+      .log-mov .cal-form label{display:grid; gap:4px;}
+      .log-mov textarea{padding:10px 12px; border-radius:10px; border:1.5px solid var(--line); background:var(--ink-2); color:var(--paper); font:inherit; min-height:70px;}
     `;
     document.head.appendChild(s);
   }
@@ -71,9 +98,145 @@ window.DimaCalendario = (function(){
     panel = document.createElement('div');
     panel.className = 'cal-panel';
     panel.hidden = true;
-    panel.innerHTML = '<div class="cal-cont"><div class="cal-top"><span>📅 Calendario del equipo</span><button data-cal="cerrar">✕ Cerrar</button></div><div id="calCuerpo"></div></div>';
+    panel.innerHTML = '<div class="cal-cont"><div class="cal-top"><span>📅 Calendario del equipo</span><button data-cal="cerrar">✕ Cerrar</button></div>'
+      + '<div class="cal-tabs" role="tablist"><button data-cal="tab" data-t="mes" class="on" role="tab">📅 Calendario</button><button data-cal="tab" data-t="log" role="tab">🚚 Logística</button></div>'
+      + '<div id="calCuerpo"></div><div id="logCuerpo" hidden></div></div>';
     document.body.appendChild(panel);
     panel.addEventListener('click', clic);
+    panel.addEventListener('change', (ev) => {
+      if(ev.target.id === 'logFecha' && ev.target.value){ logDesde = ev.target.value; logDias = 1; cargarLog(); }
+    });
+  }
+
+  function mostrarVista(){
+    panel.querySelectorAll('.cal-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === vista));
+    panel.querySelector('#calCuerpo').hidden = vista !== 'mes';
+    panel.querySelector('#logCuerpo').hidden = vista !== 'log';
+    if(vista === 'log') cargarLog(); else cargar();
+  }
+
+  // ---------- 🚚 Logística ----------
+  const sumarDias = (f, n) => { const d = new Date(`${f}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const linkMapa = (lugar) => lugar ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lugar)}` : '';
+  const TIPO = {
+    entrega: { 'Divanna Eventos': '🚚 Entrega y montaje', 'El Vaso Maiz': '🌽 Servicio en el lugar' },
+    recoleccion: { 'Divanna Eventos': '📦 Recolección', 'El Vaso Maiz': '📦 Recolección' },
+  };
+
+  async function cargarLog(){
+    const cuerpo = panel.querySelector('#logCuerpo');
+    logDesde = logDesde || hoy();
+    cuerpo.innerHTML = '<div class="esqueleto"><div class="hueso"></div><div class="hueso"></div><div class="hueso chico"></div></div>';
+    try {
+      logDatos = await o.api(`/api/brigada-eventos?vista=logistica&desde=${logDesde}&dias=${logDias}`);
+      // Cada quien abre con lo suyo (Ángela El Vaso Maíz, Eden Divanna); se puede cambiar.
+      if(logFiltro === null) logFiltro = logDatos.negocioPropio || 'todos';
+      pintarLog();
+    } catch(e){
+      if(e.message === 'sesion') return;
+      cuerpo.innerHTML = `<div class="cal-msg">⚠️ No se pudo cargar la logística (${o.esc(e.message && e.message !== 'fail' ? e.message : 'sin conexión')}). Revisa tu señal e intenta de nuevo.</div>`;
+    }
+  }
+
+  function tarjetaMov(m){
+    const e = o.esc;
+    const tipo = (TIPO[m.tipo] || {})[m.negocio] || m.tipo;
+    const mapa = linkMapa(m.ubicacion);
+    const tel = String(m.clienteTelefono || '').replace(/[^\d+]/g, '');
+    return `
+      <div class="log-mov ${m.hecho ? 'hecho' : ''}" style="--c:${COLOR[m.negocio] || '#888'};" data-mov="${e(m.eventoId)}" data-tipo="${e(m.tipo)}">
+        <div class="log-hora">${m.hora ? e(m.hora) : '—'}${m.sugerida && m.hora ? '<small>sugerida</small>' : ''}</div>
+        <div class="log-cuerpo">
+        <div><span class="log-tipo" style="color:${COLOR[m.negocio] || 'inherit'};">${e(tipo)}</span>${m.hecho ? ' · ✅ hecho' : ''}</div>
+        <div><b>${e(m.folio)}</b> · ${e(NOMBRE[m.negocio] || m.negocio)}${m.horaEvento ? ` · <small>evento ${e(m.horaEvento)}</small>` : ''}${m.invitados ? ` · <small>👥 ${e(m.invitados)}</small>` : ''}</div>
+        <div><small>📍 ${mapa ? `<a href="${e(mapa)}" target="_blank" rel="noopener">${e(m.ubicacion)}</a>` : 'ubicación por confirmar'}</small></div>
+        <div><small>🚗 ${m.vehiculo ? `<b>${e(m.vehiculo)}</b> · ${e(m.brigada)}` : (m.brigada ? e(m.brigada) : 'sin vehículo')}${m.estatus ? ` · ${e(m.estatus)}` : ''}</small></div>
+        ${m.clienteNombre || tel ? `<div><small>👤 ${e(m.clienteNombre || 'Cliente')}${tel ? ` · 📞 <a href="tel:${e(tel)}">${e(m.clienteTelefono)}</a>` : ''}</small></div>` : ''}
+        ${m.notas ? `<div><small>📝 ${e(m.notas)}</small></div>` : ''}
+        ${(m.avisos || []).length ? `<div class="log-avisos">${m.avisos.map(a => `<span>⚠️ ${e(a)}</span>`).join('')}</div>` : ''}
+        </div>
+        ${m.editable || (m.propio && o.abrirFicha) ? `<div class="cal-acc">${m.editable ? `<button data-cal="log-editar">✏️ Editar logística</button>` : ''}${m.propio && o.abrirFicha ? `<button class="sec" data-cal="log-ficha">📋 Ficha</button>` : ''}</div>` : ''}
+        <div class="cal-zona"></div>
+      </div>`;
+  }
+
+  function pintarLog(){
+    const e = o.esc, d = logDatos;
+    const manana = sumarDias(d.hoy, 1);
+    const movs = d.movimientos.filter(m => logFiltro === 'todos' || m.negocio === logFiltro);
+    const pendientes = movs.filter(m => (m.avisos || []).length).length;
+    const entregas = movs.filter(m => m.tipo === 'entrega').length;
+    const porDia = {};
+    movs.forEach(m => { (porDia[m.fecha] = porDia[m.fecha] || []).push(m); });
+    let lista = '';
+    Object.keys(porDia).sort().forEach(f => {
+      if(logDias > 1) lista += `<div class="log-dia">${e(mayuscula(textoDia(f)))}${f === d.hoy ? ' · hoy' : ''}</div>`;
+      if(logAgrupar === 'vehiculo'){
+        const grupos = {};
+        porDia[f].forEach(m => { const k = m.vehiculo || m.brigada || 'Sin vehículo'; (grupos[k] = grupos[k] || []).push(m); });
+        Object.keys(grupos).sort((a, b) => (a === 'Sin vehículo') - (b === 'Sin vehículo') || a.localeCompare(b))
+          .forEach(k => { lista += `<div class="log-grupo">🚗 ${e(k)} (${grupos[k].length})</div>${grupos[k].map(tarjetaMov).join('')}`; });
+      } else lista += porDia[f].map(tarjetaMov).join('');
+    });
+    const chip = (accion, valor, texto, on) => `<button data-cal="${accion}" data-v="${e(valor)}" class="${on ? 'on' : ''}">${texto}</button>`;
+    const esHoy = logDias === 1 && logDesde === d.hoy, esManana = logDias === 1 && logDesde === manana, esSemana = logDias === 7 && logDesde === d.hoy;
+    panel.querySelector('#logCuerpo').innerHTML = `
+      <div class="log-chips">
+        ${chip('log-rango', 'hoy', 'Hoy', esHoy)}${chip('log-rango', 'manana', 'Mañana', esManana)}${chip('log-rango', 'semana', '7 días', esSemana)}
+        <input type="date" id="logFecha" aria-label="Elegir día" value="${!esHoy && !esManana && !esSemana ? e(logDesde) : ''}">
+      </div>
+      <div class="log-chips">
+        ${chip('log-filtro', 'todos', 'Todos', logFiltro === 'todos')}${chip('log-filtro', 'Divanna Eventos', 'Divanna', logFiltro === 'Divanna Eventos')}${chip('log-filtro', 'El Vaso Maiz', 'El Vaso Maíz', logFiltro === 'El Vaso Maiz')}
+        <span style="flex:1"></span>${chip('log-agrupar', 'hora', '🕒 Por hora', logAgrupar === 'hora')}${chip('log-agrupar', 'vehiculo', '🚗 Por vehículo', logAgrupar === 'vehiculo')}
+      </div>
+      <div class="log-res">${logDias === 1 ? `<b style="color:var(--paper);">${e(mayuscula(textoDia(logDesde)))}</b> · ` : ''}${plural(movs.length, 'movimiento', 'movimientos')} · ${plural(entregas, 'salida', 'salidas')} · ${plural(movs.length - entregas, 'recolección', 'recolecciones')}${pendientes ? ` · <span style="color:#e6a23c;">⚠️ ${pendientes} por revisar</span>` : ''}</div>
+      ${lista || `<div class="cal-sub" style="margin-top:14px;">No hay entregas ni recolecciones ${logDias === 1 ? 'este día' : 'en estos días'}${logFiltro !== 'todos' ? ' de ' + e(NOMBRE[logFiltro]) : ''}.</div>`}
+      <div class="cal-sub" style="margin-top:16px;">${d.puedeEditar ? 'Las horas "sugeridas" salen de la hora del evento; confírmalas con ✏️. ' : ''}Casa Isabella no aparece aquí: es un lugar fijo.</div>`;
+  }
+
+  function formLog(zona, m){
+    const e = o.esc, d = logDatos;
+    const conRecoleccion = m.negocio === 'Divanna Eventos' || m.recoleccionFecha;
+    zona.innerHTML = `<div class="cal-form">
+      <label class="cal-sub">${m.negocio === 'El Vaso Maiz' ? 'Hora de llegada del staff' : 'Hora de llegada a entregar'}${m.horaEvento ? ` (el evento empieza ${e(m.horaEvento)})` : ''} <input type="time" class="log-entrega" value="${e(m.entregaHora)}"></label>
+      <label class="cal-sub">Vehículo <select class="log-vehiculo"><option value="">Sin vehículo</option>${d.vehiculos.map(v => `<option value="${e(v.id)}" ${v.id === m.brigadaId ? 'selected' : ''}>${e(v.vehiculo || 'Sin vehículo')} · ${e(v.nombre)}</option>`).join('')}</select></label>
+      ${conRecoleccion ? `
+      <label class="cal-sub">Día de recolección <input type="date" class="log-rec-fecha" min="${e(m.fechaEvento)}" value="${e(m.recoleccionFecha)}"></label>
+      <label class="cal-sub">Hora de recolección <input type="time" class="log-rec-hora" value="${e(m.recoleccionHora)}"></label>` : ''}
+      <label class="cal-sub">Notas para el traslado <textarea class="log-notas" maxlength="1500" placeholder="Acceso, quién recibe, referencias, qué llevar">${e(m.notas)}</textarea></label>
+      <button data-cal="log-guardar">Guardar y avisar al equipo</button><div class="cal-msg"></div></div>`;
+  }
+
+  async function clicLog(b, accion){
+    const e = o.esc;
+    if(accion === 'log-rango'){ const v = b.dataset.v; logDesde = v === 'manana' ? sumarDias(logDatos.hoy, 1) : logDatos.hoy; logDias = v === 'semana' ? 7 : 1; cargarLog(); return; }
+    if(accion === 'log-filtro'){ logFiltro = b.dataset.v; pintarLog(); return; }
+    if(accion === 'log-agrupar'){ logAgrupar = b.dataset.v; pintarLog(); return; }
+    const tarjeta = b.closest('.log-mov');
+    const m = tarjeta && logDatos.movimientos.find(x => x.eventoId === tarjeta.dataset.mov && x.tipo === tarjeta.dataset.tipo);
+    if(!m) return;
+    const zona = tarjeta.querySelector('.cal-zona');
+    if(accion === 'log-ficha'){ panel.hidden = true; o.abrirFicha(m.eventoId); return; }
+    if(accion === 'log-editar'){ formLog(zona, m); return; }
+    if(accion === 'log-guardar'){
+      const msg = zona.querySelector('.cal-msg');
+      const cuerpo = { accion: 'logistica_guardar', eventoId: m.eventoId,
+        entregaHora: zona.querySelector('.log-entrega').value, brigadaId: zona.querySelector('.log-vehiculo').value, notas: zona.querySelector('.log-notas').value };
+      if(zona.querySelector('.log-rec-fecha')){ cuerpo.recoleccionFecha = zona.querySelector('.log-rec-fecha').value; cuerpo.recoleccionHora = zona.querySelector('.log-rec-hora').value; }
+      b.disabled = true;
+      msg.textContent = 'Guardando…';
+      try {
+        const d = await post(cuerpo);
+        msg.innerHTML = `✅ Guardado.${d.avisados ? ` Avisé a ${d.avisados} del equipo (Telegram ${d.porTelegram || 0}, push ${d.porPush || 0}).` : ''}${d.google && !d.google.ok ? `<br>⚠️ ${e(d.google.error || 'Google no se actualizó.')}` : ''}`;
+        setTimeout(cargarLog, d.google && !d.google.ok ? 6000 : 2000);
+      } catch(err){
+        if(err.message === 'sesion') return;
+        msg.textContent = '⚠️ ' + (err.message && err.message !== 'fail' ? err.message : 'No se pudo guardar, intenta de nuevo.');
+        b.disabled = false;
+      }
+    }
   }
 
   async function cargar(){
@@ -423,6 +586,8 @@ window.DimaCalendario = (function(){
     const accion = b.dataset.cal;
     const e = o.esc;
     if(accion === 'cerrar'){ panel.hidden = true; return; }
+    if(accion === 'tab'){ vista = b.dataset.t; mostrarVista(); return; }
+    if(accion.startsWith('log-')){ clicLog(b, accion); return; }
     if(accion === 'mes'){ mes = moverMes(mes, Number(b.dataset.n)); diaSel = null; cargar(); return; }
     if(accion === 'dia'){ diaSel = diaSel === b.dataset.f ? null : b.dataset.f; pintar(); return; }
     if(accion === 'todo'){ diaSel = null; pintar(); return; }
@@ -510,7 +675,7 @@ window.DimaCalendario = (function(){
     crearPanel();
     mes = mes || hoy().slice(0, 7);
     panel.hidden = false;
-    cargar();
+    mostrarVista();
   }
 
   function cerrar(){ if(panel) panel.hidden = true; }

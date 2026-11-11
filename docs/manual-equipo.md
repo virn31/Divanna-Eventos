@@ -42,6 +42,11 @@ Al asignar un evento llega un Telegram con el botón **Confirmar**; también se 
    mandar el recibo y bloquear días de Divanna (solo quita los que bloqueó él). **📋 Ver ficha completa** abre la
    ficha del evento (cliente, dinero, artículos) con **✏️ Editar evento, cliente y pedido** (sin cambiar el monto).
    Diana y Víctor reciben aviso de cada cambio. Los asistentes y encargadas solo ven el calendario.
+5. **🚚 Logística (segunda pestaña del 📅 calendario):** entregas y recolecciones de Divanna y servicios de El Vaso
+   Maíz del día (o 7 días), por hora o por vehículo, con dirección (abre el mapa), vehículo y avisos (sin vehículo,
+   hora sin confirmar, el mismo vehículo en dos lugares a menos de 90 min). Todos la ven; la editan Diana y Víctor
+   (todo), Ángela (El Vaso Maíz) y Eden (Divanna) con **✏️ Editar logística**: hora de llegada, vehículo (= brigada),
+   recolección y notas del traslado. Casa Isabella no aparece (lugar fijo).
 
 | Botón | Cuándo usarlo | Quién se entera |
 | --- | --- | --- |

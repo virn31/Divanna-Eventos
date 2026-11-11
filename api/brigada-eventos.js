@@ -15,6 +15,7 @@ const { ROLES, requerirSesion, GERENCIAS, puestoGerente } = require('./_sesion')
 const { alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista } = require('./_eventos');
 const { staffParaApp } = require('./_staff');
 const { vistaMes } = require('./_calendario');
+const { vistaLogistica } = require('./_logistica');
 const { opcionesProduccion: opcionesDeProduccion } = require('./_produccion');
 const { veDinero, inventarioParaCargos } = require('./_cargos');
 
@@ -43,6 +44,12 @@ module.exports = async (req, res) => {
     if ((req.query || {}).vista === 'calendario') {
       const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.mes || '') ? req.query.mes : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mazatlan' }).format(new Date()).slice(0, 7);
       res.status(200).json(await vistaMes(colaborador, mes));
+      return;
+    }
+
+    // 🚚 Logística (?vista=logistica&desde=YYYY-MM-DD&dias=N): todos ven todo, sin montos (api/_logistica.js).
+    if ((req.query || {}).vista === 'logistica') {
+      res.status(200).json(await vistaLogistica(colaborador, req.query || {}));
       return;
     }
 

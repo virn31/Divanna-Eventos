@@ -560,3 +560,12 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Calendario:** Diana y Víctor también tienen "📋 Abrir ficha completa" (`propio` ya no excluye Admin); en el dashboard lleva a la ficha en 🗓️ Eventos.
 - **Origen:** los eventos nuevos siempre lo llevan (chat, formulario, captura y comanda pasan por `_pedidos.js` o `capturarEvento`). A los viejos (2 al 5 de noviembre) no se les llena: Víctor decidió dejarlos así.
 - **Alternativa descartada:** editar el monto de un pago ya registrado (más casos raros con lo que queda "a cuenta"); deshacer y volver a registrar es más claro.
+
+## 2026-11-11 — 🚚 Logística en el calendario
+
+- **Pedido de Víctor:** una pestaña de logística en el calendario de la app para los eventos que son entregas, visible para todos y editable solo por Ángela (El Vaso Maíz), Eden (Divanna), Diana y Víctor (todo).
+- **Decisión:** entran todos los de Divanna y todos los de El Vaso Maíz (el staff va a domicilios y salones); Casa Isabella no (es un lugar fijo). Vista por día con entregas y recolecciones en una sola línea de tiempo, agrupable por vehículo, con avisos de vehículo faltante, hora sin confirmar y choque del mismo vehículo (< 90 min). El vehículo es el de cada brigada (ya está en `BRIGADAS.Vehiculo`), así que elegir vehículo = asignar la brigada. Campos nuevos en EVENTOS: `Entrega_Hora`, `Recoleccion_Fecha`, `Recoleccion_Hora`, `Logistica_Notas`, `Logistica_Bitacora`. Módulo `api/_logistica.js`, sin función serverless nueva (`vista=logistica` en `brigada-eventos`, `logistica_guardar` en `dashboard-eventos`). Caché `dima-brigadas-v48`.
+- **Por qué:** Víctor lo pidió para coordinar los traslados; el mismo vehículo se usa para varios eventos el mismo día y hoy no había dónde ver ni la hora de llegada ni la recolección.
+- **Alternativa descartada:** un campo de vehículo aparte de la brigada (se duplicaría con `BRIGADAS.Vehiculo`); un campo `Tipo_Servicio` para marcar "entregas" (Víctor: son todos los de Divanna y El Vaso Maíz menos Casa Isabella).
+- **Revertir:** `git revert` del commit; los campos nuevos de Airtable quedan vacíos y no los usa nada más.
+
