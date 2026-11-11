@@ -52,6 +52,7 @@ const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
 const { CLAVES, PRODUCTOS } = require('./_productos');
 const { contactoDelPedido, tarjetaParaCliente } = require('./_contacto');
+const Limites = require('./_limites');
 const { correccionesParaPrompt, correccionesActivas, textoCorrecciones, guardarCorreccion, desactivarCorreccion, motivoRechazo } = require('./_correcciones');
 
 const MODELO = 'claude-sonnet-5-5';
@@ -334,11 +335,25 @@ function folioFirmado(folio, firma) {
   return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada)) ? folio : null;
 }
 
+// Cada respuesta de DiMa va firmada (HMAC con SESSION_SECRET) y el navegador la
+// regresa con la conversación: así nadie puede inventarse lo que "dijo" DiMa
+// (precios, descuentos) editando el historial. Seguridad de la página, 2026-11-11.
+function firmaMensaje(texto) {
+  if (!process.env.SESSION_SECRET || typeof texto !== 'string') return null;
+  return crypto.createHmac('sha256', process.env.SESSION_SECRET).update(`dima:${texto}`).digest('base64url').slice(0, 32);
+}
+function mensajeFirmado(texto, firma) {
+  const esperada = firmaMensaje(texto);
+  if (!esperada || typeof firma !== 'string' || firma.length !== esperada.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperada));
+}
+const conFirma = (cuerpo) => ({ ...cuerpo, firma: firmaMensaje(cuerpo.texto) });
+
 function transcripcion(historial) {
   return historial.map(h => `${h.rol === 'cliente' ? 'Cliente' : 'DiMa'}: ${h.texto.trim()}`).join('\n');
 }
 
-async function registrarPedido(input, historial, folioPrevio) {
+async function registrarPedido(input, historial, folioPrevio, ip = 'sin-ip') {
   const { error, datos } = validarPedido({
     nombre: input.nombre,
     telefono: input.telefono,
@@ -457,6 +472,9 @@ async function registrarPedido(input, historial, folioPrevio) {
     return { texto, folio: folioPrevio };
   }
 
+  // Tope de pedidos nuevos al día por teléfono y por conexión (contra pedidos basura).
+  const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, ip]]);
+  if (!cupo.permitido) return { texto: Limites.MENSAJES.pedido };
   const { folio, decorador, monto, montoSinDescuento } = await crearPedido(datos, {
     origen: 'chat',
     notasExtra: `\nConversación con DiMa:\n${transcripcion(historial)}`,
@@ -633,7 +651,9 @@ module.exports = async (req, res) => {
     try {
       const pendiente = await mensajeDianaPendiente(folioPrevio);
       if (pendiente) await marcarMensajeEntregado(pendiente.id);
-      res.status(200).json({ mensaje: pendiente ? pendiente.mensaje : null });
+      // El texto lo arma el servidor para firmarlo (el navegador lo guarda en la conversación).
+      const texto = pendiente ? `📩 El equipo ya revisó tu pedido ${folioPrevio}:\n${pendiente.mensaje}` : null;
+      res.status(200).json(texto ? conFirma({ mensaje: pendiente.mensaje, texto }) : { mensaje: null });
     } catch (err) {
       console.error('Error revisando mensaje de Diana:', err.message);
       res.status(200).json({ mensaje: null });
@@ -645,7 +665,13 @@ module.exports = async (req, res) => {
   // el cliente recibe la despedida amable, no un error.
   const mensajesCliente = Array.isArray(historial) ? historial.filter(h => h && h.rol === 'cliente').length : 0;
   if (mensajesCliente > MAX_MENSAJES_CLIENTE) {
-    res.status(200).json({ texto: MENSAJE_LIMITE, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true });
+    res.status(200).json(conFirma({ texto: MENSAJE_LIMITE, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true }));
+    return;
+  }
+
+  // Lo que "dijo" DiMa tiene que venir con su firma; si no, alguien editó la conversación.
+  if (Array.isArray(historial) && historial.some(h => h && h.rol === 'dima' && !mensajeFirmado(h.texto, h.firma))) {
+    res.status(400).json({ error: 'No pude validar esta conversación. Toca "Nueva" para empezar de nuevo (si ya tienes número de pedido, ábrelo en "¿Ya tienes número de pedido?").' });
     return;
   }
 
@@ -668,6 +694,14 @@ module.exports = async (req, res) => {
     });
     return;
   }
+  // Límites que no se borran (Airtable): por conexión al día y un tope total al
+  // día que protege el saldo de Claude aunque cambien de conexión.
+  const cupo = await Limites.consumir([[Limites.REGLAS.chatIp, ip], [Limites.REGLAS.chatTotal, 'dia']]);
+  if (!cupo.permitido) {
+    console.error(`DiMa: límite diario alcanzado (${cupo.regla}).`);
+    res.status(200).json(conFirma({ texto: cupo.regla === 'chat-total' ? Limites.MENSAJES.chatTotal : Limites.MENSAJES.chat, fotos: [], folio: folioPrevio, folioFirma: folioPrevio ? firmaFolio(folioPrevio) : null, limite: true }));
+    return;
+  }
 
   // Avisos del sistema al final de la conversación (no se guardan en el
   // historial del navegador). Van juntos en un solo mensaje "system".
@@ -681,8 +715,21 @@ module.exports = async (req, res) => {
   let pedido = null;
   const recienAbierto = !!(pedidoExistente && !folioPrevio);
   if (recienAbierto) {
+    // Contra quien prueba folios con el teléfono de otra persona: 5 fallos por
+    // teléfono o 10 por conexión en una hora bloquean un rato y se avisa a Diana y Víctor.
+    const telIntento = Limites.telefonoDe(pedidoExistente.telefono);
+    const intentos = [[Limites.REGLAS.verifTel, telIntento], [Limites.REGLAS.verifIp, ip]];
+    if (await Limites.bloqueado(intentos)) {
+      res.status(429).json({ error: Limites.MENSAJES.verif });
+      return;
+    }
     pedido = await verificarPedido(pedidoExistente.folio, pedidoExistente.telefono).catch(() => null);
     if (!pedido) {
+      const nuevos = await Limites.fallo(intentos);
+      if (nuevos.length) {
+        await enviarTelegramEquipo({ roles: [ROLES.ADMIN], texto: `🔒 Seguridad de la página: varios intentos fallidos de abrir un pedido en "¿Ya tienes número de pedido?" (${nuevos.includes('verif-tel') ? `con el teléfono terminación ${telIntento.slice(-4)}` : 'desde una misma conexión'}). Ya lo bloqueé una hora. Si es un cliente real, que espere la llamada.` })
+          .catch(err => console.error('No se pudo avisar el bloqueo:', err.message));
+      }
       res.status(400).json({ error: 'No encontramos ese número de pedido con ese teléfono. Revisa los dos datos o escríbenos desde el chat normal.' });
       return;
     }
@@ -792,7 +839,7 @@ module.exports = async (req, res) => {
 
       if (respuesta.stop_reason === 'refusal') {
         if (!partes.length) {
-          res.status(200).json({ texto: 'Perdona, con eso no te puedo ayudar. ¿Te ayudo a cotizar tu evento?', fotos: [] });
+          res.status(200).json(conFirma({ texto: 'Perdona, con eso no te puedo ayudar. ¿Te ayudo a cotizar tu evento?', fotos: [] }));
           return;
         }
         break;
@@ -833,7 +880,7 @@ module.exports = async (req, res) => {
           // Nunca se registra dos veces en la misma respuesta.
           const resultado = registrado
             ? { texto: '' }
-            : await registrarPedido(bloque.input, historial, folioNuevo);
+            : await registrarPedido(bloque.input, historial, folioNuevo, ip);
           registrado = registrado || !!resultado.folio;
           if (resultado.texto) partes.push(resultado.texto);
           if (resultado.folio && !folioNuevo) {
@@ -859,14 +906,14 @@ module.exports = async (req, res) => {
     if (!texto && fotos.length) texto = 'Claro, mira estos ejemplos:';
     if (!texto) texto = 'Perdona, se me fue la idea. ¿Me repites lo último?';
 
-    res.status(200).json({
+    res.status(200).json(conFirma({
       texto,
       fotos,
       folio: folioNuevo,
       folioFirma: folioNuevo ? firmaFolio(folioNuevo) : null,
       ...(contactoNuevo ? { contacto: contactoNuevo } : {}),
       limite: mensajesCliente >= MAX_MENSAJES_CLIENTE,
-    });
+    }));
   } catch (err) {
     // Sin saldo: al cliente le sale el mismo mensaje de siempre (con el formulario); se avisa al equipo.
     if (esSinSaldo(err)) await avisarSinSaldo('chat de cotización de la página');

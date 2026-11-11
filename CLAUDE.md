@@ -19,7 +19,7 @@ Producción: https://divanna-eventos.vercel.app (Vercel Hobby, scope codecells).
 
 ## Stack (no cambiarlo sin decisión documentada)
 
-- HTML/CSS/JS vanilla sin build. Backend `api/*.js` CommonJS, Node >= 18 (archivos con `_` = módulos, no rutas).
+- HTML/CSS/JS vanilla sin build. Backend `api/*.js` CommonJS, Node >= 20 (archivos con `_` = módulos, no rutas).
 - Airtable REST con `fetch`, base `appkpCfDADzQJ5G9H` (IDs de tablas en `docs/arquitectura.md`).
 - Claude API (`@anthropic-ai/sdk`), `claude-sonnet-5-5` esfuerzo `low`, en `api/dima-chat.js`; catálogo/precios en `api/_dima-catalogo.js`.
 - Sin WhatsApp ni Twilio. Avisos: correo, Web Push (`VAPID_*`), Telegram interno (`docs/telegram.md`).
@@ -56,4 +56,4 @@ Roles: Admin (Diana, Víctor), Lider de brigada, Asistente, Encargada, Gerentes 
 
 ## Seguridad abierta
 
-Límite por IP del chat solo en memoria y `/api/pedido` sin límite; PIN en texto plano en Airtable; login sin bloqueo tras varios intentos.
+Página pública protegida (2026-11-11, `api/_limites.js`, tabla LIMITES_WEB): topes de chat y pedidos, bloqueo de "¿Ya tienes número de pedido?" tras intentos fallidos, respuestas de DiMa firmadas, folios al azar, cabeceras en `vercel.json`. Sigue abierto en la app: PIN en texto plano en Airtable y login sin bloqueo tras varios intentos. Sin anti-robot (Turnstile) en la página.

@@ -918,9 +918,10 @@
           body: JSON.stringify({ accion: 'revisar', folio: chat.folio, folioFirma: chat.folioFirma }),
         });
         const data = await res.json().catch(() => ({}));
-        if(data.mensaje){
-          const texto = `📩 El equipo ya revisó tu pedido ${chat.folio}:\n${data.mensaje}`;
-          chat.historial.push({ rol: 'dima', texto });
+        if(data.mensaje && data.texto){
+          // El texto viene armado y firmado por el servidor.
+          const texto = data.texto;
+          chat.historial.push({ rol: 'dima', texto, firma: data.firma });
           guardarChat();
           agregarBurbuja('dima', formatear(texto));
           if(navigator.vibrate) navigator.vibrate(200);
@@ -985,7 +986,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          historial: chat.historial.map(({ rol, texto }) => ({ rol, texto })),
+          // Lo de DiMa va con su firma (el servidor rechaza conversaciones editadas); la tarjeta no viaja.
+          historial: chat.historial.map(({ rol, texto, firma }) => (rol === 'dima' ? { rol, texto, firma } : { rol, texto })),
           folio: chat.folio,
           folioFirma: chat.folioFirma,
           // Solo hasta que el servidor confirma el pedido y devuelve el folio firmado.
@@ -997,7 +999,7 @@
       escribiendo.remove();
       const fotos = (data.fotos || []).filter(u => !chat.vistas.includes(u));
       chat.vistas.push(...fotos);
-      chat.historial.push({ rol: 'dima', texto: data.texto, fotos, ...(data.contacto ? { contacto: data.contacto } : {}) });
+      chat.historial.push({ rol: 'dima', texto: data.texto, firma: data.firma, fotos, ...(data.contacto ? { contacto: data.contacto } : {}) });
       if(data.folio){ chat.folio = data.folio; chat.folioFirma = data.folioFirma || null; iniciarRevisionDiana(); }
       if(data.limite) chat.terminado = true;
       guardarChat();

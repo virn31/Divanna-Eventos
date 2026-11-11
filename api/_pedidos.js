@@ -4,6 +4,7 @@
 // y avisa por correo a Diana y Víctor. Lo usan el chat de DiMa (api/dima-chat.js)
 // y el formulario de respaldo (api/pedido.js).
 
+const crypto = require('crypto');
 const { enviarCorreoEquipo } = require('./_google-integrations');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { ROLES } = require('./_sesion');
@@ -124,6 +125,25 @@ async function guardarOrigen(eventoId, valor) {
 }
 
 // origen: 'formulario' o 'chat'. notasExtra: texto adicional para Notas (ej. la conversación).
+// Folio nuevo EVT-###### al azar y que no exista (Víctor 2026-11-11, seguridad):
+// antes eran los últimos 6 dígitos del reloj, que se repiten cada ~17 minutos y
+// se pueden adivinar; con dos eventos con el mismo folio, el cambio de un cliente
+// podía caer en el evento de otro. Mismo formato: los folios viejos siguen valiendo.
+async function folioNuevo() {
+  for (let i = 0; i < 5; i++) {
+    const folio = `EVT-${crypto.randomInt(100000, 1000000)}`;
+    try {
+      const formula = encodeURIComponent(`{Folio_Evento} = "${folio}"`);
+      const data = await airtableRequest(`${TABLES.EVENTOS}?fields%5B%5D=Folio_Evento&filterByFormula=${formula}&maxRecords=1`);
+      if (!(data.records || []).length) return folio;
+    } catch (err) {
+      console.error('No se pudo revisar si el folio ya existe:', err.message);
+      return folio; // 1 en 900 mil de repetirse: mejor que no registrar el pedido
+    }
+  }
+  return `EVT-${crypto.randomInt(100000, 1000000)}`;
+}
+
 async function crearPedido(datos, { origen, notasExtra = '' }) {
   const diezDigitos = datos.telefonoDigitos.slice(-10);
   const telefono = `+52${diezDigitos}`;
@@ -146,7 +166,7 @@ async function crearPedido(datos, { origen, notasExtra = '' }) {
   }
 
   // 2. Evento pendiente de cotizar
-  const folio = `EVT-${Date.now().toString().slice(-6)}`;
+  const folio = await folioNuevo();
   // Cliente decorador (Tipo_Cliente en Airtable): 10% menos sobre el total estimado.
   const decorador = esDecorador(cliente.fields);
   const montoSinDescuento = datos.montoEstimado;
@@ -415,6 +435,7 @@ function notasSinConversacion(notas) {
 }
 
 module.exports = {
+  folioNuevo,
   notasSinConversacion,
   HORAS_RESPUESTA,
   validarPedido,

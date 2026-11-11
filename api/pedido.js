@@ -5,6 +5,7 @@
 const { validarPedido, crearPedido } = require('./_pedidos');
 const { contactoDelPedido, tarjetaParaCliente } = require('./_contacto');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
+const Limites = require('./_limites');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
@@ -28,6 +29,10 @@ module.exports = async (req, res) => {
         return;
       }
     }
+
+    // Tope de pedidos nuevos al día por teléfono y por conexión (contra pedidos basura).
+    const cupo = await Limites.consumir([[Limites.REGLAS.pedidoTel, Limites.telefonoDe(datos.telefonoDigitos)], [Limites.REGLAS.pedidoIp, Limites.ipDe(req)]]);
+    if (!cupo.permitido) { res.status(429).json({ error: Limites.MENSAJES.pedido }); return; }
 
     const { folio } = await crearPedido(datos, { origen: 'formulario' });
     // Tarjeta "Quién te atenderá" (api/_contacto.js); si falla, el pedido ya quedó.
