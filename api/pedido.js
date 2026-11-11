@@ -3,6 +3,7 @@
 // usar el chat con DiMa. La lógica del pedido vive en api/_pedidos.js.
 
 const { validarPedido, crearPedido } = require('./_pedidos');
+const { contactoDelPedido, tarjetaParaCliente } = require('./_contacto');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 
 module.exports = async (req, res) => {
@@ -29,7 +30,9 @@ module.exports = async (req, res) => {
     }
 
     const { folio } = await crearPedido(datos, { origen: 'formulario' });
-    res.status(200).json({ success: true, folio });
+    // Tarjeta "Quién te atenderá" (api/_contacto.js); si falla, el pedido ya quedó.
+    const contacto = await contactoDelPedido(datos, folio).catch(err => { console.error('Tarjeta de contacto:', err.message); return null; });
+    res.status(200).json({ success: true, folio, ...(contacto ? { contacto: tarjetaParaCliente(contacto) } : {}) });
   } catch (err) {
     console.error('Error en pedido:', err);
     res.status(500).json({ error: 'No pudimos registrar tu pedido, intenta de nuevo.' });

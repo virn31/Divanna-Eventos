@@ -888,6 +888,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   res = await chat({ historial: [{ rol: 'cliente', texto: 'Es en Navolato' }] });
   const promptCompleto = llamadasClaude[0].system + JSON.stringify(llamadasClaude[0].messages) + JSON.stringify(llamadasClaude[0].tools);
   ok(!/Diana/.test(res.body.texto), 'chat: el texto que ve el cliente al registrar no menciona a Diana');
+  ok(res.body.contacto && res.body.folio && res.body.contacto.frases.seguridad.includes(res.body.folio) && !/Diana/.test(JSON.stringify(res.body.contacto)),
+    'chat: al registrar sale la tarjeta "Quién te atenderá" con el número de pedido (sin Diana)');
   ok((promptCompleto.match(/Diana/g) || []).length === 1 && promptCompleto.includes('nunca menciones a nadie del equipo por su nombre'), 'chat: lo único sobre Diana en el prompt es la regla de no nombrarla');
   res = await chat({ historial: Array.from({ length: 41 }, (_, i) => ({ rol: i % 2 ? 'dima' : 'cliente', texto: 'x' })) });
   ok(!/Diana/.test(res.body.texto), 'chat: la despedida por límite no menciona a Diana');
@@ -4027,7 +4029,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v47/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v47)');
+    ok(/dima-brigadas-v4[78]/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v47 o más)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4249,5 +4251,140 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       'whatsapp: el enlace wa.me lleva lada 52 (con o sin +52 guardado) y no sale sin teléfono');
     ok(cal5.includes('target="_blank" rel="noopener" style="color:inherit;">WhatsApp</a>') && app5.includes('https://wa.me/${dig.length === 10 ?'),
       'whatsapp: está en la tarjeta del calendario y en el cliente de la ficha completa');
+  }
+  // ---------- 🚚 Logística en el calendario (Víctor 2026-11-11) ----------
+  {
+    const L = require('../api/_logistica');
+    const admin = { id: 'recCOLAB000000001', nombre: 'Diana', rol: 'Admin' };
+    const angela = { id: 'recCOLABANGELA001', nombre: 'Angela', rol: 'Lider de brigada', gerente: 'El Vaso Maiz', brigadaId: 'recBRIGVM00000001' };
+    const eden = { id: 'recCOLABEDEN00001', nombre: 'Eden', rol: 'Lider de brigada', gerente: 'Divanna Eventos', brigadaId: 'recBRIGEDEN000001' };
+    const mario = { id: 'recCOLABMARIO0001', nombre: 'Mario', rol: 'Lider de brigada', gerente: 'Casa Isabella', brigadaId: 'recBRIGMARIO00001' };
+    const lider = { id: 'recCOLAB000000002', nombre: 'Juan', rol: 'Lider de brigada', brigadaId: 'recBRIGEDEN000001' };
+    const asist = { id: 'recCOLAB000000003', nombre: 'Luis', rol: 'Asistente', brigadaId: 'recBRIGEDEN000001' };
+    const DV = { Negocio: 'Divanna Eventos', Servicios_Solicitados: 'Mesas' };
+    const VM = { Negocio: 'El Vaso Maiz', Piezas_Vaso_Maiz: 100 };
+    const CI = { Negocio: 'Divanna Eventos', Productos: '[{"clave":"dv_casa_isabella","cantidad":1}]' };
+    const puede = (c, f) => L.puedeEditarLogistica(c, f);
+    ok(puede(admin, DV) && puede(admin, VM) && !puede(admin, CI), 'logística: Diana y Víctor editan Divanna y El Vaso Maíz; Casa Isabella no entra');
+    ok(puede(angela, VM) && !puede(angela, DV), 'logística: Ángela edita solo El Vaso Maíz');
+    ok(puede(eden, DV) && !puede(eden, VM) && !puede(eden, CI), 'logística: Eden edita solo Divanna (sin Casa Isabella)');
+    ok(!puede(mario, DV) && !puede(mario, CI) && !puede(lider, { ...DV, Brigada_Asignada: [lider.brigadaId] }) && !puede(asist, DV), 'logística: Mario, líderes y asistentes solo ven');
+
+    const D = '2026-12-05';
+    const BRIG = { records: [
+      { id: 'recBRIGEDEN000001', fields: { Nombre_Brigada: 'Brigada Edén', Vehiculo: 'Ranger' } },
+      { id: 'recBRIGVM00000001', fields: { Nombre_Brigada: 'Brigada El Vaso Maíz', Vehiculo: 'Meche' } },
+    ] };
+    const evs = () => ({ records: [
+      { id: 'recEVLOGDV0000001', fields: { ...DV, Folio_Evento: 'EVT-DV', Fecha_Evento: D, Hora_Inicio: '18:00', Autorizacion_Diana: 'SI', Brigada_Asignada: ['recBRIGEDEN000001'], Ubicacion: 'Las Quintas' } },
+      { id: 'recEVLOGVM0000001', fields: { ...VM, Folio_Evento: 'EVT-VM', Fecha_Evento: D, Hora_Inicio: '17:00', Entrega_Hora: '16:30', Autorizacion_Diana: 'SI', Brigada_Asignada: ['recBRIGEDEN000001'] } },
+      { id: 'recEVLOGCI0000001', fields: { ...CI, Folio_Evento: 'EVT-CI', Fecha_Evento: D, Hora_Inicio: '18:00', Autorizacion_Diana: 'SI' } },
+      { id: 'recEVLOGDV0000002', fields: { ...DV, Folio_Evento: 'EVT-AYER', Fecha_Evento: '2026-12-04', Hora_Inicio: '12:00', Autorizacion_Diana: 'SI' } },
+    ] });
+    reset();
+    respuestas = [evs(), BRIG];
+    const v = await L.vistaLogistica(admin, { desde: D, dias: 1 });
+    const mov = (folio, tipo) => v.movimientos.find(m => m.folio === folio && m.tipo === tipo);
+    ok(!v.movimientos.some(m => m.folio === 'EVT-CI'), 'logística: Casa Isabella no sale (lugar fijo)');
+    ok(mov('EVT-DV', 'entrega') && mov('EVT-DV', 'entrega').hora === '16:00' && mov('EVT-DV', 'entrega').sugerida && mov('EVT-DV', 'entrega').vehiculo === 'Ranger',
+      'logística: Divanna sin hora de entrega sugiere 2 h antes del evento, con el vehículo de su brigada');
+    ok(mov('EVT-VM', 'entrega') && mov('EVT-VM', 'entrega').hora === '16:30' && !mov('EVT-VM', 'entrega').sugerida && !mov('EVT-VM', 'recoleccion'),
+      'logística: El Vaso Maíz usa la hora de llegada guardada y no lleva recolección');
+    ok(mov('EVT-AYER', 'recoleccion') && mov('EVT-AYER', 'recoleccion').fecha === D && !mov('EVT-AYER', 'entrega'),
+      'logística: la recolección de Divanna del evento de ayer sale hoy (día siguiente)');
+    ok(mov('EVT-DV', 'entrega').avisos.some(a => a.includes('Choca con EVT-VM')) && mov('EVT-AYER', 'recoleccion').avisos.includes('Sin vehículo'),
+      'logística: avisa choque del mismo vehículo a menos de 90 min y "Sin vehículo"');
+    ok(v.movimientos.map(m => m.folio).join() === 'EVT-AYER,EVT-DV,EVT-VM', 'logística: ordenado por hora');
+    ok(v.puedeEditar && v.vehiculos.length === 2 && v.negocioPropio === null, 'logística: el Admin edita, elige vehículo y ve todo');
+    reset();
+    respuestas = [evs(), BRIG];
+    const ve = await L.vistaLogistica(eden, { desde: D, dias: 1 });
+    ok(ve.negocioPropio === 'Divanna Eventos' && ve.movimientos.find(m => m.folio === 'EVT-DV').editable && !ve.movimientos.find(m => m.folio === 'EVT-VM').editable
+      && ve.movimientos.some(m => m.folio === 'EVT-VM'), 'logística: Eden ve también El Vaso Maíz pero solo edita Divanna y abre en Divanna');
+    reset();
+    respuestas = [evs(), BRIG];
+    const va = await L.vistaLogistica(asist, { desde: D, dias: 1 });
+    ok(!va.puedeEditar && !va.vehiculos.length && va.movimientos.length === 3 && va.movimientos.every(m => !m.editable), 'logística: el asistente ve todo sin editar');
+
+    // Guardar
+    const evVM = { id: 'recEVLOGVM0000001', fields: { ...VM, Folio_Evento: 'EVT-VM', Fecha_Evento: D, Hora_Inicio: '17:00', Autorizacion_Diana: 'SI' } };
+    const evDV = { id: 'recEVLOGDV0000001', fields: { ...DV, Folio_Evento: 'EVT-DV', Fecha_Evento: D, Hora_Inicio: '18:00', Autorizacion_Diana: 'SI', Brigada_Asignada: ['recBRIGVM00000001'] } };
+    reset();
+    respuestas = [evDV];
+    const r1 = await L.guardarLogistica(angela, { eventoId: evDV.id, entregaHora: '15:00' });
+    ok(r1.codigo === 403 && !llamadas.some(l => l.method === 'PATCH'), 'logística: Ángela no puede guardar un evento de Divanna');
+    reset();
+    respuestas = [evVM];
+    const r2 = await L.guardarLogistica(angela, { eventoId: evVM.id, entregaHora: '25:00' });
+    ok(r2.error && !llamadas.some(l => l.method === 'PATCH'), 'logística: hora inválida no se guarda');
+    reset();
+    respuestas = [evVM];
+    const r3 = await L.guardarLogistica(angela, { eventoId: evVM.id, entregaHora: '16:15', notas: 'Entrar por la puerta de atrás' });
+    const p3 = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    ok(r3.ok && p3 && p3.body.records[0].fields.Entrega_Hora === '16:15' && p3.body.records[0].fields.Logistica_Notas === 'Entrar por la puerta de atrás'
+      && /Angela: llegada — → 16:15; notas de logística/.test(p3.body.records[0].fields.Logistica_Bitacora) && !('Brigada_Asignada' in p3.body.records[0].fields),
+      'logística: Ángela guarda la hora de llegada y notas de El Vaso Maíz, con bitácora');
+    reset();
+    respuestas = [evDV, { id: 'recBRIGEDEN000001', fields: { Nombre_Brigada: 'Brigada Edén', Vehiculo: 'Ranger' } }];
+    const r4 = await L.guardarLogistica(eden, { eventoId: evDV.id, brigadaId: 'recBRIGEDEN000001', recoleccionFecha: '2026-12-06', recoleccionHora: '11:00' });
+    const p4 = llamadas.find(l => l.method === 'PATCH' && l.url.includes('tblzLAin65BZPP2c6'));
+    const f4 = p4 && p4.body.records[0].fields;
+    ok(r4.ok && f4 && f4.Brigada_Asignada[0] === 'recBRIGEDEN000001' && f4.Enterado_Por === '' && f4.Recoleccion_Fecha === '2026-12-06' && f4.Recoleccion_Hora === '11:00',
+      'logística: Eden cambia el vehículo (brigada, se borra el Enterado) y la recolección de Divanna');
+    reset();
+    respuestas = [evDV];
+    const r5 = await L.guardarLogistica(eden, { eventoId: evDV.id, recoleccionFecha: '2026-12-01' });
+    ok(r5.error && /antes del evento/.test(r5.error), 'logística: la recolección no puede ser antes del evento');
+    reset();
+    respuestas = [{ id: 'recEVLOGCI0000001', fields: { ...CI, Fecha_Evento: D } }];
+    ok((await L.guardarLogistica(admin, { eventoId: 'recEVLOGCI0000001', entregaHora: '10:00' })).error, 'logística: Casa Isabella no se puede editar en logística');
+
+    const calL = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    const dashL = fs.readFileSync(path.join(repo, 'api/dashboard-eventos.js'), 'utf8');
+    const brigL = fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8');
+    ok(calL.includes('data-t="log"') && calL.includes("accion: 'logistica_guardar'") && calL.includes('vista=logistica') && dashL.includes('logistica_guardar: Logistica.guardarLogistica') && brigL.includes("vista === 'logistica'"),
+      'logística: pestaña 🚚 en el calendario conectada a las rutas existentes (sin función nueva)');
+    ok(/dima-brigadas-v48/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'logística: se subió la caché de la app (v48)');
+  }
+  // ---------- Tarjeta "Quién te atenderá" al cerrar el pedido (Víctor 2026-11-11) ----------
+  {
+    const K = require('../api/_contacto');
+    const GER = { records: [
+      { id: 'recCOLAB000000001', fields: { Nombre: 'Diana', Rol: 'Admin', Celular: '+526670000001' } },
+      { id: 'recCOLABEDEN00001', fields: { Nombre: 'Eden', Rol: ' Gerente Divanna', Celular: '+526670000002' } },
+      { id: 'recCOLABMARIO0001', fields: { Nombre: 'Mario Samano ', Rol: 'Gerente Casa Isabella', Celular: '+526670000003' } },
+      { id: 'recCOLABANGELA001', fields: { Nombre: 'Angela Samano', Rol: 'Lider de brigada', Gerente_Vaso_Maiz: true, Celular: '+526670000004' } },
+    ] };
+    const tarjeta = async (pedido) => { reset(); K.olvidarGerentes(); respuestas = [GER]; return K.contactoDelPedido(pedido, 'EVT-123456'); };
+    const nombres = (c) => c.personas.map(p => p.nombre).join(',');
+    const dv = await tarjeta({ productos: [{ clave: 'dv_mesa_mantel', cantidad: 5 }], negocio: 'Divanna Eventos' });
+    ok(nombres(dv) === 'Eden' && dv.personas[0].puesto === 'Gerente de Divanna Eventos' && dv.brigada, 'tarjeta: Divanna → Eden, con aviso de la brigada');
+    const ci = await tarjeta({ productos: [{ clave: 'dv_casa_isabella', cantidad: 1 }, { clave: 'dv_mesa_mantel', cantidad: 5 }] });
+    ok(nombres(ci) === 'Mario' && ci.personas[0].area === 'Salón Casa Isabella y decoración' && ci.brigada, 'tarjeta: Casa Isabella con decoración → Mario (no Eden), con brigada');
+    const ciSolo = await tarjeta({ productos: [{ clave: 'dv_casa_isabella', cantidad: 1 }] });
+    ok(nombres(ciSolo) === 'Mario' && !ciSolo.brigada, 'tarjeta: solo el salón → Mario, sin brigada');
+    const vm = await tarjeta({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }] });
+    ok(nombres(vm) === 'Angela' && !vm.brigada, 'tarjeta: El Vaso Maíz → Ángela, sin brigada');
+    const mixto = await tarjeta({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }, { clave: 'dv_mesa_mantel', cantidad: 5 }] });
+    const fm = K.frasesContacto(mixto);
+    ok(nombres(mixto) === 'Eden,Angela' && mixto.brigada && fm.llamada.startsWith('Te llamarán'), 'tarjeta: mixto → Eden y Ángela, "te llamarán", con brigada');
+    const sinCat = await tarjeta({ productos: [], negocio: 'Ambos', servicios: 'Mesas y esquites' });
+    ok(nombres(sinCat) === 'Eden,Angela', 'tarjeta: sin catálogo usa el negocio del pedido');
+    const txt = K.textoContacto(mixto) + K.htmlContacto(mixto) + JSON.stringify(K.tarjetaParaCliente(mixto));
+    ok(!/Diana/.test(txt) && !/667000000/.test(txt) && txt.includes('EVT-123456') && /no le des datos ni hagas depósitos/.test(txt),
+      'tarjeta: nunca Diana ni teléfonos; trae el número de pedido y el aviso contra fraudes');
+    reset(); K.olvidarGerentes(); respuestas = [{ __error: 500 }];
+    const caida = await K.contactoDelPedido({ productos: [{ clave: 'vm_paquete_3', cantidad: 1 }] }, 'EVT-1');
+    ok(!caida.personas.length && K.frasesContacto(caida).llamada.startsWith('Nuestro equipo'), 'tarjeta: si no se leen los gerentes dice "nuestro equipo"');
+    reset(); K.olvidarGerentes(); respuestas = [{ records: [{ id: 'x', fields: { Nombre: '<b>Eden</b>', Rol: 'Gerente Divanna' } }] }];
+    const h = K.htmlContacto(await K.contactoDelPedido({ negocio: 'Divanna Eventos' }, 'EVT-2'));
+    ok(h.includes('&lt;b&gt;Eden') && !h.includes('<b>Eden'), 'tarjeta: el correo escapa el texto');
+    K.olvidarGerentes();
+    const land = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
+    const chatJs = fs.readFileSync(path.join(repo, 'api/dima-chat.js'), 'utf8');
+    ok(land.includes('agregarTarjeta(data.contacto)') && land.includes("t.innerHTML = htmlTarjeta(data.contacto)") && land.includes('historial: chat.historial.map(({ rol, texto }) => ({ rol, texto }))')
+      && chatJs.includes('contacto: contactoNuevo') && fs.readFileSync(path.join(repo, 'api/pedido.js'), 'utf8').includes('contacto: tarjetaParaCliente(contacto)'),
+      'tarjeta: sale en el chat y en el formulario, y no vuelve a DiMa en el historial');
+    ok(/escapar\(p\.nombre\)/.test(land) && /escapar\(f\.seguridad\)/.test(land), 'tarjeta: la página escapa lo que pinta');
   }
 })();

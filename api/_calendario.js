@@ -743,4 +743,7 @@ module.exports = {
   bloquear,
   desbloquear,
   aGoogle,
+  // Para 🚚 Logística (api/_logistica.js): mismo equipo y mismos avisos que al mover.
+  equipoDe,
+  avisar,
 };

@@ -29,6 +29,8 @@
 
 const { enviarCotizacionPorCorreo } = require('./_google-integrations');
 const C = require('./_calendario');
+const Logistica = require('./_logistica');
+const Contacto = require('./_contacto');
 const { sincronizarEvento } = C;
 const { ROLES, COLABORADORES_TABLE, requerirSesion, esVasoMaiz, esDeSuGerencia, GERENCIAS, NOMBRE_GERENCIA, gerenciaDe, puestoGerente, eleccionDeEvento } = require('./_sesion');
 const { enviarPushEquipo } = require('./_push');
@@ -559,6 +561,11 @@ async function resolverPedido(req, res, colaborador) {
       servicios: listaItems.join(', '),
       monto: montoNum,
     };
+    // Tarjeta "Quién te atenderá" en el correo (api/_contacto.js). Si falla, el correo sale sin ella.
+    if (clienteEmail) {
+      datosEvento.contactoHtml = await Contacto.contactoDelPedido({ productos: f.Productos, servicios: listaItems.join('\n') || f.Servicios_Solicitados, negocio: f.Negocio }, f.Folio_Evento)
+        .then(Contacto.htmlContacto).catch(err => { console.error('Tarjeta de contacto (correo):', err.message); return ''; });
+    }
     // Calendar: DiMa lo crea o lo actualiza (y guarda su ID para cambios posteriores).
     const calendario = sincronizarEvento(eventoId).then(r => { if (!r.ok) erroresGoogle.push(r.error); return r.ok; });
     const resultados = await Promise.all([
@@ -592,6 +599,8 @@ const ACCIONES_CALENDARIO = {
   falla_foto: fallaFoto,
   enviar_recibo: reciboAPeticion,
   registrar_pago: pagoAPeticion,
+  // 🚚 Logística: Admin todo, Ángela El Vaso Maíz, Eden Divanna (se revisa en api/_logistica.js).
+  logistica_guardar: Logistica.guardarLogistica,
 };
 
 // 📷 El teléfono no pudo abrir o mandar la foto de una comanda: solo se anota en
