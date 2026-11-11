@@ -284,7 +284,7 @@
     box-shadow:0 12px 34px -8px rgba(240,185,58,0.6);cursor:pointer;white-space:nowrap;transition:opacity .25s, transform .25s;
   }
   .fab-cotizar.oculto{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(20px);}
-  @media (max-width:760px){.fab-cotizar{display:block;}}
+  @media (max-width:760px){.fab-cotizar{display:block;} footer{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));}}
 
   /* ---------- CLOSING ---------- */
   .closing{
@@ -466,7 +466,7 @@
     </div>
     <div class="cifras" data-revelar>
       <div class="cifra"><div class="n">3,000+</div><div class="l">eventos atendidos</div></div>
-      <div class="cifra"><div class="n">2</div><div class="l">marcas: mobiliario y snacks</div></div>
+      <div class="cifra"><div class="n">1 chat</div><div class="l">para cotizar mobiliario, decoración y snacks juntos</div></div>
       <div class="cifra"><div class="n">12 h</div><div class="l">máximo para confirmar tu cotización</div></div>
       <div class="cifra"><div class="n">35 km</div><div class="l">de cobertura desde Culiacán</div></div>
     </div>
@@ -545,7 +545,7 @@
             <button type="button" class="btn btn-ghost" data-abrir-chat data-pregunta="Hola, quiero información para rentar Casa Isabella.">Apartar fecha →</button>
           </div>
         </div>
-        <div class="servicio-logo ci" data-portarretrato="Casa Isabella">Casa<br>Isabella</div>
+        <div class="servicio-logo ci portarretrato" data-portarretrato="Casa Isabella"><img class="pr-foto visible" src="img/home/casa-isabella-alberca.jpg" alt="Alberca de Casa Isabella con mesa montada" loading="lazy" decoding="async"><div class="pr-sello">Casa Isabella</div></div>
       </article>
       <article class="servicio" data-revelar>
         <span class="num">04</span>
@@ -781,7 +781,7 @@
   <div class="wrap footer-row">
     <div>
       <div class="footer-brands">
-        <img src="divanna-logo.png" alt="Divanna Eventos" loading="lazy">
+        <img src="img/logos/logo-divanna-neon.png" alt="Divanna Eventos" loading="lazy">
         <img src="vasomaiz-logo.jpg" alt="El Vaso Maíz" style="border-radius:6px;" loading="lazy">
       </div>
       <div class="footer-dir">Enrique González Martínez 3926, col. Emiliano Zapata, Culiacán · Lunes a sábado de 4 a 9 pm, con cita</div>
@@ -1111,14 +1111,8 @@
 
   musicToggle.addEventListener('click', () => setMusicState(!musicOn));
 
-  // Primer toque en cualquier parte de la página: intenta iniciar la música automáticamente.
-  function firstInteractionPlay(){
-    if(!musicOn){ bgMusic.play().then(()=>setMusicState(true)).catch(()=>{}); }
-    document.removeEventListener('click', firstInteractionPlay);
-    document.removeEventListener('touchstart', firstInteractionPlay);
-  }
-  document.addEventListener('click', firstInteractionPlay, { once:true });
-  document.addEventListener('touchstart', firstInteractionPlay, { once:true });
+  // La música solo suena si el cliente toca su botón (Víctor 2026-11-11): antes
+  // arrancaba con el primer toque en cualquier parte y espantaba a quien estaba en la calle u oficina.
 </script>
 <script>
   // ---------- Homepage: aparecer al hacer scroll, botón flotante y preguntas listas ----------
@@ -1216,7 +1210,7 @@
         for(let i = urls.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [urls[i], urls[j]] = [urls[j], urls[i]]; }
         if(!urls.length) return;
         const sello = document.createElement('div'); sello.className = 'pr-sello';
-        const logo = marco.querySelector('img');
+        const logo = marco.querySelector('img:not(.pr-foto)'); // Casa Isabella ya trae su foto de respaldo, no un logo
         if(logo) sello.append(logo); else sello.textContent = marco.dataset.portarretrato;
         const capas = [0, 1].map(() => { const im = document.createElement('img'); im.className = 'pr-foto'; im.alt = `Fotos de ${marco.dataset.portarretrato}`; im.decoding = 'async'; return im; });
         marco.replaceChildren(...capas, sello);
@@ -1244,10 +1238,18 @@
     const chat = document.getElementById('dimaChat');
     if(fab && chat){
       let enHero = true, enPedido = false;
-      const pintar = () => fab.classList.toggle('oculto', enHero || enPedido || !chat.hidden);
+      // Mientras haya otro botón de cotizar a la vista (p. ej. "Cotizar este paquete"),
+      // el flotante se esconde para no taparlo.
+      const otrosVisibles = new Set();
+      const pintar = () => fab.classList.toggle('oculto', enHero || enPedido || otrosVisibles.size > 0 || !chat.hidden);
       if('IntersectionObserver' in window){
         new IntersectionObserver(([e]) => { enHero = e.isIntersecting; pintar(); }, { threshold: 0.2 }).observe(document.querySelector('.hero-ctas'));
         new IntersectionObserver(([e]) => { enPedido = e.isIntersecting; pintar(); }).observe(document.getElementById('pedido'));
+        const vigia = new IntersectionObserver(entradas => {
+          entradas.forEach(e => { if(e.isIntersecting) otrosVisibles.add(e.target); else otrosVisibles.delete(e.target); });
+          pintar();
+        }, { rootMargin: '0px 0px -90px 0px' });
+        document.querySelectorAll('main [data-abrir-chat], section [data-abrir-chat]').forEach(b => { if(b !== fab && !b.closest('.hero')) vigia.observe(b); });
       } else { enHero = false; }
       new MutationObserver(pintar).observe(chat, { attributes: true, attributeFilter: ['hidden'] });
       pintar();

@@ -586,3 +586,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Pendiente de Víctor:** límite de gasto mensual en la consola de Anthropic.
 - **Modo medición del chat (Víctor, mismo día):** los topes del chat no se activan todavía: Víctor quiere medir ~2 meses el tráfico real antes de fijarlos y de poner el límite de gasto en Anthropic, para no dejar a DiMa sin créditos. El chat cuenta por día (mensajes, conversaciones, por conexión) sin bloquear y el buenos días trae la línea "🌐 DiMa ayer". Lo demás (folios, bloqueo de "¿Ya tienes número de pedido?", 3 pedidos por teléfono, firma, cabeceras, Nodemailer) sí queda activo: no gasta créditos. Revisar a mediados de enero 2027 y activar con `CONFIG.bloquearChat = true`.
 
+
+## 2026-11-11 — Homepage: ajustes chicos de la visual
+
+- **Pedido de Víctor:** revisar la visual de la página donde cotiza el cliente y empezar por los cambios chicos.
+- **Cambios:** Casa Isabella en "Lo que hacemos" ya trae foto (la alberca) en vez de un recuadro con texto; si la carpeta de Galería de Drive tiene fotos del salón, el portarretrato las rota encima. El botón flotante "Cotiza con DiMa" se esconde mientras haya otro botón de cotizar a la vista (ya no tapa "Cotizar este paquete") y el pie deja espacio abajo. La música solo suena con su botón (antes arrancaba con el primer toque en cualquier parte). La cifra "2 marcas" cambió a "1 chat · para cotizar mobiliario, decoración y snacks juntos". El logo del pie usa el mismo logo ligero del encabezado (64 KB en vez de 788 KB).
+- **Pendiente:** foto en la primera pantalla y página más corta en el teléfono (con las skills de diseño); reseñas reales de clientes (Víctor las consigue).
