@@ -28,8 +28,9 @@ Module._load = function (req, parent, ...rest) {
       update: async (p) => { googleCal.push({ op: 'update', ...p }); return { data: {} }; },
       delete: async (p) => { googleCal.push({ op: 'delete', ...p }); return {}; },
     } }), sheets: () => ({ spreadsheets: {
-      get: async () => ({ data: { sheets: hojaPrueba.pestanas.map((t, i) => ({ properties: { title: t, sheetId: i + 1 } })) } }),
-      batchUpdate: async (p) => { googleSheets.push({ op: 'batchUpdate', ...p }); const d = p.requestBody.requests[0].duplicateSheet; if (d) hojaPrueba.pestanas.push(d.newSheetName); return {}; },
+      get: async () => ({ data: { sheets: hojaPrueba.pestanas.map((t, i) => ({ properties: { title: t, sheetId: i + 1 }, developerMetadata: (hojaPrueba.metadatos || {})[t] })) } }),
+      batchUpdate: async (p) => { googleSheets.push({ op: 'batchUpdate', ...p }); const d = p.requestBody.requests[0].duplicateSheet; if (d) hojaPrueba.pestanas.push(d.newSheetName);
+        return d ? { data: { replies: [{ duplicateSheet: { properties: { sheetId: hojaPrueba.pestanas.length } } }] } } : {}; },
       values: {
         append: async () => ({}),
         batchClear: async (p) => { googleSheets.push({ op: 'clear', ...p }); return {}; },
@@ -2952,6 +2953,14 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const rMantel = conMantel.find(l => l[0] === 'Mantel');
     ok(rMantel && rMantel[1] === 10 && rMantel[2] === 'mantel básico beige' && conMantel.find(l => l[0] === 'Mesa')[2] === '',
       'sheets: el renglón de manteles del recibo trae el tipo y color anotados');
+    // Caso real (EVT-732433): la descripción trae cosas que no están en el catálogo.
+    const conDesc = sh.articulosDe({ f: { Negocio: 'Divanna Eventos', Items_Detallados_Cotizacion: '2 mesas\n20 sillas Antonella\nDecoración de mampara\nLetrero LED\n-Tapete' },
+      productos: [{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_silla_antonella', cantidad: 20 }, { clave: 'dv_cambio_lentejuela', cantidad: 2, nota: 'gris' }] }, 'Divanna Eventos');
+    ok(conDesc.length === 6 && conDesc[1][0] === 'sillas Antonella' && conDesc[1][1] === 20 && conDesc[3][0] === 'Letrero LED' && conDesc[3][1] === ''
+      && conDesc[4][0] === 'Tapete' && conDesc[5][0] === 'Cambio de mantel básico a lentejuela' && conDesc[5][3] === 140,
+      'sheets: el recibo trae todo lo de la descripción (aunque no esté en el catálogo) y los cambios de mantel con su precio');
+    const vmDesc = sh.articulosDe({ f: { Negocio: 'El Vaso Maiz', Items_Detallados_Cotizacion: '60 personalizados\n15 esquites' }, productos: [] }, 'El Vaso Maiz');
+    ok(vmDesc.length === 2 && vmDesc[1][0] === 15 && vmDesc[1][1] === 'esquites', 'sheets: la comanda de El Vaso Maíz también sale de la descripción');
     ok(renglon.range === "'Pedidos'!A3:I3" && renglon.requestBody.values[0][0] === 'EVT-111222' && renglon.requestBody.values[0][5] === 2500 && renglon.requestBody.values[0][6] === 500
       && renglon.requestBody.values[0][7] === '=IF(F3="","",F3-G3)' && renglon.requestBody.values[0][8] === 'Anticipo recibido',
       'sheets: agrega el pedido en el primer renglón libre de la lista (no toca los que ya estaban)');
@@ -2962,6 +2971,30 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const r2 = await sh.sincronizarSheets('recEVSHEETS00001');
     ok(r2.ok && r2.accion === 'actualizado' && !googleSheets.some(g => g.op === 'batchUpdate') && googleSheets.find(g => g.op === 'renglon').range === "'Pedidos'!A3:I3",
       'sheets: si el evento cambia, actualiza su pestaña y su renglón (no duplica)');
+
+    // Pedido largo (14 líneas, caben 11): se agregan 3 renglones y el total y lo pagado bajan 3.
+    const largo = Array.from({ length: 14 }, (_, i) => `${i + 1} cosa ${i + 1}`).join('\n');
+    reset();
+    hojaPrueba = { pestanas: ['Pedido', 'Pedidos'], lista: [['Recibo Nº'], [], ['', '', '', 'Totales']] };
+    respuestas = [{ ...EV_SH, fields: { ...EV_SH.fields, Items_Detallados_Cotizacion: largo } }, { fields: { Nombre: 'Laura Pérez' } }, { records: [] }];
+    const rLargo = await sh.sincronizarSheets('recEVSHEETS00001');
+    const reqs3 = googleSheets.filter(g => g.op === 'batchUpdate').flatMap(g => g.requestBody.requests);
+    const ins = reqs3.find(q => q.insertDimension);
+    const meta3 = reqs3.find(q => q.createDeveloperMetadata);
+    const celdas3 = googleSheets.find(g => g.op === 'celdas').requestBody.data;
+    const limpia3 = googleSheets.find(g => g.op === 'clear').requestBody.ranges;
+    ok(rLargo.ok && ins && ins.insertDimension.range.startIndex === 26 && ins.insertDimension.range.endIndex === 29 && ins.insertDimension.range.sheetId === 3
+      && meta3.createDeveloperMetadata.developerMetadata.metadataValue === '3'
+      && celdas3.some(x => x.range === "'EVT-111222'!A30:E30" && x.values[0][0] === 'cosa 14') && celdas3.some(x => x.range === "'EVT-111222'!D32" && x.values[0][0] === 2500)
+      && celdas3.some(x => x.range === "'EVT-111222'!B13" && !String(x.values[0][0]).includes('cosa')) && limpia3.includes("'EVT-111222'!A17:E30"),
+      'sheets: si no caben los artículos se agregan renglones y el total baja (no se amontonan en B13)');
+    // Otra vez con 12 líneas: ya tiene 3 extra, no inserta más y sigue usando las posiciones bajadas.
+    reset();
+    hojaPrueba = { pestanas: ['Pedido', 'Pedidos', 'EVT-111222'], metadatos: { 'EVT-111222': [{ metadataKey: 'dima_renglones_extra', metadataValue: '3' }] }, lista: [['Recibo Nº'], ['EVT-111222']] };
+    respuestas = [{ ...EV_SH, fields: { ...EV_SH.fields, Items_Detallados_Cotizacion: largo.split('\n').slice(0, 12).join('\n') } }, { fields: { Nombre: 'Laura Pérez' } }, { records: [] }];
+    await sh.sincronizarSheets('recEVSHEETS00001');
+    ok(!googleSheets.some(g => g.op === 'batchUpdate') && googleSheets.find(g => g.op === 'celdas').requestBody.data.some(x => x.range === "'EVT-111222'!D33" && x.values[0][0] === 0),
+      'sheets: si la pestaña ya tiene renglones agregados no inserta otros y lo pagado sigue en su lugar');
 
     reset();
     hojaPrueba = { pestanas: ['Comanda', 'Pedidos'], lista: [['Folio'], ['', '', '', '', 'Totales']] };

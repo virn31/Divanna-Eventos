@@ -110,6 +110,18 @@ async function leerDatos(eventoId) {
   };
 }
 
+// Lo que lleva el evento tal como se escribió (Víctor 2026-11-11: el recibo debe
+// traer todo lo de la descripción; antes salía solo lo que DiMa pudo pasar al
+// catálogo y se perdían cosas como "Letrero LED", "Tapete" o los colores).
+// Cada renglón: { cantidad, texto } ("20 sillas Antonella" → 20, "sillas Antonella").
+function renglonesDescripcion(f) {
+  const texto = f.Items_Detallados_Cotizacion || f.Servicios_Solicitados || f.Checklist_Items || '';
+  return String(texto).split('\n').map(t => t.trim().replace(/^[-•*·]+\s*/, '')).filter(Boolean).map(t => {
+    const m = t.match(/^(\d{1,4})\s+(.+)$/);
+    return m ? { cantidad: Number(m[1]), texto: m[2] } : { cantidad: '', texto: t };
+  });
+}
+
 // Renglones de artículos de un negocio: [articulo/cantidad, ...].
 function articulosDe(d, negocio) {
   const propios = d.productos.filter(p => (PRODUCTOS[p.clave].negocio || DV) === negocio);
@@ -120,6 +132,23 @@ function articulosDe(d, negocio) {
   // recibo se ve cuánto fue. Va en la hoja del primer negocio, como los cargos.
   const monto = Number(d.f.Monto_Estimado_IA) || 0;
   const descuento = primero && tieneDescuento(d.f) && monto > 0 ? redondo(monto / (1 - DESCUENTO_DECORADOR) - monto) : 0;
+  // Con descripción (y de un solo negocio): un renglón por cada línea escrita;
+  // después, con su precio, los cambios y extras de mantel, los cargos y el
+  // descuento. En "Ambos" la descripción mezcla los dos negocios: sigue por catálogo.
+  const escrito = negociosDe(d.f).length === 1 ? renglonesDescripcion(d.f) : [];
+  if (escrito.length) {
+    const conPrecio = propios.filter(p => PRODUCTOS[p.clave].precio);
+    if (negocio === VM) {
+      return escrito.map(r => [r.cantidad, r.texto, '', null, ''])
+        .concat(conPrecio.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || '']))
+        .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
+        .concat(descuento ? [[1, 'Descuento decorador 10%', '', -descuento, `-$${descuento.toLocaleString('es-MX')} (ya restado del total)`]] : []);
+    }
+    return escrito.map(r => [r.texto, r.cantidad, ''])
+      .concat(conPrecio.map(p => [PRODUCTOS[p.clave].nombre.replace(/ \([^)]*\$[^)]*\)$/, ''), p.cantidad, p.nota || '', PRODUCTOS[p.clave].precio]))
+      .concat(cargos.map(c => [`Cargo extra: ${c.descripcion}`, c.cantidad, `$${c.total.toLocaleString('es-MX')}${c.nota ? ' · ' + c.nota : ''}`]))
+      .concat(descuento ? [['Descuento decorador 10%', 1, 'Ya restado del total', -descuento]] : []);
+  }
   if (negocio === VM) {
     return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || ''])
       .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
@@ -159,16 +188,33 @@ function articulosDe(d, negocio) {
   return lineas;
 }
 
+// Renglones agregados (Víctor 2026-11-11): si los artículos no caben en la
+// plantilla, se insertan renglones dentro del bloque de artículos (copian su
+// formato y las sumas de la plantilla los abarcan). Cuántos lleva cada pestaña
+// se guarda en sus metadatos (clave RENGLONES_EXTRA); nunca se quitan, los que
+// sobren quedan vacíos.
+const RENGLONES_EXTRA = 'dima_renglones_extra';
+
+// Baja otro tanto las filas de `ref` que están del último renglón de artículos
+// para abajo ("D29" → "D32" con 3 extra; también rangos y fórmulas).
+function abajo(ref, negocio, extra) {
+  if (!extra) return ref;
+  const hasta = PLANTILLAS[negocio].articulos.hasta;
+  return ref.replace(/([A-Z]+)(\d+)/g, (t, col, fila) => Number(fila) >= hasta ? `${col}${Number(fila) + extra}` : t);
+}
+
 // Lo que va en la pestaña del recibo: [[rango, [[valores]]], ...].
-function celdasRecibo(d, negocio, pestana) {
+// `extra`: renglones de artículos que se le agregaron a la pestaña (ver
+// renglonesExtra); lo que está debajo de los artículos baja otro tanto.
+function celdasRecibo(d, negocio, pestana, extra = 0) {
   const p = PLANTILLAS[negocio];
   const compartido = negociosDe(d.f).length > 1;
   const total = compartido ? '' : d.total;
   const lineas = articulosDe(d, negocio);
-  const caben = p.articulos.hasta - p.articulos.desde + 1;
+  const caben = p.articulos.hasta - p.articulos.desde + 1 + extra;
   const sobran = lineas.slice(caben);
   const out = [];
-  const poner = (celda, valor) => out.push({ range: rango(pestana, celda), values: [[valor]] });
+  const poner = (celda, valor) => out.push({ range: rango(pestana, abajo(celda, negocio, extra)), values: [[valor]] });
   if (negocio === DV) {
     poner('B5', d.folio);
     poner('B6', d.cliente);
@@ -202,7 +248,7 @@ function celdasRecibo(d, negocio, pestana) {
     });
     if (sobran.length) poner(`E${p.articulos.hasta}`, `+ ${sobran.map(l => `${l[0]} ${l[1]}`).join(', ')}`);
     poner('D33', d.pagado);
-    poner('D34', '=D32-D33'); // la plantilla restaba B32-B33 (celdas vacías)
+    poner('D34', abajo('=D32-D33', negocio, extra)); // la plantilla restaba B32-B33 (celdas vacías)
   }
   return out;
 }
@@ -221,20 +267,36 @@ function renglonLista(d, negocio, n) {
 async function escribirEnHoja(d, negocio) {
   const sheets = sheetsGoogle();
   const spreadsheetId = process.env[PLANTILLAS[negocio].variable];
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
-  const hojas = meta.data.sheets.map(s => s.properties);
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets(properties,developerMetadata)' });
+  const hojas = meta.data.sheets.map(s => ({ ...s.properties, metadatos: s.developerMetadata || [] }));
   const plantilla = hojas.find(h => h.title === PLANTILLAS[negocio].pestana);
   const lista = hojas.find(h => h.title === 'Pedidos');
   if (!plantilla || !lista) throw new Error(`a la hoja le falta la pestaña "${!plantilla ? PLANTILLAS[negocio].pestana : 'Pedidos'}"`);
 
   // 1. Pestaña del recibo (se crea copiando la plantilla).
   let accion = 'actualizado';
-  if (!hojas.some(h => h.title === d.folio)) {
-    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ duplicateSheet: { sourceSheetId: plantilla.sheetId, newSheetName: d.folio, insertSheetIndex: hojas.length } }] } });
+  let pestana = hojas.find(h => h.title === d.folio);
+  if (!pestana) {
+    const r = await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [{ duplicateSheet: { sourceSheetId: plantilla.sheetId, newSheetName: d.folio, insertSheetIndex: hojas.length } }] } });
+    pestana = { sheetId: ((((r || {}).data || {}).replies || [])[0] || {}).duplicateSheet?.properties?.sheetId, metadatos: [] };
     accion = 'creado';
   }
-  await sheets.spreadsheets.values.batchClear({ spreadsheetId, requestBody: { ranges: PLANTILLAS[negocio].limpiar.map(c => rango(d.folio, c)) } });
-  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'USER_ENTERED', data: celdasRecibo(d, negocio, d.folio) } });
+  // Renglones que faltan para que quepan todos los artículos.
+  const p = PLANTILLAS[negocio];
+  const ya = Number((pestana.metadatos.find(m => m.metadataKey === RENGLONES_EXTRA) || {}).metadataValue) || 0;
+  const faltan = articulosDe(d, negocio).length - (p.articulos.hasta - p.articulos.desde + 1) - ya;
+  let extra = ya;
+  if (faltan > 0 && pestana.sheetId != null) {
+    extra = ya + faltan;
+    const inicio = p.articulos.hasta - 1 + ya; // antes del último renglón de artículos (0 = fila 1)
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [
+      { insertDimension: { range: { sheetId: pestana.sheetId, dimension: 'ROWS', startIndex: inicio, endIndex: inicio + faltan }, inheritFromBefore: true } },
+      ...(ya ? [{ deleteDeveloperMetadata: { dataFilter: { developerMetadataLookup: { metadataKey: RENGLONES_EXTRA, metadataLocation: { sheetId: pestana.sheetId } } } } }] : []),
+      { createDeveloperMetadata: { developerMetadata: { metadataKey: RENGLONES_EXTRA, metadataValue: String(extra), location: { sheetId: pestana.sheetId }, visibility: 'DOCUMENT' } } },
+    ] } });
+  }
+  await sheets.spreadsheets.values.batchClear({ spreadsheetId, requestBody: { ranges: p.limpiar.map(c => rango(d.folio, abajo(c, negocio, extra))) } });
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'USER_ENTERED', data: celdasRecibo(d, negocio, d.folio, extra) } });
 
   // 2. Renglón en "Pedidos": el del folio si ya está; si no, el primero libre arriba de "Totales".
   const filas = (await sheets.spreadsheets.values.get({ spreadsheetId, range: rango('Pedidos', 'A1:J1000') })).data.values || [];
@@ -342,4 +404,4 @@ async function enviarRecibo(eventoId, motivo = '') {
   }
 }
 
-module.exports = { sincronizarSheets, sheetsConfigurado, enviarRecibo, celdasRecibo, renglonLista, articulosDe, negociosDe };
+module.exports = { sincronizarSheets, sheetsConfigurado, enviarRecibo, celdasRecibo, renglonLista, articulosDe, negociosDe, renglonesDescripcion };
