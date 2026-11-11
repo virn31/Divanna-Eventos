@@ -7,7 +7,7 @@
 <meta name="description" content="Divanna Eventos renta mobiliario y artículos para eventos. El Vaso Maíz ofrece snacks irresistibles. Más de 3,000 eventos atendidos en Culiacán y alrededores.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0b10;
@@ -35,10 +35,6 @@
     font-weight:600;
     letter-spacing:-0.01em;
     margin:0;
-  }
-  .script{
-    font-family:'Caveat',cursive;
-    font-weight:600;
   }
   a{color:inherit;text-decoration:none;}
   img{max-width:100%;display:block;}
@@ -83,8 +79,9 @@
   .nav-cta{
     background:var(--maiz);color:var(--ink);
     padding:10px 20px;border-radius:100px;font-weight:700;font-size:0.88rem;
+    display:inline-flex;align-items:center;min-height:44px;
   }
-  .nav-toggle{display:none;background:none;border:none;color:var(--paper);font-size:1.6rem;cursor:pointer;}
+  .nav-toggle{display:none;background:none;border:none;color:var(--paper);width:44px;height:44px;padding:0;margin-right:-10px;cursor:pointer;align-items:center;justify-content:center;}
 
   /* ---------- HERO (titular editorial grande) ---------- */
   .hero{
@@ -163,7 +160,7 @@
     padding:40px 0;border-bottom:1px solid var(--line);position:relative;
   }
   @media (max-width:860px){.servicio{grid-template-columns:1fr;gap:16px;padding:32px 0;}}
-  .servicio .num{font-family:'Fraunces',serif;font-size:1rem;color:var(--muted);align-self:start;padding-top:10px;}
+  .servicio .num{font-family:'Fraunces',serif;font-weight:500;font-size:1rem;color:var(--muted);align-self:start;padding-top:10px;}
   .servicio h3{font-size:clamp(1.8rem,4vw,3rem);line-height:1.05;letter-spacing:-0.02em;transition:color .25s;}
   .servicio.dv:hover h3{color:var(--divanna);}
   .servicio.vm:hover h3{color:var(--maiz);}
@@ -177,16 +174,18 @@
   .servicio-logo{width:100%;aspect-ratio:4/5;border-radius:18px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:28px;}
   .servicio-logo img{max-height:120px;width:auto;border-radius:14px;}
   .servicio-logo.vm{background:radial-gradient(circle at 30% 20%, rgba(240,185,58,0.22), var(--ink-2) 70%);}
-  .servicio-logo.ci{background:radial-gradient(circle at 70% 20%, rgba(127,174,90,0.22), var(--ink-2) 70%);font-family:'Fraunces',serif;font-size:1.6rem;text-align:center;}
+  .servicio-logo.ci{background:radial-gradient(circle at 70% 20%, rgba(127,174,90,0.22), var(--ink-2) 70%);font-family:'Fraunces',serif;font-weight:500;font-size:1.6rem;text-align:center;}
   @media (max-width:860px){.servicio-foto,.servicio-logo{aspect-ratio:16/10;max-width:420px;}}
   /* Portarretrato (02 y 03): fotos de su carpeta de Galería en Drive, al azar, con fundido. */
   .servicio-logo.portarretrato{position:relative;overflow:hidden;padding:0;background:var(--ink-2);}
   .portarretrato .pr-foto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.2s ease;border-radius:0;max-height:none;}
   .portarretrato .pr-foto.visible{opacity:1;}
-  .portarretrato .pr-sello{position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(12,11,16,0.72);backdrop-filter:blur(6px);border-radius:100px;padding:6px 12px;font-family:'Fraunces',serif;font-size:0.95rem;line-height:1;display:flex;align-items:center;}
+  .portarretrato .pr-sello{position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(12,11,16,0.72);backdrop-filter:blur(6px);border-radius:100px;padding:6px 12px;font-family:'Fraunces',serif;font-weight:500;font-size:0.95rem;line-height:1;display:flex;align-items:center;}
   .portarretrato .pr-sello img{height:34px;max-height:34px;border-radius:8px;}
   .link-sutil{font-size:0.88rem;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:2px;align-self:center;}
   .link-sutil:hover{border-color:var(--paper);}
+  .link-sutil,.nav-links a:not(.nav-cta),.footer-links a{position:relative;}
+  .link-sutil::before,.nav-links a:not(.nav-cta)::before,.footer-links a::before{content:"";position:absolute;inset:-13px -6px;}
 
   /* ---------- PAQUETES "DESDE" ---------- */
   .paquetes{background:var(--ink-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
@@ -200,13 +199,13 @@
   .paq-marca{font-size:0.75rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;}
   .paq-marca.dv{color:var(--divanna);} .paq-marca.vm{color:var(--maiz);} .paq-marca.ci{color:var(--maiz-husk);}
   .paq h3{font-size:1.3rem;line-height:1.2;}
-  .paq p{margin:0;color:var(--muted);font-size:0.92rem;line-height:1.5;flex:1;}
+  .paq p{margin:0;color:var(--muted);font-size:1rem;line-height:1.5;flex:1;}
   .paq-precio{font-family:'Fraunces',serif;font-size:1.7rem;font-weight:600;margin-top:6px;}
   .paq-precio small{font-family:'Manrope',sans-serif;font-size:0.8rem;color:var(--muted);font-weight:600;}
   .paq .btn{margin-top:10px;justify-content:center;}
   .paq-texto{background:linear-gradient(160deg, rgba(240,185,58,0.10), var(--ink) 60%);}
   .paq-texto.ci{background:linear-gradient(160deg, rgba(127,174,90,0.12), var(--ink) 60%);}
-  .paq-nota{margin-top:28px;color:var(--muted);font-size:0.9rem;}
+  .paq-nota{margin-top:28px;color:var(--muted);font-size:1rem;}
 
   /* ---------- GALERÍA ---------- */
   /* Escritorio: mosaico fijo de 4x4 sin huecos. Celular: 2 columnas, las anchas ocupan la fila. */
@@ -226,7 +225,7 @@
   .galeria-grid.dinamica > figure{grid-area:auto !important;}
   .galeria-grid.dinamica > figure.ancha{grid-column:span 2 !important;}
   /* Sin pie de foto: solo el botón Cotizar, abajo a la izquierda sobre la foto. */
-  .galeria-grid .galeria-cotizar{position:absolute;left:12px;bottom:12px;padding:8px 14px;font-size:0.8rem;}
+  .galeria-grid .galeria-cotizar{position:absolute;left:12px;bottom:12px;padding:8px 16px;min-height:44px;font-size:0.8rem;}
   .galeria-extra{margin-top:48px;}
   .galeria-extra h3{margin:0 0 18px;}
 
@@ -261,7 +260,7 @@
   /* ---------- PREGUNTAS FRECUENTES ---------- */
   .faq{max-width:860px;border-top:1px solid var(--line);}
   .faq details{border-bottom:1px solid var(--line);}
-  .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px 0;font-family:'Fraunces',serif;font-size:clamp(1.1rem,2.2vw,1.4rem);}
+  .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px 0;font-family:'Fraunces',serif;font-weight:500;font-size:clamp(1.1rem,2.2vw,1.4rem);}
   .faq summary::-webkit-details-marker{display:none;}
   .faq summary::after{content:"+";font-family:'Manrope',sans-serif;font-size:1.5rem;color:var(--muted);transition:transform .25s;flex:none;}
   .faq details[open] summary::after{transform:rotate(45deg);}
@@ -283,8 +282,10 @@
     background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:15px 24px;font:inherit;font-weight:800;font-size:0.98rem;
     box-shadow:0 12px 34px -8px rgba(240,185,58,0.6);cursor:pointer;white-space:nowrap;transition:opacity .25s, transform .25s;
   }
+  .fab-cotizar svg,.dc-tarjeta .ico{flex:none;}
+  .dc-tarjeta .ico{width:16px;height:16px;vertical-align:-3px;margin-right:6px;color:var(--muted);}
   .fab-cotizar.oculto{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(20px);}
-  @media (max-width:760px){.fab-cotizar{display:block;} footer{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));}}
+  @media (max-width:760px){.fab-cotizar{display:flex;align-items:center;gap:8px;} footer{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));}}
 
   /* ---------- CLOSING ---------- */
   .closing{
@@ -295,32 +296,35 @@
   .closing p{color:var(--muted);font-size:1.08rem;max-width:520px;margin:0 auto 40px;}
   .closing .btn-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
   .pedido-form{max-width:760px;margin:0 auto;text-align:left;}
-  .pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-  @media (max-width:640px){.pf-grid{grid-template-columns:1fr;}}
+  .pf-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;}
+  @media (max-width:640px){.pf-grid{grid-template-columns:minmax(0,1fr);}}
+  /* Sin esto la opción larga de "¿Es dentro de la ciudad?" ensanchaba la columna y el formulario se salía en el celular. */
+  .pedido-form select{min-width:0;width:100%;}
   .pedido-form label{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;font-weight:700;color:var(--paper);}
   .pedido-form label span{font-weight:500;color:var(--muted);}
   .pedido-form input,.pedido-form select,.pedido-form textarea{
     padding:13px 15px;border-radius:12px;border:1px solid var(--line);
-    background:var(--ink-2);color:var(--paper);font:inherit;font-size:0.95rem;outline:none;color-scheme:dark;
+    background:var(--ink-2);color:var(--paper);font:inherit;font-size:1rem;outline:none;color-scheme:dark;
   }
   .pedido-form input:focus,.pedido-form select:focus,.pedido-form textarea:focus{border-color:var(--divanna);}
   .pedido-form textarea{min-height:110px;resize:vertical;}
+  .pedido-form ::placeholder,.pe-fila input::placeholder,.dc-form textarea::placeholder{color:rgba(246,241,234,0.5);opacity:1;}
   .pf-full{margin-top:16px;}
   .pf-trampa{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
   .pedido-form .btn{margin-top:22px;cursor:pointer;font-family:inherit;}
   .pedido-form .btn:disabled{opacity:0.6;cursor:default;transform:none;}
-  .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:0.95rem;}
+  .pf-msg{min-height:1.4em;margin:14px 0 0;font-size:1rem;}
   .pf-msg.ok{color:var(--maiz-husk);}
   .pf-msg.error{color:#ff8a8a;}
   .pedido-existente{max-width:760px;margin:34px auto 0;padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--ink-2);text-align:left;}
-  .pedido-existente p{margin:0 0 12px;color:var(--muted);font-size:0.95rem;}
+  .pedido-existente p{margin:0 0 12px;color:var(--muted);font-size:1rem;}
   .pedido-existente p b{color:var(--paper);}
   .pe-fila{display:flex;gap:10px;flex-wrap:wrap;}
-  .pe-fila input{flex:1;min-width:150px;padding:13px 15px;border-radius:12px;border:1px solid var(--line);background:var(--ink);color:var(--paper);font:inherit;font-size:0.95rem;outline:none;}
+  .pe-fila input{flex:1;min-width:150px;padding:13px 15px;border-radius:12px;border:1px solid var(--line);background:var(--ink);color:var(--paper);font:inherit;font-size:1rem;outline:none;}
   .pe-fila input:focus{border-color:var(--divanna);}
   .pe-fila .btn{cursor:pointer;font-family:inherit;background:transparent;border-color:var(--divanna);}
   .pedido-existente .pf-msg{margin:10px 0 0;}
-  .pf-alterno{background:none;border:none;color:var(--muted);text-decoration:underline;font:inherit;font-size:0.92rem;margin:22px auto 0;display:block;cursor:pointer;}
+  .pf-alterno{background:none;border:none;color:var(--muted);text-decoration:underline;font:inherit;font-size:0.92rem;margin:22px auto 0;display:block;min-height:44px;padding:0 8px;cursor:pointer;}
   .pf-alterno:hover{color:var(--paper);}
   .closing .pedido-form{margin-top:28px;}
 
@@ -338,22 +342,22 @@
   .dc-head-txt{flex:1;min-width:0;}
   .dc-head-txt h3{font-size:1.05rem;}
   .dc-head-txt span{font-size:0.78rem;color:var(--muted);}
-  .dc-nuevo{background:none;border:1px solid var(--line);color:var(--muted);border-radius:100px;padding:6px 12px;font:inherit;font-size:0.78rem;cursor:pointer;}
-  .dc-cerrar{background:none;border:none;color:var(--paper);font-size:1.7rem;line-height:1;width:36px;height:36px;cursor:pointer;}
+  .dc-nuevo{background:none;border:1px solid var(--line);color:var(--muted);border-radius:100px;padding:6px 14px;min-height:44px;font:inherit;font-size:0.78rem;cursor:pointer;}
+  .dc-cerrar{background:none;border:none;color:var(--paper);width:44px;height:44px;padding:0;margin-right:-6px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .dc-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
-  .dc-msg{max-width:85%;padding:11px 14px;border-radius:16px;font-size:0.94rem;line-height:1.45;overflow-wrap:anywhere;}
+  .dc-msg{max-width:85%;padding:11px 14px;border-radius:16px;font-size:1rem;line-height:1.45;overflow-wrap:anywhere;}
   .dc-msg a{color:inherit;text-decoration:underline;}
   .dc-msg.dima{align-self:flex-start;background:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px;}
   .dc-msg.cliente{align-self:flex-end;background:var(--divanna);color:var(--ink);border-bottom-right-radius:4px;}
   .dc-msg.error{align-self:center;background:none;color:#ff8a8a;font-size:0.85rem;text-align:center;}
   /* Tarjeta "Quién te atenderá" (api/_contacto.js) al registrar el pedido. */
-  .dc-tarjeta{align-self:flex-start;max-width:85%;padding:14px 16px;border-radius:16px;background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--divanna);font-size:0.9rem;line-height:1.45;}
+  .dc-tarjeta{align-self:flex-start;max-width:85%;padding:14px 16px;border-radius:16px;background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--divanna);font-size:1rem;line-height:1.45;}
   .dc-tarjeta .tt{font-size:0.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--divanna);margin:0 0 10px;}
   .dc-tarjeta .pp{margin:0 0 10px;}
   .dc-tarjeta .pp b{display:block;font-size:1.02rem;color:var(--paper);}
   .dc-tarjeta .pp span{color:var(--muted);font-size:0.85rem;}
   .dc-tarjeta p{margin:8px 0 0;}
-  .dc-tarjeta .seg{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:0.8rem;}
+  .dc-tarjeta .seg{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:1rem;}
   .pedido-form .dc-tarjeta{max-width:none;margin-top:14px;}
   .dc-fotos{align-self:flex-start;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-width:85%;}
   .dc-fotos a{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
@@ -370,7 +374,7 @@
   .dc-form button{width:46px;flex:none;border:none;border-radius:14px;background:var(--maiz);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;}
   .dc-form button:disabled{opacity:.5;cursor:default;}
   .dc-form textarea:disabled{opacity:.6;}
-  .dc-ir-form{align-self:center;margin-top:6px;background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:10px 18px;font:inherit;font-weight:700;font-size:0.9rem;cursor:pointer;}
+  .dc-ir-form{align-self:center;margin-top:6px;background:var(--maiz);color:var(--ink);border:none;border-radius:100px;padding:10px 18px;min-height:44px;font:inherit;font-weight:700;font-size:0.9rem;cursor:pointer;}
 
   footer{
     border-top:1px solid var(--line);padding:44px 0;
@@ -383,7 +387,7 @@
   @media (max-width:760px){
     .nav-links{position:fixed;top:72px;left:0;right:0;background:var(--ink);flex-direction:column;padding:20px 28px;border-bottom:1px solid var(--line);display:none;}
     .nav-links.open{display:flex;}
-    .nav-toggle{display:block;}
+    .nav-toggle{display:flex;}
     section{padding:64px 0;}
   }
 
@@ -435,7 +439,7 @@
       <a href="#preguntas">Preguntas</a>
       <a href="#pedido" class="nav-cta" data-abrir-chat>Cotizar</a>
     </div>
-    <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">☰</button>
+    <button class="nav-toggle" id="navToggle" aria-label="Abrir menú"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
   </nav>
 </header>
 
@@ -448,7 +452,7 @@
   <span class="music-bars" aria-hidden="true"><i></i><i></i><i></i></span>
 </button>
 
-<button type="button" id="fabCotizar" class="fab-cotizar oculto" data-abrir-chat>💬 Cotiza con DiMa</button>
+<button type="button" id="fabCotizar" class="fab-cotizar oculto" data-abrir-chat><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/></svg>Cotiza con DiMa</button>
 
 <section class="hero">
   <div class="wrap">
@@ -766,7 +770,7 @@
       <span>Asistente de Divanna Eventos y El Vaso Maíz</span>
     </div>
     <button type="button" class="dc-nuevo" id="dimaNuevo">Nueva</button>
-    <button type="button" class="dc-cerrar" id="dimaCerrar" aria-label="Cerrar chat">×</button>
+    <button type="button" class="dc-cerrar" id="dimaCerrar" aria-label="Cerrar chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="22" height="22"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
   </div>
   <div class="dc-msgs" id="dimaMsgs" aria-live="polite"></div>
   <form class="dc-form" id="dimaForm">
@@ -840,13 +844,15 @@
   }
 
   // Tarjeta "Quién te atenderá": nombre y puesto de quien llamará, brigada y aviso de seguridad.
+  const ICO_CAMION = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>';
+  const ICO_CANDADO = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
   function htmlTarjeta(c){
     const f = (c && c.frases) || {};
     return `<p class="tt">${escapar(f.titulo || 'Quién te atenderá')}</p>`
       + (c.personas || []).map(p => `<div class="pp"><b>${escapar(p.nombre)}</b><span>${escapar(p.puesto)} · ${escapar(p.area)}</span></div>`).join('')
       + (f.llamada ? `<p>${escapar(f.llamada)}</p>` : '')
-      + (f.brigada ? `<p>🚚 ${escapar(f.brigada)}</p>` : '')
-      + (f.seguridad ? `<p class="seg">🔒 ${escapar(f.seguridad)}</p>` : '');
+      + (f.brigada ? `<p>${ICO_CAMION}${escapar(f.brigada)}</p>` : '')
+      + (f.seguridad ? `<p class="seg">${ICO_CANDADO}${escapar(f.seguridad)}</p>` : '');
   }
   function agregarTarjeta(c){
     if(!c) return;
