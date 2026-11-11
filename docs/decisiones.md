@@ -544,3 +544,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Decisión:** junto al teléfono del cliente (tarjeta del calendario en los eventos propios y 👤 Cliente de la ficha completa) hay un enlace **💬 WhatsApp** (`https://wa.me/52…`) que abre el WhatsApp del teléfono de quien lo toca, en el chat con ese cliente. No pasa por DiMa ni por el número de Víctor.
 - **Por qué no rompe "Sin WhatsApp ni Twilio":** el sistema no manda ni recibe nada por WhatsApp; es solo un enlace que abre la app del colaborador. Los avisos del sistema siguen por correo, push y Telegram.
 - **Límite:** la vista previa de la tarjeta principal no lleva el enlace (toda la vista previa es un botón que abre la ficha).
+
+## 2026-11-11 — El recibo trae todo lo de la descripción
+
+- **Decisión:** los renglones de artículos del recibo (Sheets/PDF) salen de lo que lleva el evento tal como se escribió (`Items_Detallados_Cotizacion`, si no `Servicios_Solicitados`), un renglón por línea con su cantidad; después, con su precio, los cambios y extras de mantel, los cargos extra y el descuento de decorador. Sin descripción se sigue armando por catálogo (`EVENTOS.Productos`) como antes.
+- **Por qué:** Víctor: "los recibos están incompletos". Solo salía lo que DiMa pudo pasar al catálogo: en EVT-732433 faltaban mampara, letrero LED, tapete y mesita de pastel; en EVT-453853 las copas y los colores.
+- **Límite:** en "Ambos" sigue por catálogo (la descripción mezcla los dos negocios). La plantilla tiene 11 renglones (Divanna) / 12 (El Vaso Maíz); lo que sobra va en B13 / E30 como antes.
+- **Alternativa descartada:** comparar descripción y catálogo para agregar solo lo que falte (frágil con texto libre).

@@ -2952,6 +2952,14 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const rMantel = conMantel.find(l => l[0] === 'Mantel');
     ok(rMantel && rMantel[1] === 10 && rMantel[2] === 'mantel básico beige' && conMantel.find(l => l[0] === 'Mesa')[2] === '',
       'sheets: el renglón de manteles del recibo trae el tipo y color anotados');
+    // Caso real (EVT-732433): la descripción trae cosas que no están en el catálogo.
+    const conDesc = sh.articulosDe({ f: { Negocio: 'Divanna Eventos', Items_Detallados_Cotizacion: '2 mesas\n20 sillas Antonella\nDecoración de mampara\nLetrero LED\n-Tapete' },
+      productos: [{ clave: 'dv_mesa_mantel', cantidad: 2 }, { clave: 'dv_silla_antonella', cantidad: 20 }, { clave: 'dv_cambio_lentejuela', cantidad: 2, nota: 'gris' }] }, 'Divanna Eventos');
+    ok(conDesc.length === 6 && conDesc[1][0] === 'sillas Antonella' && conDesc[1][1] === 20 && conDesc[3][0] === 'Letrero LED' && conDesc[3][1] === ''
+      && conDesc[4][0] === 'Tapete' && conDesc[5][0] === 'Cambio de mantel básico a lentejuela' && conDesc[5][3] === 140,
+      'sheets: el recibo trae todo lo de la descripción (aunque no esté en el catálogo) y los cambios de mantel con su precio');
+    const vmDesc = sh.articulosDe({ f: { Negocio: 'El Vaso Maiz', Items_Detallados_Cotizacion: '60 personalizados\n15 esquites' }, productos: [] }, 'El Vaso Maiz');
+    ok(vmDesc.length === 2 && vmDesc[1][0] === 15 && vmDesc[1][1] === 'esquites', 'sheets: la comanda de El Vaso Maíz también sale de la descripción');
     ok(renglon.range === "'Pedidos'!A3:I3" && renglon.requestBody.values[0][0] === 'EVT-111222' && renglon.requestBody.values[0][5] === 2500 && renglon.requestBody.values[0][6] === 500
       && renglon.requestBody.values[0][7] === '=IF(F3="","",F3-G3)' && renglon.requestBody.values[0][8] === 'Anticipo recibido',
       'sheets: agrega el pedido en el primer renglón libre de la lista (no toca los que ya estaban)');

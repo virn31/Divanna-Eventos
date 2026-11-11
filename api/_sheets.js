@@ -110,6 +110,18 @@ async function leerDatos(eventoId) {
   };
 }
 
+// Lo que lleva el evento tal como se escribió (Víctor 2026-11-11: el recibo debe
+// traer todo lo de la descripción; antes salía solo lo que DiMa pudo pasar al
+// catálogo y se perdían cosas como "Letrero LED", "Tapete" o los colores).
+// Cada renglón: { cantidad, texto } ("20 sillas Antonella" → 20, "sillas Antonella").
+function renglonesDescripcion(f) {
+  const texto = f.Items_Detallados_Cotizacion || f.Servicios_Solicitados || f.Checklist_Items || '';
+  return String(texto).split('\n').map(t => t.trim().replace(/^[-•*·]+\s*/, '')).filter(Boolean).map(t => {
+    const m = t.match(/^(\d{1,4})\s+(.+)$/);
+    return m ? { cantidad: Number(m[1]), texto: m[2] } : { cantidad: '', texto: t };
+  });
+}
+
 // Renglones de artículos de un negocio: [articulo/cantidad, ...].
 function articulosDe(d, negocio) {
   const propios = d.productos.filter(p => (PRODUCTOS[p.clave].negocio || DV) === negocio);
@@ -120,6 +132,23 @@ function articulosDe(d, negocio) {
   // recibo se ve cuánto fue. Va en la hoja del primer negocio, como los cargos.
   const monto = Number(d.f.Monto_Estimado_IA) || 0;
   const descuento = primero && tieneDescuento(d.f) && monto > 0 ? redondo(monto / (1 - DESCUENTO_DECORADOR) - monto) : 0;
+  // Con descripción (y de un solo negocio): un renglón por cada línea escrita;
+  // después, con su precio, los cambios y extras de mantel, los cargos y el
+  // descuento. En "Ambos" la descripción mezcla los dos negocios: sigue por catálogo.
+  const escrito = negociosDe(d.f).length === 1 ? renglonesDescripcion(d.f) : [];
+  if (escrito.length) {
+    const conPrecio = propios.filter(p => PRODUCTOS[p.clave].precio);
+    if (negocio === VM) {
+      return escrito.map(r => [r.cantidad, r.texto, '', null, ''])
+        .concat(conPrecio.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || '']))
+        .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
+        .concat(descuento ? [[1, 'Descuento decorador 10%', '', -descuento, `-$${descuento.toLocaleString('es-MX')} (ya restado del total)`]] : []);
+    }
+    return escrito.map(r => [r.texto, r.cantidad, ''])
+      .concat(conPrecio.map(p => [PRODUCTOS[p.clave].nombre.replace(/ \([^)]*\$[^)]*\)$/, ''), p.cantidad, p.nota || '', PRODUCTOS[p.clave].precio]))
+      .concat(cargos.map(c => [`Cargo extra: ${c.descripcion}`, c.cantidad, `$${c.total.toLocaleString('es-MX')}${c.nota ? ' · ' + c.nota : ''}`]))
+      .concat(descuento ? [['Descuento decorador 10%', 1, 'Ya restado del total', -descuento]] : []);
+  }
   if (negocio === VM) {
     return propios.map(p => [p.cantidad, PRODUCTOS[p.clave].nombre, '', null, p.nota || ''])
       .concat(cargos.map(c => [c.cantidad, `Cargo extra: ${c.descripcion}`, '', c.total, c.nota || '']))
@@ -342,4 +371,4 @@ async function enviarRecibo(eventoId, motivo = '') {
   }
 }
 
-module.exports = { sincronizarSheets, sheetsConfigurado, enviarRecibo, celdasRecibo, renglonLista, articulosDe, negociosDe };
+module.exports = { sincronizarSheets, sheetsConfigurado, enviarRecibo, celdasRecibo, renglonLista, articulosDe, negociosDe, renglonesDescripcion };
