@@ -201,8 +201,8 @@ function tituloGaleria(nombreSeccion) {
   return partes[i + 1] ? tituloBonito(partes[i + 1]) : '';
 }
 function preguntaGaleria(f, titulo) {
-  if (esCasaIsabella(titulo)) return 'Hola, quiero información para rentar Casa Isabella.';
-  if (esVasoMaiz(titulo)) return 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.';
+  if (esCasaIsabella(titulo)) return 'Hola, me interesa Casa Isabella con un montaje como el de esta foto.';
+  if (esVasoMaiz(titulo)) return 'Hola, quiero cotizar snacks de El Vaso Maíz como los de esta foto.';
   const tema = temaDeFoto(f);
   return tema ? `Hola, me gustaría cotizar algo como esto: ${tema}.` : 'Hola, me gustaría cotizar algo como lo de su galería.';
 }

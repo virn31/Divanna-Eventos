@@ -262,7 +262,11 @@ function construirMensajes(historial) {
     total += texto.length;
     // Las fotos no viajan a la API, pero DiMa debe saber cuáles ya vio el cliente.
     const vistas = h.rol === 'dima' ? temasDeFotos(h.fotos) : [];
-    mensajes.push({ role: h.rol === 'cliente' ? 'user' : 'assistant', content: vistas.length ? `${texto}\n[Fotos que le mostré: ${vistas.join('; ')}]` : texto });
+    // Botón "Cotizar" de una foto de la página: DiMa recibe lo que hay en esa foto.
+    const deFoto = h.rol === 'cliente' ? descripcionDeFoto(h.foto) : '';
+    let contenido = vistas.length ? `${texto}\n[Fotos que le mostré: ${vistas.join('; ')}]` : texto;
+    if (deFoto) contenido += `\n[El cliente tocó "Cotizar" en esta foto de la página: ${deFoto}. Cotiza lo que se ve en ESA foto.]`;
+    mensajes.push({ role: h.rol === 'cliente' ? 'user' : 'assistant', content: contenido });
   }
   if (total > MAX_CARACTERES_TOTAL || mensajes[0].role !== 'user' || mensajes[mensajes.length - 1].role !== 'user') return null;
   return mensajes;
@@ -316,6 +320,15 @@ const TEMA_DE_FOTO = new Map([
   ...Object.values(REFERENCIAS_DECORACION).map(r => [`/referencias/${r.archivo}`, r.tema]),
   ...FOTOS_PAQUETES_VASOMAIZ.map(f => [`/${f}`, `Paquetes de El Vaso Maíz (${f.replace(/^paquetes\//, '').replace(/\.jpg$/, '').replace(/-/g, ' ')})`]),
 ]);
+// De qué es la foto en la que el cliente tocó "Cotizar" (galería, Drive). Solo
+// fotos conocidas: cualquier otro valor que mande el navegador se ignora.
+function descripcionDeFoto(u) {
+  if (typeof u !== 'string' || !u || u.length > 200) return '';
+  const url = u.startsWith('/') ? u : `/${u}`;
+  const deDrive = FOTOS_DRIVE.find(f => f.url === url);
+  if (deDrive) return `${deDrive.tema}${deDrive.lectura ? `. Contiene: ${deDrive.lectura.replace(/\n+/g, ' | ').slice(0, 1500)}` : ''}`;
+  return TEMA_DE_FOTO.get(url) || '';
+}
 function temasDeFotos(urls) {
   const tema = (u) => TEMA_DE_FOTO.get(u) || (FOTOS_DRIVE.find(f => f.url === u) || {}).tema;
   return Array.isArray(urls) ? [...new Set(urls.map(tema).filter(Boolean))] : [];
