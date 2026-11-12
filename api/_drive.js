@@ -177,7 +177,47 @@ function temaDeFoto(f) {
   const tema = (despues || linea || pieDeFoto(f.nombre)).replace(/[.:]+$/, '');
   return tema.length > 160 ? `${tema.slice(0, 157)}...` : tema;
 }
+// Paquete y precio de un flyer, sacados del texto que DiMa transcribió de la imagen
+// (parte "2) Texto..."): "Mesa para 10 personas con decoración ($3,300)". Así cada
+// botón pregunta por SU paquete y no por "Flyer de promoción navideña de ...".
+// Si no se encuentra, '' (y se usa el tema general de la foto).
+const RENGLON_DE_PAQUETE = /persona|mesa|paquete|xv|aro|mampara|tunel|túnel|arco|letras|snack|vaso/i;
+const RENGLON_QUE_NO = /^(incluye|eventos divanna|divanna eventos|a domicilio|solo entrega|fechas?|logo|precio|agenda|nota|local)\b/i;
+const pesos = (t) => { const n = Number(String(t).replace(/[^\d]/g, '')); return n ? `$${n.toLocaleString('en-US')}` : ''; };
+function oracion(t) {
+  const letras = t.replace(/[^\p{L}]/gu, '');
+  const enMayusculas = letras && letras === letras.toUpperCase();
+  const base = enMayusculas ? t.toLowerCase() : t;
+  return (base.charAt(0).toUpperCase() + base.slice(1)).replace(/\bxv\b/gi, 'XV').replace(/\btifany\b/gi, 'Tiffany');
+}
+function paqueteDePromo(f) {
+  const lectura = String(f.lectura || '');
+  const renglones = lectura.split('\n').map(l => l.trim()).filter(Boolean);
+  const inicio = renglones.findIndex(l => /^(2\)|texto)/i.test(l));
+  if (inicio < 0) return '';
+  const fin = renglones.findIndex((l, i) => i > inicio && /^(3\)|fotos?\b|nota|descripci[oó]n|texto dentro|im[aá]genes)/i.test(l));
+  const seccion = renglones.slice(inicio, fin < 0 ? undefined : fin);
+  // El renglón de encabezado a veces ya trae el texto entre comillas ("Texto visible: "Mesa para 10 ... $3500"").
+  const candidatos = [];
+  for (const l of seccion) {
+    const comillas = [...l.matchAll(/["“]([^"”]{8,})["”]/g)].map(m => m[1]);
+    if (comillas.length) candidatos.push(...comillas);
+    else if (l !== seccion[0]) candidatos.push(l.replace(/^[-•*]\s*/, ''));
+  }
+  const limpios = candidatos.map(l => l.trim()).filter(l => l && !RENGLON_QUE_NO.test(l) && RENGLON_DE_PAQUETE.test(l) && l.length <= 120);
+  // El renglón que dice para cuántas personas manda ("personalizados" no cuenta).
+  const nombre = limpios.find(l => /\bpersonas?\b/i.test(l)) || limpios[0];
+  if (!nombre) return '';
+  // Precio: el del mismo renglón; si no, el primero de la sección ("DE $11,000 A $8,850" → el de oferta).
+  const precioDe = (t) => { const oferta = t.match(/\ba\s+(\$\s?[\d,.]+)/i); const m = oferta || t.match(/\$\s?[\d,.]+/); return m ? pesos(oferta ? m[1] : m[0]) : ''; };
+  const precio = precioDe(nombre) || seccion.slice(1).map(precioDe).find(Boolean) || precioDe(seccion[0].replace(/^[^"“]*/, ''));
+  const titulo = oracion(nombre.replace(/\$\s?[\d,.]+/g, '').replace(/\s{2,}/g, ' ').replace(/[\s.:,-]+$/, '').trim());
+  if (!titulo) return '';
+  return precio ? `${titulo} (${precio})` : titulo;
+}
 function preguntaPromo(f) {
+  const paquete = paqueteDePromo(f);
+  if (paquete) return `Hola, me interesa este paquete de sus promociones: ${paquete}.`;
   const tema = temaDeFoto(f);
   return tema ? `Hola, me interesa esta promoción: ${tema}.` : 'Hola, me interesa una de sus promociones.';
 }
@@ -350,4 +390,4 @@ function leerImagenesEnSegundoPlano() {
 // Para las pruebas.
 function limpiarCacheDrive() { cache = { datos: null, hora: 0 }; }
 
-module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, pieDeFoto, MARCA_LECTURA };
+module.exports = { configurado, contenidoDrive, contenidoPagina, contenidoDima, fotoDrive, leerImagenesPendientes, leerImagenesEnSegundoPlano, limpiarCacheDrive, pieDeFoto, preguntaPromo, MARCA_LECTURA };

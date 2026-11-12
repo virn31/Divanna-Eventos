@@ -265,7 +265,7 @@ function construirMensajes(historial) {
     // Botón "Cotizar" de una foto de la página: DiMa recibe lo que hay en esa foto.
     const deFoto = h.rol === 'cliente' ? descripcionDeFoto(h.foto) : '';
     let contenido = vistas.length ? `${texto}\n[Fotos que le mostré: ${vistas.join('; ')}]` : texto;
-    if (deFoto) contenido += `\n[El cliente tocó "Cotizar" en esta foto de la página: ${deFoto}. Cotiza lo que se ve en ESA foto.]`;
+    if (deFoto) contenido += `\n[El cliente tocó "Cotizar" en esta foto de la página: ${deFoto}. Responde sobre ESE paquete o lo que se ve en ESA foto: qué incluye, su precio y sus fechas si la foto los trae, sin cambiarlo por otro paquete; luego sigue con la cotización.]`;
     mensajes.push({ role: h.rol === 'cliente' ? 'user' : 'assistant', content: contenido });
   }
   if (total > MAX_CARACTERES_TOTAL || mensajes[0].role !== 'user' || mensajes[mensajes.length - 1].role !== 'user') return null;
