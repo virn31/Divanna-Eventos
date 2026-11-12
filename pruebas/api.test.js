@@ -3448,6 +3448,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(conFoto.startsWith('Hola, me interesa esta promoción.\n[El cliente tocó "Cotizar" en esta foto de la página: WhatsApp Image 2026 10 31 (Promociones). Contiene: Flyer de El Vaso Maíz. | Paquete 1 (60 pzs) $1,750')
       && r.code === 200 && llamadasClaude[0].messages[0].content === 'Hola',
       'cotizar foto: DiMa sabe qué hay en la foto que tocó el cliente (y una foto desconocida se ignora)');
+    ok(conFoto.includes('Responde sobre ESE paquete'), 'cotizar foto: DiMa responde sobre el paquete de esa foto, no en general');
+    // Promociones: cada botón pregunta por su paquete y precio, sacados del texto del flyer (Víctor 2026-11-11).
+    const promo = (lectura) => drv.preguntaPromo({ nombre: 'WhatsApp Image', lectura });
+    ok(promo('1) Flyer de promoción navideña de Divanna Eventos.\n\n2) Texto completo:\n$3300\nMESA DECORADA Y DECORACIÓN NAVIDEÑA\nPLATO BASE, COPA\nSERVILLETAS, PERSONALIZADOS\nMESA EXTRA $1600\nFechas: 18-19 Dic\n\n3) Imágenes del flyer: mesas.')
+        === 'Hola, me interesa este paquete de sus promociones: Mesa decorada y decoración navideña ($3,300).'
+      && promo('Flyer promocional navideño.\n\nTexto transcrito:\nEVENTOS DIVANNA\nMESAS DECORADAS A DOMICILIO\n2 MESAS PARA 20 PERSONAS\nIncluye: silla Antonella, copas.\n$3500\nPARA 10 PERSONAS $1800\n\nFotos: mesas largas.')
+        === 'Hola, me interesa este paquete de sus promociones: 2 mesas para 20 personas ($3,500).'
+      && promo('1) Foto de un montaje con precio.\n\n2) Texto visible en la imagen: "Mesa para 10 personas y decoración con lona personalizada $3500". En la lona se lee un apellido.\n\n3) Descripción: cena.')
+        === 'Hola, me interesa este paquete de sus promociones: Mesa para 10 personas y decoración con lona personalizada ($3,500).'
+      && promo('1) Flyer del Paquete XV Años.\n\n2) Texto del flyer:\nPaquete XV Años\nDE $11,000 A $8,850\nIncluye:\n- 1 arco de cerezos\n\n3) Fotos que incluye: arco.')
+        === 'Hola, me interesa este paquete de sus promociones: Paquete XV Años ($8,850).'
+      && promo('') === 'Hola, me interesa una de sus promociones.',
+      'promociones: cada botón pregunta por su paquete y su precio (no "Flyer de promoción navideña...")');
     const landFoto = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
     ok(landFoto.includes("if(actual && actual !== (entrada.dataset.prellenado || '')) return;") && landFoto.includes('prellenar(f.pregunta, f.url);'),
       'cotizar foto: cada botón cambia la pregunta que dejó otro botón (sin tocar lo que escribió el cliente)');
