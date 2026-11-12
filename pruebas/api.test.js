@@ -3383,9 +3383,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(r.code === 200 && r.body.galerias.length === 3 && galPrincipal.titulo === '' && galPrincipal.fotos.length === 2
       && galPrincipal.fotos[0].pregunta === 'Hola, me gustaría cotizar algo como esto: XV años rosa y dorado.' && !('nombre' in galPrincipal.fotos[0])
       && galPrincipal.fotos[0].url === '/api/dima-chat?foto=fXV'
-      && galCI.titulo === 'Casa Isabella' && galCI.fotos.length === 1 && galCI.fotos[0].pregunta === 'Hola, quiero información para rentar Casa Isabella.'
+      && galCI.titulo === 'Casa Isabella' && galCI.fotos.length === 1 && galCI.fotos[0].pregunta === 'Hola, me interesa Casa Isabella con un montaje como el de esta foto.'
       && galCI.fotos[0].conPrecios === false
-      && galVM.titulo === 'El Vaso Maíz' && galVM.fotos[0].pregunta === 'Hola, quiero cotizar snacks de El Vaso Maíz para mi evento.'
+      && galVM.titulo === 'El Vaso Maíz' && galVM.fotos[0].pregunta === 'Hola, quiero cotizar snacks de El Vaso Maíz como los de esta foto.'
       && r.body.promociones.textos[0].includes('$1,500') && r.body.promociones.fotos.length === 1
       && !JSON.stringify(r.body).includes('6,800') && r.headers['Cache-Control'].includes('s-maxage'),
       'drive: la página recibe la galería y las promociones (sin los documentos internos)');
@@ -3436,6 +3436,21 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(llamadasClaude[0].system.includes('"drive:fFlyer": WhatsApp Image 2026 10 31 (Promociones)\n  Contiene: Flyer de El Vaso Maíz. | Paquete 1 (60 pzs) $1,750')
       && llamadasClaude[0].system.includes('"drive:fDiana": Mesa XV rosa y dorado (Galería)') && llamadasClaude.length === 1,
       'drive: DiMa sabe lo que dice cada imagen (sin volver a leerla) y usa la descripción de Diana como nombre');
+
+    // Botón "Cotizar" de una foto: el mensaje lleva la foto y DiMa recibe lo que hay en ella (Víctor 2026-11-11).
+    reset();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Ese es el Paquete 1. ¿Para qué fecha?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Hola, me interesa esta promoción.', foto: '/api/dima-chat?foto=fFlyer' }] });
+    const conFoto = llamadasClaude[0].messages[0].content;
+    reset();
+    respuestasClaude = [{ stop_reason: 'end_turn', content: [{ type: 'text', text: '¿Qué te gustaría cotizar?' }] }];
+    r = await chat({ historial: [{ rol: 'cliente', texto: 'Hola', foto: '/api/dima-chat?foto=noExiste' }] });
+    ok(conFoto.startsWith('Hola, me interesa esta promoción.\n[El cliente tocó "Cotizar" en esta foto de la página: WhatsApp Image 2026 10 31 (Promociones). Contiene: Flyer de El Vaso Maíz. | Paquete 1 (60 pzs) $1,750')
+      && r.code === 200 && llamadasClaude[0].messages[0].content === 'Hola',
+      'cotizar foto: DiMa sabe qué hay en la foto que tocó el cliente (y una foto desconocida se ignora)');
+    const landFoto = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
+    ok(landFoto.includes("if(actual && actual !== (entrada.dataset.prellenado || '')) return;") && landFoto.includes('prellenar(f.pregunta, f.url);'),
+      'cotizar foto: cada botón cambia la pregunta que dejó otro botón (sin tocar lo que escribió el cliente)');
 
     // Si Diana cambia la imagen (otra huella), se vuelve a leer solo esa.
     drivePrueba.archivos.find(a => a.id === 'fFlyer').md5Checksum = '99999999ffff';
@@ -4418,7 +4433,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     K.olvidarGerentes();
     const land = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
     const chatJs = fs.readFileSync(path.join(repo, 'api/dima-chat.js'), 'utf8');
-    ok(land.includes('agregarTarjeta(data.contacto)') && land.includes("t.innerHTML = htmlTarjeta(data.contacto)") && land.includes("historial: chat.historial.map(({ rol, texto, firma }) => (rol === 'dima' ? { rol, texto, firma } : { rol, texto })),")
+    ok(land.includes('agregarTarjeta(data.contacto)') && land.includes("t.innerHTML = htmlTarjeta(data.contacto)") && land.includes("historial: chat.historial.map(({ rol, texto, firma, foto }) => (rol === 'dima' ? { rol, texto, firma } : { rol, texto, ...(foto ? { foto } : {}) })),")
       && chatJs.includes('contacto: contactoNuevo') && fs.readFileSync(path.join(repo, 'api/pedido.js'), 'utf8').includes('contacto: tarjetaParaCliente(contacto)'),
       'tarjeta: sale en el chat y en el formulario, y no vuelve a DiMa en el historial');
     ok(/escapar\(p\.nombre\)/.test(land) && /escapar\(f\.seguridad\)/.test(land), 'tarjeta: la página escapa lo que pinta');

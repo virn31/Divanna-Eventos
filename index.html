@@ -961,10 +961,12 @@
     chat = { historial: [], folio: null, folioFirma: null, vistas: [], terminado: false, pedidoExistente: null };
     guardarChat();
     pintarChat();
+    dimaInput.dataset.foto = ''; dimaInput.dataset.prellenado = '';
     dimaInput.focus();
   });
 
   dimaInput.addEventListener('input', () => {
+    if(!dimaInput.value.trim()){ dimaInput.dataset.foto = ''; dimaInput.dataset.prellenado = ''; }
     dimaInput.style.height = 'auto';
     dimaInput.style.height = Math.min(dimaInput.scrollHeight, 120) + 'px';
   });
@@ -976,9 +978,12 @@
     e.preventDefault();
     const texto = dimaInput.value.trim();
     if(!texto || dimaEnviar.disabled || chat.terminado) return;
+    // Si el texto lo dejó un botón "Cotizar" de una foto, va con esa foto: así DiMa sabe de cuál se trata.
+    const foto = dimaInput.dataset.foto || '';
     dimaInput.value = '';
+    dimaInput.dataset.foto = ''; dimaInput.dataset.prellenado = '';
     dimaInput.style.height = 'auto';
-    chat.historial.push({ rol: 'cliente', texto });
+    chat.historial.push({ rol: 'cliente', texto, ...(foto ? { foto } : {}) });
     agregarBurbuja('cliente', formatear(texto));
     dimaEnviar.disabled = true;
     const escribiendo = document.createElement('div');
@@ -993,7 +998,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Lo de DiMa va con su firma (el servidor rechaza conversaciones editadas); la tarjeta no viaja.
-          historial: chat.historial.map(({ rol, texto, firma }) => (rol === 'dima' ? { rol, texto, firma } : { rol, texto })),
+          historial: chat.historial.map(({ rol, texto, firma, foto }) => (rol === 'dima' ? { rol, texto, firma } : { rol, texto, ...(foto ? { foto } : {}) })),
           folio: chat.folio,
           folioFirma: chat.folioFirma,
           // Solo hasta que el servidor confirma el pedido y devuelve el folio firmado.
@@ -1152,14 +1157,25 @@
       revelar.forEach(el => io.observe(el));
     }
 
-    // Los botones de un paquete abren el chat con la pregunta ya escrita (no se envía sola).
-    document.querySelectorAll('[data-pregunta]').forEach(el => el.addEventListener('click', () => {
+    // Los botones "Cotizar" abren el chat con la pregunta ya escrita (no se envía sola).
+    // Si quedó escrita la de otro botón y no se envió, se cambia por la nueva (antes se
+    // quedaba la primera y todos los paquetes pedían lo mismo); lo que el cliente escribió
+    // él mismo no se toca. Con la foto del botón, DiMa sabe de cuál se trata.
+    function prellenar(texto, foto){
       const entrada = document.getElementById('dimaInput');
-      if(entrada && !entrada.value.trim()){
-        entrada.value = el.dataset.pregunta;
-        entrada.dispatchEvent(new Event('input'));
-        entrada.setSelectionRange(entrada.value.length, entrada.value.length);
-      }
+      if(!entrada || !texto) return;
+      const actual = entrada.value.trim();
+      if(actual && actual !== (entrada.dataset.prellenado || '')) return;
+      entrada.value = texto;
+      entrada.dispatchEvent(new Event('input'));
+      entrada.dataset.prellenado = texto;
+      entrada.dataset.foto = foto || '';
+      entrada.setSelectionRange(entrada.value.length, entrada.value.length);
+    }
+    document.querySelectorAll('[data-pregunta]').forEach(el => el.addEventListener('click', () => {
+      const caja = el.closest('figure, .paq');
+      const img = caja && caja.querySelector('img');
+      prellenar(el.dataset.pregunta, img ? img.getAttribute('src') : '');
     }));
 
     // Galería y promociones desde la carpeta de Google Drive de Diana (api/_drive.js).
@@ -1180,12 +1196,7 @@
         boton.type = 'button'; boton.className = `btn btn-primary ${clase}`; boton.textContent = 'Cotizar →';
         boton.addEventListener('click', e => {
           abrirChat(e);
-          const entrada = document.getElementById('dimaInput');
-          if(entrada && !entrada.value.trim() && f.pregunta){
-            entrada.value = f.pregunta;
-            entrada.dispatchEvent(new Event('input'));
-            entrada.setSelectionRange(entrada.value.length, entrada.value.length);
-          }
+          prellenar(f.pregunta, f.url);
         });
         caja.append(boton);
         return caja;
