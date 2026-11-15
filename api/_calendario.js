@@ -21,7 +21,7 @@ const { botonConfirmar } = require('./_eventos');
 const { capacidadEvento, leerProductos, normalizarProductos, resumenManteles, infoManteles, PRODUCTOS, CLAVES } = require('./_productos');
 const { esDecorador, conDescuento, redondo, MARCA_DECORADOR } = require('./_decorador');
 const { buscarClientePorTelefono, camposAgenda, folioNuevo } = require('./_pedidos');
-const { origenDePersona } = require('./_origen');
+const { origenDePersona, paternidad } = require('./_origen');
 const { diasLlenos } = require('./_agenda');
 const { reenviarPorCambio } = require('./_produccion');
 const { sincronizarSheets, sheetsConfigurado, enviarRecibo } = require('./_sheets');
@@ -267,6 +267,7 @@ async function vistaMes(colaborador, mes) {
       return {
         id: r.id,
         folio: f.Folio_Evento || '',
+        ...paternidad(f),
         fecha: f.Fecha_Evento,
         hora: f.Hora_Inicio || '',
         horasServicio: f.Horas_Servicio || null,

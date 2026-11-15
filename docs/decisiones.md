@@ -592,3 +592,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Pedido de Víctor:** revisar la visual de la página donde cotiza el cliente y empezar por los cambios chicos.
 - **Cambios:** Casa Isabella en "Lo que hacemos" ya trae foto (la alberca) en vez de un recuadro con texto; si la carpeta de Galería de Drive tiene fotos del salón, el portarretrato las rota encima. El botón flotante "Cotiza con DiMa" se esconde mientras haya otro botón de cotizar a la vista (ya no tapa "Cotizar este paquete") y el pie deja espacio abajo. La música solo suena con su botón (antes arrancaba con el primer toque en cualquier parte). La cifra "2 marcas" cambió a "1 chat · para cotizar mobiliario, decoración y snacks juntos". El logo del pie usa el mismo logo ligero del encabezado (64 KB en vez de 788 KB).
 - **Pendiente:** foto en la primera pantalla y página más corta en el teléfono (con las skills de diseño); reseñas reales de clientes (Víctor las consigue).
+
+## 2026-11-15 — Paternidad junto al folio
+
+- **Pedido de Víctor:** en las fichas ver quién hizo cada evento junto al folio (Diana, Eden, DiMa, Ángela…), captado solo según quién estaba conectado. Todos lo ven, y también quién lo autorizó.
+- **Decisión:** se muestra `EVT-###### · <origen> · ✓ <quién autorizó>` en la ficha de la APK, el dashboard (eventos y pedidos por cotizar), las tarjetas del calendario y 🚚 Logística. Sale de `EVENTOS.Origen` y `EVENTOS.Autorizado_Por`, que ya se guardaban solos desde el 2026-11-06 (`paternidad()` en `api/_origen.js`). Si lo capturó y autorizó la misma persona sale una vez; sin autorizar no sale el ✓; eventos viejos se leen de sus notas o no muestran nada. Caché `dima-brigadas-v49`.
+- **Alternativa descartada:** un campo nuevo de "autor": ya existía `Origen`.

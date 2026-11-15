@@ -4093,7 +4093,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const app = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(app.includes("['Lider de brigada', 'Encargada de evento', 'Asistente'].includes(data.colaborador.rol)") && app.includes("accion: 'leer_ticket'") && app.includes("d.soloGastos ? ''"),
       'gastos (app): el 💰 sale también al asistente, lee el ticket al elegir la foto y le oculta cobros y efectivo');
-    ok(/dima-brigadas-v4[78]/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'app: se subió la caché de la app (v47 o más)');
+    ok(Number((/dima-brigadas-v(\d+)/.exec(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')) || [])[1]) >= 47, 'app: se subió la caché de la app (v47 o más)');
     // ---------- De qué negocio es (Divanna, Casa Isabella o El Vaso Maíz) ----------
     ok(JSON.stringify(Fz.camposNegocio('Casa Isabella')) === '{"Negocio":"Divanna Eventos","Casa_Isabella":true}'
       && JSON.stringify(Fz.camposNegocio('El Vaso Maiz')) === '{"Negocio":"El Vaso Maiz","Casa_Isabella":false}' && Fz.camposNegocio('Otro') === null,
@@ -4408,7 +4408,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const brigL = fs.readFileSync(path.join(repo, 'api/brigada-eventos.js'), 'utf8');
     ok(calL.includes('data-t="log"') && calL.includes("accion: 'logistica_guardar'") && calL.includes('vista=logistica') && dashL.includes('logistica_guardar: Logistica.guardarLogistica') && brigL.includes("vista === 'logistica'"),
       'logística: pestaña 🚚 en el calendario conectada a las rutas existentes (sin función nueva)');
-    ok(/dima-brigadas-v48/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'logística: se subió la caché de la app (v48)');
+    ok(Number((/dima-brigadas-v(\d+)/.exec(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')) || [])[1]) >= 48, 'logística: se subió la caché de la app (v48 o más)');
   }
   // ---------- Tarjeta "Quién te atenderá" al cerrar el pedido (Víctor 2026-11-11) ----------
   {
@@ -4564,5 +4564,27 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       'seguridad: cabeceras (sin recuadros de otras páginas, nosniff; la app conserva ubicación y cámara)');
     const pj = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
     ok(/^\^1\d\./.test(pj.dependencies.nodemailer) && pj.engines.node === '>=20', 'seguridad: Nodemailer 10 (sin las fallas conocidas) y Node 20');
+  }
+  // ---------- Paternidad junto al folio (Víctor 2026-11-15) ----------
+  {
+    const { paternidad } = require('../api/_origen');
+    const ver = (f) => JSON.stringify(paternidad(f));
+    ok(ver({ Origen: 'DiMa', Autorizado_Por: 'Diana', Autorizacion_Diana: 'SI' }) === '{"origen":"DiMa","autorizo":"Diana"}', 'paternidad: pedido de DiMa autorizado por Diana');
+    ok(ver({ Origen: 'Eden', Autorizado_Por: 'Eden', Autorizacion_Diana: 'SI' }) === '{"origen":"Eden","autorizo":""}', 'paternidad: si lo capturó y autorizó la misma persona, sale una vez');
+    ok(ver({ Origen: 'Formulario', Autorizado_Por: 'Diana', Autorizacion_Diana: 'Pendiente' }) === '{"origen":"Formulario","autorizo":""}', 'paternidad: sin autorizar no sale quién autorizó');
+    ok(ver({ Origen: 'Chat DiMa', Autorizacion_Diana: 'SI' }) === '{"origen":"DiMa","autorizo":""}' && ver({ Notas: 'Evento capturado a mano por ángela el lunes', Origen: 'Manual', Autorizacion_Diana: 'SI' }) === '{"origen":"Ángela","autorizo":""}' && ver({}) === '{"origen":"","autorizo":""}',
+      'paternidad: eventos viejos se leen de sus notas; sin dato, vacío');
+    const { formatearEvento } = require('../api/_eventos');
+    if (typeof formatearEvento === 'function') {
+      const fe = formatearEvento({ id: 'recX', fields: { Folio_Evento: 'EVT-1', Origen: 'DiMa', Autorizado_Por: 'Víctor', Autorizacion_Diana: 'SI' } });
+      ok(fe.origen === 'DiMa' && fe.autorizo === 'Víctor', 'paternidad: la ficha de la app la trae');
+    }
+    const appP = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
+    const dashP = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+    const calP = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
+    ok(appP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(p.folio)}${quienHizo(p)}')
+      && calP.includes('<b>${e(ev.folio)}</b><small>${quienHizo(ev)}</small>') && calP.includes('<b>${e(m.folio)}</b><small>${quienHizo(m)}</small>') && /esc\(ev\.origen\)/.test(appP) && /o\.esc\(x\.origen\)/.test(calP),
+      'paternidad: junto al folio en la app, el dashboard, el calendario y Logística (escapado)');
+    ok(/dima-brigadas-v49/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v49)');
   }
 })();

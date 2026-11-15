@@ -41,4 +41,15 @@ function autorizadoPor(fields = {}) {
   return 'Sin dato';
 }
 
-module.exports = { ORIGENES, origenDeEvento, origenDePersona, autorizadoPor };
+// Paternidad del evento para mostrarla junto al folio en la app, el calendario y
+// el dashboard (Víctor 2026-11-15; todos la ven): quién lo creó (DiMa, Formulario
+// o quien lo capturó) y quién lo autorizó. Si lo autorizó quien lo capturó, solo
+// sale una vez. Sin dato = vacío. { origen, autorizo }
+function paternidad(fields = {}) {
+  const o = origenDeEvento(fields);
+  const origen = o === 'Sin dato' || o === ORIGENES.MANUAL ? '' : o;
+  const a = fields.Autorizacion_Diana === 'SI' ? autorizadoPor(fields) : '';
+  return { origen, autorizo: a && a !== 'Sin dato' && a !== origen ? a : '' };
+}
+
+module.exports = { ORIGENES, origenDeEvento, origenDePersona, autorizadoPor, paternidad };

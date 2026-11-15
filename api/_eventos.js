@@ -4,6 +4,7 @@
 // También la confirmación "Enterado" de un evento asignado (app y botón de Telegram).
 
 const { ROLES, COLABORADORES_TABLE, puedeOperarEvento, esVasoMaiz, formulaGerencia, GERENCIAS, eventoDeGerencia, gerenciaDe, puestoGerente, eleccionDeEvento } = require('./_sesion');
+const { paternidad } = require('./_origen');
 const { enviarTelegramEquipo } = require('./_telegram');
 const { leerArticulos } = require('./_productos');
 const { eventosConfirmadosDe } = require('./_staff');
@@ -57,6 +58,8 @@ function formatearEvento(r) {
   return {
     id: r.id,
     folio: r.fields.Folio_Evento || '',
+    // Quién lo creó y quién lo autorizó (junto al folio en la ficha).
+    ...paternidad(r.fields),
     negocio: r.fields.Negocio || '',
     // Negocio que se marca al registrar un cobro (Divanna Eventos, Casa Isabella o El Vaso Maiz).
     negocioSugerido: eleccionDeEvento(r.fields),
@@ -307,4 +310,4 @@ async function confirmarEvento(colaborador, eventoId) {
   return { folio: evento.fields.Folio_Evento || '' };
 }
 
-module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista, botonConfirmar, textoEnterado, confirmarEvento };
+module.exports = { hoyCuliacan, alcanceDe, leerEventos, alertasEquipoDeHoy, opcionesVista, botonConfirmar, textoEnterado, confirmarEvento, formatearEvento };

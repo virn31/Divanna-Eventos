@@ -150,7 +150,7 @@ window.DimaCalendario = (function(){
         <div class="log-hora">${m.hora ? e(m.hora) : '—'}${m.sugerida && m.hora ? '<small>sugerida</small>' : ''}</div>
         <div class="log-cuerpo">
         <div><span class="log-tipo" style="color:${COLOR[m.negocio] || 'inherit'};">${e(tipo)}</span>${m.hecho ? ' · ✅ hecho' : ''}</div>
-        <div><b>${e(m.folio)}</b> · ${e(NOMBRE[m.negocio] || m.negocio)}${m.horaEvento ? ` · <small>evento ${e(m.horaEvento)}</small>` : ''}${m.invitados ? ` · <small>👥 ${e(m.invitados)}</small>` : ''}</div>
+        <div><b>${e(m.folio)}</b><small>${quienHizo(m)}</small> · ${e(NOMBRE[m.negocio] || m.negocio)}${m.horaEvento ? ` · <small>evento ${e(m.horaEvento)}</small>` : ''}${m.invitados ? ` · <small>👥 ${e(m.invitados)}</small>` : ''}</div>
         <div><small>📍 ${mapa ? `<a href="${e(mapa)}" target="_blank" rel="noopener">${e(m.ubicacion)}</a>` : 'ubicación por confirmar'}</small></div>
         <div><small>🚗 ${m.vehiculo ? `<b>${e(m.vehiculo)}</b> · ${e(m.brigada)}` : (m.brigada ? e(m.brigada) : 'sin vehículo')}${m.estatus ? ` · ${e(m.estatus)}` : ''}</small></div>
         ${m.clienteNombre || tel ? `<div><small>👤 ${e(m.clienteNombre || 'Cliente')}${tel ? ` · 📞 <a href="tel:${e(tel)}">${e(m.clienteTelefono)}</a>` : ''}</small></div>` : ''}
@@ -251,12 +251,15 @@ window.DimaCalendario = (function(){
     }
   }
 
+  // Paternidad junto al folio (Víctor 2026-11-15): quién lo creó · ✓ quién lo autorizó.
+  const quienHizo = (x) => `${x && x.origen ? ' · ' + o.esc(x.origen) : ''}${x && x.autorizo ? ' · ✓ ' + o.esc(x.autorizo) : ''}`;
+
   function tarjetaEvento(ev){
     const e = o.esc;
     const hora = ev.hora ? `🕒 ${e(ev.hora)}${ev.horasServicio ? ` · ${e(ev.horasServicio)} h` : ''}` : '🕒 hora por confirmar';
     return `
       <div class="cal-ev" style="--c:${COLOR[ev.negocio] || '#888'};" data-ev="${e(ev.id)}">
-        <b>${e(ev.folio)}</b> · ${e(NOMBRE[ev.negocio] || ev.negocio)}<br>
+        <b>${e(ev.folio)}</b><small>${quienHizo(ev)}</small> · ${e(NOMBRE[ev.negocio] || ev.negocio)}<br>
         <small>${e(textoDia(ev.fecha))} · ${hora}</small><br>
         ${ev.clienteNombre || ev.clienteTelefono ? `<small>👤 ${e(ev.clienteNombre || 'Cliente sin nombre')}${ev.clienteTelefono ? ` · 📞 <a href="tel:${e(String(ev.clienteTelefono).replace(/[^\d+]/g, ''))}" style="color:inherit;">${e(ev.clienteTelefono)}</a> · 💬 <a href="${e(linkWhats(ev.clienteTelefono))}" target="_blank" rel="noopener" style="color:inherit;">WhatsApp</a>` : ''}</small><br>` : ''}
         <small>📍 ${e(ev.ubicacion || 'ubicación por confirmar')}${ev.invitados ? ` · 👥 ${e(ev.invitados)}` : ''}</small><br>

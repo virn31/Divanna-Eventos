@@ -430,6 +430,10 @@
   let encargadas = [];
 
   // Varios campos vienen del formulario público de la landing: siempre escapar.
+  // Paternidad junto al folio (Víctor 2026-11-15): quién lo creó · ✓ quién lo autorizó.
+  function quienHizo(ev){
+    return `${ev && ev.origen ? ' · ' + esc(ev.origen) : ''}${ev && ev.autorizo ? ' · ✓ ' + esc(ev.autorizo) : ''}`;
+  }
   function esc(valor){
     return String(valor == null ? '' : valor)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -879,7 +883,7 @@
       html += `
         <div class="evento-row ${claseFila} ${fichasAbiertas.has(ev.id) ? 'abierta' : ''}" style="border-left-color:${colorCss};" data-din-ev="${esc(ev.id)}">
           <button type="button" class="ev-ficha" data-ficha="${esc(ev.id)}" aria-expanded="${fichasAbiertas.has(ev.id)}">
-            <span class="ficha-fila"><span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${esc(ev.estatusLogistico)}</span><span class="event-folio">${esc(ev.folio)}</span>${[ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambioCliente && ev.cambioCliente.estado === 'pendiente' ? '✏️' : '', ev.disponibilidad && ev.disponibilidad.nivel === 'rojo' ? '🔴' : ev.disponibilidad && ev.disponibilidad.nivel === 'amarillo' ? '🟡' : ''].filter(Boolean).map(x => `<span class="ficha-avisos">${x}</span>`).join('')}</span>
+            <span class="ficha-fila"><span class="badge" style="background:color-mix(in srgb, ${colorCss} 22%, transparent); color:${colorCss};">${visual.icon} ${esc(ev.estatusLogistico)}</span><span class="event-folio">${esc(ev.folio)}${quienHizo(ev)}</span>${[ev.emergencia ? '🆘' : '', ev.zonaAlertaSeguridad ? '⚠️' : '', ev.retraso ? '🚦' : '', ev.cambioCliente && ev.cambioCliente.estado === 'pendiente' ? '✏️' : '', ev.disponibilidad && ev.disponibilidad.nivel === 'rojo' ? '🔴' : ev.disponibilidad && ev.disponibilidad.nivel === 'amarillo' ? '🟡' : ''].filter(Boolean).map(x => `<span class="ficha-avisos">${x}</span>`).join('')}</span>
             <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
             <span class="ficha-sub">${formatFecha(ev.fecha)}${ev.horaInicio ? ' · 🕒 ' + esc(ev.horaInicio) : ''} · ${esc(ev.negocio || '')} · 👷 ${esc(ev.brigadaNombre)}${ev.dinero && ev.dinero.cliente ? ' · 👤 ' + esc(ev.dinero.cliente) : ''}</span>
             <span class="ficha-fila">${DimaDinero.etiqueta(ev.dinero)}<span class="ficha-flecha">${fichasAbiertas.has(ev.id) ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>
@@ -1199,7 +1203,7 @@
         <div class="pedido-card" data-id="${esc(p.id)}">
           <div class="evento-top">
             <div>
-              <h3>${esc(p.clienteNombre || 'Cliente')} · ${esc(p.folio)}</h3>
+              <h3>${esc(p.clienteNombre || 'Cliente')} · ${esc(p.folio)}${quienHizo(p)}</h3>
               <div class="evento-sub">${formatFecha(p.fecha)}${p.horaInicio ? ' · 🕒 ' + esc(p.horaInicio) : ''} · ${esc(p.negocio || 'Negocio sin especificar')}${p.invitados ? ' · 👥 ' + esc(p.invitados) : ''}</div>
             </div>
           </div>
