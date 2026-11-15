@@ -714,6 +714,10 @@
   }
 
   // Ubicación, servicios y motivos pueden venir del formulario público: siempre escapar.
+  // Paternidad junto al folio (Víctor 2026-11-15): quién lo creó · ✓ quién lo autorizó.
+  function quienHizo(ev){
+    return `${ev && ev.origen ? ' · ' + esc(ev.origen) : ''}${ev && ev.autorizo ? ' · ✓ ' + esc(ev.autorizo) : ''}`;
+  }
   function esc(valor){
     return String(valor == null ? '' : valor)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -767,7 +771,7 @@
     const dineroTxt = DimaDinero.etiqueta(d);
     const abierta = fichasAbiertas.has(ev.id);
     return `<button type="button" class="ev-ficha" data-evento="${ev.id}" aria-expanded="${abierta}">
-        <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
+        <span class="ficha-fila"><span class="event-badge ${badgeClass(ev.negocio)}">${esc(ev.negocio || 'Sin clasificar')}</span><span class="event-folio">${esc(ev.folio)}${quienHizo(ev)}</span>${avisos ? `<span class="ficha-avisos">${avisos}</span>` : ''}</span>
         <span class="ficha-lugar">${esc(ev.ubicacion || 'Ubicación por confirmar')}</span>
         <span class="ficha-sub">${ico('reloj')} ${ev.horaInicio ? esc(ev.horaInicio) : 'hora por confirmar'}${(ev.clienteNombre || (d && d.cliente)) ? ' · ' + ico('persona') + ' ' + esc(ev.clienteNombre || d.cliente) : ''}${ev.clienteTelefono ? ' · 📞 ' + esc(ev.clienteTelefono) : ''}${ev.enteradoPor ? '' : ' · <span class="ico-aviso">' + ico('campana') + ' sin confirmar</span>'}</span>
         <span class="ficha-fila">${dineroTxt}<span class="ficha-flecha">${abierta ? 'Cerrar ▴' : 'Ver todo ▾'}</span></span>

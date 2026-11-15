@@ -17,6 +17,7 @@
 
 const { ROLES, GERENCIAS, esVasoMaiz, usaCasaIsabella, eventoDeGerencia, ocultoParaGerente, NOMBRE_GERENCIA } = require('./_sesion');
 const C = require('./_calendario');
+const { paternidad } = require('./_origen');
 
 const AIRTABLE_BASE_ID = 'appkpCfDADzQJ5G9H';
 const TABLES = { EVENTOS: 'tblzLAin65BZPP2c6', BRIGADAS: 'tblwqJrIaC1MsMGNL', CLIENTES: 'tblgViisKQRG9TVjh' };
@@ -91,6 +92,7 @@ function movimientosDe(r, brigadas) {
   const comun = {
     eventoId: r.id,
     folio: f.Folio_Evento || '',
+    ...paternidad(f),
     negocio,
     ubicacion: f.Ubicacion || '',
     invitados: f.Invitados || null,

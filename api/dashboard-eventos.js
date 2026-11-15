@@ -38,7 +38,7 @@ const { enviarTelegramEquipo, esSinSaldo, avisarSinSaldo, MENSAJE_SIN_SALDO_EQUI
 const { botonConfirmar } = require('./_eventos');
 const { enTemporadaAlta } = require('./_temporada');
 const { tieneDescuento, conDescuento, redondo } = require('./_decorador');
-const { origenDePersona } = require('./_origen');
+const { origenDePersona, paternidad } = require('./_origen');
 const { normalizarProductos, leerProductos, resumenManteles, infoManteles, catalogoParaDashboard, normalizarArticulos, leerArticulos, inventarioRequerido, coberturaArticulos, textoPorAsignar } = require('./_productos');
 const { camposAgenda, HORAS_RESPUESTA } = require('./_pedidos');
 const { staffPorEvento, invitarDesdeApp, staffParaApp } = require('./_staff');
@@ -738,6 +738,7 @@ module.exports = async (req, res) => {
       return {
         id: r.id,
         folio: r.fields.Folio_Evento || '',
+        ...paternidad(r.fields),
         negocio: r.fields.Negocio || '',
         fecha: r.fields.Fecha_Evento || '',
         ubicacion: r.fields.Ubicacion || '',
@@ -798,6 +799,7 @@ module.exports = async (req, res) => {
       return {
         id: r.id,
         folio: r.fields.Folio_Evento || '',
+        ...paternidad(r.fields),
         negocio: r.fields.Negocio || '',
         fecha: r.fields.Fecha_Evento || '',
         ubicacion: r.fields.Ubicacion || '',
