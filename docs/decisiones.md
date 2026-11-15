@@ -598,3 +598,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Pedido de Víctor:** en las fichas ver quién hizo cada evento junto al folio (Diana, Eden, DiMa, Ángela…), captado solo según quién estaba conectado. Todos lo ven, y también quién lo autorizó.
 - **Decisión:** se muestra `EVT-###### · <origen> · ✓ <quién autorizó>` en la ficha de la APK, el dashboard (eventos y pedidos por cotizar), las tarjetas del calendario y 🚚 Logística. Sale de `EVENTOS.Origen` y `EVENTOS.Autorizado_Por`, que ya se guardaban solos desde el 2026-11-06 (`paternidad()` en `api/_origen.js`). Si lo capturó y autorizó la misma persona sale una vez; sin autorizar no sale el ✓; eventos viejos se leen de sus notas o no muestran nada. Caché `dima-brigadas-v49`.
 - **Alternativa descartada:** un campo nuevo de "autor": ya existía `Origen`.
+
+## 2026-11-15 — DiMa sabe cuántos eventos hizo cada quien
+
+- **Pedido de Víctor:** poder preguntarle a DiMa cuántos eventos hizo cada quien.
+- **Decisión:** solo a Diana y Víctor (Admin), DiMa interna recibe "QUIÉN HACE LOS EVENTOS" (`paternidadParaDima` en `api/_dima-equipo.js`): por mes de creación del evento (cuándo se vendió o capturó, no la fecha de la fiesta), últimos 6 meses, quién los hizo con su monto contratado (autorizados), quién los autorizó, pendientes por origen y cancelados. Sale de `Origen`/`Autorizado_Por` (y de las notas en los eventos viejos, `paternidad()`).
+- **Datos:** el 2026-11-15 se llenó `Origen` y `Autorizado_Por` = Diana en 82 eventos viejos (capturados por Diana o subidos por Víctor desde sus comandas); EVT-226468 (DiMa) quedó autorizado por Diana; EVT-631147 y EVT-357523 (Eden) se dejaron como estaban, por decisión de Víctor.

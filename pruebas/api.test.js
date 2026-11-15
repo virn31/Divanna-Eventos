@@ -2161,6 +2161,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(res.code === 200 && sistemaAdmin.includes('HISTORIAL POR MES') && sistemaAdmin.includes('jul 2026 · Divanna Eventos: 1 eventos, ingresos contratados $5,000')
     && sistemaAdmin.includes('MEJORES MESES') && sistemaAdmin.includes('con menos de 12 meses no afirmes'),
     'DiMa equipo: a Diana le da el historial por empresa y los mejores meses, aclarando cuántos meses hay');
+  ok(sistemaAdmin.includes('QUIÉN HACE LOS EVENTOS') && sistemaAdmin.includes('"Hizo" = quién creó o capturó el evento'), 'DiMa equipo: a Diana y Víctor les da quién hace los eventos (para el reporte por persona)');
 
   // ---------- Cuadre por excepción ----------
   const ayer = enDias(-1);
@@ -4586,5 +4587,22 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && calP.includes('<b>${e(ev.folio)}</b><small>${quienHizo(ev)}</small>') && calP.includes('<b>${e(m.folio)}</b><small>${quienHizo(m)}</small>') && /esc\(ev\.origen\)/.test(appP) && /o\.esc\(x\.origen\)/.test(calP),
       'paternidad: junto al folio en la app, el dashboard, el calendario y Logística (escapado)');
     ok(/dima-brigadas-v49/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v49)');
+  }
+  // ---------- DiMa: cuántos eventos hizo cada quien (Víctor 2026-11-15) ----------
+  {
+    const { paternidadParaDima } = require('../api/_dima-equipo');
+    const r = (c, f) => ({ createdTime: c, fields: f });
+    const t = paternidadParaDima([
+      r('2026-11-10T20:00:00Z', { Origen: 'Eden', Autorizado_Por: 'Eden', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 3500 }),
+      r('2026-11-12T20:00:00Z', { Origen: 'DiMa', Autorizado_Por: 'Diana', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 6000 }),
+      r('2026-11-12T21:00:00Z', { Origen: 'Eden', Autorizado_Por: 'Eden', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 1500 }),
+      r('2026-11-13T20:00:00Z', { Origen: 'DiMa', Autorizacion_Diana: 'Pendiente' }),
+      r('2026-11-07T19:00:00Z', { Origen: 'Victor', Autorizacion_Diana: 'NO', Cancelado: true }),
+      r('2026-10-30T20:00:00Z', { Origen: 'Diana', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 1000 }),
+      r('2026-11-05T20:00:00Z', { Origen: 'Manual', Notas: 'Evento capturado a mano por Eden en el calendario', Autorizacion_Diana: 'SI', Monto_Estimado_IA: 500 }),
+    ], '2026-11-15T12:00:00Z');
+    ok(t.includes('noviembre 2026 (en curso): 4 eventos autorizados') && t.includes('Quién los hizo: Eden 3 ($5,500), DiMa 1 ($6,000)') && t.includes('Quién los autorizó: Eden 3, Diana 1')
+      && t.includes('Pedidos sin autorizar todavía: DiMa 1. Cancelados: 1.') && t.includes('octubre 2026: 1 eventos autorizados') && t.includes('agosto 2026: sin eventos creados.'),
+      'DiMa: cuenta por mes de creación quién hizo, cuánto contrató y quién autorizó (los viejos por sus notas)');
   }
 })();
