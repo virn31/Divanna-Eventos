@@ -604,3 +604,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Pedido de Víctor:** poder preguntarle a DiMa cuántos eventos hizo cada quien.
 - **Decisión:** solo a Diana y Víctor (Admin), DiMa interna recibe "QUIÉN HACE LOS EVENTOS" (`paternidadParaDima` en `api/_dima-equipo.js`): por mes de creación del evento (cuándo se vendió o capturó, no la fecha de la fiesta), últimos 6 meses, quién los hizo con su monto contratado (autorizados), quién los autorizó, pendientes por origen y cancelados. Sale de `Origen`/`Autorizado_Por` (y de las notas en los eventos viejos, `paternidad()`).
 - **Datos:** el 2026-11-15 se llenó `Origen` y `Autorizado_Por` = Diana en 82 eventos viejos (capturados por Diana o subidos por Víctor desde sus comandas); EVT-226468 (DiMa) quedó autorizado por Diana; EVT-631147 y EVT-357523 (Eden) se dejaron como estaban, por decisión de Víctor.
+
+## 2026-11-18 — El recibo no sale con un anticipo de comanda sin registrar
+
+- **Decisión:** `enviarRecibo` (`_sheets.js`) no manda el PDF si `EVENTOS.Notas` dice "Anticipo según la comanda: $X (falta registrarlo…" y el evento no tiene cobros: devuelve el error "regístralo con 💵 Registrar pago". Al guardar una comanda por Telegram sin forma de pago, a Diana y Víctor les sale ahí mismo "💵 Registrar el anticipo" (`cd:pm:<evento>`, el mismo "✍️ Otro monto" del cuadre: escriben "300 efectivo").
+- **Por qué:** EVT-854491 se capturó por foto de comanda; el anticipo quedó solo en Notas y el recibo le llegó al cliente con Pagado $0. El cliente avisó del error.
+- **Alternativa descartada:** registrar el anticipo solo con lo que leyó DiMa (la forma de pago y a veces el monto salen mal de la foto: en EVT-854491 leyó $1,000 y Víctor dice que fueron $300).

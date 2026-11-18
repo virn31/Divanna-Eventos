@@ -465,7 +465,11 @@ async function atenderBoton(accion, id, colaborador) {
     r.google && !r.google.ok ? `⚠️ ${r.google.error}` : '',
     r.diaLleno && r.diaLleno.lleno ? `📅 ese día quedó LLENO (${r.diaLleno.detalle})` : '',
   ].filter(Boolean).join(' · ');
-  return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.` };
+  // Anticipo sin forma de pago: Diana o Víctor lo registran aquí mismo (mismo flujo que
+  // "✍️ Otro monto" del cuadre: escriben "1000 efectivo"). Víctor 2026-11-18.
+  const botones = anticipoPendiente && colaborador.rol === ROLES.ADMIN
+    ? [[{ texto: `💵 Registrar el anticipo (${pesos(anticipoPendiente)})`, dato: `cd:pm:${r.eventoId}` }]] : null;
+  return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.`, ...(botones ? { botones } : {}) };
 }
 
 module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
