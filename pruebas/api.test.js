@@ -3111,6 +3111,13 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(rec.ok && doc.length === 1 && doc[0].body.chat_id === '111' && doc[0].body.document === '(archivo)' && doc[0].body.caption.includes('Recibo EVT-111222') && doc[0].body.caption.includes('Resta $2,000') && !doc[0].body.caption.includes('Reenvíaselo')
       && googleSheets.some(g => g.op === 'pdf' && g.url.includes('format=pdf') && g.url.includes('gid=3') && g.auth === 'Bearer tok'),
       'recibo: sale el PDF de la pestaña del evento y le llega a Diana por Telegram (de Divanna no a la gerente)');
+    // Anticipo de la comanda anotado sin cobro registrado (EVT-854491): no sale el recibo con "Pagado $0".
+    reset();
+    const EV_ANT = { ...EV_REC, fields: { ...EV_REC.fields, COBROS: [], Notas: 'Capturado desde foto de comanda (Telegram). Anticipo según la comanda: $1,000 (falta registrarlo en la app con 💵 Registrar pago).' } };
+    respuestas = [EV_ANT, CLI_REC, EV_ANT, CLI_REC];
+    const recAnt = await sh.enviarRecibo('recEVSHEETS00001');
+    ok(!recAnt.ok && recAnt.error.includes('anticipo de $1,000') && recAnt.error.includes('Registrar pago') && !telegram.some(t => t.metodo === 'sendDocument'),
+      'recibo: si la comanda trae un anticipo que no se ha registrado, no se manda (saldría con Pagado $0)');
     delete process.env.GOOGLE_SHEET_DIVANNA;
     delete process.env.GOOGLE_SHEET_VASOMAIZ;
     reset();
@@ -3274,6 +3281,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'))
       && finalSinForma.includes('✅ Evento') && finalSinForma.includes('Registrar pago'),
       'comanda: Guardar sin forma de pago crea el evento y deja el anticipo para registrarlo en la app');
+    const botonAnticipo = telegram.filter(t => t.metodo === 'sendMessage').pop().body.reply_markup;
+    ok(botonAnticipo && JSON.stringify(botonAnticipo).includes('cd:pm:recEVCOMANDA00002') && JSON.stringify(botonAnticipo).includes('Registrar el anticipo ($500)'),
+      'comanda: al guardar sin forma de pago, a Diana le sale "💵 Registrar el anticipo" ahí mismo (EVT-854491)');
 
     reset();
     respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];

@@ -379,6 +379,12 @@ async function enviarRecibo(eventoId, motivo = '') {
     const s = await sincronizarSheets(eventoId);
     if (!s.ok) return s;
     const d = await leerDatos(eventoId);
+    // Anticipo de la comanda anotado en Notas pero sin cobro registrado: el recibo
+    // saldría con "Pagado $0" (EVT-854491, Víctor 2026-11-18). No se manda hasta registrarlo.
+    const anotado = (String(d.f.Notas || '').match(/Anticipo según la comanda: (\$[\d,.]+) \(falta registrarlo/) || [])[1];
+    if (anotado && !(d.pagado > 0)) {
+      return { ok: false, error: `No mandé el recibo: el anticipo de ${anotado} que dice la comanda todavía no está registrado. Regístralo con 💵 Registrar pago (con el monto real) y vuelve a mandar el recibo.` };
+    }
     const negocios = negociosDe(d.f).filter(configurado);
     // Admin y el gerente del negocio del evento (gerenciaDe, ver _sesion.js).
     const gente = ((await airtable(`tblHdz4vqUIlIdkwc?filterByFormula=${encodeURIComponent('{Activo}')}`)).records || [])

@@ -242,7 +242,7 @@ async function atenderBoton(cb) {
     await responderBoton(cb.id, accion === 'g' ? 'Guardando…' : '');
     const r = await Comanda.atenderBoton(accion, id, colaborador);
     if (r.texto) await editarTelegram(chatId, mensajeId, cb.message.text || '');
-    await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`);
+    await enviarTelegram(chatId, r.texto || `⚠️ ${r.aviso}`, r.botones || null);
     return;
   }
   if (tipo === 'en') {
