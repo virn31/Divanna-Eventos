@@ -311,6 +311,10 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   ok(/depósito en garantía/.test(p.system) && /pregunta cómo se paga[^\n]*ESA MISMA respuesta[^\n]*depósito/.test(p.system),
     'chat: si preguntan cómo se paga, DiMa da anticipo, liquidación y depósito juntos');
   ok(p.system.includes('EL VASO MAÍZ NO LLEVA DEPÓSITO'), 'chat: El Vaso Maíz no lleva depósito en garantía');
+  ok(p.system.includes('informal pero cuidada') && p.system.includes('NO: "ahí te van"') && !/"con gusto", "claro que sí", "qué tal", "nomás"/.test(p.system),
+    'chat: DiMa habla de tú, informal pero cuidada, sin "ahí te van", "nomás" ni "ahorita" (Víctor 2026-11-23)');
+  ok(p.system.includes('Cada cantidad lleva su palabra') && p.system.includes('50 personas son $4,000" (nunca "y 50 son $4,000")'),
+    'chat: DiMa dice "50 personas", no "50" suelto (Víctor 2026-11-23)');
 
   reset();
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
