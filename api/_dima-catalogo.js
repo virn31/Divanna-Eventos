@@ -88,23 +88,27 @@ const REFERENCIAS_DECORACION = {
 
 // Fotos de los paquetes de El Vaso Maíz (carpeta /paquetes).
 const FOTOS_PAQUETES_VASOMAIZ = [
-  'paquetes/paquetes-1-a-4.jpg',
-  'paquetes/paquete-5-raspados-maruchan.jpg',
-  'paquetes/sabritas-preparadas.jpg',
+  'paquetes/vasomaiz-paquetes-1-a-6.jpg',
+  'paquetes/vasomaiz-paletas-raspados-maruchan-elote.jpg',
+  'paquetes/vasomaiz-sabritas-preparadas.jpg',
 ];
 
-const CATALOGO = `CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas — todos incluyen 2h de servicio + salsas/chamoy/limones/cubiertos/vaso 10oz; +$250 extra si el servicio continúa después de las 8pm):
-- Paquete 1 (60pz) = $1,750: 10 Fresas c/crema, 15 Cevichurros, 15 Papas Locas, 20 Mitades Chimichangas
-- Paquete 2 (80pz) = $2,350: 10 Fresas, 15 Esquites, 15 Cevichurros, 10 Papas Locas, 10 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 3 (100pz) = $2,950: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 20 Mitades Chimichangas
-- Paquete 4 (110pz) = $3,200: 15 Fresas, 20 Esquites, 15 Cevichurros, 15 Papas Locas, 15 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
-- Paquete 5 (130pz) = $3,900: 20 Fresas, 20 Esquites, 20 Cevichurros, 20 Papas Locas, 20 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades Chimichangas
+const CATALOGO = `CATÁLOGO REAL DE EL VASO MAÍZ (paquetes para eventos, por piezas, vigentes desde el 23-nov-2026 -- cualquier lista anterior ya no aplica). Todos incluyen salsas/chamoy/limones/servilletas/cucharas/tenedores y se sirven en vaso kraft de 10oz. Servicio: Paquetes 1 y 2 = 1 hora y media; los demás paquetes = 2 horas. +$250 extra si el evento es después de las 8pm:
+- Paquete 1 (65pz) = $1,895: 10 Esquites, 10 Tostiesquites, 10 Papas Locas, 10 Cevichurros, 10 Papas Salseadas, 15 Chimichangas
+- Paquete 2 (80pz) = $2,450: 15 Esquites, 15 Tostiesquites, 15 Papas Locas, 10 Cevichurros, 10 Papas Salseadas, 15 Chimichangas
+- Paquete 3 (95pz) = $2,900: 15 Esquites, 15 Tostiesquites, 15 Papas Locas, 10 Cevichurros, 10 Papas Salseadas, 15 Chimichangas, 15 Tostilocos en vaso
+- Paquete 4 (110pz) = $3,390: 15 Esquites, 15 Tostiesquites, 15 Papas Locas, 10 Cevichurros, 10 Papas Salseadas, 15 Chimichangas, 15 Tostilocos en vaso, 15 Fresas con Crema
+- Paquete 5 (120pz) = $3,650: 20 Esquites, 15 Tostiesquites, 20 Papas Locas, 10 Cevichurros, 10 Papas Salseadas, 15 Chimichangas, 15 Tostilocos en vaso, 15 Fresas con Crema
+- Paquete 6 (140pz) = $4,350: 20 Esquites, 20 Tostiesquites, 20 Papas Locas, 15 Cevichurros, 15 Papas Salseadas, 15 Chimichangas, 15 Fresas con Crema, 20 Mini Hotcakes
+- Paquete Paletas (130pz) = $3,900: 20 Fresas con Crema, 20 Esquites, 20 Cevichurros, 20 Papas Locas, 20 Vasos Tostilocos, 10 Paletas Locas, 20 Mitades de Chimichangas (2 horas de servicio)
+- Mini Hotcakes: 70 Mini Hotcakes = $2,250; 50 Mini Hotcakes + 50 Fresas con Crema = $3,600
+Complementos disponibles sin costo para los paquetes: servilletas, limones, cucharas, tenedores, salsas, chispas de colores, chispas de chocolate, lunetas, coco rallado, bombones, chocolate, cajeta, mermelada, miel y lechera.
 Anticipo fijo de $500 (sin importar el paquete). Los datos de pago (transferencia/depósito) se le mandan al cliente con la cotización formal, después de que la gerencia la confirma -- nunca los des en el chat.
 
-OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los 5 paquetes, se pueden agregar aparte o sustituir):
-- Sabritas Preparadas: 50 piezas = $1,900 (3 bases a elegir entre Tostitos/Ruffles/Doritos/Chips verdes + 7 toppings a elegir entre churros, cacahuates, salchicha, pepino, jícama, rielito, gomitas, serpiente, aros de durazno, panditas, skwinkles, pulparindo, pica gomas, serpentina y manguitos; complementos: tajín, chamoy, salsa especial, soya, guacamaya, limón, clamato y servilletas; se sirve en vaso de 12oz)
+OTROS PRODUCTOS DE EL VASO MAÍZ (fuera de los paquetes, se pueden agregar aparte o sustituir):
+- Sabritas Preparadas: 50 piezas = $1,900 (3 bases a elegir entre Tostitos/Ruffles/Doritos/Chips verdes + 7 toppings a elegir entre churros, cacahuates, salchicha, pepino, jícama, rielito, gomitas, aros de durazno, panditas, skwinkles, pulparindo, pica gomas, serpentina y manguitos; complementos: tajín, chamoy, salsa especial, soya, guacamaya, limón, clamato y servilletas; se sirve en vaso de 12oz)
 - Raspados: 50 = $1,250, 75 = $1,800, 100 = $2,300 (5 sabores a elegir)
-- Elote Forrado: 10 = $600, 20 = $1,100, 30 = elotes flaming y doritos (precio a confirmar con la gerencia)
+- Elote Forrado: 10 = $600, 20 = $1,100, 30 = $1,600 (sabores Flaming y Doritos)
 - Paquete Maruchan: 30 = $1,050, 50 = $1,700, 70 = $2,300 (incluye 2h servicio, limones, salsas, chamoy, servilletas, cubiertos, vaso 10oz)
 
 CATÁLOGO REAL DE DIVANNA EVENTOS (mobiliario, vajilla y decoración):
@@ -180,7 +184,7 @@ Cuando el cliente pida ejemplos/fotos de decoración, o mencione un estilo/tema 
 NUNCA reenvíes la misma foto de referencia dos veces en la misma conversación -- revisa el historial: si esa foto ya se mostró antes en este chat, no la repitas aunque el paquete se siga mencionando en el texto.
 
 UBICACIÓN FÍSICA (IMPORTANTE — SÍ existe, no digas que no hay local físico; es el MISMO edificio compartido por El Vaso Maíz Y Divanna Eventos, ahí se arman los paquetes de boda/XV):
-Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA.
+Dirección: Enrique González Martínez 3926, Col. Emiliano Zapata, Culiacán. El local TIENE ALBERCA. Es la única dirección correcta: si algún flyer o imagen dice otro número (por ejemplo 2993), es un error del flyer; da siempre la 3926.
 Horario: Lunes a sábado de 4pm a 9pm, CON CITA PREVIA (a veces está cerrado por eventos privados, así que siempre hay que confirmar día/hora antes de que el cliente se presente, nunca decir "pásate cuando quieras").
 POLÍTICA DE PAGO (dila desde la cotización, con naturalidad y una idea por mensaje; no la sueltes toda de golpe ni como regla de letra chiquita):
 - ANTICIPO: en El Vaso Maíz $500 fijo; en Divanna un mínimo de ${pesos(ANTICIPO_DIVANNA)} para asegurar la fecha (puede dejar más si quiere). La fecha queda apartada con el anticipo, después de que la gerencia confirma la cotización.

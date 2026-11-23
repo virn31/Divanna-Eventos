@@ -592,3 +592,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Pedido de Víctor:** revisar la visual de la página donde cotiza el cliente y empezar por los cambios chicos.
 - **Cambios:** Casa Isabella en "Lo que hacemos" ya trae foto (la alberca) en vez de un recuadro con texto; si la carpeta de Galería de Drive tiene fotos del salón, el portarretrato las rota encima. El botón flotante "Cotiza con DiMa" se esconde mientras haya otro botón de cotizar a la vista (ya no tapa "Cotizar este paquete") y el pie deja espacio abajo. La música solo suena con su botón (antes arrancaba con el primer toque en cualquier parte). La cifra "2 marcas" cambió a "1 chat · para cotizar mobiliario, decoración y snacks juntos". El logo del pie usa el mismo logo ligero del encabezado (64 KB en vez de 788 KB).
 - **Pendiente:** foto en la primera pantalla y página más corta en el teléfono (con las skills de diseño); reseñas reales de clientes (Víctor las consigue).
+
+
+## 2026-11-23 — El Vaso Maíz: paquetes nuevos (flyers de Drive)
+
+- **Pedido de Víctor:** revisar los 3 flyers que Diana subió a Drive / Paquetes, Vaso Maíz. Vigentes desde el 23-nov-2026.
+- **Cambios:** 6 paquetes (65/80/95/110/120/140 pz: $1,895/$2,450/$2,900/$3,390/$3,650/$4,350); el antiguo Paquete 5 (130 pz, $3,900) pasa a llamarse **Paquete Paletas**; Mini Hotcakes (70 = $2,250; 50 + 50 fresas = $3,600); elote forrado de 30 = $1,600. Paquetes 1 y 2 traen 1.5 h de servicio y los demás 2 h. Sabritas Preparadas, Raspados y Maruchan no cambian.
+- **Lista anterior:** las claves `vm_paquete_1..5` no se borran: quedan con `retirado: true` y la etiqueta "lista anterior", para que los pedidos que ya las traen conserven su comanda y su conteo de personal. DiMa y la comanda solo ven `CLAVES_VIGENTES`; los paquetes nuevos son `vm_paq_1..6`, `vm_paquete_paletas`, `vm_hotcakes_70` y `vm_hotcakes_fresas`.
+- **Dirección:** la buena es **3926** (Víctor). Dos flyers dicen 2993 por error: el catálogo le dice a DiMa que dé siempre la 3926. Diana tiene que corregir esos flyers.
+- **Topping repetido:** "Serpiente" y "Serpentina" son lo mismo (Víctor); en el catálogo queda solo "serpentina".
+- **Fotos:** las que manda DiMa (`paquetes/`) se reemplazaron por los 3 flyers nuevos.

@@ -316,9 +316,9 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   respuestasClaude = [{ stop_reason: 'tool_use', content: [
     { type: 'tool_use', id: 'tu_fotos2', name: 'mostrar_fotos', input: { ids: ['paquetes-vasomaiz'] } },
   ] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Son las mismas que viste arriba. ¿Cuál te gustó?' }] }];
-  res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/paquetes-1-a-4.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
-  ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (paquetes 1 a 4)]')
-    && !res.body.fotos.includes('/paquetes/paquetes-1-a-4.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?')
+  res = await chat({ historial: [...historial, { rol: 'dima', texto: 'Mira los paquetes.', fotos: ['/paquetes/vasomaiz-paquetes-1-a-6.jpg'] }, { rol: 'cliente', texto: 'otra vez los paquetes' }] });
+  ok(res.code === 200 && llamadasClaude[0].messages[1].content.includes('[Fotos que le mostré: Paquetes de El Vaso Maíz (vasomaiz paquetes 1 a 6)]')
+    && !res.body.fotos.includes('/paquetes/vasomaiz-paquetes-1-a-6.jpg') && llamadasClaude[1].messages[4].content[0].content.includes('ya las había visto') && res.body.texto.includes('¿Cuál te gustó?')
     && llamadasClaude[1].messages[4].content[0].content.includes('Coméntalas en una o dos frases'),
     'chat: DiMa sabe qué fotos ya vio el cliente y no se las repite');
   ok(p.model === 'claude-sonnet-5-5' && p.fallbacks === 'default' && p.betas.includes('server-side-fallback-2026-07-01') && p.tool_choice.type === 'auto' && p.output_config.effort === 'low', 'chat: modelo, respaldo y tool_choice auto');
@@ -407,6 +407,18 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const com = require(path.join(repo, 'api/_comanda.js'));
     const leidos = com.aCaptura({ negocio: 'El Vaso Maiz', productos: [{ clave: 'vm_paquete_1', cantidad: 1, nota: null }, { clave: 'vm_pieza', cantidad: 155, nota: null }], lineas: ['Paquete 1', '155 personalizados'], dudas: [] }).productos;
     ok(leidos.some(p => p.clave === 'vm_personalizado' && p.cantidad === 155) && !leidos.some(p => p.clave === 'vm_pieza'), 'comanda: "155 personalizados" leídos como pieza suelta se cambian a personalizado');
+    // Paquetes de El Vaso Maíz vigentes desde el 23-nov-2026.
+    const vmPaq = Object.entries(prod.PRODUCTOS).filter(([, v]) => v.negocio === 'El Vaso Maiz' && v.contenido);
+    ok(vmPaq.every(([, v]) => Object.values(v.contenido).reduce((a, b) => a + b, 0) === v.piezas),
+      'paquetes VM: el contenido de cada paquete suma sus piezas');
+    ok(['vm_paq_1', 'vm_paq_6', 'vm_paquete_paletas', 'vm_hotcakes_70', 'vm_hotcakes_fresas'].every(k => prod.CLAVES_VIGENTES.includes(k))
+      && ![1, 2, 3, 4, 5].some(n => prod.CLAVES_VIGENTES.includes('vm_paquete_' + n)),
+      'paquetes VM: DiMa y la comanda solo ofrecen la lista del 23-nov (la anterior queda retirada)');
+    ok(prod.piezasVasoMaiz(prod.leerProductos('[{"clave":"vm_paquete_1","cantidad":1}]')) === 60 && prod.piezasVasoMaiz([{ clave: 'vm_paq_1', cantidad: 1 }]) === 65,
+      'paquetes VM: un pedido viejo con el Paquete 1 anterior conserva sus 60 piezas; el nuevo trae 65');
+    const catVM = require(path.join(repo, 'api/_dima-catalogo.js')).CATALOGO;
+    ok(catVM.includes('Paquete 6 (140pz) = $4,350') && catVM.includes('30 = $1,600') && !catVM.includes('$1,750') && !/serpiente,/.test(catVM) && catVM.includes('2993'),
+      'catálogo VM: precios del 23-nov, elote de 30 con precio, sin el topping repetido y aviso de la dirección mal escrita en el flyer');
   }
   ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('eventuales'), 'semáforo: si no queda personal libre = amarillo, sumar eventuales (Diana 2026-11-02: el staff se aumenta)');
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '10:00', personal: 10 })]);

@@ -12,7 +12,7 @@
 // Al guardar con anticipo, sale el recibo (api/_sheets.js).
 
 const { Anthropic } = require('@anthropic-ai/sdk');
-const { PRODUCTOS, CLAVES, cargoManteles, resumenManteles, ajustarManteles } = require('./_productos');
+const { PRODUCTOS, CLAVES_VIGENTES: CLAVES, cargoManteles, resumenManteles, ajustarManteles } = require('./_productos');
 const { capturarEvento, fechaTexto } = require('./_calendario');
 const { ROLES, negocioDeGerencia, NOMBRE_GERENCIA } = require('./_sesion');
 const { telegramApi, enviarTelegramEquipo, esSinSaldo } = require('./_telegram');
