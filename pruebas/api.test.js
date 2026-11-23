@@ -419,6 +419,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const catVM = require(path.join(repo, 'api/_dima-catalogo.js')).CATALOGO;
     ok(catVM.includes('Paquete 6 (140pz) = $4,350') && catVM.includes('30 = $1,600') && !catVM.includes('$1,750') && !/serpiente,/.test(catVM) && catVM.includes('2993'),
       'catálogo VM: precios del 23-nov, elote de 30 con precio, sin el topping repetido y aviso de la dirección mal escrita en el flyer');
+    ok(catVM.includes('10 sillas Jardinera = $250') && catVM.includes('$250 − (10 × $15) = $100') && catVM.includes('= $600 total') && !/\$220/.test(catVM),
+      'catálogo DV: la mesa con 10 sillas Jardinera cuesta $250 (Víctor 2026-11-23) y la mesa sola $100');
   }
   ok(s1.nivel === 'amarillo' && s1.motivos[0].texto.includes('eventuales'), 'semáforo: si no queda personal libre = amarillo, sumar eventuales (Diana 2026-11-02: el staff se aumenta)');
   s1 = semaforo(evA({ productos: vm120 }), [evA({ id: 'recA1', autorizacion: 'SI', horaInicio: '10:00', personal: 10 })]);
