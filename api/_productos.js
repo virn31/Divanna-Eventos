@@ -96,11 +96,16 @@ function mesas(personas, silla, mantel, conCubiertos) {
 
 const PRODUCTOS = {
   // ---------- El Vaso Maíz (piezas a preparar) ----------
-  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (60 pz)', negocio: VM, piezas: 60, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 15, 'Mitades de chimichanga': 20 } },
-  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (80 pz)', negocio: VM, piezas: 80, contenido: { 'Fresas con crema': 10, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
-  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (100 pz)', negocio: VM, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
-  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (110 pz)', negocio: VM, piezas: 110, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
-  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (130 pz)', negocio: VM, piezas: 130, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 20, 'Vasos Tostilocos': 20, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  // Paquetes vigentes desde el 23-nov-2026 (flyer "Nuestros Paquetes" de Diana).
+  vm_paq_1: { nombre: 'Paquete 1 de El Vaso Maíz (65 pz)', negocio: VM, piezas: 65, contenido: { 'Esquites': 10, 'Tostiesquites': 10, 'Papas locas': 10, 'Cevichurros': 10, 'Papas salseadas': 10, 'Chimichangas': 15 } },
+  vm_paq_2: { nombre: 'Paquete 2 de El Vaso Maíz (80 pz)', negocio: VM, piezas: 80, contenido: { 'Esquites': 15, 'Tostiesquites': 15, 'Papas locas': 15, 'Cevichurros': 10, 'Papas salseadas': 10, 'Chimichangas': 15 } },
+  vm_paq_3: { nombre: 'Paquete 3 de El Vaso Maíz (95 pz)', negocio: VM, piezas: 95, contenido: { 'Esquites': 15, 'Tostiesquites': 15, 'Papas locas': 15, 'Cevichurros': 10, 'Papas salseadas': 10, 'Chimichangas': 15, 'Vasos Tostilocos': 15 } },
+  vm_paq_4: { nombre: 'Paquete 4 de El Vaso Maíz (110 pz)', negocio: VM, piezas: 110, contenido: { 'Esquites': 15, 'Tostiesquites': 15, 'Papas locas': 15, 'Cevichurros': 10, 'Papas salseadas': 10, 'Chimichangas': 15, 'Vasos Tostilocos': 15, 'Fresas con crema': 15 } },
+  vm_paq_5: { nombre: 'Paquete 5 de El Vaso Maíz (120 pz)', negocio: VM, piezas: 120, contenido: { 'Esquites': 20, 'Tostiesquites': 15, 'Papas locas': 20, 'Cevichurros': 10, 'Papas salseadas': 10, 'Chimichangas': 15, 'Vasos Tostilocos': 15, 'Fresas con crema': 15 } },
+  vm_paq_6: { nombre: 'Paquete 6 de El Vaso Maíz (140 pz)', negocio: VM, piezas: 140, contenido: { 'Esquites': 20, 'Tostiesquites': 20, 'Papas locas': 20, 'Cevichurros': 15, 'Papas salseadas': 15, 'Chimichangas': 15, 'Fresas con crema': 15, 'Mini hotcakes': 20 } },
+  vm_paquete_paletas: { nombre: 'Paquete Paletas de El Vaso Maíz (130 pz)', negocio: VM, piezas: 130, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 20, 'Vasos Tostilocos': 20, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_hotcakes_70: { nombre: 'Mini Hotcakes de El Vaso Maíz (70 pz)', negocio: VM, piezas: 70, contenido: { 'Mini hotcakes': 70 } },
+  vm_hotcakes_fresas: { nombre: 'Mini Hotcakes con Fresas con crema de El Vaso Maíz (50 + 50 pz)', negocio: VM, piezas: 100, contenido: { 'Mini hotcakes': 50, 'Fresas con crema': 50 } },
   vm_sabritas_preparadas: { nombre: 'Sabritas preparadas (por pieza)', negocio: VM, piezas: 1, contenido: { 'Sabritas preparadas': 1 } },
   vm_raspado: { nombre: 'Raspado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Raspados': 1 } },
   vm_elote_forrado: { nombre: 'Elote forrado (por pieza)', negocio: VM, piezas: 1, contenido: { 'Elotes forrados': 1 } },
@@ -108,6 +113,14 @@ const PRODUCTOS = {
   vm_pieza: { nombre: 'Otra pieza suelta de El Vaso Maíz que se prepara (fresas, esquite, etc.)', negocio: VM, piezas: 1 },
   // Diseño impreso para el plato o vaso (Víctor 2026-11-02): no se prepara, no cuenta piezas ni personal.
   vm_personalizado: { nombre: 'Personalizado de El Vaso Maíz (diseño para el plato o vaso, no se prepara)', negocio: VM },
+
+  // Lista anterior (hasta el 22-nov-2026): solo para los pedidos que ya la traen.
+  // DiMa y la comanda ya no la ofrecen (retirado); no se borra para no cambiar esas comandas.
+  vm_paquete_1: { nombre: 'Paquete 1 de El Vaso Maíz (60 pz, lista anterior al 23-nov-2026)', negocio: VM, retirado: true, piezas: 60, contenido: { 'Fresas con crema': 10, 'Cevichurros': 15, 'Papas locas': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_2: { nombre: 'Paquete 2 de El Vaso Maíz (80 pz, lista anterior al 23-nov-2026)', negocio: VM, retirado: true, piezas: 80, contenido: { 'Fresas con crema': 10, 'Esquites': 15, 'Cevichurros': 15, 'Papas locas': 10, 'Vasos Tostilocos': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_3: { nombre: 'Paquete 3 de El Vaso Maíz (100 pz, lista anterior al 23-nov-2026)', negocio: VM, retirado: true, piezas: 100, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Mitades de chimichanga': 20 } },
+  vm_paquete_4: { nombre: 'Paquete 4 de El Vaso Maíz (110 pz, lista anterior al 23-nov-2026)', negocio: VM, retirado: true, piezas: 110, contenido: { 'Fresas con crema': 15, 'Esquites': 20, 'Cevichurros': 15, 'Papas locas': 15, 'Vasos Tostilocos': 15, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
+  vm_paquete_5: { nombre: 'Paquete 5 de El Vaso Maíz (130 pz, lista anterior al 23-nov-2026)', negocio: VM, retirado: true, piezas: 130, contenido: { 'Fresas con crema': 20, 'Esquites': 20, 'Cevichurros': 20, 'Papas locas': 20, 'Vasos Tostilocos': 20, 'Paletas locas': 10, 'Mitades de chimichanga': 20 } },
 
   // ---------- Divanna: mobiliario por pieza ----------
   dv_mesa_10_jardin: { nombre: 'Mesa con 10 sillas Jardinera y mantel', negocio: DV, componentes: { 'Mesa': 1, 'Silla Jardín': 10, 'Mantel': 1 } },
@@ -175,6 +188,8 @@ const PRODUCTOS = {
 };
 
 const CLAVES = Object.keys(PRODUCTOS);
+// Lo que se puede ofrecer en pedidos nuevos (DiMa y comanda).
+const CLAVES_VIGENTES = CLAVES.filter(k => !PRODUCTOS[k].retirado);
 const MAX_RENGLONES = 40;
 const MAX_CANTIDAD = 5000;
 
@@ -475,6 +490,7 @@ module.exports = {
   ALTERNATIVAS,
   PRODUCTOS,
   CLAVES,
+  CLAVES_VIGENTES,
   normalizarProductos,
   leerProductos,
   piezasVasoMaiz,

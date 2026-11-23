@@ -50,7 +50,7 @@ const { contenidoDima, contenidoPagina, fotoDrive, leerImagenesEnSegundoPlano } 
 const { CATALOGO, REFERENCIAS_DECORACION, FOTOS_PAQUETES_VASOMAIZ, LINK_INSTAGRAM_DIVANNA, HORAS_LIQUIDACION } = require('./_dima-catalogo');
 const { estimarTraslado, LIMITE_KM } = require('./_traslado');
 const { TEMPORADA_ALTA, enTemporadaAlta, textoTemporada } = require('./_temporada');
-const { CLAVES, PRODUCTOS } = require('./_productos');
+const { CLAVES_VIGENTES: CLAVES, PRODUCTOS } = require('./_productos');
 const { contactoDelPedido, tarjetaParaCliente } = require('./_contacto');
 const Limites = require('./_limites');
 const { correccionesParaPrompt, correccionesActivas, textoCorrecciones, guardarCorreccion, desactivarCorreccion, motivoRechazo } = require('./_correcciones');
@@ -139,7 +139,7 @@ const TOOLS = [
         invitados: { type: ['integer', 'null'] },
         ubicacion: { type: 'string', description: 'Colonia, salón o dirección del evento.' },
         hora_inicio: { type: ['string', 'null'], description: 'Hora en que empieza el evento, formato 24 h "HH:MM" (ej. "18:00" para las 6 pm). null si el cliente no la sabe todavía.' },
-        horas_servicio: { type: ['number', 'null'], description: 'Horas de servicio de El Vaso Maíz (los paquetes incluyen 2; si el cliente pide más tiempo, ese número). null si no lleva El Vaso Maíz.' },
+        horas_servicio: { type: ['number', 'null'], description: 'Horas de servicio de El Vaso Maíz (los Paquetes 1 y 2 incluyen 1.5; los demás paquetes, 2; si el cliente pide más tiempo, ese número). null si no lleva El Vaso Maíz.' },
         servicios: { type: 'string', description: 'Lo acordado, un artículo o servicio por línea (ej. "10 mesas redondas con mantel"). El equipo usa estas líneas como checklist de carga.' },
         productos: {
           type: 'array',

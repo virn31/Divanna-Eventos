@@ -610,3 +610,13 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Decisión:** `enviarRecibo` (`_sheets.js`) no manda el PDF si `EVENTOS.Notas` dice "Anticipo según la comanda: $X (falta registrarlo…" y el evento no tiene cobros: devuelve el error "regístralo con 💵 Registrar pago". Al guardar una comanda por Telegram sin forma de pago, a Diana y Víctor les sale ahí mismo "💵 Registrar el anticipo" (`cd:pm:<evento>`, el mismo "✍️ Otro monto" del cuadre: escriben "300 efectivo").
 - **Por qué:** EVT-854491 se capturó por foto de comanda; el anticipo quedó solo en Notas y el recibo le llegó al cliente con Pagado $0. El cliente avisó del error.
 - **Alternativa descartada:** registrar el anticipo solo con lo que leyó DiMa (la forma de pago y a veces el monto salen mal de la foto: en EVT-854491 leyó $1,000 y Víctor dice que fueron $300).
+
+
+## 2026-11-23 — El Vaso Maíz: paquetes nuevos (flyers de Drive)
+
+- **Pedido de Víctor:** revisar los 3 flyers que Diana subió a Drive / Paquetes, Vaso Maíz. Vigentes desde el 23-nov-2026.
+- **Cambios:** 6 paquetes (65/80/95/110/120/140 pz: $1,895/$2,450/$2,900/$3,390/$3,650/$4,350); el antiguo Paquete 5 (130 pz, $3,900) pasa a llamarse **Paquete Paletas**; Mini Hotcakes (70 = $2,250; 50 + 50 fresas = $3,600); elote forrado de 30 = $1,600. Paquetes 1 y 2 traen 1.5 h de servicio y los demás 2 h. Sabritas Preparadas, Raspados y Maruchan no cambian.
+- **Lista anterior:** las claves `vm_paquete_1..5` no se borran: quedan con `retirado: true` y la etiqueta "lista anterior", para que los pedidos que ya las traen conserven su comanda y su conteo de personal. DiMa y la comanda solo ven `CLAVES_VIGENTES`; los paquetes nuevos son `vm_paq_1..6`, `vm_paquete_paletas`, `vm_hotcakes_70` y `vm_hotcakes_fresas`.
+- **Dirección:** la buena es **3926** (Víctor). Dos flyers dicen 2993 por error: el catálogo le dice a DiMa que dé siempre la 3926. Diana tiene que corregir esos flyers.
+- **Topping repetido:** "Serpiente" y "Serpentina" son lo mismo (Víctor); en el catálogo queda solo "serpentina".
+- **Fotos:** las que manda DiMa (`paquetes/`) se reemplazaron por los 3 flyers nuevos.
