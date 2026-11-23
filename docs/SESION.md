@@ -28,7 +28,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-23 · **Rama de Estado:** `main` · **Producción:** `main` en `b702899`. **704 pruebas pasan.**
+**Actualizado:** 2026-11-23 · **Rama de Estado:** `main` · **Producción:** `main` en `a915278`. **706 pruebas pasan.**
 
 **Hecho el 2026-11-23** (detalle en `docs/decisiones.md`):
 - Paquetes de El Vaso Maíz vigentes desde hoy (flyers de Drive / Paquetes, Vaso Maíz): 6 paquetes, Paquete Paletas, Mini Hotcakes y elote de 30 a $1,600. Los paquetes anteriores (`vm_paquete_1..5`) quedan retirados, sin borrarse, para no cambiar las comandas que ya los traen. Página, catálogo, comanda y fotos de `paquetes/` actualizados.
@@ -36,6 +36,7 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 - Galería / elvasomaiz: 5 fotos nuevas (`vamosmaiz 1-5`), ya visibles en producción. DiMa las lee hasta que alguien use el chat (8 imágenes pendientes de lectura al cierre).
 
 - Mesa con 10 sillas Jardinera: **$250** (antes $220; mesa sola para cambio de silla $100). Los paquetes navideños (flyers de Drive) y los paquetes de mesas por personas no cambian. EVT-759399 (Pedro Rentería) ya se había cobrado bien: $310.
+- Tono de DiMa (Víctor): de tú, "informal pero no tanto": sin "ahí te van", "nomás", "ahorita"; frases que introducen la información; cada cantidad con su palabra ("50 personas son $4,000", no "50 son").
 - **Acceso nuevo:** el push a `main` ya funciona desde Claude (antes se negaba). El conector de Airtable de claude.ai sí entra a la base DiMa OS (`appkpCfDADzQJ5G9H`), aunque el token local dé 403. El conector de Google Drive de claude.ai NO ve la carpeta: usar `herramientas-dima/drive.js`, `lecturas.js` y `bajar-fotos.js`.
 
 **Siguientes pasos:**
