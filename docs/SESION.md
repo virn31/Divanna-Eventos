@@ -28,7 +28,14 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-11 · **Rama de Estado:** `ccr-15703d0b-rtwqbc` (sesión en la nube) · **Producción:** `main` en `189e500` (caché `dima-brigadas-v47`), ya con todo lo de esta sesión. **626 pruebas pasan.**
+**Actualizado:** 2026-11-23 · **Rama de Estado:** `main` · **Producción:** `main` en `5d4f11c`. **703 pruebas pasan.**
+
+**Hecho el 2026-11-23** (detalle en `docs/decisiones.md`):
+- Paquetes de El Vaso Maíz vigentes desde hoy (flyers de Drive / Paquetes, Vaso Maíz): 6 paquetes, Paquete Paletas, Mini Hotcakes y elote de 30 a $1,600. Los paquetes anteriores (`vm_paquete_1..5`) quedan retirados, sin borrarse, para no cambiar las comandas que ya los traen. Página, catálogo, comanda y fotos de `paquetes/` actualizados.
+- Dirección: la buena es 3926. **Pendiente de Diana:** corregir el 2993 en los flyers "Nuestros Paquetes" y "Sabritas Preparadas" (en Drive y en `paquetes/`).
+- Galería / elvasomaiz: 5 fotos nuevas (`vamosmaiz 1-5`), ya visibles en producción. DiMa las lee hasta que alguien use el chat (8 imágenes pendientes de lectura al cierre).
+
+**Lo anterior (2026-11-11):**
 
 **Hecho el 2026-11-11** (detalle en `docs/decisiones.md`, entradas de esa fecha):
 - Recibo (`api/_sheets.js`): los artículos salen de la descripción del evento (`Items_Detallados_Cotizacion` / `Servicios_Solicitados`), un renglón por línea; después los cambios y extras de mantel con precio, cargos y descuento. "Ambos" sigue por catálogo. Si no caben, se insertan renglones en la pestaña (metadato `dima_renglones_extra`) y el total y lo pagado bajan.
