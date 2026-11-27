@@ -469,10 +469,8 @@
     return `
       <details class="asignar-box" data-caja="asig-${esc(ev.id)}">
         <summary>👷 Asignar brigada y encargada</summary>
-        <select class="asig-brigada">
-          <option value="">Sin brigada</option>
-          ${opcionesAsignar.brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}</option>`).join('')}
-        </select>
+        <div style="font-weight:700;">Brigadas (puedes marcar varias)</div>
+        ${opcionesAsignar.brigadas.map(b => `<label><input type="checkbox" class="asig-brigada" value="${esc(b.id)}" ${(ev.brigadaIds || (ev.brigadaId ? [ev.brigadaId] : [])).includes(b.id) ? 'checked' : ''}> ${esc(b.nombre)}${b.lider ? ' (' + esc(b.lider) + ')' : ''}</label>`).join('')}
         ${opcionesAsignar.encargadas.map(c => `<label><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${(ev.encargadaIds || []).includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')}
         ${miGerencia !== 'El Vaso Maiz' ? '' : opcionesAsignar.produccion ? `
           <div style="margin-top:10px; font-weight:700;">👩‍🍳 Equipo de producción</div>
@@ -503,7 +501,7 @@
 
   // ✏️ Editar evento, cliente y pedido (gerentes en su negocio y el líder en los eventos de su brigada; sin monto).
   function bloqueEditar(ev){
-    const deMiBrigada = soyLider && miBrigadaId && ev.brigadaId === miBrigadaId;
+    const deMiBrigada = soyLider && miBrigadaId && (ev.brigadaIds || [ev.brigadaId]).includes(miBrigadaId);
     // Gerente asignado en "👷 Asignar" a un evento de otro negocio (Mario en uno de Divanna): también edita.
     const asignadoAMi = !!opcionesAsignar && !!miId && (ev.encargadaIds || []).includes(miId);
     if(!(opcionesAsignar && esDeMiGerencia(ev)) && !deMiBrigada && !asignadoAMi) return '';
@@ -662,7 +660,7 @@
         body: JSON.stringify({
           eventoId: btn.dataset.evento,
           accion: 'asignar',
-          brigadaId: caja.querySelector('.asig-brigada').value,
+          brigadaIds: [...caja.querySelectorAll('.asig-brigada:checked')].map(c => c.value),
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
           // Si no se pudo leer la lista, no se manda (el servidor no toca al encargado actual).
           ...(caja.querySelector('.asig-produccion') ? {

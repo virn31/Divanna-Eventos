@@ -1016,6 +1016,19 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   const patchQuitar = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
   ok(res.code === 200 && patchQuitar.Brigada_Asignada.length === 0 && patchQuitar.Encargada.length === 0 && res.body.avisados === 0, 'asignar: se puede dejar sin brigada, sin avisos');
 
+  // Varias brigadas en un evento (Víctor 2026-11-27): se guardan todas y se avisa a los de cada una.
+  reset();
+  const LIDER_B2 = { id: 'recCOLAB000000022', fields: { Nombre: 'Ángel', Rol: 'Lider de brigada', Activo: true, Brigada: ['recBRIGADA0000002'] } };
+  respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: { Folio_Evento: 'EVT-1' } }, { records: [LIDER, LIDER_B2, ADMIN] }, {}];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: 'recEVENTO00000001', accion: 'asignar', brigadaIds: ['recBRIGADA0000001', 'recBRIGADA0000002'], encargadaIds: [] } }, res);
+  const patchVarias = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && JSON.stringify(patchVarias.Brigada_Asignada) === '["recBRIGADA0000001","recBRIGADA0000002"]' && res.body.avisados === 2,
+    'asignar: un evento puede llevar varias brigadas y se avisa a los de todas');
+  const appVarias = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8'), dashVarias = fs.readFileSync(path.join(repo, 'brigadas/dashboard.html'), 'utf8');
+  ok(appVarias.includes("brigadaIds: [...caja.querySelectorAll('.asig-brigada:checked')]") && dashVarias.includes("brigadaIds: [...caja.querySelectorAll('.asig-brigada:checked')]"),
+    'asignar: en la app y el dashboard las brigadas son casillas (se marcan varias)');
+
   reset();
   respuestas = [ADMIN, { id: 'recEVENTO00000001', fields: {} }];
   res = resMock();
@@ -2485,7 +2498,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const cal2 = fs.readFileSync(path.join(repo, 'brigadas/calendario.js'), 'utf8');
     const app3 = fs.readFileSync(path.join(repo, 'brigadas/index.html'), 'utf8');
     ok(cal2.includes('data-cal="ficha"') && cal2.includes('ev.propio && o.abrirFicha') && cal2.includes('(datos.puedeEditar || datos.modifica) && negociosBloqueo.length')
-      && app3.includes('abrirFicha: fichaDesdeCalendario') && app3.includes('soyLider && miBrigadaId && ev.brigadaId === miBrigadaId'),
+      && app3.includes('abrirFicha: fichaDesdeCalendario') && app3.includes('soyLider && miBrigadaId && (ev.brigadaIds || [ev.brigadaId]).includes(miBrigadaId)'),
       'calendario (app): "📋 Ver ficha completa" en sus eventos, bloquear días y ✏️ Editar en la ficha del líder');
   }
 
@@ -4614,7 +4627,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(appP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(p.folio)}${quienHizo(p)}')
       && calP.includes('<b>${e(ev.folio)}</b><small>${quienHizo(ev)}</small>') && calP.includes('<b>${e(m.folio)}</b><small>${quienHizo(m)}</small>') && /esc\(ev\.origen\)/.test(appP) && /o\.esc\(x\.origen\)/.test(calP),
       'paternidad: junto al folio en la app, el dashboard, el calendario y Logística (escapado)');
-    ok(/dima-brigadas-v49/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v49)');
+    ok(/dima-brigadas-v50/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v50)');
   }
   // ---------- DiMa: cuántos eventos hizo cada quien (Víctor 2026-11-15) ----------
   {

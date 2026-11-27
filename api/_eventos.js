@@ -67,6 +67,8 @@ function formatearEvento(r) {
     // Gerencias a las que les toca el evento (El Vaso Maiz, Divanna Eventos, Casa Isabella).
     gerencias: Object.values(GERENCIAS).filter(g => eventoDeGerencia(g, r.fields)),
     brigadaId: (r.fields.Brigada_Asignada || [])[0] || '',
+    // Puede llevar varias brigadas (Víctor 2026-11-27).
+    brigadaIds: r.fields.Brigada_Asignada || [],
     encargadaIds: r.fields.Encargada || [],
     // Encargado de producción de El Vaso Maíz y su última respuesta (api/_produccion.js).
     produccionId: (r.fields.Encargado_Produccion || [])[0] || '',
@@ -275,11 +277,11 @@ async function alertasEquipoDeHoy(eventoIdsPropios) {
 async function opcionesVista(conGerentes = false) {
   const formula = conGerentes ? '{Activo}' : `AND({Activo}, {Rol} = "${ROLES.ENCARGADA}")`;
   const [brigadas, encargadas] = await Promise.all([
-    airtableGet(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada&sort%5B0%5D%5Bfield%5D=Nombre_Brigada`),
+    airtableGet(`${TABLES.BRIGADAS}?fields%5B%5D=Nombre_Brigada&fields%5B%5D=Lider&sort%5B0%5D%5Bfield%5D=Nombre_Brigada`),
     airtableGet(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(formula)}${conGerentes ? '' : '&fields%5B%5D=Nombre'}`),
   ]);
   return {
-    brigadas: brigadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre_Brigada || 'Sin nombre' })),
+    brigadas: brigadas.records.map(r => ({ id: r.id, nombre: r.fields.Nombre_Brigada || 'Sin nombre', lider: r.fields.Lider || '' })),
     encargadas: encargadas.records
       .filter(r => !conGerentes || r.fields.Rol === ROLES.ENCARGADA || gerenciaDe(r.fields))
       .map(r => ({ id: r.id, nombre: `${r.fields.Nombre || 'Sin nombre'}${conGerentes && r.fields.Rol !== ROLES.ENCARGADA ? ` (${puestoGerente(gerenciaDe(r.fields))})` : ''}` })),

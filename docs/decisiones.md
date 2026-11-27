@@ -620,3 +620,10 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Dirección:** la buena es **3926** (Víctor). Dos flyers dicen 2993 por error: el catálogo le dice a DiMa que dé siempre la 3926. Diana tiene que corregir esos flyers.
 - **Topping repetido:** "Serpiente" y "Serpentina" son lo mismo (Víctor); en el catálogo queda solo "serpentina".
 - **Fotos:** las que manda DiMa (`paquetes/`) se reemplazaron por los 3 flyers nuevos.
+
+## 2026-11-27 — Varias brigadas en un evento
+
+- **Decisión:** en 👷 Asignar (dashboard y app de gerentes) las brigadas son casillas: un evento puede llevar varias (`EVENTOS.Brigada_Asignada` ya era vínculo múltiple en Airtable). Se avisa a los de todas; cada líder ve y modifica el evento; el calendario, Google, el cuadre y el dashboard muestran "Brigada A + Brigada B". `asignar` acepta `brigadaIds` (y `brigadaId` sigue valiendo).
+- **Logística:** con varias brigadas se muestran todos los vehículos y el vehículo no se cambia ahí (el servidor lo rechaza): se cambia en 👷 Asignar, para no borrar las otras brigadas sin querer.
+- **Por qué:** lo pidió Víctor: hay eventos grandes que necesitan varias brigadas.
+- **Alternativa descartada:** una brigada principal y "apoyos" aparte (otra columna y más reglas).
