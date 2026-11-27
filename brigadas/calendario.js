@@ -201,7 +201,7 @@ window.DimaCalendario = (function(){
     const conRecoleccion = m.negocio === 'Divanna Eventos' || m.recoleccionFecha;
     zona.innerHTML = `<div class="cal-form">
       <label class="cal-sub">${m.negocio === 'El Vaso Maiz' ? 'Hora de llegada del staff' : 'Hora de llegada a entregar'}${m.horaEvento ? ` (el evento empieza ${e(m.horaEvento)})` : ''} <input type="time" class="log-entrega" value="${e(m.entregaHora)}"></label>
-      <label class="cal-sub">Vehículo <select class="log-vehiculo"><option value="">Sin vehículo</option>${d.vehiculos.map(v => `<option value="${e(v.id)}" ${v.id === m.brigadaId ? 'selected' : ''}>${e(v.vehiculo || 'Sin vehículo')} · ${e(v.nombre)}</option>`).join('')}</select></label>
+      ${m.variasBrigadas ? `<div class="cal-sub">🚗 ${e(m.vehiculo || 'Sin vehículo')} · ${e(m.brigada)} (varias brigadas: se cambian en 👷 Asignar)</div>` : `<label class="cal-sub">Vehículo <select class="log-vehiculo"><option value="">Sin vehículo</option>${d.vehiculos.map(v => `<option value="${e(v.id)}" ${v.id === m.brigadaId ? 'selected' : ''}>${e(v.vehiculo || 'Sin vehículo')} · ${e(v.nombre)}</option>`).join('')}</select></label>`}
       ${conRecoleccion ? `
       <label class="cal-sub">Día de recolección <input type="date" class="log-rec-fecha" min="${e(m.fechaEvento)}" value="${e(m.recoleccionFecha)}"></label>
       <label class="cal-sub">Hora de recolección <input type="time" class="log-rec-hora" value="${e(m.recoleccionHora)}"></label>` : ''}
@@ -223,7 +223,7 @@ window.DimaCalendario = (function(){
     if(accion === 'log-guardar'){
       const msg = zona.querySelector('.cal-msg');
       const cuerpo = { accion: 'logistica_guardar', eventoId: m.eventoId,
-        entregaHora: zona.querySelector('.log-entrega').value, brigadaId: zona.querySelector('.log-vehiculo').value, notas: zona.querySelector('.log-notas').value };
+        entregaHora: zona.querySelector('.log-entrega').value, brigadaId: zona.querySelector('.log-vehiculo') ? zona.querySelector('.log-vehiculo').value : undefined, notas: zona.querySelector('.log-notas').value };
       if(zona.querySelector('.log-rec-fecha')){ cuerpo.recoleccionFecha = zona.querySelector('.log-rec-fecha').value; cuerpo.recoleccionHora = zona.querySelector('.log-rec-hora').value; }
       b.disabled = true;
       msg.textContent = 'Guardando…';

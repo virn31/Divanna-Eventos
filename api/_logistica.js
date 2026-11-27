@@ -88,7 +88,11 @@ const negocioPropio = (c) => (c && c.rol !== ROLES.ADMIN ? (c.gerente === GERENC
 function movimientosDe(r, brigadas) {
   const f = r.fields;
   const negocio = negocioDe(f);
-  const b = brigadas.get((f.Brigada_Asignada || [])[0]) || null;
+  // Con varias brigadas (Víctor 2026-11-27) se muestran todos sus vehículos.
+  const todas = (f.Brigada_Asignada || []).map(id => brigadas.get(id)).filter(Boolean);
+  const b = todas.length > 1
+    ? { id: todas[0].id, nombre: todas.map(x => x.nombre).join(' + '), vehiculo: todas.map(x => x.vehiculo).filter(Boolean).join(' + ') }
+    : todas[0] || null;
   const comun = {
     eventoId: r.id,
     folio: f.Folio_Evento || '',
@@ -99,6 +103,7 @@ function movimientosDe(r, brigadas) {
     horaEvento: f.Hora_Inicio || '',
     fechaEvento: f.Fecha_Evento,
     brigadaId: b ? b.id : '',
+    variasBrigadas: todas.length > 1,
     brigada: b ? b.nombre : '',
     vehiculo: b ? b.vehiculo : '',
     estatus: f.Estatus_Logistico || '',
@@ -257,6 +262,8 @@ async function guardarLogistica(colaborador, body = {}) {
   const brigadaId = body.brigadaId == null ? undefined : String(body.brigadaId);
   if (brigadaId !== undefined && brigadaId !== antesBrigada) {
     if (brigadaId && !ID.test(brigadaId)) return { error: 'Parámetros inválidos' };
+    // Con varias brigadas, aquí se cambiaría solo una: se cambian en 👷 Asignar.
+    if ((f.Brigada_Asignada || []).length > 1) return { error: 'Este evento lleva varias brigadas: cámbialas en 👷 Asignar.' };
     if (brigadaId) {
       const b = await airtable(`${TABLES.BRIGADAS}/${brigadaId}`).catch(() => null);
       if (!b || !b.fields) return { error: 'Ese vehículo ya no existe.' };

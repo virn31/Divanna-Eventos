@@ -984,18 +984,16 @@
   }
 
   function bloqueAsignar(ev){
-    const sinNadie = !ev.brigadaId && !ev.encargadaIds.length;
+    const misBrigadas = ev.brigadaIds || (ev.brigadaId ? [ev.brigadaId] : []);
+    const sinNadie = !misBrigadas.length && !ev.encargadaIds.length;
     const enterado = sinNadie ? ''
       : ev.enteradoPor ? ` · 👍 Enterado: ${esc(ev.enteradoPor)}${ev.enteradoHora ? ' (' + new Date(ev.enteradoHora).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`
       : ' · ⏳ Sin confirmar';
     return `
       <details class="agenda asignar" ${sinNadie ? 'open' : ''}>
         <summary>👷 Asignar brigada y encargada${sinNadie ? ' (sin asignar)' : enterado}</summary>
-        <label class="ag-label">Brigada</label>
-        <select class="asig-brigada">
-          <option value="">Sin brigada</option>
-          ${brigadas.map(b => `<option value="${esc(b.id)}" ${b.id === ev.brigadaId ? 'selected' : ''}>${esc(b.nombre)}${b.lider ? ' (' + esc(b.lider) + ')' : ''}</option>`).join('')}
-        </select>
+        <label class="ag-label">Brigadas (puedes marcar varias)</label>
+        ${brigadas.map(b => `<label class="asig-check"><input type="checkbox" class="asig-brigada" value="${esc(b.id)}" ${misBrigadas.includes(b.id) ? 'checked' : ''}> ${esc(b.nombre)}${b.lider ? ' (' + esc(b.lider) + ')' : ''}</label>`).join('')}
         <label class="ag-label">Encargada de evento (El Vaso Maíz)</label>
         ${encargadas.length
           ? encargadas.map(c => `<label class="asig-check"><input type="checkbox" class="asig-encargada" value="${esc(c.id)}" ${ev.encargadaIds.includes(c.id) ? 'checked' : ''}> ${esc(c.nombre)}</label>`).join('')
@@ -1036,7 +1034,7 @@
         body: JSON.stringify({
           eventoId: btn.dataset.id,
           accion: 'asignar',
-          brigadaId: caja.querySelector('.asig-brigada').value,
+          brigadaIds: [...caja.querySelectorAll('.asig-brigada:checked')].map(c => c.value),
           encargadaIds: [...caja.querySelectorAll('.asig-encargada:checked')].map(c => c.value),
           // Solo si está el selector (eventos de El Vaso Maíz y lista leída): si no, no se toca.
           ...(caja.querySelector('.asig-produccion') ? {

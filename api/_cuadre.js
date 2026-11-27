@@ -101,6 +101,7 @@ function dineroDelEvento(e, cobros, aprobados, gastos) {
     negocio: f.Negocio || '',
     clienteId: (f.Cliente || [])[0] || '',
     brigadaId: (f.Brigada_Asignada || [])[0] || '',
+    brigadaIds: f.Brigada_Asignada || [],
     contratado,
     brigada: redondo(brigada),
     brigadaSinAprobar: redondo(brigadaSinAprobar),
@@ -134,7 +135,7 @@ async function datosCuadre() {
   const gastosValidos = gastos.filter(g => !(g.fields.Reporte || [])[0] || ok.has(g.fields.Reporte[0]));
   const lista = eventos.map(e => dineroDelEvento(e, cobros, ok, gastosValidos));
   const nombreBrigada = new Map(brigadas.map(b => [b.id, b.fields.Nombre_Brigada || '']));
-  lista.forEach(e => { e.brigadaNombre = nombreBrigada.get(e.brigadaId) || ''; });
+  lista.forEach(e => { e.brigadaNombre = e.brigadaIds.map(id => nombreBrigada.get(id)).filter(Boolean).join(' + '); });
   return { hoy, eventos: lista, cobros, aprobados, ok, caja, reembolsado, gastos: gastosValidos };
 }
 

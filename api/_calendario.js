@@ -154,14 +154,14 @@ function aGoogle(f, nombres = {}) {
 }
 
 async function nombresDe(f) {
-  const brigadaId = (f.Brigada_Asignada || [])[0];
+  const brigadaIds = f.Brigada_Asignada || [];
   const encargadas = f.Encargada || [];
-  const [b, e] = await Promise.all([
-    brigadaId ? airtable(`${TABLES.BRIGADAS}/${brigadaId}`).catch(() => null) : null,
+  const [bs, e] = await Promise.all([
+    Promise.all(brigadaIds.map(id => airtable(`${TABLES.BRIGADAS}/${id}`).catch(() => null))),
     encargadas.length ? airtable(`${COLABORADORES_TABLE}?filterByFormula=${encodeURIComponent(`OR(${encargadas.map(id => `RECORD_ID()="${id}"`).join(',')})`)}`).catch(() => null) : null,
   ]);
   return {
-    brigada: b ? b.fields.Nombre_Brigada || '' : '',
+    brigada: bs.filter(Boolean).map(b => b.fields.Nombre_Brigada || '').filter(Boolean).join(' + '),
     encargadas: e ? e.records.map(r => r.fields.Nombre || '').filter(Boolean).join(', ') : '',
   };
 }
@@ -274,7 +274,7 @@ async function vistaMes(colaborador, mes) {
         negocio: esVasoMaiz(f) ? NEGOCIOS.VM : (f.Negocio || NEGOCIOS.DV),
         ubicacion: f.Ubicacion || '',
         invitados: f.Invitados || null,
-        brigada: nombreBrigada.get((f.Brigada_Asignada || [])[0]) || '',
+        brigada: (f.Brigada_Asignada || []).map(id => nombreBrigada.get(id)).filter(Boolean).join(' + '),
         estatus: f.Estatus_Logistico || '',
         enGoogle: !!f.Google_Evento_ID,
         editable: puedeEditarEvento(colaborador, f),

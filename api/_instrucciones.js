@@ -15,7 +15,7 @@ function textoGerenteDivanna(gerencia) {
   const casa = gerencia === GERENCIAS.CI;
   return `⭐ Gerente de ${n}\n\n` +
     `• En la app ves TODOS los eventos autorizados ${casa ? 'que llevan el salón Casa Isabella' : 'de Divanna (menos los de Casa Isabella, que lleva su gerente)'}, aunque no te los asignen a ti.\n` +
-    '• En cada uno tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste. En la lista también salen los gerentes: puedes ponerte a ti o a otro gerente, y quien quede asignado ve ese evento aunque no sea de su negocio.\n' +
+    '• En cada uno tienes "👷 Asignar": marcas la brigada (o varias, si el evento lo necesita) y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste. En la lista también salen los gerentes: puedes ponerte a ti o a otro gerente, y quien quede asignado ve ese evento aunque no sea de su negocio.\n' +
     '• También "✏️ Editar evento, cliente y pedido" (sin el monto: eso lo cambian Diana y Víctor).\n' +
     '• Si un cliente cambia su pedido te suena la app y te llega aquí ("✏️ Cambio en el pedido"). Diana lo confirma; entonces al equipo le llega "🔄 Cambió el pedido" y tienen que volver a tocar "Enterado". Los cambios se piden con 24 h de anticipación; si faltan menos, llega como URGENTE.\n' +
     `• Comandas en papel${casa ? ' de Casa Isabella' : ' de Divanna'}: tómales foto y mándamela aquí, o en el calendario: "➕ Capturar evento" → "📷 Llenar con la foto de una comanda".${casa ? ' El evento tiene que llevar el salón.' : ''}\n` +
@@ -87,7 +87,7 @@ const TEMAS = {
     texto: (rol, gerente) => gerente && gerente !== GERENCIAS.VM ? textoGerenteDivanna(gerente) :
       '⭐ Gerente de El Vaso Maíz\n\n' +
       '• En la app ves TODOS los eventos autorizados de El Vaso Maíz, aunque no te los asignen a ti.\n' +
-      '• En cada evento de El Vaso Maíz tienes "👷 Asignar": eliges la brigada y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
+      '• En cada evento de El Vaso Maíz tienes "👷 Asignar": marcas la brigada (o varias, si el evento lo necesita) y la encargada y tocas "Guardar y avisar". A ellas les llega el aviso con "✅ Confirmar" y a Diana y Víctor les aviso qué asignaste.\n' +
       '• Debajo tienes "🧑‍🍳 Staff": ves a tus chicas con su marca, eliges a las que quieres y tocas "📨 Invitar por Telegram". Es lo mismo que /staff; las respuestas te llegan aquí. Para dar de alta a una chica nueva sigue siendo /staff → "➕ Agregar personal".\n' +
       '• En "👷 Asignar" también eliges al "👩‍🍳 Equipo de producción" (1, 2 o más personas; pueden estar también en el staff) y a su "🍳 Encargado". Dos días antes al encargado le llega por Telegram la lista de lo que hay que preparar para que revise inventario, y el mismo día otra para confirmar ingredientes. Lo que conteste te llega aquí (con copia a Diana y Víctor) y lo ves en el evento.\n' +
       '• Solo el encargado tiene el botón "🚀 Listo para staff" (en la lista del día). Al tocarlo, al staff que confirmó le llegan los botones de sus etapas (saliendo del almacén, en camino, llegaron, evento en curso, terminado). Lo que marquen lo ves en el estatus del evento en la app.\n' +

@@ -371,8 +371,10 @@ async function resolverPedido(req, res, colaborador) {
       return;
     }
     const b = req.body || {};
-    const brigadaId = typeof b.brigadaId === 'string' ? b.brigadaId : '';
-    if ((brigadaId && !/^rec[A-Za-z0-9]{14}$/.test(brigadaId)) || !Array.isArray(b.encargadaIds)) {
+    // Varias brigadas en un evento (Víctor 2026-11-27): brigadaIds; brigadaId (una) sigue valiendo.
+    const brigadaIds = Array.isArray(b.brigadaIds) ? [...new Set(b.brigadaIds.filter(Boolean).map(String))]
+      : (typeof b.brigadaId === 'string' && b.brigadaId ? [b.brigadaId] : []);
+    if (brigadaIds.some(id => !/^rec[A-Za-z0-9]{14}$/.test(id)) || brigadaIds.length > 10 || !Array.isArray(b.encargadaIds)) {
       res.status(400).json({ error: 'Parámetros inválidos' });
       return;
     }
@@ -402,7 +404,7 @@ async function resolverPedido(req, res, colaborador) {
     // Solo se aceptan encargadas activas con ese rol.
     // Encargadas activas o gerentes (se pueden asignar a sí mismos o entre ellos).
     const encargadas = colaboradores.filter(c => (c.fields.Rol === ROLES.ENCARGADA || gerenciaDe(c.fields)) && b.encargadaIds.includes(c.id)).map(c => c.id);
-    const campos = { Brigada_Asignada: brigadaId ? [brigadaId] : [], Encargada: encargadas };
+    const campos = { Brigada_Asignada: brigadaIds, Encargada: encargadas };
     if (cambiaProduccion) campos.Encargado_Produccion = b.produccionId ? [b.produccionId] : [];
     if (cambiaEquipo) campos.Equipo_Produccion = [...new Set([...b.equipoProduccionIds, ...(encargadoFinal ? [encargadoFinal] : [])])];
     const nuevosEquipo = cambiaEquipo ? campos.Equipo_Produccion.filter(id => !equipoAntes.includes(id)) : [];
@@ -422,7 +424,9 @@ async function resolverPedido(req, res, colaborador) {
       ]);
     }
     if (!esAdmin) {
-      const brigada = brigadaId ? (await airtableGet(`${TABLES.BRIGADAS}/${brigadaId}`)).fields.Nombre_Brigada : 'sin brigada';
+      const brigada = brigadaIds.length
+        ? (await Promise.all(brigadaIds.map(id => airtableGet(`${TABLES.BRIGADAS}/${id}`).then(r => r.fields.Nombre_Brigada || 'Brigada').catch(() => 'Brigada')))).join(' + ')
+        : 'sin brigada';
       const nombres = colaboradores.filter(c => encargadas.includes(c.id)).map(c => c.fields.Nombre).join(', ');
       await enviarTelegramEquipo({
         roles: [ROLES.ADMIN],
@@ -733,7 +737,7 @@ module.exports = async (req, res) => {
 
     const eventos = eventosData.records.map(r => {
       const brigadaIds = r.fields.Brigada_Asignada || [];
-      const brigadaInfo = brigadaIds.length ? brigadasPorId[brigadaIds[0]] : null;
+      const brigadasInfo = brigadaIds.map(id => brigadasPorId[id]).filter(Boolean);
 
       return {
         id: r.id,
@@ -746,6 +750,7 @@ module.exports = async (req, res) => {
         // Qué lleva: el ✏️ Editar lo muestra para corregirlo (antes llegaba vacío).
         servicios: r.fields.Servicios_Solicitados || '',
         brigadaId: brigadaIds[0] || '',
+        brigadaIds,
         encargadaIds: r.fields.Encargada || [],
         vasoMaiz: esVasoMaiz(r.fields),
         // Encargado de producción de El Vaso Maíz y su última respuesta.
@@ -756,8 +761,8 @@ module.exports = async (req, res) => {
         produccionLista: r.fields.Produccion_Lista || '',
         enteradoPor: r.fields.Enterado_Por || '',
         enteradoHora: r.fields.Enterado_Hora || '',
-        brigadaNombre: brigadaInfo ? brigadaInfo.Nombre_Brigada : 'Sin asignar',
-        brigadaLider: brigadaInfo ? brigadaInfo.Lider : '',
+        brigadaNombre: brigadasInfo.length ? brigadasInfo.map(x => x.Nombre_Brigada || 'Brigada').join(' + ') : 'Sin asignar',
+        brigadaLider: brigadasInfo.map(x => x.Lider).filter(Boolean).join(', '),
         estatusLogistico: r.fields.Estatus_Logistico || 'Preparando',
         retraso: !!r.fields.Retraso,
         motivoRetraso: r.fields.Motivo_Retraso || '',
