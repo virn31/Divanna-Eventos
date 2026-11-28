@@ -124,7 +124,29 @@ const HERRAMIENTA = {
   },
 };
 
-function sistema() {
+// Comandas de Diana por Telegram (Diana 2026-11-28): "ella le pone nombre a las
+// cosas y se entiende": lo escrito se queda tal cual. En Divanna solo pasan al
+// catálogo el mobiliario y la vajilla que se nombran sin duda (mesas, sillas,
+// platos, copas, vasos, servilletas, cubiertos, personalizados, Casa Isabella);
+// la decoración, los paquetes y lo que ella llame a su manera se quedan solo en
+// las líneas. Lo que no se entienda, DiMa lo pregunta. La DiMa de la página y
+// "Leer comanda" de la app siguen igual.
+const TAL_CUAL = `
+MODO TAL CUAL (comanda de Diana por Telegram; tiene prioridad sobre lo de arriba):
+- "lineas": copia cada renglón EXACTAMENTE como lo escribió Diana, con sus palabras, nombres y orden. No corrijas, no renombres, no juntes ni separes renglones, no cambies una cosa por otra.
+- Divanna: en "productos" pon SOLO mobiliario y vajilla escritos sin duda: mesas, sillas, platos, copas, vasos, servilletas, cubiertos, personalizados y la renta de Casa Isabella. NO pongas decoración (cerezos, arcos, marcos, túneles, letreros, letras, mamparas, aros, tapetes, mesitas, etc.), paquetes ni manteles extra o cambios de mantel: esos se quedan solo en "lineas".
+- Si algo no se entiende o puede ser dos cosas, NO lo adivines: pregúntalo en "preguntas" con las palabras de Diana (ej. "¿Qué es 'Rosa'?").`;
+const CLAVES_TAL_CUAL = /^dv_(mesa_|silla_|copa_|plato_|vaso$|servilleta$|kit_cubiertos$|tenedor$|cuchara$|cuchillo$|personalizado$|casa_isabella$)/;
+const MARCA_TELEGRAM = 'Capturado desde foto de comanda (Telegram).';
+const esComandaTelegram = (f) => String((f || {}).Notas || '').includes(MARCA_TELEGRAM);
+// Lo que se ve en la tarjeta de una comanda de Divanna por Telegram: sus renglones.
+function resumenTalCual(f) {
+  if (!esComandaTelegram(f) || (f.Negocio && f.Negocio !== 'Divanna Eventos')) return f.Resumen_Capacidad || '';
+  const lineas = String(f.Items_Detallados_Cotizacion || f.Servicios_Solicitados || '').split('\n').map(t => t.trim()).filter(Boolean);
+  return lineas.length ? `🪑 Divanna: ${lineas.join(', ')}` : (f.Resumen_Capacidad || '');
+}
+
+function sistema(talCual = false) {
   const catalogo = CLAVES.filter(k => k !== 'otro').map(k => `${k}: ${PRODUCTOS[k].nombre}${PRODUCTOS[k].negocio === 'El Vaso Maiz' ? ' (El Vaso Maíz)' : ''}`).join('\n');
   return `Eres DiMa, la asistente de Divanna Eventos (renta de mobiliario y decoración) y El Vaso Maíz (snacks para eventos), en Culiacán. Diana llena a mano comandas/recibos en papel y te manda la foto, o te escribe el pedido en texto. Léelo con cuidado y entrega los datos con la herramienta datos_comanda.
 El negocio tiene muchas variables: el pedido tiene que quedar 100% claro para prepararlo sin llamar al cliente. Lo que falte va en "preguntas" (no se puede guardar hasta que lo contesten).
@@ -152,7 +174,7 @@ Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que 
 - Si no está escrita la forma de pago del anticipo, pon "No se sabe" y NO lo pongas en "dudas" (se registra después en la app).
 
 Catálogo (clave: nombre):
-${catalogo}`;
+${catalogo}${talCual ? '\n' + TAL_CUAL : ''}`;
 }
 
 // Candado (Víctor 2026-11-02: "en lugar de poner 10 manteles pone 20"): las
@@ -237,10 +259,11 @@ function sinRepetirPaquete(productos, lineas) {
 }
 
 // Normaliza lo que dio Claude al formato de "capturar evento".
-function aCaptura(x) {
+function aCaptura(x, { talCual = false } = {}) {
   const tel = String(x.cliente_telefono || '').replace(/\D/g, '').slice(-10);
   const lineas = (x.lineas || []).map(t => String(t).trim()).filter(Boolean).slice(0, 80);
-  const limpios = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
+  const limpios = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0)
+    .filter(p => !talCual || PRODUCTOS[p.clave].negocio !== 'Divanna Eventos' || CLAVES_TAL_CUAL.test(p.clave)).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
   const productos = ajustarManteles(sinRepetirPaquete(sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas), lineas));
   const notas = [x.numero_recibo ? `Comanda de papel Nº ${x.numero_recibo}.` : '', x.notas || ''].filter(Boolean).join(' ');
   return {
@@ -302,7 +325,7 @@ function faltantes(d, { pideForma = true } = {}) {
 }
 
 // Lee una foto (o corrige un borrador con texto). Devuelve { datos } o { error }.
-async function leer({ foto = null, pista = '', previo = null, correccion = '', pedidoTexto = '' }) {
+async function leer({ foto = null, pista = '', previo = null, correccion = '', pedidoTexto = '', talCual = false }) {
   const contenido = [];
   if (foto) contenido.push({ type: 'image', source: { type: 'base64', media_type: foto.tipo, data: foto.base64 } });
   let texto = foto ? 'Lee esta comanda.' : pedidoTexto ? `Lee este pedido escrito:\n${String(pedidoTexto).slice(0, 4000)}` : 'Corrige estos datos de una comanda.';
@@ -316,14 +339,14 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '', p
     output_config: { effort: 'medium' },
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
-    system: sistema(),
+    system: sistema(talCual),
     tools: [HERRAMIENTA],
     tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: contenido }],
   });
   const uso = (respuesta.content || []).find(b => b.type === 'tool_use' && b.name === HERRAMIENTA.name);
   if (!uso) return { error: 'No pude leer la comanda. Intenta con una foto más clara y derecha, con buena luz.' };
-  return { datos: aCaptura(uso.input) };
+  return { datos: aCaptura(uso.input, { talCual }) };
 }
 
 // ✏️ Diana corrige a mano lo que lleva el evento (Diana 2026-11-28): lo escrito
@@ -331,11 +354,11 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '', p
 // que dan el resumen "🪑 Divanna: ...", el inventario y la carga). Con tiempo
 // límite para no pasar los 60 s de Vercel. Devuelve { productos } o { error }.
 const LIMITE_RELECTURA_MS = 25000;
-async function productosDeTexto(texto) {
+async function productosDeTexto(texto, { talCual = false } = {}) {
   let reloj;
   const tiempo = new Promise(resolve => { reloj = setTimeout(() => resolve({ error: 'tardó demasiado' }), LIMITE_RELECTURA_MS); });
   try {
-    const r = await Promise.race([leer({ pedidoTexto: texto }).catch(err => ({ error: err.message })), tiempo]);
+    const r = await Promise.race([leer({ pedidoTexto: texto, talCual }).catch(err => ({ error: err.message })), tiempo]);
     if (r.error || !r.datos) return { error: r.error || 'sin datos' };
     return { productos: r.datos.productos || [] };
   } catch (err) {
@@ -435,7 +458,7 @@ async function atenderFoto(mensaje, colaborador) {
   if (!foto) return { texto: 'No encontré la foto. Mándala otra vez, por favor.' };
   let r;
   try {
-    r = await leer({ foto, pista: mensaje.caption || '' });
+    r = await leer({ foto, pista: mensaje.caption || '', talCual: true });
   } catch (err) {
     if (esSinSaldo(err)) throw err; // telegram.js avisa y contesta el mensaje de saldo
     await avisarFalla('Telegram', err);
@@ -460,7 +483,7 @@ async function atenderTexto(pedidoTexto, colaborador, chatId) {
   await telegramApi('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
   let r;
   try {
-    r = await leer({ pedidoTexto });
+    r = await leer({ pedidoTexto, talCual: true });
   } catch (err) {
     if (esSinSaldo(err)) throw err;
     await avisarFalla('Telegram (texto)', err);
@@ -490,7 +513,7 @@ async function atenderCorreccion(mensaje, colaborador) {
   if (b.error) return { texto: b.error };
   await telegramApi('sendChatAction', { chat_id: mensaje.chat.id, action: 'typing' }).catch(() => {});
   const { dudas, ...previo } = b.datos;
-  const r = await leer({ previo: { ...previo, dudas }, correccion: mensaje.text });
+  const r = await leer({ previo: { ...previo, dudas }, correccion: mensaje.text, talCual: true });
   if (r.error) return { texto: 'No entendí la corrección; dímela de otra forma, por favor.' };
   await airtable(TABLA, { method: 'PATCH', body: JSON.stringify({ records: [{ id, fields: { Datos: JSON.stringify(r.datos), Resumen: `${r.datos.clienteNombre || 'Sin nombre'} · ${r.datos.fecha || 'sin fecha'}`.slice(0, 100) } }] }) });
   return { texto: textoBorrador(r.datos, id), botones: botonesBorrador(id, r.datos) };
@@ -510,7 +533,7 @@ async function atenderBoton(accion, id, colaborador) {
   const r = await capturarEvento(colaborador, {
     ...b.datos,
     ...(anticipoPendiente ? { anticipo: null, formaAnticipo: '' } : {}),
-    notas: [b.datos.notas, 'Capturado desde foto de comanda (Telegram).', notaAnticipo].filter(Boolean).join(' '),
+    notas: [b.datos.notas, MARCA_TELEGRAM, notaAnticipo].filter(Boolean).join(' '),
   });
   if (r.error) return { aviso: r.error, alerta: true };
   const foto = (b.r.fields.Foto || [])[0];
@@ -533,4 +556,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.`, ...(botones ? { botones } : {}) };
 }
 
-module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, productosDeTexto, sinRepetirPaquete, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
+module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, productosDeTexto, sinRepetirPaquete, esComandaTelegram, resumenTalCual, MARCA_TELEGRAM, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };

@@ -151,12 +151,13 @@ async function editarEvento(eventoId, f, body, colaborador) {
   // queda lo de antes y se avisa para revisarlo en "Hora y productos".
   let productosActualizados = null;
   if (pedidoCambio && evento.Servicios_Solicitados) {
-    const r = await Comanda.productosDeTexto(evento.Servicios_Solicitados);
+    // Comanda de Diana por Telegram: se lee tal cual (solo mobiliario y vajilla al catálogo).
+    const r = await Comanda.productosDeTexto(evento.Servicios_Solicitados, { talCual: Comanda.esComandaTelegram(f) });
     if (r.productos && r.productos.length) {
       const capacidad = camposAgenda({ productos: r.productos, horasServicio: Number(f.Horas_Servicio) || null });
       delete capacidad.Horas_Servicio;
       Object.assign(evento, capacidad);
-      productosActualizados = { ok: true, resumen: capacidad.Resumen_Capacidad || '' };
+      productosActualizados = { ok: true, resumen: Comanda.resumenTalCual({ ...f, ...evento }) };
     } else {
       if (r.error) console.error('Editar pedido: no se pudieron volver a leer los productos:', r.error);
       productosActualizados = { ok: false };
@@ -269,7 +270,7 @@ function agendaParaVista(f) {
     productos: leerProductos(f.Productos),
     articulos: leerArticulos(f.Articulos),
     personalRequerido: f.Personal_Requerido || 0,
-    resumenCapacidad: f.Resumen_Capacidad || '',
+    resumenCapacidad: Comanda.resumenTalCual(f),
   };
 }
 

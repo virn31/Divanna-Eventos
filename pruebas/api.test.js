@@ -3289,6 +3289,25 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && borrador.body.text.includes('Borrador: recCOMANDA0000001') && JSON.stringify(borrador.body.reply_markup).includes('cm:g:recCOMANDA0000001') && subida
       && llamadasClaude[0].messages[0].content[1].text.includes('de Divanna'),
       'comanda: por Telegram DiMa lee la foto, guarda la foto y deja un borrador con Guardar / Descartar');
+    ok(llamadasClaude[0].system.includes('MODO TAL CUAL') && !pedidoVision.system.includes('MODO TAL CUAL'),
+      'comanda: por Telegram se lee tal cual; en la app (Leer comanda) sigue igual');
+
+    // Tal cual (Diana 2026-11-28, EVT-526052): la decoración y los nombres de Diana no pasan al catálogo.
+    {
+      const comTC = require(path.join(repo, 'api/_comanda.js'));
+      const leidaTC = { ...LEIDA, negocio: 'Divanna Eventos', total: 2500, lineas: ['Estructura letrero LED', 'Marco cuadrado con flor cerezos blancos', 'Rosa', 'Cirios', 'Mesita', '20 sillas Tiffany blancas'],
+        productos: [{ clave: 'dv_tunel_marco_cerezos', cantidad: 1, nota: 'Marco cuadrado' }, { clave: 'dv_mesita_extra', cantidad: 1, nota: null },
+          { clave: 'dv_silla_tiffany', cantidad: 20, nota: 'blancas' }, { clave: 'dv_cambio_lentejuela', cantidad: 2, nota: null }] };
+      const tc = comTC.aCaptura(leidaTC, { talCual: true });
+      const normal = comTC.aCaptura(leidaTC);
+      ok(tc.productos.map(p => p.clave).join() === 'dv_silla_tiffany' && tc.servicios === leidaTC.lineas.join('\n') && tc.montoContratado === 2500
+        && normal.productos.some(p => p.clave === 'dv_mesita_extra'),
+        'comanda tal cual: solo mobiliario y vajilla al catálogo; las líneas y el total quedan como los escribió Diana');
+      const fTC = { Negocio: 'Divanna Eventos', Notas: `Comanda de papel. ${comTC.MARCA_TELEGRAM}`, Servicios_Solicitados: 'Estructura letrero LED\nMarco cuadrado con flor cerezos blancos\nMesita', Resumen_Capacidad: '🪑 Divanna: 1 Túnel de luces' };
+      ok(comTC.resumenTalCual(fTC) === '🪑 Divanna: Estructura letrero LED, Marco cuadrado con flor cerezos blancos, Mesita'
+        && comTC.resumenTalCual({ ...fTC, Notas: 'Pedido armado con DiMa en la página web.' }) === '🪑 Divanna: 1 Túnel de luces',
+        'comanda tal cual: la tarjeta muestra lo que escribió Diana; los pedidos de la página siguen con el resumen del catálogo');
+    }
 
     // Corrección escrita encima del borrador.
     reset();
