@@ -132,13 +132,16 @@ const HERRAMIENTA = {
 // las líneas. Lo que no se entienda, DiMa lo pregunta. La DiMa de la página y
 // "Leer comanda" de la app siguen igual.
 const TAL_CUAL = `
-MODO TAL CUAL (comanda de Diana por Telegram; tiene prioridad sobre lo de arriba):
+MODO TAL CUAL (comanda o pedido escrito por Diana o el equipo; tiene prioridad sobre lo de arriba):
 - "lineas": copia cada renglón EXACTAMENTE como lo escribió Diana, con sus palabras, nombres y orden. No corrijas, no renombres, no juntes ni separes renglones, no cambies una cosa por otra.
 - Divanna: en "productos" pon SOLO mobiliario y vajilla escritos sin duda: mesas, sillas, platos, copas, vasos, servilletas, cubiertos, personalizados y la renta de Casa Isabella. NO pongas decoración (cerezos, arcos, marcos, túneles, letreros, letras, mamparas, aros, tapetes, mesitas, etc.), paquetes ni manteles extra o cambios de mantel: esos se quedan solo en "lineas".
 - Si algo no se entiende o puede ser dos cosas, NO lo adivines: pregúntalo en "preguntas" con las palabras de Diana (ej. "¿Qué es 'Rosa'?").`;
 const CLAVES_TAL_CUAL = /^dv_(mesa_|silla_|copa_|plato_|vaso$|servilleta$|kit_cubiertos$|tenedor$|cuchara$|cuchillo$|personalizado$|casa_isabella$)/;
 const MARCA_TELEGRAM = 'Capturado desde foto de comanda (Telegram).';
-const esComandaTelegram = (f) => String((f || {}).Notas || '').includes(MARCA_TELEGRAM);
+// Víctor 2026-11-28: también en la app. Todo lo que captura el equipo a mano
+// (comanda por Telegram, Leer comanda o el formulario del calendario) va tal cual;
+// solo los pedidos de la página (DiMa con el cliente) usan el resumen del catálogo.
+const esComandaTelegram = (f) => { const n = String((f || {}).Notas || ''); return n.includes(MARCA_TELEGRAM) || n.startsWith('Evento capturado a mano'); };
 // Lo que se ve en la tarjeta de una comanda de Divanna por Telegram: sus renglones.
 function resumenTalCual(f) {
   if (!esComandaTelegram(f) || (f.Negocio && f.Negocio !== 'Divanna Eventos')) return f.Resumen_Capacidad || '';
@@ -378,9 +381,9 @@ async function leerParaFormulario(colaborador, body) {
   if (!previo && !pedidoTexto && !fotoValida(body.imagen)) return { error: 'Manda una foto (JPG o PNG) de menos de 5 MB.' };
   let r;
   try {
-    r = previo ? await leer({ previo, correccion: respuestas })
-      : pedidoTexto ? await leer({ pedidoTexto })
-        : await leer({ foto: body.imagen, pista: body.pista });
+    r = previo ? await leer({ previo, correccion: respuestas, talCual: true })
+      : pedidoTexto ? await leer({ pedidoTexto, talCual: true })
+        : await leer({ foto: body.imagen, pista: body.pista, talCual: true });
   } catch (err) {
     if (esSinSaldo(err)) throw err; // dashboard-eventos avisa y contesta el mensaje de saldo
     await avisarFalla('app', err);

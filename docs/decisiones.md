@@ -638,4 +638,5 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 
 **Decisión:** en las comandas que Diana manda al bot (foto, texto o corrección encima del borrador) DiMa copia los renglones exactamente como ella los escribió. En Divanna solo pasan al catálogo mesas, sillas, platos, copas, vasos, servilletas, cubiertos, personalizados y Casa Isabella; la decoración, los paquetes, los manteles extra o cambios y lo que ella nombre a su manera se quedan solo en el texto (candado `CLAVES_TAL_CUAL` en `aCaptura`). Lo que no se entienda, DiMa lo pregunta. La tarjeta del dashboard de esos eventos muestra sus renglones (`resumenTalCual`). Al editar uno de esos eventos se vuelve a leer en el mismo modo.
 **Por qué:** Diana (vía Víctor): "ella le pone nombre a las cosas y se entiende; no intentes modificar cómo lo escribió". EVT-526052: "Marco cuadrado con flor cerezos blancos" salió como túnel de luces.
-**Descartado:** agregar más claves al catálogo para cada nombre de Diana. **No cambia:** la DiMa de la página ni "Leer comanda" de la app.
+**Ampliado el mismo día (Víctor):** también "Leer comanda" de la app y todo evento capturado a mano (Notas empiezan con "Evento capturado a mano").
+**Descartado:** agregar más claves al catálogo para cada nombre de Diana. **No cambia:** la DiMa de la página (pedidos de clientes).

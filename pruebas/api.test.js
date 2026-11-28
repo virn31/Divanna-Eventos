@@ -3289,8 +3289,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
       && borrador.body.text.includes('Borrador: recCOMANDA0000001') && JSON.stringify(borrador.body.reply_markup).includes('cm:g:recCOMANDA0000001') && subida
       && llamadasClaude[0].messages[0].content[1].text.includes('de Divanna'),
       'comanda: por Telegram DiMa lee la foto, guarda la foto y deja un borrador con Guardar / Descartar');
-    ok(llamadasClaude[0].system.includes('MODO TAL CUAL') && !pedidoVision.system.includes('MODO TAL CUAL'),
-      'comanda: por Telegram se lee tal cual; en la app (Leer comanda) sigue igual');
+    ok(llamadasClaude[0].system.includes('MODO TAL CUAL') && pedidoVision.system.includes('MODO TAL CUAL'),
+      'comanda: por Telegram y en la app (Leer comanda) se lee tal cual');
 
     // Tal cual (Diana 2026-11-28, EVT-526052): la decoración y los nombres de Diana no pasan al catálogo.
     {
@@ -3305,7 +3305,8 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
         'comanda tal cual: solo mobiliario y vajilla al catálogo; las líneas y el total quedan como los escribió Diana');
       const fTC = { Negocio: 'Divanna Eventos', Notas: `Comanda de papel. ${comTC.MARCA_TELEGRAM}`, Servicios_Solicitados: 'Estructura letrero LED\nMarco cuadrado con flor cerezos blancos\nMesita', Resumen_Capacidad: '🪑 Divanna: 1 Túnel de luces' };
       ok(comTC.resumenTalCual(fTC) === '🪑 Divanna: Estructura letrero LED, Marco cuadrado con flor cerezos blancos, Mesita'
-        && comTC.resumenTalCual({ ...fTC, Notas: 'Pedido armado con DiMa en la página web.' }) === '🪑 Divanna: 1 Túnel de luces',
+        && comTC.resumenTalCual({ ...fTC, Notas: 'Pedido armado con DiMa en la página web.' }) === '🪑 Divanna: 1 Túnel de luces'
+        && comTC.resumenTalCual({ ...fTC, Notas: 'Evento capturado a mano por Diana en el calendario (28/11/26).' }).startsWith('🪑 Divanna: Estructura letrero LED'),
         'comanda tal cual: la tarjeta muestra lo que escribió Diana; los pedidos de la página siguen con el resumen del catálogo');
     }
 
