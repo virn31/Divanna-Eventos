@@ -1167,6 +1167,7 @@
       });
       delete caja.dataset.sucio;
       msg.textContent = (r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.')
+        + (r && r.productos ? (r.productos.ok ? ' Resumen actualizado con lo que escribiste.' : ' ⚠️ No pude actualizar el resumen: revísalo en 🗓️ Hora y productos.') : '')
         + (r && r.recibo ? (r.recibo.ok ? ' 🧾 Recibo actualizado por Telegram.' : ` ⚠️ El recibo no salió: ${r.recibo.error}`) : '');
       pedidosFirma = '';
       setTimeout(loadDashboard, 800);

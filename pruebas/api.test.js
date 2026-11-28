@@ -1819,6 +1819,40 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
   await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: '  \n ' } }, res);
   ok(res.code === 400 && !llamadas.some(l => l.method === 'PATCH'), 'editar pedido: no se deja el pedido vacío');
 
+  // Lo escrito manda (Diana 2026-11-28, EVT-463812): al cambiar lo que lleva se
+  // vuelven a leer los productos del texto y el resumen sale de ahí; sin repetir
+  // lo que trae el paquete y sin túnel si no se escribió "túnel".
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  respuestasClaude = [{ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'datos_comanda', input: {
+    negocio: 'Divanna Eventos', lineas: ['Paquete XV años', 'Cerezos', 'Arco de cerezos', 'Foto gigante', 'Letras XV'],
+    productos: [{ clave: 'dv_paquete_xv', cantidad: 1, nota: 'Paquete XV años' }, { clave: 'dv_tunel_marco_cerezos', cantidad: 1, nota: 'Marco con cerezos' }, { clave: 'dv_arco_cerezos', cantidad: 1, nota: null }],
+  } }] }];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Paquete XV años\nCerezos\nArco de cerezos\nFoto gigante\nLetras XV', avisarEquipo: false } }, res);
+  const edProd = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && JSON.parse(edProd.Productos).map(x => x.clave).join() === 'dv_paquete_xv'
+    && /Mesa de honor/.test(edProd.Resumen_Capacidad) && /1 Marco de cerezos/.test(edProd.Resumen_Capacidad) && /1 Arco de cerezos/.test(edProd.Resumen_Capacidad)
+    && !/Túnel/.test(edProd.Resumen_Capacidad) && !('Monto_Estimado_IA' in edProd) && res.body.productos.ok === true,
+    'editar pedido: los productos y el resumen salen de lo que escribió Diana (sin repetir el paquete ni túnel inventado; el monto no cambia)');
+
+  reset();
+  respuestas = [ADMIN, EV_ED, {}];
+  respuestasClaude = [new APIError('caído')];
+  res = resMock();
+  await dash({ method: 'POST', headers: auth(tokenAdmin), body: { eventoId: EV_ED.id, accion: 'editar', servicios: 'Mesa\nSillas\nCopas', avisarEquipo: false } }, res);
+  const edFalla = llamadas.find(l => l.method === 'PATCH').body.records[0].fields;
+  ok(res.code === 200 && edFalla.Servicios_Solicitados === 'Mesa\nSillas\nCopas' && !('Productos' in edFalla) && res.body.productos.ok === false,
+    'editar pedido: si no se pueden volver a leer los productos, igual se guarda lo escrito y se avisa');
+
+  {
+    const { sinRepetirPaquete } = require(path.join(repo, 'api/_comanda.js'));
+    const conTunel = sinRepetirPaquete([{ clave: 'dv_paquete_xv', cantidad: 1 }, { clave: 'dv_tunel_marco_cerezos', cantidad: 1 }], ['Paquete XV', 'Túnel de luces con cerezos']);
+    const soloArco = sinRepetirPaquete([{ clave: 'dv_arco_cerezos', cantidad: 2 }], ['2 arcos de cerezos blancos']);
+    ok(conTunel.length === 2 && soloArco.length === 1 && soloArco[0].cantidad === 2,
+      'comanda: si dice "túnel" el túnel se queda; sin paquete, el arco de cerezos se queda');
+  }
+
   reset();
   respuestas = [GERENTE, { id: 'recEVENTO0000VM01', fields: { Folio_Evento: 'EVT-VM1', Negocio: 'El Vaso Maiz', Autorizacion_Diana: 'SI', Servicios_Solicitados: 'Paquete 3' } }];
   res = resMock();
@@ -4627,7 +4661,7 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     ok(appP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(ev.folio)}${quienHizo(ev)}') && dashP.includes('${esc(p.folio)}${quienHizo(p)}')
       && calP.includes('<b>${e(ev.folio)}</b><small>${quienHizo(ev)}</small>') && calP.includes('<b>${e(m.folio)}</b><small>${quienHizo(m)}</small>') && /esc\(ev\.origen\)/.test(appP) && /o\.esc\(x\.origen\)/.test(calP),
       'paternidad: junto al folio en la app, el dashboard, el calendario y Logística (escapado)');
-    ok(/dima-brigadas-v50/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v50)');
+    ok(/dima-brigadas-v5[1-9]/.test(fs.readFileSync(path.join(repo, 'brigadas/sw.js'), 'utf8')), 'paternidad: se subió la caché de la app (v50 o más)');
   }
   // ---------- DiMa: cuántos eventos hizo cada quien (Víctor 2026-11-15) ----------
   {

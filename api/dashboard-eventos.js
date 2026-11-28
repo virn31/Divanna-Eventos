@@ -144,6 +144,24 @@ async function editarEvento(eventoId, f, body, colaborador) {
     if (!(monto > 0 && monto < 10000000)) return { error: 'Monto inválido' };
     evento.Monto_Estimado_IA = Math.round(monto * 100) / 100;
   }
+  // Lo escrito manda (Diana 2026-11-28, EVT-463812): si cambió lo que lleva, los
+  // productos del catálogo (resumen "🪑 Divanna: ...", inventario, carga) se
+  // vuelven a sacar de ese texto; antes se quedaban los de la comanda y salían
+  // cosas que no se cotizaron. El monto no se toca. Si la lectura falla, se
+  // queda lo de antes y se avisa para revisarlo en "Hora y productos".
+  let productosActualizados = null;
+  if (pedidoCambio && evento.Servicios_Solicitados) {
+    const r = await Comanda.productosDeTexto(evento.Servicios_Solicitados);
+    if (r.productos && r.productos.length) {
+      const capacidad = camposAgenda({ productos: r.productos, horasServicio: Number(f.Horas_Servicio) || null });
+      delete capacidad.Horas_Servicio;
+      Object.assign(evento, capacidad);
+      productosActualizados = { ok: true, resumen: capacidad.Resumen_Capacidad || '' };
+    } else {
+      if (r.error) console.error('Editar pedido: no se pudieron volver a leer los productos:', r.error);
+      productosActualizados = { ok: false };
+    }
+  }
   const avisar = autorizado && pedidoCambio && body.avisarEquipo !== false;
   if (avisar) {
     // El equipo vuelve a confirmar que vio el evento con el cambio.
@@ -214,7 +232,7 @@ async function editarEvento(eventoId, f, body, colaborador) {
         .catch(err => console.error('No se pudo avisar a los Admin la edición del líder:', err.message));
     }
   }
-  return { google, aviso };
+  return { google, aviso, productos: productosActualizados };
 }
 
 async function ultimoBalance() {
@@ -341,7 +359,7 @@ async function resolverPedido(req, res, colaborador) {
     }
     const r = await editarEvento(eventoId, f, req.body || {}, colaborador);
     if (r.error) { res.status(r.codigo || 400).json({ error: r.error }); return; }
-    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0, recibo: await reciboAlEditar(eventoId, f, colaborador) });
+    res.status(200).json({ success: true, google: r.google, avisados: r.aviso ? r.aviso.avisados : 0, productos: r.productos, recibo: await reciboAlEditar(eventoId, f, colaborador) });
     return;
   }
 

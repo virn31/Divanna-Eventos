@@ -551,7 +551,8 @@
         }),
       });
       delete caja.dataset.sucio;
-      msg.textContent = r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.';
+      msg.textContent = (r && r.avisados ? `Guardado. Avisado el equipo (${r.avisados}).` : 'Guardado.')
+        + (r && r.productos ? (r.productos.ok ? ' Resumen actualizado con lo que escribiste.' : ' ⚠️ No pude actualizar el resumen: avísale a Diana o Víctor.') : '');
       ultimaFoto = null;
       setTimeout(() => loadEventos(true), 800);
     } catch(e){

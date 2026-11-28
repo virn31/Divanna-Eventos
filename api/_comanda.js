@@ -135,6 +135,7 @@ Hoy es ${hoy()}. Si la fecha del evento no trae año, usa la próxima fecha que 
 - "lineas": cada artículo con su cantidad como está escrito (sale como lista de carga). Incluye también los que no tienen cantidad.
 - "productos": además, los que correspondan con seguridad a una clave del catálogo, con su cantidad (de mesas, sillas, manteles, platos, copas y paquetes).
 - MANTEL: en la comanda el espacio de "Mantel" es para el TIPO (básico, lentejuela o corrugado) y el COLOR, no para la cantidad: los manteles salen de las mesas (uno por mesa). Pon el tipo y el color en la nota del producto que trae las mesas (ej. "mantel lentejuela rosa"). Las mesas traen mantel básico: si dice lentejuela o corrugado, agrega además dv_cambio_lentejuela o dv_cambio_corrugado con la misma cantidad de mesas (o un paquete que ya traiga ese mantel, si lo escrito es un paquete). Si ahí solo hay un número o no dice tipo y color, NO agregues "Mantel extra" por ese número y pon en "dudas": "Falta el tipo y color del mantel".
+- PAQUETES DE DECORACIÓN (XV años, boda): ya traen mesa de honor, marco de cerezos, arco de cerezos, foto gigante y letras LED. Si junto al paquete vienen escritas esas cosas, es lo que trae el paquete: NO las agregues otra vez como productos aparte. "Cerezos" solo NO es túnel de luces: usa una clave de túnel solo si dice "túnel".
 - No cuentes dos veces: "Mesa con mantel" y "Mesa con 10 sillas Jardinera y mantel" ya traen su mantel, y los paquetes traen mesas, sillas, manteles, platos, copas y servilletas. Los manteles extra (dv_mantel básico, dv_mantel_corrugado, dv_mantel_lentejuela) son solo para manteles ADEMÁS de los que ya traen las mesas o paquetes. Ej.: "10 mesas, 10 manteles" = dv_mesa_mantel x 10 (sin dv_mantel); "10 mesas, 12 manteles" = dv_mesa_mantel x 10 + dv_mantel x 2; "10 mesas, mantel lentejuela" = dv_mesa_mantel x 10 + dv_cambio_lentejuela x 10.
 - PERSONALIZADOS: "personalizados" son los diseños impresos para los platos o vasos (con el nombre o tema del festejado), NO son snacks ni piezas que se preparan. En El Vaso Maíz van como vm_personalizado y en Divanna como dv_personalizado. Nunca los pongas como vm_pieza ni en un paquete.
 - DETALLES OBLIGATORIOS (si falta alguno, pregúntalo en "preguntas", una pregunta corta por cosa, ej. "¿De qué color los cerezos?"):
@@ -194,12 +195,53 @@ function sinMantelesDobles(productos, lineas) {
   }).filter(p => p.cantidad > 0);
 }
 
+// Candado (Diana 2026-11-28, EVT-463812): con "Paquete XV años" la comanda
+// listaba lo que trae el paquete (mesa de honor, cerezos, arco, foto gigante,
+// letras) y Claude además puso "Arco de cerezos" y "Túnel de luces con marco de
+// cerezos" aparte: salían 2 arcos, 2 marcos y un túnel que nadie cotizó.
+// 1) Sin la palabra "túnel" escrita no hay túnel: el túnel con marco queda como
+//    solo marco (y si nada lo cubre, se quita el túnel y se deja la duda).
+// 2) Un producto de decoración cuyas piezas ya vienen en un paquete del pedido
+//    se quita (lo trae el paquete).
+const TUNEL = /t[uú]nel/i;
+function sinRepetirPaquete(productos, lineas) {
+  const escrito = `${lineas.join(' · ')} · ${productos.map(p => p.nota || '').join(' · ')}`;
+  const hayTunel = TUNEL.test(escrito);
+  const piezasDe = (p) => {
+    const c = { ...(PRODUCTOS[p.clave].componentes || {}) };
+    if (!hayTunel) delete c['Túnel de luces'];
+    return c;
+  };
+  // Lo que traen los paquetes (los que tienen varias piezas de decoración).
+  const esPaquete = (p) => /^dv_paquete_/.test(p.clave);
+  const cubierto = {};
+  for (const p of productos.filter(esPaquete)) {
+    for (const [cat, n] of Object.entries(PRODUCTOS[p.clave].componentes || {})) cubierto[cat] = (cubierto[cat] || 0) + n * p.cantidad;
+  }
+  const resultado = [];
+  for (const p of productos) {
+    if (esPaquete(p) || PRODUCTOS[p.clave].precio) { resultado.push(p); continue; }
+    const piezas = Object.entries(piezasDe(p));
+    const todas = Object.keys(PRODUCTOS[p.clave].componentes || {}).length;
+    // Era solo túnel y no se escribió "túnel": fuera.
+    if (todas && !piezas.length) continue;
+    if (piezas.length && piezas.every(([cat, n]) => (cubierto[cat] || 0) >= n * p.cantidad)) {
+      piezas.forEach(([cat, n]) => { cubierto[cat] -= n * p.cantidad; });
+      continue;
+    }
+    resultado.push(p);
+  }
+  // Túnel con marco que no cubre ningún paquete y sin "túnel" escrito: no hay
+  // clave de "marco solo", así que se quita y se avisa para que Diana lo revise.
+  return resultado.filter(p => hayTunel || !(PRODUCTOS[p.clave].componentes || {})['Túnel de luces']);
+}
+
 // Normaliza lo que dio Claude al formato de "capturar evento".
 function aCaptura(x) {
   const tel = String(x.cliente_telefono || '').replace(/\D/g, '').slice(-10);
   const lineas = (x.lineas || []).map(t => String(t).trim()).filter(Boolean).slice(0, 80);
   const limpios = (x.productos || []).filter(p => PRODUCTOS[p.clave] && p.clave !== 'otro' && p.cantidad > 0).map(p => ({ clave: p.clave, cantidad: Math.round(p.cantidad), nota: p.nota || null }));
-  const productos = ajustarManteles(sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas));
+  const productos = ajustarManteles(sinRepetirPaquete(sinMantelesDobles(personalizadosNoSePreparan(limpios, lineas, x.negocio), lineas), lineas));
   const notas = [x.numero_recibo ? `Comanda de papel Nº ${x.numero_recibo}.` : '', x.notas || ''].filter(Boolean).join(' ');
   return {
     negocio: x.negocio === 'El Vaso Maiz' ? 'El Vaso Maiz' : 'Divanna Eventos',
@@ -282,6 +324,25 @@ async function leer({ foto = null, pista = '', previo = null, correccion = '', p
   const uso = (respuesta.content || []).find(b => b.type === 'tool_use' && b.name === HERRAMIENTA.name);
   if (!uso) return { error: 'No pude leer la comanda. Intenta con una foto más clara y derecha, con buena luz.' };
   return { datos: aCaptura(uso.input) };
+}
+
+// ✏️ Diana corrige a mano lo que lleva el evento (Diana 2026-11-28): lo escrito
+// manda. Se vuelve a leer ese texto para sacar los productos del catálogo (los
+// que dan el resumen "🪑 Divanna: ...", el inventario y la carga). Con tiempo
+// límite para no pasar los 60 s de Vercel. Devuelve { productos } o { error }.
+const LIMITE_RELECTURA_MS = 25000;
+async function productosDeTexto(texto) {
+  let reloj;
+  const tiempo = new Promise(resolve => { reloj = setTimeout(() => resolve({ error: 'tardó demasiado' }), LIMITE_RELECTURA_MS); });
+  try {
+    const r = await Promise.race([leer({ pedidoTexto: texto }).catch(err => ({ error: err.message })), tiempo]);
+    if (r.error || !r.datos) return { error: r.error || 'sin datos' };
+    return { productos: r.datos.productos || [] };
+  } catch (err) {
+    return { error: err.message };
+  } finally {
+    clearTimeout(reloj);
+  }
 }
 
 // ---------- App: leer y llenar el formulario ----------
@@ -472,4 +533,4 @@ async function atenderBoton(accion, id, colaborador) {
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.`, ...(botones ? { botones } : {}) };
 }
 
-module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
+module.exports = { descargarFotoTelegram, puedeLeer, MODELO, HERRAMIENTA, leer, productosDeTexto, sinRepetirPaquete, llamarClaude, avisarFalla, aCaptura, sinMantelesDobles, personalizadosNoSePreparan, faltantes, leerParaFormulario, fotoValida, subirAdjunto, esFotoComanda, esRespuestaComanda, atenderFoto, atenderTexto, atenderCorreccion, preguntasFijas, atenderBoton, textoBorrador, MARCA };
