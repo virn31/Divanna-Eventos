@@ -627,3 +627,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 - **Logística:** con varias brigadas se muestran todos los vehículos y el vehículo no se cambia ahí (el servidor lo rechaza): se cambia en 👷 Asignar, para no borrar las otras brigadas sin querer.
 - **Por qué:** lo pidió Víctor: hay eventos grandes que necesitan varias brigadas.
 - **Alternativa descartada:** una brigada principal y "apoyos" aparte (otra columna y más reglas).
+
+## 2026-11-28 — Al editar el pedido, lo escrito manda
+
+**Decisión:** al guardar ✏️ Editar con otro texto en lo que lleva, los productos del catálogo (`EVENTOS.Productos`, resumen "🪑 Divanna: ...", inventario) se vuelven a leer de ese texto con el lector de comandas (máx. 25 s); el monto no cambia. Si la lectura falla, se guarda el texto y se avisa para revisar 🗓️ Hora y productos. Candado nuevo en la comanda (`sinRepetirPaquete`): no se repite lo que ya trae un paquete y sin la palabra "túnel" no hay túnel. EVT-463812 se corrigió a mano en Airtable (solo `dv_paquete_xv`).
+**Por qué:** Diana corregía el texto pero la tarjeta seguía mostrando lo que leyó la comanda (2 arcos, 2 marcos y un túnel que no cotizó); de 11 eventos editados a mano, 4 tenían el resumen distinto a lo escrito.
+**Descartado:** borrar los productos al editar (se pierde el conteo de inventario) o pedirle a Diana editar en dos lugares.
