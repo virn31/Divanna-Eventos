@@ -640,3 +640,9 @@ Nuevo campo `Instrucciones_Equipo` por evento: DiMa guarda lo que el cliente ind
 **Por qué:** Diana (vía Víctor): "ella le pone nombre a las cosas y se entiende; no intentes modificar cómo lo escribió". EVT-526052: "Marco cuadrado con flor cerezos blancos" salió como túnel de luces.
 **Ampliado el mismo día (Víctor):** también "Leer comanda" de la app y todo evento capturado a mano (Notas empiezan con "Evento capturado a mano").
 **Descartado:** agregar más claves al catálogo para cada nombre de Diana. **No cambia:** la DiMa de la página (pedidos de clientes).
+
+## 2026-11-28 — Anticipo de comanda por Telegram con un toque
+
+**Decisión:** al guardar una comanda por Telegram cuyo papel no dice cómo se pagó el anticipo, el bot pregunta con botones 💵 Efectivo / 🏦 Transferencia / 🏧 Depósito (`cd:ae|at|ad`) y lo registra con el monto leído del papel (mismo cobro que el cuadre: pago a Diana). Si fue otro monto, ✍️ como antes. La nota "falta registrarlo" pasa a "registrado", así un botón tocado dos veces no cobra doble.
+**Por qué:** Diana tenía que ir a la app a 💵 Registrar pago después de cada comanda (Víctor).
+**Descartado:** registrar el anticipo sin preguntar la forma (el cuadre la necesita).

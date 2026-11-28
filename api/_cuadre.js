@@ -39,6 +39,8 @@ const FECHA_INICIO = '2026-10-29';
 const TOLERANCIA = 0.5;
 const ESTADOS = { POR_ACLARAR: 'Por aclarar', CUADRADO: 'Cuadrado', DEBE: 'Debe', DESCUENTO: 'Descuento', OTRO: 'Otro' };
 const FORMAS = { e: 'Efectivo', t: 'Transferencia', d: 'Depósito' };
+// Nota que deja la comanda de Telegram cuando el anticipo no traía forma de pago (api/_comanda.js).
+const ANTICIPO_PENDIENTE = /Anticipo según la comanda: \$([\d,.]+) \(falta registrarlo[^)]*\)\./;
 // rb (Reembolso) no se anota en CAJA: el pago queda en PAGOS_REEMBOLSO y de ahí descuenta.
 const TIPOS_CAJA = { dep: 'Depósito al banco', gas: 'Gasto del negocio', ret: 'Retiro personal', ext: 'Gasto externo', rb: 'Reembolso', caja: 'Sigue en caja', var: 'Varios' };
 const MARCA_MONTO = '✍️ ¿Cuánto te pagaron y cómo? ';
@@ -595,6 +597,25 @@ async function botonCuadre(chatId, colaborador, tipo, accion, id) {
     const marca = accion === 'pm' ? `${MARCA_MONTO}${e.fields.Folio_Evento || ''} (${id})` : `${MARCA_OTRO}${e.fields.Folio_Evento || ''} (${id})`;
     await telegramApi('sendMessage', { chat_id: chatId, text: `${marca}\n${accion === 'pm' ? 'Escribe el monto y la forma, por ejemplo: 2000 efectivo' : 'Escribe qué pasó con ese dinero:'}`, reply_markup: { force_reply: true } });
     return { aviso: 'Escríbelo' };
+  }
+  // Anticipo de la comanda por Telegram (Víctor 2026-11-28): al guardar, el bot
+  // pregunta cómo lo pagaron (ae/at/ad) y lo registra con el monto que se leyó
+  // del papel. La nota "falta registrarlo" se cambia a "registrado", así un
+  // botón viejo tocado otra vez no lo cobra dos veces.
+  if (accion === 'ae' || accion === 'at' || accion === 'ad') {
+    const e = await airtable(`${TABLES.EVENTOS}/${id}`);
+    const notas = String(e.fields.Notas || '');
+    const m = ANTICIPO_PENDIENTE.exec(notas);
+    if (!m) return { aviso: 'Ese anticipo ya está registrado.', alerta: true };
+    const forma = FORMAS[accion[1]];
+    const r = await aclarar(colaborador, { eventoId: id, tipo: 'pago', monto: m[1].replace(/,/g, ''), forma });
+    if (r.error) return { aviso: r.error, alerta: true };
+    const registrado = 'Anticipo según la comanda: $' + m[1] + ' (registrado en ' + forma.toLowerCase() + ' por ' + colaborador.nombre + ').';
+    await airtable(TABLES.EVENTOS, {
+      method: 'PATCH',
+      body: JSON.stringify({ records: [{ id, fields: { Notas: notas.replace(m[0], registrado) } }] }),
+    });
+    return { aviso: 'Anticipo registrado', textoFinal: r.texto.replace('✅ Anotado:', '✅ Anticipo registrado:') };
   }
   const opciones = { pe: { tipo: 'pago', monto: 'todo', forma: FORMAS.e }, pb: { tipo: 'pago', monto: 'todo', recibio: 'brigada' }, pt: { tipo: 'pago', monto: 'todo', forma: FORMAS.t }, d: { tipo: 'debe' }, x: { tipo: 'descuento' } };
   if (!opciones[accion]) return { aviso: '' };

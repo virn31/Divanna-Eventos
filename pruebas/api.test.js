@@ -3364,11 +3364,36 @@ const ENCARG = { id: 'recCOLAB000000004', fields: { Nombre: 'Ana', Rol: 'Encarga
     const finalSinForma = telegram.filter(t => t.metodo === 'sendMessage').pop().body.text;
     ok(evSinForma.Autorizacion_Diana === 'SI' && evSinForma.Notas.includes('Anticipo según la comanda: $500')
       && !llamadas.some(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'))
-      && finalSinForma.includes('✅ Evento') && finalSinForma.includes('Registrar pago'),
+      && finalSinForma.includes('✅ Evento') && finalSinForma.includes('¿cómo lo pagaron?'),
       'comanda: Guardar sin forma de pago crea el evento y deja el anticipo para registrarlo en la app');
     const botonAnticipo = telegram.filter(t => t.metodo === 'sendMessage').pop().body.reply_markup;
-    ok(botonAnticipo && JSON.stringify(botonAnticipo).includes('cd:pm:recEVCOMANDA00002') && JSON.stringify(botonAnticipo).includes('Registrar el anticipo ($500)'),
-      'comanda: al guardar sin forma de pago, a Diana le sale "💵 Registrar el anticipo" ahí mismo (EVT-854491)');
+    ok(botonAnticipo && ['cd:ae:', 'cd:at:', 'cd:ad:', 'cd:pm:'].every(d => JSON.stringify(botonAnticipo).includes(d + 'recEVCOMANDA00002')),
+      'comanda: al guardar sin forma de pago, a Diana le salen Efectivo / Transferencia / Depósito / Otro monto ahí mismo');
+
+    // Un toque en 🏦 Transferencia registra el anticipo del papel y la nota cambia a "registrado".
+    {
+      const EV_ANT = { id: 'recEVCOMANDA00002', fields: { Folio_Evento: 'EVT-CMD2', Fecha_Evento: '2026-12-18', Monto_Estimado_IA: 2500, Negocio: 'Divanna Eventos', Autorizacion_Diana: 'SI',
+        Notas: 'Comanda de papel Nº 2679. Capturado desde foto de comanda (Telegram). Anticipo según la comanda: $500 (falta registrarlo en la app con 💵 Registrar pago).' } };
+      const botonAnt = (dato) => ({ callback_query: { id: 'cbA', data: dato, message: { message_id: 32, chat: { id: 111, type: 'private' }, text: '✅ Evento EVT-CMD2 guardado' } } });
+      reset();
+      respuestas = [{ records: [DIANA_TG] }, EV_ANT, EV_ANT, { records: [{ id: 'recCOBROANT00001' }] }, {}, {}];
+      res = resMock();
+      await telegramApi({ method: 'POST', headers: tgHeaders, body: botonAnt('cd:at:recEVCOMANDA00002') }, res);
+      const cobroAnt = llamadas.find(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV'));
+      const notaAnt = llamadas.filter(l => l.method === 'PATCH').map(l => l.body.records[0].fields.Notas).find(Boolean) || '';
+      ok(cobroAnt && cobroAnt.body.records[0].fields.Monto === 500 && cobroAnt.body.records[0].fields.Forma === 'Transferencia'
+        && notaAnt.includes('$500 (registrado en transferencia por Diana)') && !notaAnt.includes('falta registrarlo')
+        && telegram.some(t => t.metodo === 'editMessageText' && t.body.text.includes('Anticipo registrado') && t.body.text.includes('$2,000')),
+        'comanda: un toque en Transferencia registra el anticipo de $500 del papel y deja la nota como registrado');
+
+      reset();
+      const EV_YA = { ...EV_ANT, fields: { ...EV_ANT.fields, Notas: 'Anticipo según la comanda: $500 (registrado en transferencia por Diana).' } };
+      respuestas = [{ records: [DIANA_TG] }, EV_YA];
+      res = resMock();
+      await telegramApi({ method: 'POST', headers: tgHeaders, body: botonAnt('cd:ae:recEVCOMANDA00002') }, res);
+      ok(!llamadas.some(l => l.method === 'POST' && l.url.includes('tblb8ADFukpm6nRZV')),
+        'comanda: tocar otra vez el botón del anticipo no lo cobra dos veces');
+    }
 
     reset();
     respuestas = [{ records: [{ ...LIDER, fields: { ...LIDER.fields, Telegram_Chat_ID: '222' } }] }];

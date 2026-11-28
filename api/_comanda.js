@@ -547,15 +547,16 @@ async function atenderBoton(accion, id, colaborador) {
   const extras = [
     r.clienteNuevo ? 'cliente nuevo' : `cliente ya registrado: ${r.cliente}`,
     r.anticipoGuardado ? 'anticipo registrado' : '',
-    anticipoPendiente ? `anticipo de ${pesos(anticipoPendiente)} por registrar en la app con 💵 Registrar pago` : '',
+    anticipoPendiente ? `anticipo de ${pesos(anticipoPendiente)}: ¿cómo lo pagaron?` : '',
     r.recibo ? (r.recibo.ok ? 'te mandé el recibo' : `el recibo no salió: ${r.recibo.error}`) : '',
     r.google && !r.google.ok ? `⚠️ ${r.google.error}` : '',
     r.diaLleno && r.diaLleno.lleno ? `📅 ese día quedó LLENO (${r.diaLleno.detalle})` : '',
   ].filter(Boolean).join(' · ');
-  // Anticipo sin forma de pago: Diana o Víctor lo registran aquí mismo (mismo flujo que
-  // "✍️ Otro monto" del cuadre: escriben "1000 efectivo"). Víctor 2026-11-18.
+  // Anticipo sin forma de pago (Víctor 2026-11-28): un toque y queda registrado con
+  // el monto del papel (cd:ae|at|ad en _cuadre.js). Si fue otro monto, ✍️ como antes.
   const botones = anticipoPendiente && colaborador.rol === ROLES.ADMIN
-    ? [[{ texto: `💵 Registrar el anticipo (${pesos(anticipoPendiente)})`, dato: `cd:pm:${r.eventoId}` }]] : null;
+    ? [[{ texto: '💵 Efectivo', dato: `cd:ae:${r.eventoId}` }, { texto: '🏦 Transferencia', dato: `cd:at:${r.eventoId}` }],
+      [{ texto: '🏧 Depósito', dato: `cd:ad:${r.eventoId}` }, { texto: '✍️ Fue otro monto', dato: `cd:pm:${r.eventoId}` }]] : null;
   return { aviso: 'Evento guardado', texto: `✅ Evento ${r.folio} guardado (${extras}). Ya está en el calendario; falta asignarle brigada en el dashboard.`, ...(botones ? { botones } : {}) };
 }
 
