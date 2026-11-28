@@ -28,21 +28,22 @@ Víctor dice **"cerrar"** al terminar el día y **"continuar"** al día siguient
 
 ## Estado
 
-**Actualizado:** 2026-11-23 · **Rama de Estado:** `main` · **Producción:** `main` en `a915278`. **706 pruebas pasan.**
+**Actualizado:** 2026-11-28 · **Rama de Estado:** `main` · **Producción:** `main` en `a498841`. **716 pruebas pasan.**
 
-**Hecho el 2026-11-23** (detalle en `docs/decisiones.md`):
-- Paquetes de El Vaso Maíz vigentes desde hoy (flyers de Drive / Paquetes, Vaso Maíz): 6 paquetes, Paquete Paletas, Mini Hotcakes y elote de 30 a $1,600. Los paquetes anteriores (`vm_paquete_1..5`) quedan retirados, sin borrarse, para no cambiar las comandas que ya los traen. Página, catálogo, comanda y fotos de `paquetes/` actualizados.
-- Dirección: la buena es 3926. **Pendiente de Diana:** corregir el 2993 en los flyers "Nuestros Paquetes" y "Sabritas Preparadas" (en Drive y en `paquetes/`).
-- Galería / elvasomaiz: 5 fotos nuevas (`vamosmaiz 1-5`), ya visibles en producción. DiMa las lee hasta que alguien use el chat (8 imágenes pendientes de lectura al cierre).
-
-- Mesa con 10 sillas Jardinera: **$250** (antes $220; mesa sola para cambio de silla $100). Los paquetes navideños (flyers de Drive) y los paquetes de mesas por personas no cambian. EVT-759399 (Pedro Rentería) ya se había cobrado bien: $310.
-- Tono de DiMa (Víctor): de tú, "informal pero no tanto": sin "ahí te van", "nomás", "ahorita"; frases que introducen la información; cada cantidad con su palabra ("50 personas son $4,000", no "50 son").
-- **Acceso nuevo:** el push a `main` ya funciona desde Claude (antes se negaba). El conector de Airtable de claude.ai sí entra a la base DiMa OS (`appkpCfDADzQJ5G9H`), aunque el token local dé 403. El conector de Google Drive de claude.ai NO ve la carpeta: usar `herramientas-dima/drive.js`, `lecturas.js` y `bajar-fotos.js`.
+**Hecho el 2026-11-28** (sesión en la nube; detalle en `docs/decisiones.md`, 3 entradas de esa fecha):
+- Diana no podía corregir EVT-463812: la tarjeta (resumen "🪑 Divanna") y el inventario salían de los productos que adivinó la comanda (2 arcos, 2 marcos y un túnel de luces que no cotizó) y ✏️ Editar no los cambiaba. De 11 eventos editados a mano, 4 tenían el resumen distinto a lo escrito (EVT-596148, EVT-675139 y EVT-543721 ya pasaron; no se tocaron).
+- **Tal cual:** lo que el equipo captura a mano (comanda por Telegram, Leer comanda de la app, formulario del calendario) se copia exactamente como lo escribió Diana; en Divanna solo mobiliario y vajilla pasan al catálogo (`CLAVES_TAL_CUAL` en `_comanda.js`); decoración, paquetes y cambios de mantel se quedan en el texto; lo que no se entienda, DiMa lo pregunta. La tarjeta del dashboard muestra sus renglones (`resumenTalCual`). Al editar el pedido se vuelve a leer (máx. 25 s) y el monto no cambia. La DiMa de la página no cambia.
+- Candado general en la comanda (`sinRepetirPaquete`): no repite lo que trae un paquete y sin "túnel" escrito no hay túnel.
+- **Anticipo por Telegram con un toque:** al guardar la comanda, botones Efectivo / Transferencia / Depósito (`cd:ae|at|ad` en `_cuadre.js`) registran el monto del papel; ✍️ para otro monto. La nota pasa a "registrado" (no cobra doble).
+- Datos corregidos a mano en Airtable: EVT-463812 y EVT-526052 sin productos de catálogo y con el resumen tal cual (el dinero no se tocó). Su evento de Google Calendar puede seguir con la descripción vieja hasta el siguiente cambio del evento.
+- Caché de la app: `dima-brigadas-v51`.
 
 **Siguientes pasos:**
-1. Diana sube los 2 flyers corregidos (3926) → reemplazar `paquetes/vasomaiz-paquetes-1-a-6.jpg` y `paquetes/vasomaiz-sabritas-preparadas.jpg` (achicar con `herramientas-dima/achicar.ps1`, 1200 px).
-2. Confirmar que DiMa ya leyó las 8 imágenes nuevas (`node lecturas.js`): se leen cuando alguien usa el chat.
-3. Siguen los pendientes del 2026-11-11 (abajo).
+1. Confirmar con Diana la próxima comanda por Telegram: renglones tal cual, preguntas de DiMa y botones del anticipo. No se pudo ver el despliegue de Vercel desde la nube (el conector dio 403).
+2. Revisar que la relectura al editar no pase de los 60 s de Vercel en un pedido largo.
+3. Si Diana quiere que El Vaso Maíz también vaya tal cual: hoy sigue por catálogo porque de ahí sale la lista de producción.
+4. Pendientes del 2026-11-23: Diana sube los 2 flyers corregidos (3926) → reemplazar `paquetes/vasomaiz-paquetes-1-a-6.jpg` y `paquetes/vasomaiz-sabritas-preparadas.jpg`; confirmar que DiMa leyó las 8 imágenes nuevas (`node lecturas.js`).
+5. Siguen los pendientes del 2026-11-11 (abajo).
 
 **Lo anterior (2026-11-11):**
 
